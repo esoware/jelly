@@ -10,6 +10,10 @@ Use `just`. `just --list` shows every recipe. Run `just ready` before you call a
 - There are no frontend tests.
 - `just dev` runs the app. Only when the user asks.
 
+## Commits and pull requests
+
+Every commit message, PR title, and PR description follows [CONTRIBUTING.md](CONTRIBUTING.md#commits-and-pull-requests).
+
 ## Everywhere
 
 ### Money never touches a float
