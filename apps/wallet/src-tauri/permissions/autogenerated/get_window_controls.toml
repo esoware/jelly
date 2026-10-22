@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-window-controls"
+description = "Enables the get_window_controls command without any pre-configured scope."
+commands.allow = ["get_window_controls"]
+
+[[permission]]
+identifier = "deny-get-window-controls"
+description = "Denies the get_window_controls command without any pre-configured scope."
+commands.deny = ["get_window_controls"]

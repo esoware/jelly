@@ -38,7 +38,8 @@ function refuseDrop(event: DragEvent): void {
 }
 
 function refuseSelectAll(event: KeyboardEvent): void {
-  const isSelectAll = event.ctrlKey && (event.code === "KeyA" || event.key.toLowerCase() === "a")
+  const isSelectAll =
+    (event.ctrlKey || event.metaKey) && (event.code === "KeyA" || event.key.toLowerCase() === "a")
   if (isSelectAll && !isEditable(event.target)) {
     event.preventDefault()
   }
@@ -98,7 +99,12 @@ function Providers({ client, children }: ProvidersProps) {
 
 refuseBrowserInput()
 try {
-  document.documentElement.dataset["backdrop"] = await appCommands.windowBackdrop()
+  const [backdrop, windowControls] = await Promise.all([
+    appCommands.windowBackdrop(),
+    appCommands.windowControls(),
+  ])
+  document.documentElement.dataset["backdrop"] = backdrop
+  document.documentElement.dataset["windowControls"] = windowControls
 } catch (error) {
   reportError(error)
 }

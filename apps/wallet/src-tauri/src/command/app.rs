@@ -5,7 +5,7 @@ use tauri::{AppHandle, State};
 
 use crate::error::IpcError;
 use crate::state::{AppState, StartupStatus};
-use crate::window::WindowBackdrop;
+use crate::window::{WINDOW_CONTROLS, WindowBackdrop, WindowControls};
 
 /// Asset scale and symbol come from `AssetMeta`.
 /// Templates use `{index}`, `{txid}`, and `{address}` placeholders.
@@ -101,6 +101,12 @@ pub(crate) async fn get_window_backdrop(
     backdrop: State<'_, WindowBackdrop>,
 ) -> Result<WindowBackdrop, IpcError> {
     Ok(*backdrop)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn get_window_controls() -> Result<WindowControls, IpcError> {
+    Ok(WINDOW_CONTROLS)
 }
 
 #[tauri::command]
