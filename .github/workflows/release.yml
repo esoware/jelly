@@ -1,0 +1,155 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    name: Check the version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fail if the tag doesn't match the workspace version
+        if: github.ref_type == 'tag'
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match version $version in Cargo.toml."
+            exit 1
+          fi
+
+  build:
+    name: Build for ${{ matrix.platform }}
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: target/x86_64-pc-windows-msvc/release/jelly.exe
+          - platform: windows-arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            artifact: target/aarch64-pc-windows-msvc/release/jelly.exe
+          - platform: macos-x64
+            runner: macos-latest
+            target: x86_64-apple-darwin
+            artifact: target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+          - platform: macos-arm64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+            artifact: target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          - platform: linux-x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            artifact: |
+              target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
+              target/x86_64-unknown-linux-gnu/release/bundle/rpm/*.rpm
+              target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            apprun-sha256: f30140a43a0a59e46db21bdefdf749b9e9f2c6946e92afabbacf98b8ae73fb4f
+            linuxdeploy-sha256: 36a2d7e274d12e1050d0e9ecfe11d339ed54720b2bec464c286d53f8b07f5c62
+            appimage-plugin-sha256: 992d502a248e14ab185448ddf6f6e7d25558cb84d4623c354c3af350c25fccb3
+          - platform: linux-arm64
+            runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            artifact: |
+              target/aarch64-unknown-linux-gnu/release/bundle/deb/*.deb
+              target/aarch64-unknown-linux-gnu/release/bundle/rpm/*.rpm
+              target/aarch64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            apprun-sha256: 072f17c0895a85c490282fe5395c5007e5fc75da727e553b3b8fb680feb11578
+            linuxdeploy-sha256: 556ab80baa98e600aa80f0dcedfb70bca0e1ce7e9f147fb345be3fcc3e91b2b1
+            appimage-plugin-sha256: 83c292149274965a865dcd44c135cfca8ba28c6b7de3eb628d4b8b5f248af17c
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          rust-cache: false
+          tools: just
+
+      # Tauri downloads any AppImage tool missing from its cache without checking a hash, and takes
+      # the AppImage plugin from a release tag that upstream overwrites. Verified copies placed there
+      # first mean Tauri downloads nothing.
+      - name: Fetch the pinned AppImage tools
+        if: runner.os == 'Linux'
+        env:
+          APPRUN_SHA256: ${{ matrix.apprun-sha256 }}
+          LINUXDEPLOY_SHA256: ${{ matrix.linuxdeploy-sha256 }}
+          APPIMAGE_PLUGIN_SHA256: ${{ matrix.appimage-plugin-sha256 }}
+        run: |
+          arch=$(uname -m)
+          tools="${XDG_CACHE_HOME:-$HOME/.cache}/tauri"
+          mkdir -p "$tools"
+          cd "$tools"
+          curl -fsSL -o "AppRun-$arch" "https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-$arch"
+          curl -fsSL -o "linuxdeploy-07333c6-$arch.AppImage" "https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy-07333c6/linuxdeploy-$arch.AppImage"
+          curl -fsSL -o linuxdeploy-plugin-appimage.AppImage "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-appimage-$arch.AppImage"
+          sha256sum --check --strict <<EOF
+          $APPRUN_SHA256  AppRun-$arch
+          $LINUXDEPLOY_SHA256  linuxdeploy-07333c6-$arch.AppImage
+          $APPIMAGE_PLUGIN_SHA256  linuxdeploy-plugin-appimage.AppImage
+          EOF
+          chmod +x "AppRun-$arch" "linuxdeploy-07333c6-$arch.AppImage" linuxdeploy-plugin-appimage.AppImage
+
+      - name: Build
+        run: just build --target ${{ matrix.target }}
+
+      - name: Fail if Tauri fetched an AppImage tool that isn't pinned
+        if: runner.os == 'Linux'
+        run: |
+          arch=$(uname -m)
+          expected="AppRun-$arch linuxdeploy-07333c6-$arch.AppImage linuxdeploy-plugin-appimage.AppImage linuxdeploy-plugin-gstreamer.sh linuxdeploy-plugin-gtk.sh"
+          actual=$(LC_ALL=C ls "${XDG_CACHE_HOME:-$HOME/.cache}/tauri" | xargs)
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::Tauri's tool cache holds $actual. Pin the tools this Tauri version downloads."
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: jelly-${{ matrix.platform }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error
+
+  release:
+    name: Draft the release
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: artifacts
+
+      # Both Windows builds are named jelly.exe, so they get the names Tauri gives the other bundles.
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          mv artifacts/jelly-windows-x64/jelly.exe "artifacts/Jelly_${version}_x64.exe"
+          mv artifacts/jelly-windows-arm64/jelly.exe "artifacts/Jelly_${version}_arm64.exe"
+          find artifacts -type f -print0 |
+            xargs -0 gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes
