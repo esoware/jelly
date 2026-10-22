@@ -12,7 +12,7 @@ Use `just`. `just --list` shows every recipe. Run `just ready` before you call a
 
 ## Commits and pull requests
 
-Every commit message, PR title, and PR description follows [CONTRIBUTING.md](CONTRIBUTING.md#commits-and-pull-requests).
+Commit messages, PR titles, PR descriptions, and merges follow [CONTRIBUTING.md](CONTRIBUTING.md#commits-and-pull-requests).
 
 ## Everywhere
 
