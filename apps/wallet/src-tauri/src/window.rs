@@ -6,6 +6,8 @@ use std::time::Duration;
 
 use jelly_core::wire_enum;
 use specta::Type;
+#[cfg(target_os = "macos")]
+use tauri::TitleBarStyle;
 #[cfg(windows)]
 use tauri::WebviewWindow;
 use tauri::webview::{Color, DownloadEvent, NewWindowResponse};
@@ -40,6 +42,23 @@ wire_enum! {
         Solid => "solid",
     }
 }
+
+wire_enum! {
+    #[derive(Type)]
+    /// Who draws the buttons that minimize, maximize, and close the window.
+    pub(crate) enum WindowControls {
+        /// The page draws them at the right end of its title bar.
+        Page => "page",
+        /// The system draws them over the left end of the page's title bar, so the page
+        /// leaves that end clear.
+        System => "system",
+    }
+}
+
+/// macOS users expect the system's buttons at the top left. Elsewhere the window has no
+/// frame, so the page draws its own.
+pub(crate) const WINDOW_CONTROLS: WindowControls =
+    if cfg!(target_os = "macos") { WindowControls::System } else { WindowControls::Page };
 
 /// Builds the main window in code, so it can refuse navigation, new windows, and downloads.
 ///
@@ -77,6 +96,9 @@ pub(crate) fn open_main(app: &App) -> Result<(), AppError> {
     // that can get a backdrop layer is made transparent.
     #[cfg(windows)]
     let builder = builder.transparent(jelly_win32::is_backdrop_supported());
+    #[cfg(target_os = "macos")]
+    let builder =
+        builder.decorations(true).title_bar_style(TitleBarStyle::Overlay).hidden_title(true);
     let window = builder.build()?;
     #[cfg(windows)]
     reload_after_crash(&window)?;

@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ready:
+    name: Ready on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: Windows
+            runner: windows-latest
+          - os: macOS
+            runner: macos-latest
+          - os: Linux
+            runner: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          cache-key: ready
+          tools: just,cargo-nextest,cargo-deny
+
+      - name: Run just ready
+        if: runner.os != 'Linux'
+        run: just ready
+
+      # The vault's keychain test needs a Secret Service, and a runner has no desktop
+      # session to provide one.
+      - name: Run just ready with a Secret Service
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y --no-install-recommends gnome-keyring
+          dbus-run-session -- bash -c 'echo -n ci | gnome-keyring-daemon --unlock --components=secrets && just ready'
+
+      - name: Fail if just ready changed a file
+        run: git diff --exit-code
+
+  build:
+    name: Build for ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - platform: windows-arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+          - platform: macos-x64
+            runner: macos-latest
+            target: x86_64-apple-darwin
+          - platform: macos-arm64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+          - platform: linux-x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - platform: linux-arm64
+            runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          cache-key: ${{ matrix.target }}
+          tools: just
+
+      - name: Build
+        run: just build --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: jelly-${{ matrix.platform }}
+          path: target/${{ matrix.target }}/release/jelly${{ runner.os == 'Windows' && '.exe' || '' }}
+          if-no-files-found: error

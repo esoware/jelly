@@ -239,6 +239,7 @@ export const commands = {
 	/**  Saves a replacement proxy without starting networking. Reopen Jelly afterward. */
 	repairProxy: (proxy: { kind: "system" } | { kind: "socks5h"; url: string } | { kind: "http"; url: string } | null) => typedError<null, IpcError>(__TAURI_INVOKE("repair_proxy", { proxy })),
 	getWindowBackdrop: () => typedError<WindowBackdrop, IpcError>(__TAURI_INVOKE("get_window_backdrop")),
+	getWindowControls: () => typedError<WindowControls, IpcError>(__TAURI_INVOKE("get_window_controls")),
 	listChainMetadata: () => typedError<ChainMeta[], IpcError>(__TAURI_INVOKE("list_chain_metadata")),
 	/**  Includes the decimals used to display amounts. */
 	listAssetMetadata: () => typedError<AssetMeta[], IpcError>(__TAURI_INVOKE("list_asset_metadata")),
@@ -1082,6 +1083,16 @@ export type WindowBackdrop =
 "composed" | 
 /**  The window paints the canvas, and so does the page. */
 "solid";
+
+/**  Who draws the buttons that minimize, maximize, and close the window. */
+export type WindowControls = 
+/**  The page draws them at the right end of its title bar. */
+"page" | 
+/**
+ *  The system draws them over the left end of the page's title bar, so the page
+ *  leaves that end clear.
+ */
+"system";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

@@ -10,9 +10,20 @@ alias r := ready
 alias t := test
 alias f := fmt
 
-# Install cargo-nextest and cargo-deny
+# Install the frontend packages, cargo-nextest, and cargo-deny
 init:
+  pnpm install
   cargo install cargo-nextest cargo-deny --locked
+
+# Run the app with the frontend served by Vite
+dev:
+  pnpm --filter jelly-wallet tauri dev
+
+# Build the release app, or pass tauri build args like --target aarch64-apple-darwin or --debug
+build *args:
+  pnpm --filter jelly-wallet tauri build {{args}}
+
+# CI runs this on every OS and fails if it leaves any file changed.
 
 # Run fmt, clippy, oxlint, knip, tsc, the tests, and cargo-deny
 ready:
@@ -40,6 +51,10 @@ fmt:
 # Clippy with zero warnings allowed
 lint *args:
   cargo clippy --workspace --all-targets --all-features --keep-going --config "build.warnings='deny'" {{args}} -- --cap-lints warn
+
+# Apply oxlint's fixes and suggestions, such as canonical Tailwind classes
+lint-fix:
+  pnpm lint:fix
 
 # Check advisories, bans, and sources
 deny:

@@ -39,6 +39,10 @@ pub fn run() -> Result<(), AppError> {
     );
 
     let ipc = surface::builder();
+    #[expect(
+        clippy::large_stack_frames,
+        reason = "the frame is Tauri's generated context, which grows with every command's permissions"
+    )]
     let context = tauri::generate_context!();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|handle, _args, _cwd| {
