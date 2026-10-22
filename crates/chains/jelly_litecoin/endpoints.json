@@ -1,0 +1,76 @@
+{
+  "chain": "litecoin",
+  "note": "Public Fulcrum and ElectrumX-LTC servers, drawn from the electrum-ltc default list, the Cake Wallet and Stack Wallet lists, and known community servers, each verified with server.version, server.features reporting Litecoin's block zero, a blockchain.headers.subscribe tip read, and a batch of history reads over TLS. The protocol is the same as Bitcoin Electrum; only the network constants and the address encoding differ. Servers that failed to answer, refused the connection, or reported a tip days behind the network at verification time are omitted, and Fulcrum is listed ahead of older ElectrumX builds. The fee API row is the litecoinspace REST service.",
+  "endpoints": [
+    {
+      "url": "ssl://ltc-electrum.cakewallet.com:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate, Cake Wallet infrastructure"
+    },
+    {
+      "url": "ssl://electrum.jochen-hoenicke.de:50091",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://0xrpc.io:60002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://electrum-ltc.petrkr.net:60002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://cryptod.bruijn.nu:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://fallacy.fiatfaucet.com:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.0, CA-valid certificate"
+    },
+    {
+      "url": "ssl://litecoin.stackwallet.com:20063",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 1.9, CA-valid certificate, Stack Wallet infrastructure"
+    },
+    {
+      "url": "ssl://electrum2.cipig.net:20063",
+      "transport": "electrum_ssl",
+      "note": "ElectrumX 2.0, CA-valid certificate"
+    },
+    {
+      "url": "ssl://electrum1.cipig.net:20063",
+      "transport": "electrum_ssl",
+      "note": "ElectrumX 2.0, CA-valid certificate"
+    },
+    {
+      "url": "ssl://backup.electrum-ltc.org:443",
+      "transport": "electrum_ssl",
+      "note": "ElectrumX on 443, self-signed certificate"
+    },
+    {
+      "url": "ssl://ltc.aftrek.org:50002",
+      "transport": "electrum_ssl",
+      "note": "ElectrumX, self-signed certificate"
+    },
+    {
+      "url": "ssl://electrum-ltc.bysh.me:50002",
+      "transport": "electrum_ssl",
+      "note": "ElectrumX, self-signed certificate"
+    },
+    {
+      "url": "ssl://electrum.ltc.xurious.com:50002",
+      "transport": "electrum_ssl",
+      "note": "ElectrumX, self-signed certificate"
+    },
+    {
+      "url": "https://litecoinspace.org/api",
+      "transport": "fee_api",
+      "note": "Litecoin Space fee and mempool REST API"
+    }
+  ]
+}

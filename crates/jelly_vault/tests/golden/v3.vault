@@ -1,0 +1,24 @@
+{
+  "magic": "jelly-vault",
+  "format_version": 3,
+  "wallet_id": "jelly-golden-wallet",
+  "kdf": {
+    "algorithm": "argon2id",
+    "version": 19,
+    "m_cost_kib": 19456,
+    "t_cost": 2,
+    "p_cost": 1,
+    "salt": "f5a1c6008ac41519e065af1dc82fdad5"
+  },
+  "hkdf": {
+    "hash": "sha256",
+    "salt": "7a1fc2fea8705104b62c7a0622dbb8e2cdda198b06ba49e7119fa68a0bf40d87"
+  },
+  "aead": {
+    "algorithm": "xchacha20poly1305",
+    "nonce": "f115457f9041eeef33a28b3a41d3cd1c7c804cea2b6954de"
+  },
+  "commitment": "3440f515cef4ddf01b1833ca117d450cfca93c33eb16e8950d6b55442e5c9dbc",
+  "ciphertext": "747d57b2f27618b3a8c4edc4891695a477391c627ff65ac2163e45939e2283e99b335df091ca7f16176e114c9aa4d4377609429f9c81372be85a5f9801c153b71f867ff82e02338bad577050afb173e0dd2bb6ac5fa523eb68f3435f1172d1eaa65699416cf837e233d98480e294b7a2b4e3cb0d7cceae4630a6e1453abf21aeddb10c03f7b46bc96d7c05d1196e693673d1283bad156dccf7e31d1fe8d35f3af6639f83dba956b02c052ed2cb8008d08611fbef699761e87f33cfbf1cd8390c8cca7da6c62e9acc6227c0334575ad72b63f0ffbee8234c383d22f966bc5d610c806d89828ea113566d3a9ab0660510e1ba5102514c741d8544546f83f782d81c0dcdfa1bec379788b7bec34b80013865e8334126f08a9fe145e37671d981040bb8601fa0750bd793d7a6ad39d005907f0d742bb6fe93bc06747964c5843a8c6cbe42985e0",
+  "header_tag": "26ffa71d4c45d8c6c019261c63f4014b7fb0c3509d2d32568ab78aebd2c45724"
+}

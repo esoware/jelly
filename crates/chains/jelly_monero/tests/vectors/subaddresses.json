@@ -1,0 +1,50 @@
+{
+  "_source": "Published wallet2 output from knaccc/subaddress-js test/index.test.js, corroborated by the monero-oxide monero-address test constants. The integrated address and its payment ID are the monero-address 0.1.0 PAYMENT_ID and INTEGRATED test constants. Rows with crossChecked true have no published source and were reproduced by an independent implementation.",
+  "spendKey": "8d8c8eeca38ac3b46aa293fd519b3860e96b5f873c12a95e3e1cdeda0bac4903",
+  "viewKey": "99c57d1f0f997bc8ca98559a0ccc3fada3899756e63d1516dba58b7e468cfc05",
+  "publicSpend": "f8631661f6ab4e6fda310c797330d86e23a682f20d5bc8cc27b18051191f16d7",
+  "publicView": "4a1535063ad1fee2dabbf909d4fd9a873e29541b401f0944754e17c9a41820ce",
+  "primary": "4B33mFPMq6mKi7Eiyd5XuyKRVMGVZz1Rqb9ZTyGApXW5d1aT7UBDZ89ewmnWFkzJ5wPd2SFbn313vCT8a4E2Qf4KQH4pNey",
+  "integrated": {
+    "paymentId": "b8963a57855cf73f",
+    "address": "4Ljin4CrSNHKi7Eiyd5XuyKRVMGVZz1Rqb9ZTyGApXW5d1aT7UBDZ89ewmnWFkzJ5wPd2SFbn313vCT8a4E2Qf4KbaTH6MnpXSn88oBX35"
+  },
+  "rows": [
+    {
+      "major": 0,
+      "minor": 1,
+      "address": "8C5zHM5ud8nGC4hC2ULiBLSWx9infi8JUUmWEat4fcTf8J4H38iWYVdFmPCA9UmfLTZxD43RsyKnGEdZkoGij6csDeUnbEB",
+      "crossChecked": false
+    },
+    {
+      "major": 0,
+      "minor": 256,
+      "address": "883z7xonbVBGXpsatJZ53vcDiXQkrkTHUHPxrdrHXiPnZY8DMaYJ7a88C5ovncy5zHWkLc2cQ2hUoaKYCjFtjwFV4vtcpiF",
+      "crossChecked": false
+    },
+    {
+      "major": 256,
+      "minor": 1,
+      "address": "87X4ksVMRv2UGhHcgVjY6KJDjqP9S4zrCNkmomL1ziQVeZXF3RXbAx7i2rRt3UU5eXDzG9TWZ6Rk1Fyg6pZrAKQCNfLrSne",
+      "crossChecked": false
+    },
+    {
+      "major": 256,
+      "minor": 256,
+      "address": "86gYdT7yqDJUXegizt1vbF3YKz5qSYVaMB61DFBDzrpVEpYgDbmuXJbXE77LQfAygrVGwYpw8hxxx9DRTiyHAemA8B5yBAq",
+      "crossChecked": false
+    },
+    {
+      "major": 1,
+      "minor": 0,
+      "address": "8BmFEhoz4GS3f99cbF83fiUuaxKB63gfXbw5JJTmNDFp4QNFhpShgg1Z3vcZxi4ASHcBZvNHKUh4jHxpBocEhSTPFHmHvZG",
+      "crossChecked": true
+    },
+    {
+      "major": 1,
+      "minor": 1,
+      "address": "85GSHA8XZiziUkHiBghJgR172q5muRk8VWFdLk4qUDuaTQ4nwFD41woLH66A9XpBm3eaWqUbJ8ph71ZgSHqU9fkUGikgpdV",
+      "crossChecked": true
+    }
+  ]
+}

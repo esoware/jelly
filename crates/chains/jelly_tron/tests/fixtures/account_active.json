@@ -1,0 +1,13 @@
+{
+  "_recorded": "Recorded from https://api.trongrid.io on 2026-08-13 for TWd4WrZ9wn84f5x1hZhL4DHvk738ns5jwb.",
+  "address": "TWd4WrZ9wn84f5x1hZhL4DHvk738ns5jwb",
+  "balance": 2061293364479502,
+  "create_time": 1542274980000,
+  "account_resource": {
+    "latest_consume_time_for_energy": 1786362165000,
+    "energy_window_size": 28800000,
+    "acquired_delegated_frozenV2_balance_for_energy": 2000000,
+    "energy_window_optimized": true
+  },
+  "net_window_size": 28800000
+}

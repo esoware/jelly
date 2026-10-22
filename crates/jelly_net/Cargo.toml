@@ -1,0 +1,45 @@
+[package]
+name         = "jelly_net"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+ipc = ["dep:specta", "jelly_core/ipc"]
+# A test network, an in-memory websocket server, and unthrottled runtimes for tests.
+# Enable only from [dev-dependencies].
+test-util = ["jelly_core/test-util"]
+
+[dependencies]
+jelly_core = { workspace = true }
+
+arc-swap          = { workspace = true }
+async-trait       = { workspace = true }
+base64            = { workspace = true }
+futures-util      = { workspace = true }
+hex               = { workspace = true }
+parking_lot       = { workspace = true }
+percent-encoding  = { workspace = true }
+reqwest           = { workspace = true }
+rustls            = { workspace = true }
+serde             = { workspace = true }
+serde_json        = { workspace = true }
+sha2              = { workspace = true }
+specta            = { workspace = true, optional = true }
+thiserror         = { workspace = true }
+tokio             = { workspace = true, features = ["net", "io-util"] }
+tokio-rustls      = { workspace = true }
+tokio-tungstenite = { workspace = true }
+tracing           = { workspace = true }
+url               = { workspace = true }
+webpki-roots      = { workspace = true }
+
+[dev-dependencies]
+jelly_core = { workspace = true, features = ["test-util"] }
+jelly_net  = { workspace = true, features = ["test-util"] }
+tokio      = { workspace = true, features = ["test-util"] }

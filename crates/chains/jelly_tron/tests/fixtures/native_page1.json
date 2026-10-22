@@ -1,0 +1,81 @@
+{
+  "_derived": "Page one of the native history of TR5NMmWJ9UJvut6hBmrre4Gz28Ez4C1XPK. The envelope (data, success, meta.fingerprint, meta.page_size) has the shape recorded from api.trongrid.io on 2026-08-13, and both rows are mainnet transactions recorded that day. Row one is a46244ab, which tests/fixtures/tx_trx.json holds in full. Row two is 45bd08f4, and its raw_data object is the decoding of its own raw_data_hex, which is the authority. The fingerprint is a placeholder, because this build treats it as an opaque token and hands it back verbatim.",
+  "data": [
+    {
+      "ret": [{ "contractRet": "SUCCESS", "fee": 0 }],
+      "signature": [
+        "b610a8e0e95c967115f470abc1807c4645e04c2c1c0b265214840e5105c752f2533652fa8a366a8f52d0c21b75bae8ffe4521be310c481a9e7ed6f9db6dd4cd901"
+      ],
+      "txID": "a46244abb4be3f4247c538712715c41476b5b0b0f515f657c6acd76b67674bc8",
+      "net_usage": 265,
+      "raw_data_hex": "0a02a63d2208437d27f93863a48840a08fc3c6ff335a65080112610a2d747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e5472616e73666572436f6e747261637412300a1541a5b43182dad15ff0b707d829ffa67b1af6719483121541df0c86c531205eb7a4e27d9589ba7188dfb32f08180770b1cfbfc6ff33",
+      "net_fee": 0,
+      "energy_usage": 0,
+      "blockNumber": 85304913,
+      "block_timestamp": 1786585806000,
+      "energy_fee": 0,
+      "energy_usage_total": 0,
+      "raw_data": {
+        "contract": [
+          {
+            "parameter": {
+              "value": {
+                "amount": 7,
+                "owner_address": "41a5b43182dad15ff0b707d829ffa67b1af6719483",
+                "to_address": "41df0c86c531205eb7a4e27d9589ba7188dfb32f08"
+              },
+              "type_url": "type.googleapis.com/protocol.TransferContract"
+            },
+            "type": "TransferContract"
+          }
+        ],
+        "ref_block_bytes": "a63d",
+        "ref_block_hash": "437d27f93863a488",
+        "expiration": 1786585860000,
+        "timestamp": 1786585802673
+      },
+      "internal_transactions": []
+    },
+    {
+      "ret": [{ "contractRet": "SUCCESS", "fee": 0 }],
+      "signature": [
+        "8f4c83e18689a51bd3016b51f92a4dba10a1766aade79a1ac2e7174bc6477b5e4fed4c648459217fbb9a3a622162ce32caa944a328811f798aa7cbd03946821801"
+      ],
+      "txID": "45bd08f4d3c67b4c2e162000459f8125a445d6c9a74ba2d96ae9f886617d9385",
+      "net_usage": 265,
+      "raw_data_hex": "0a024a0d220826d52ddca60d1fec40a897e0a4ff335a65080112610a2d747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e5472616e73666572436f6e747261637412300a1541a5b43182dad15ff0b707d829ffa67b1af671948312154125883a7c842f157d3a4cbea1976c92591d674d16180370c4cfdca4ff33",
+      "net_fee": 0,
+      "energy_usage": 0,
+      "blockNumber": 85281312,
+      "block_timestamp": 1786514976000,
+      "energy_fee": 0,
+      "energy_usage_total": 0,
+      "raw_data": {
+        "contract": [
+          {
+            "parameter": {
+              "value": {
+                "amount": 3,
+                "owner_address": "41a5b43182dad15ff0b707d829ffa67b1af6719483",
+                "to_address": "4125883a7c842f157d3a4cbea1976c92591d674d16"
+              },
+              "type_url": "type.googleapis.com/protocol.TransferContract"
+            },
+            "type": "TransferContract"
+          }
+        ],
+        "ref_block_bytes": "4a0d",
+        "ref_block_hash": "26d52ddca60d1fec",
+        "expiration": 1786515033000,
+        "timestamp": 1786514974660
+      },
+      "internal_transactions": []
+    }
+  ],
+  "success": true,
+  "meta": {
+    "at": 1786586066075,
+    "fingerprint": "2NativePageOneFingerprintMarker111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+    "page_size": 2
+  }
+}

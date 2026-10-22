@@ -1,0 +1,309 @@
+{
+  "_recorded": "Etherscan v2 pages for one address in the shape the service returns, with placeholder hashes. The txlist page ends with a failed transaction, which the service marks with isError 1. The tokentx page carries one transfer of a contract outside the registry and one whose value is not a number. txlist_refund is a send of 1 ETH to a router, and the first txlistinternal row is the 0.3 ETH the router paid back inside the same transaction; the rest of that page is a payout from a contract in a transaction the address did not send, a contract creation that does not involve the address, and a failed call. context_calls holds the three call types that run in their caller's context, then an ordinary call. free_tier_chain is the refusal Etherscan documents at docs.etherscan.io/resources/common-error-messages for a free key asked about a chain only paid plans cover, such as BNB Smart Chain under chainid 56, wrapped in the documented NOTOK envelope.",
+  "txlist": {
+    "status": "1",
+    "message": "OK",
+    "result": [
+      {
+        "blockNumber": "18000000",
+        "timeStamp": "1692000000",
+        "hash": "0x66d9d4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
+        "nonce": "3",
+        "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000001",
+        "transactionIndex": "5",
+        "from": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+        "to": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "value": "1000000000000000000",
+        "gas": "21000",
+        "gasPrice": "20000000000",
+        "isError": "0",
+        "txreceipt_status": "1",
+        "input": "0x",
+        "cumulativeGasUsed": "1000000",
+        "gasUsed": "21000",
+        "confirmations": "120"
+      },
+      {
+        "blockNumber": "18000005",
+        "timeStamp": "1692000060",
+        "hash": "0x77d9d4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
+        "nonce": "4",
+        "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000006",
+        "transactionIndex": "1",
+        "from": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "to": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+        "value": "500000000000000000",
+        "gas": "21000",
+        "gasPrice": "20000000000",
+        "isError": "1",
+        "txreceipt_status": "0",
+        "input": "0x",
+        "cumulativeGasUsed": "1000000",
+        "gasUsed": "21000",
+        "confirmations": "115"
+      }
+    ]
+  },
+  "tokentx": {
+    "status": "1",
+    "message": "OK",
+    "result": [
+      {
+        "blockNumber": "18000000",
+        "timeStamp": "1692000000",
+        "hash": "0x11d9d4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
+        "nonce": "12",
+        "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000001",
+        "from": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+        "contractAddress": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+        "to": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "value": "2500000",
+        "tokenName": "Tether USD",
+        "tokenSymbol": "USDT",
+        "tokenDecimal": "6",
+        "transactionIndex": "5",
+        "gas": "90000",
+        "gasPrice": "20000000000",
+        "gasUsed": "63000",
+        "cumulativeGasUsed": "1000000",
+        "input": "deprecated",
+        "confirmations": "120"
+      },
+      {
+        "blockNumber": "18000001",
+        "timeStamp": "1692000012",
+        "hash": "0x22e0e5d2b9fc02fae2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5",
+        "nonce": "13",
+        "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000002",
+        "from": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "contractAddress": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+        "to": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+        "value": "1000000",
+        "tokenName": "Tether USD",
+        "tokenSymbol": "USDT",
+        "tokenDecimal": "6",
+        "transactionIndex": "2",
+        "gas": "90000",
+        "gasPrice": "20000000000",
+        "gasUsed": "65000",
+        "cumulativeGasUsed": "1000000",
+        "input": "deprecated",
+        "confirmations": "119"
+      },
+      {
+        "blockNumber": "18000002",
+        "timeStamp": "1692000024",
+        "hash": "0x33e0e5d2b9fc02fae2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f6",
+        "nonce": "14",
+        "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000003",
+        "from": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "contractAddress": "0x1111111111111111111111111111111111111111",
+        "to": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+        "value": "7",
+        "tokenName": "Not Ours",
+        "tokenSymbol": "NOPE",
+        "tokenDecimal": "18",
+        "transactionIndex": "1",
+        "gas": "90000",
+        "gasPrice": "20000000000",
+        "gasUsed": "50000",
+        "cumulativeGasUsed": "1000000",
+        "input": "deprecated",
+        "confirmations": "118"
+      },
+      {
+        "blockNumber": "18000003",
+        "timeStamp": "1692000036",
+        "hash": "0x44e0e5d2b9fc02fae2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f7",
+        "nonce": "15",
+        "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000004",
+        "from": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+        "contractAddress": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+        "to": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "value": "not a number",
+        "tokenName": "Tether USD",
+        "tokenSymbol": "USDT",
+        "tokenDecimal": "6",
+        "transactionIndex": "0",
+        "gas": "90000",
+        "gasPrice": "20000000000",
+        "gasUsed": "40000",
+        "cumulativeGasUsed": "1000000",
+        "input": "deprecated",
+        "confirmations": "117"
+      }
+    ]
+  },
+  "contract_creation": {
+    "status": "1",
+    "message": "OK",
+    "result": [
+      {
+        "blockNumber": "18000010",
+        "timeStamp": "1692000100",
+        "hash": "0x88d9d4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
+        "from": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "to": "",
+        "contractAddress": "0x9999999999999999999999999999999999999999",
+        "value": "0",
+        "gasUsed": "500000",
+        "gasPrice": "20000000000",
+        "isError": "0"
+      }
+    ]
+  },
+  "txlist_refund": {
+    "status": "1",
+    "message": "OK",
+    "result": [
+      {
+        "blockNumber": "18000020",
+        "timeStamp": "1692000240",
+        "hash": "0x55aa4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+        "nonce": "5",
+        "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000021",
+        "transactionIndex": "3",
+        "from": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "to": "0x7a250d5630b4cf539739df2c5dacb4c659f2488d",
+        "value": "1000000000000000000",
+        "gas": "180000",
+        "gasPrice": "20000000000",
+        "isError": "0",
+        "txreceipt_status": "1",
+        "input": "0x7ff36ab5",
+        "cumulativeGasUsed": "1000000",
+        "gasUsed": "120000",
+        "confirmations": "80"
+      }
+    ]
+  },
+  "txlistinternal": {
+    "status": "1",
+    "message": "OK",
+    "result": [
+      {
+        "blockNumber": "18000020",
+        "timeStamp": "1692000240",
+        "hash": "0x55aa4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+        "from": "0x7a250d5630b4cf539739df2c5dacb4c659f2488d",
+        "to": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "value": "300000000000000000",
+        "contractAddress": "",
+        "input": "",
+        "type": "call",
+        "gas": "2300",
+        "gasUsed": "0",
+        "traceId": "0_1",
+        "isError": "0",
+        "errCode": ""
+      },
+      {
+        "blockNumber": "18000030",
+        "timeStamp": "1692000360",
+        "hash": "0x66bb4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+        "from": "0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad",
+        "to": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "value": "500000000000000000",
+        "contractAddress": "",
+        "input": "",
+        "type": "call",
+        "gas": "2300",
+        "gasUsed": "0",
+        "traceId": "0",
+        "isError": "0",
+        "errCode": ""
+      },
+      {
+        "blockNumber": "18000040",
+        "timeStamp": "1692000480",
+        "hash": "0x77cc4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+        "from": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+        "to": "",
+        "value": "0",
+        "contractAddress": "0x9999999999999999999999999999999999999999",
+        "input": "",
+        "type": "create",
+        "gas": "254791",
+        "gasUsed": "46750",
+        "traceId": "0",
+        "isError": "0",
+        "errCode": ""
+      },
+      {
+        "blockNumber": "18000050",
+        "timeStamp": "1692000600",
+        "hash": "0x88dd4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+        "from": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+        "to": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "value": "1000000000000000000",
+        "contractAddress": "",
+        "input": "",
+        "type": "call",
+        "gas": "2300",
+        "gasUsed": "2300",
+        "traceId": "0_2",
+        "isError": "1",
+        "errCode": "Out of gas"
+      }
+    ]
+  },
+  "context_calls": {
+    "status": "1",
+    "message": "OK",
+    "result": [
+      {
+        "blockNumber": "18000060",
+        "timeStamp": "1692000720",
+        "hash": "0x99ee4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+        "from": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+        "to": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "value": "7",
+        "type": "delegatecall",
+        "isError": "0"
+      },
+      {
+        "blockNumber": "18000060",
+        "timeStamp": "1692000720",
+        "hash": "0x99ee4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+        "from": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+        "to": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "value": "0",
+        "type": "staticcall",
+        "isError": "0"
+      },
+      {
+        "blockNumber": "18000060",
+        "timeStamp": "1692000720",
+        "hash": "0x99ee4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+        "from": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+        "to": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "value": "7",
+        "type": "callcode",
+        "isError": "0"
+      },
+      {
+        "blockNumber": "18000060",
+        "timeStamp": "1692000720",
+        "hash": "0x99ee4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+        "from": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+        "to": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "value": "7",
+        "type": "call",
+        "isError": "0"
+      }
+    ]
+  },
+  "free_tier_chain": {
+    "status": "0",
+    "message": "NOTOK",
+    "result": "Free API access is not supported for this chain. Please upgrade your api plan for full chain coverage."
+  },
+  "empty": { "status": "0", "message": "No transactions found", "result": [] },
+  "empty_as_string": { "status": "0", "message": "No transactions found", "result": "[]" },
+  "bad_key": { "status": "0", "message": "NOTOK", "result": "Invalid API Key" },
+  "rate_limited": {
+    "status": "0",
+    "message": "NOTOK",
+    "result": "Max rate limit reached, please use API Key"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "_note": "The malformed shapes the BIP-174 parser must refuse. Each invalid case names the rule it breaks, and its bytes were assembled for this suite so it fails on that rule and not on an unrelated decode error.",
+  "_source": "The Specification section of BIP-174.",
+  "invalid": [
+    {
+      "name": "the magic is not psbt",
+      "reason": "every psbt starts with the five bytes 70736274ff",
+      "hex": "78736274ff01005e020000000101010101010101010101010101010101010101010101010101010101010101010000000000fdffffff01905f0100000000002251203f2520e87f91d97f85f7d1853f2948fdbd26539e0e59ec3d5561767e1945981e00350c000001012ba0860100000000002251203f2520e87f91d97f85f7d1853f2948fdbd26539e0e59ec3d5561767e1945981e0000"
+    },
+    {
+      "name": "truncated in the middle of a key-value pair",
+      "reason": "a map that does not reach its separator is malformed",
+      "hex": "70736274ff01005e020000000101010101010101010101010101010101010101010101010101010101010101010000000000fdffffff01905f0100000000002251203f2520e87f91d97f85f7d1853f2948fdbd26539e0e59ec3d5561767e1945981e00350c000001012ba0860100000000002251203f2520e87f91d97f85f7d1853f2948fdbd26539e0e59ec3d5561767e1945"
+    },
+    {
+      "name": "the unsigned transaction carries a script sig",
+      "reason": "the global unsigned transaction must have every input script empty",
+      "hex": "70736274ff01005f02000000010101010101010101010101010101010101010101010101010101010101010101000000000151fdffffff01905f0100000000002251203f2520e87f91d97f85f7d1853f2948fdbd26539e0e59ec3d5561767e1945981e00350c00000000"
+    },
+    {
+      "name": "no global unsigned transaction",
+      "reason": "version zero requires the unsigned transaction key",
+      "hex": "70736274ff0000"
+    },
+    {
+      "name": "the global unsigned transaction key appears twice",
+      "reason": "a key may appear at most once in a map",
+      "hex": "70736274ff01005e020000000101010101010101010101010101010101010101010101010101010101010101010000000000fdffffff01905f0100000000002251203f2520e87f91d97f85f7d1853f2948fdbd26539e0e59ec3d5561767e1945981e00350c0001005e020000000101010101010101010101010101010101010101010101010101010101010101010000000000fdffffff01905f0100000000002251203f2520e87f91d97f85f7d1853f2948fdbd26539e0e59ec3d5561767e1945981e00350c00000000"
+    },
+    {
+      "name": "the global map is empty",
+      "reason": "version zero requires the unsigned transaction key",
+      "hex": "70736274ff00"
+    }
+  ]
+}

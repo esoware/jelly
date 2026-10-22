@@ -1,0 +1,224 @@
+{
+  "_recorded": "Bitcoin Core sendrawtransaction refusal strings as Electrum servers relay them, some behind the preamble ElectrumX adds, and Dogecoin Core's priority, rate-limit, full-mempool, and bare insufficient fee refusals, whose strings are in its validation.cpp. Every reason the classifier's table names has at least one case. The last case is not a Core string.",
+  "cases": [
+    {
+      "message": "the transaction was rejected by network rules.\n\ntxn-already-in-mempool",
+      "kind": "already_known",
+      "retry": "already_landed"
+    },
+    {
+      "message": "Transaction already in block chain",
+      "kind": "already_known",
+      "retry": "already_landed"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\nmin relay fee not met, 84 < 141",
+      "kind": "below_relay_fee",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\nmempool min fee not met, 141 < 3216",
+      "kind": "below_relay_fee",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "insufficient fee, rejecting replacement 9f2c; new feerate 1.00 sat/vB <= old feerate 1.00 sat/vB",
+      "kind": "replacement_underpriced",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "insufficient fee, rejecting replacement 9f2c, not enough additional fees to relay; 0.00000000 < 0.00000141",
+      "kind": "below_incremental_relay_fee",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\n66: insufficient priority",
+      "kind": "below_relay_fee",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\n66: mempool full",
+      "kind": "below_relay_fee",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\nbad-txns-premature-spend-of-coinbase, tried to spend coinbase at depth 12",
+      "kind": "unclassified",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\nbad-txns-inputs-missingorspent",
+      "kind": "missing_or_spent",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "Missing inputs",
+      "kind": "missing_or_spent",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "txn-mempool-conflict",
+      "kind": "double_spend",
+      "retry": "try_another_endpoint"
+    },
+    {
+      "message": "replacement-adds-unconfirmed",
+      "kind": "double_spend",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\ndust",
+      "kind": "dust",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "too-long-mempool-chain, too many unconfirmed ancestors [limit: 25]",
+      "kind": "too_long_mempool_chain",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "non-BIP68-final",
+      "kind": "stale_reference",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "non-final",
+      "kind": "stale_reference",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "mandatory-script-verify-flag-failed (Signature must be zero for failed CHECK(MULTI)SIG operation)",
+      "kind": "unclassified",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "tx-size",
+      "kind": "unclassified",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "Fee exceeds maximum configured by user (e.g. -maxtxfee, maxfeerate)",
+      "kind": "unclassified",
+      "retry": "try_another_endpoint"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\ntxn-already-known",
+      "kind": "already_known",
+      "retry": "already_landed"
+    },
+    {
+      "message": "Transaction outputs already in utxo set",
+      "kind": "already_known",
+      "retry": "already_landed"
+    },
+    {
+      "message": "already have transaction",
+      "kind": "already_known",
+      "retry": "already_landed"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\nreplacement-failed, insufficient feerate: does not improve feerate diagram",
+      "kind": "replacement_underpriced",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\n66: insufficient fee",
+      "kind": "below_incremental_relay_fee",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "min_relay_fee",
+      "kind": "below_relay_fee",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\n66: rate limited free transaction",
+      "kind": "below_relay_fee",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "missing-inputs",
+      "kind": "missing_or_spent",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\nbad-txns-inputs-spent",
+      "kind": "missing_or_spent",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\ntoo-large-cluster",
+      "kind": "too_long_mempool_chain",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "bad-txns-nonfinal, non-final transaction",
+      "kind": "stale_reference",
+      "retry": "did_not_land"
+    },
+    {
+      "message": "non-mandatory-script-verify-flag (Witness program hash mismatch)",
+      "kind": "unclassified",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "mempool-script-verify-flag-failed (Signature must be zero for failed CHECK(MULTI)SIG operation)",
+      "kind": "unclassified",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "the transaction was rejected by network rules.\n\nblock-script-verify-flag-failed (Script evaluated without error but finished with a false/empty top stack element)",
+      "kind": "unclassified",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "scriptsig-not-pushonly",
+      "kind": "unclassified",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "bad-txns-oversize",
+      "kind": "unclassified",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "bad-txns-in-belowout, value in (0.0001) < value out (0.0002)",
+      "kind": "unclassified",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "bad-txns-fee-outofrange",
+      "kind": "unclassified",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "bad-txns-vout-negative",
+      "kind": "unclassified",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "bad-txns-vout-toolarge",
+      "kind": "unclassified",
+      "retry": "final_everywhere"
+    },
+    {
+      "message": "absurdly-high-fee, 100000000 > 10000000",
+      "kind": "unclassified",
+      "retry": "try_another_endpoint"
+    },
+    {
+      "message": "max-fee-exceeded",
+      "kind": "unclassified",
+      "retry": "try_another_endpoint"
+    },
+    {
+      "message": "the server is having a bad day",
+      "kind": "unclassified",
+      "retry": "try_another_endpoint"
+    }
+  ],
+  "echoed": {
+    "message": "the transaction was rejected by network rules.\n\nbad-txns-inputs-missingorspent\n[0200000001aabbccddeeff00000000]",
+    "detail": "the transaction was rejected by network rules. bad-txns-inputs-missingorspent"
+  }
+}

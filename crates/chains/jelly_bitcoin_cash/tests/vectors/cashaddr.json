@@ -1,0 +1,363 @@
+{
+  "_source": "The bitcoincash.org CashAddr specification's larger test vectors and legacy translations, and the CashTokens specification's token-aware vectors, parsed from the two documents and cross-checked against bip_utils.",
+  "sized": [
+    {
+      "address": "bitcoincash:qr6m7j9njldwwzlg9v7v53unlr4jkmx6eylep8ekg2",
+      "type": 0,
+      "hash": "f5bf48b397dae70be82b3cca4793f8eb2b6cdac9"
+    },
+    {
+      "address": "bchtest:pr6m7j9njldwwzlg9v7v53unlr4jkmx6eyvwc0uz5t",
+      "type": 1,
+      "hash": "f5bf48b397dae70be82b3cca4793f8eb2b6cdac9"
+    },
+    {
+      "address": "pref:pr6m7j9njldwwzlg9v7v53unlr4jkmx6ey65nvtks5",
+      "type": 1,
+      "hash": "f5bf48b397dae70be82b3cca4793f8eb2b6cdac9"
+    },
+    {
+      "address": "prefix:0r6m7j9njldwwzlg9v7v53unlr4jkmx6ey3qnjwsrf",
+      "type": 15,
+      "hash": "f5bf48b397dae70be82b3cca4793f8eb2b6cdac9"
+    },
+    {
+      "address": "bitcoincash:q9adhakpwzztepkpwp5z0dq62m6u5v5xtyj7j3h2ws4mr9g0",
+      "type": 0,
+      "hash": "7adbf6c17084bc86c1706827b41a56f5ca32865925e946ea"
+    },
+    {
+      "address": "bchtest:p9adhakpwzztepkpwp5z0dq62m6u5v5xtyj7j3h2u94tsynr",
+      "type": 1,
+      "hash": "7adbf6c17084bc86c1706827b41a56f5ca32865925e946ea"
+    },
+    {
+      "address": "pref:p9adhakpwzztepkpwp5z0dq62m6u5v5xtyj7j3h2khlwwk5v",
+      "type": 1,
+      "hash": "7adbf6c17084bc86c1706827b41a56f5ca32865925e946ea"
+    },
+    {
+      "address": "prefix:09adhakpwzztepkpwp5z0dq62m6u5v5xtyj7j3h2p29kc2lp",
+      "type": 15,
+      "hash": "7adbf6c17084bc86c1706827b41a56f5ca32865925e946ea"
+    },
+    {
+      "address": "bitcoincash:qgagf7w02x4wnz3mkwnchut2vxphjzccwxgjvvjmlsxqwkcw59jxxuz",
+      "type": 0,
+      "hash": "3a84f9cf51aae98a3bb3a78bf16a6183790b18719126325bfc0c075b"
+    },
+    {
+      "address": "bchtest:pgagf7w02x4wnz3mkwnchut2vxphjzccwxgjvvjmlsxqwkcvs7md7wt",
+      "type": 1,
+      "hash": "3a84f9cf51aae98a3bb3a78bf16a6183790b18719126325bfc0c075b"
+    },
+    {
+      "address": "pref:pgagf7w02x4wnz3mkwnchut2vxphjzccwxgjvvjmlsxqwkcrsr6gzkn",
+      "type": 1,
+      "hash": "3a84f9cf51aae98a3bb3a78bf16a6183790b18719126325bfc0c075b"
+    },
+    {
+      "address": "prefix:0gagf7w02x4wnz3mkwnchut2vxphjzccwxgjvvjmlsxqwkc5djw8s9g",
+      "type": 15,
+      "hash": "3a84f9cf51aae98a3bb3a78bf16a6183790b18719126325bfc0c075b"
+    },
+    {
+      "address": "bitcoincash:qvch8mmxy0rtfrlarg7ucrxxfzds5pamg73h7370aa87d80gyhqxq5nlegake",
+      "type": 0,
+      "hash": "3173ef6623c6b48ffd1a3dcc0cc6489b0a07bb47a37f47cfef4fe69de825c060"
+    },
+    {
+      "address": "bchtest:pvch8mmxy0rtfrlarg7ucrxxfzds5pamg73h7370aa87d80gyhqxq7fqng6m6",
+      "type": 1,
+      "hash": "3173ef6623c6b48ffd1a3dcc0cc6489b0a07bb47a37f47cfef4fe69de825c060"
+    },
+    {
+      "address": "pref:pvch8mmxy0rtfrlarg7ucrxxfzds5pamg73h7370aa87d80gyhqxq4k9m7qf9",
+      "type": 1,
+      "hash": "3173ef6623c6b48ffd1a3dcc0cc6489b0a07bb47a37f47cfef4fe69de825c060"
+    },
+    {
+      "address": "prefix:0vch8mmxy0rtfrlarg7ucrxxfzds5pamg73h7370aa87d80gyhqxqsh6jgp6w",
+      "type": 15,
+      "hash": "3173ef6623c6b48ffd1a3dcc0cc6489b0a07bb47a37f47cfef4fe69de825c060"
+    },
+    {
+      "address": "bitcoincash:qnq8zwpj8cq05n7pytfmskuk9r4gzzel8qtsvwz79zdskftrzxtar994cgutavfklv39gr3uvz",
+      "type": 0,
+      "hash": "c07138323e00fa4fc122d3b85b9628ea810b3f381706385e289b0b25631197d194b5c238beb136fb"
+    },
+    {
+      "address": "bchtest:pnq8zwpj8cq05n7pytfmskuk9r4gzzel8qtsvwz79zdskftrzxtar994cgutavfklvmgm6ynej",
+      "type": 1,
+      "hash": "c07138323e00fa4fc122d3b85b9628ea810b3f381706385e289b0b25631197d194b5c238beb136fb"
+    },
+    {
+      "address": "pref:pnq8zwpj8cq05n7pytfmskuk9r4gzzel8qtsvwz79zdskftrzxtar994cgutavfklv0vx5z0w3",
+      "type": 1,
+      "hash": "c07138323e00fa4fc122d3b85b9628ea810b3f381706385e289b0b25631197d194b5c238beb136fb"
+    },
+    {
+      "address": "prefix:0nq8zwpj8cq05n7pytfmskuk9r4gzzel8qtsvwz79zdskftrzxtar994cgutavfklvwsvctzqy",
+      "type": 15,
+      "hash": "c07138323e00fa4fc122d3b85b9628ea810b3f381706385e289b0b25631197d194b5c238beb136fb"
+    },
+    {
+      "address": "bitcoincash:qh3krj5607v3qlqh5c3wq3lrw3wnuxw0sp8dv0zugrrt5a3kj6ucysfz8kxwv2k53krr7n933jfsunqex2w82sl",
+      "type": 0,
+      "hash": "e361ca9a7f99107c17a622e047e3745d3e19cf804ed63c5c40c6ba763696b98241223d8ce62ad48d863f4cb18c930e4c"
+    },
+    {
+      "address": "bchtest:ph3krj5607v3qlqh5c3wq3lrw3wnuxw0sp8dv0zugrrt5a3kj6ucysfz8kxwv2k53krr7n933jfsunqnzf7mt6x",
+      "type": 1,
+      "hash": "e361ca9a7f99107c17a622e047e3745d3e19cf804ed63c5c40c6ba763696b98241223d8ce62ad48d863f4cb18c930e4c"
+    },
+    {
+      "address": "pref:ph3krj5607v3qlqh5c3wq3lrw3wnuxw0sp8dv0zugrrt5a3kj6ucysfz8kxwv2k53krr7n933jfsunqjntdfcwg",
+      "type": 1,
+      "hash": "e361ca9a7f99107c17a622e047e3745d3e19cf804ed63c5c40c6ba763696b98241223d8ce62ad48d863f4cb18c930e4c"
+    },
+    {
+      "address": "prefix:0h3krj5607v3qlqh5c3wq3lrw3wnuxw0sp8dv0zugrrt5a3kj6ucysfz8kxwv2k53krr7n933jfsunqakcssnmn",
+      "type": 15,
+      "hash": "e361ca9a7f99107c17a622e047e3745d3e19cf804ed63c5c40c6ba763696b98241223d8ce62ad48d863f4cb18c930e4c"
+    },
+    {
+      "address": "bitcoincash:qmvl5lzvdm6km38lgga64ek5jhdl7e3aqd9895wu04fvhlnare5937w4ywkq57juxsrhvw8ym5d8qx7sz7zz0zvcypqscw8jd03f",
+      "type": 0,
+      "hash": "d9fa7c4c6ef56dc4ff423baae6d495dbff663d034a72d1dc7d52cbfe7d1e6858f9d523ac0a7a5c34077638e4dd1a701bd017842789982041"
+    },
+    {
+      "address": "bchtest:pmvl5lzvdm6km38lgga64ek5jhdl7e3aqd9895wu04fvhlnare5937w4ywkq57juxsrhvw8ym5d8qx7sz7zz0zvcypqs6kgdsg2g",
+      "type": 1,
+      "hash": "d9fa7c4c6ef56dc4ff423baae6d495dbff663d034a72d1dc7d52cbfe7d1e6858f9d523ac0a7a5c34077638e4dd1a701bd017842789982041"
+    },
+    {
+      "address": "pref:pmvl5lzvdm6km38lgga64ek5jhdl7e3aqd9895wu04fvhlnare5937w4ywkq57juxsrhvw8ym5d8qx7sz7zz0zvcypqsammyqffl",
+      "type": 1,
+      "hash": "d9fa7c4c6ef56dc4ff423baae6d495dbff663d034a72d1dc7d52cbfe7d1e6858f9d523ac0a7a5c34077638e4dd1a701bd017842789982041"
+    },
+    {
+      "address": "prefix:0mvl5lzvdm6km38lgga64ek5jhdl7e3aqd9895wu04fvhlnare5937w4ywkq57juxsrhvw8ym5d8qx7sz7zz0zvcypqsgjrqpnw8",
+      "type": 15,
+      "hash": "d9fa7c4c6ef56dc4ff423baae6d495dbff663d034a72d1dc7d52cbfe7d1e6858f9d523ac0a7a5c34077638e4dd1a701bd017842789982041"
+    },
+    {
+      "address": "bitcoincash:qlg0x333p4238k0qrc5ej7rzfw5g8e4a4r6vvzyrcy8j3s5k0en7calvclhw46hudk5flttj6ydvjc0pv3nchp52amk97tqa5zygg96mtky5sv5w",
+      "type": 0,
+      "hash": "d0f346310d5513d9e01e299978624ba883e6bda8f4c60883c10f28c2967e67ec77ecc7eeeaeafc6da89fad72d11ac961e164678b868aeeec5f2c1da08884175b"
+    },
+    {
+      "address": "bchtest:plg0x333p4238k0qrc5ej7rzfw5g8e4a4r6vvzyrcy8j3s5k0en7calvclhw46hudk5flttj6ydvjc0pv3nchp52amk97tqa5zygg96mc773cwez",
+      "type": 1,
+      "hash": "d0f346310d5513d9e01e299978624ba883e6bda8f4c60883c10f28c2967e67ec77ecc7eeeaeafc6da89fad72d11ac961e164678b868aeeec5f2c1da08884175b"
+    },
+    {
+      "address": "pref:plg0x333p4238k0qrc5ej7rzfw5g8e4a4r6vvzyrcy8j3s5k0en7calvclhw46hudk5flttj6ydvjc0pv3nchp52amk97tqa5zygg96mg7pj3lh8",
+      "type": 1,
+      "hash": "d0f346310d5513d9e01e299978624ba883e6bda8f4c60883c10f28c2967e67ec77ecc7eeeaeafc6da89fad72d11ac961e164678b868aeeec5f2c1da08884175b"
+    },
+    {
+      "address": "prefix:0lg0x333p4238k0qrc5ej7rzfw5g8e4a4r6vvzyrcy8j3s5k0en7calvclhw46hudk5flttj6ydvjc0pv3nchp52amk97tqa5zygg96ms92w6845",
+      "type": 15,
+      "hash": "d0f346310d5513d9e01e299978624ba883e6bda8f4c60883c10f28c2967e67ec77ecc7eeeaeafc6da89fad72d11ac961e164678b868aeeec5f2c1da08884175b"
+    }
+  ],
+  "legacy": [
+    {
+      "legacy": "1BpEi6DfDAUFd7GtittLSdBeYJvcoaVggu",
+      "cashaddr": "bitcoincash:qpm2qsznhks23z7629mms6s4cwef74vcwvy22gdx6a"
+    },
+    {
+      "legacy": "1KXrWXciRDZUpQwQmuM1DbwsKDLYAYsVLR",
+      "cashaddr": "bitcoincash:qr95sy3j9xwd2ap32xkykttr4cvcu7as4y0qverfuy"
+    },
+    {
+      "legacy": "16w1D5WRVKJuZUsSRzdLp9w3YGcgoxDXb",
+      "cashaddr": "bitcoincash:qqq3728yw0y47sqn6l2na30mcw6zm78dzqre909m2r"
+    },
+    {
+      "legacy": "3CWFddi6m4ndiGyKqzYvsFYagqDLPVMTzC",
+      "cashaddr": "bitcoincash:ppm2qsznhks23z7629mms6s4cwef74vcwvn0h829pq"
+    },
+    {
+      "legacy": "3LDsS579y7sruadqu11beEJoTjdFiFCdX4",
+      "cashaddr": "bitcoincash:pr95sy3j9xwd2ap32xkykttr4cvcu7as4yc93ky28e"
+    },
+    {
+      "legacy": "31nwvkZwyPdgzjBJZXfDmSWsC4ZLKpYyUw",
+      "cashaddr": "bitcoincash:pqq3728yw0y47sqn6l2na30mcw6zm78dzq5ucqzc37"
+    }
+  ],
+  "token_aware": [
+    {
+      "address": "bitcoincash:qr7fzmep8g7h7ymfxy74lgc0v950j3r2959lhtxxsl",
+      "type": 0,
+      "hash": "fc916f213a3d7f1369313d5fa30f6168f9446a2d"
+    },
+    {
+      "address": "bitcoincash:zr7fzmep8g7h7ymfxy74lgc0v950j3r295z4y4gq0v",
+      "type": 2,
+      "hash": "fc916f213a3d7f1369313d5fa30f6168f9446a2d"
+    },
+    {
+      "address": "bchtest:qr7fzmep8g7h7ymfxy74lgc0v950j3r295pdnvy3hr",
+      "type": 0,
+      "hash": "fc916f213a3d7f1369313d5fa30f6168f9446a2d"
+    },
+    {
+      "address": "bchtest:zr7fzmep8g7h7ymfxy74lgc0v950j3r295x8qj2hgs",
+      "type": 2,
+      "hash": "fc916f213a3d7f1369313d5fa30f6168f9446a2d"
+    },
+    {
+      "address": "bchreg:qr7fzmep8g7h7ymfxy74lgc0v950j3r295m39d8z59",
+      "type": 0,
+      "hash": "fc916f213a3d7f1369313d5fa30f6168f9446a2d"
+    },
+    {
+      "address": "bchreg:zr7fzmep8g7h7ymfxy74lgc0v950j3r295umknfytk",
+      "type": 2,
+      "hash": "fc916f213a3d7f1369313d5fa30f6168f9446a2d"
+    },
+    {
+      "address": "prefix:qr7fzmep8g7h7ymfxy74lgc0v950j3r295fu6e430r",
+      "type": 0,
+      "hash": "fc916f213a3d7f1369313d5fa30f6168f9446a2d"
+    },
+    {
+      "address": "prefix:zr7fzmep8g7h7ymfxy74lgc0v950j3r295wkf8mhss",
+      "type": 2,
+      "hash": "fc916f213a3d7f1369313d5fa30f6168f9446a2d"
+    },
+    {
+      "address": "bitcoincash:qpagr634w55t4wp56ftxx53xukhqgl24yse53qxdge",
+      "type": 0,
+      "hash": "7a81ea357528bab834d256635226e5ae047d5524"
+    },
+    {
+      "address": "bitcoincash:zpagr634w55t4wp56ftxx53xukhqgl24ys77z7gth2",
+      "type": 2,
+      "hash": "7a81ea357528bab834d256635226e5ae047d5524"
+    },
+    {
+      "address": "bitcoincash:qq9l9e2dgkx0hp43qm3c3h252e9euugrfc6vlt3r9e",
+      "type": 0,
+      "hash": "0bf2e54d458cfb86b106e388dd54564b9e71034e"
+    },
+    {
+      "address": "bitcoincash:zq9l9e2dgkx0hp43qm3c3h252e9euugrfcaxv4l962",
+      "type": 2,
+      "hash": "0bf2e54d458cfb86b106e388dd54564b9e71034e"
+    },
+    {
+      "address": "bitcoincash:qre24q38ghy6k3pegpyvtxahu8q8hqmxmqqn28z85p",
+      "type": 0,
+      "hash": "f2aa822745c9ab44394048c59bb7e1c07b8366d8"
+    },
+    {
+      "address": "bitcoincash:zre24q38ghy6k3pegpyvtxahu8q8hqmxmq8eeevptj",
+      "type": 2,
+      "hash": "f2aa822745c9ab44394048c59bb7e1c07b8366d8"
+    },
+    {
+      "address": "bitcoincash:qz7xc0vl85nck65ffrsx5wvewjznp9lflgktxc5878",
+      "type": 0,
+      "hash": "bc6c3d9f3d278b6a8948e06a399974853097e9fa"
+    },
+    {
+      "address": "bitcoincash:zz7xc0vl85nck65ffrsx5wvewjznp9lflg3p4x6pp5",
+      "type": 2,
+      "hash": "bc6c3d9f3d278b6a8948e06a399974853097e9fa"
+    },
+    {
+      "address": "bitcoincash:ppawqn2h74a4t50phuza84kdp3794pq3ccvm92p8sh",
+      "type": 1,
+      "hash": "7ae04d57f57b55d1e1bf05d3d6cd0c7c5a8411c6"
+    },
+    {
+      "address": "bitcoincash:rpawqn2h74a4t50phuza84kdp3794pq3cct3k50p0y",
+      "type": 3,
+      "hash": "7ae04d57f57b55d1e1bf05d3d6cd0c7c5a8411c6"
+    },
+    {
+      "address": "bitcoincash:pqv53dwyatxse2xh7nnlqhyr6ryjgfdtagkd4vc388",
+      "type": 1,
+      "hash": "1948b5c4eacd0ca8d7f4e7f05c83d0c92425abea"
+    },
+    {
+      "address": "bitcoincash:rqv53dwyatxse2xh7nnlqhyr6ryjgfdtag38xjkhc5",
+      "type": 3,
+      "hash": "1948b5c4eacd0ca8d7f4e7f05c83d0c92425abea"
+    },
+    {
+      "address": "bitcoincash:prseh0a4aejjcewhc665wjqhppgwrz2lw5txgn666a",
+      "type": 1,
+      "hash": "e19bbfb5ee652c65d7c6b54748170850e1895f75"
+    },
+    {
+      "address": "bitcoincash:rrseh0a4aejjcewhc665wjqhppgwrz2lw5vvmd5u9w",
+      "type": 3,
+      "hash": "e19bbfb5ee652c65d7c6b54748170850e1895f75"
+    },
+    {
+      "address": "bitcoincash:pzltaslh7xnrsxeqm7qtvh0v53n3gfk0v5wwf6d7j4",
+      "type": 1,
+      "hash": "bebec3f7f1a6381b20df80b65deca4671426cf65"
+    },
+    {
+      "address": "bitcoincash:rzltaslh7xnrsxeqm7qtvh0v53n3gfk0v5fy6yrcdx",
+      "type": 3,
+      "hash": "bebec3f7f1a6381b20df80b65deca4671426cf65"
+    },
+    {
+      "address": "bitcoincash:pvqqqqqqqqqqqqqqqqqqqqqqzg69v7ysqqqqqqqqqqqqqqqqqqqqqpkp7fqn0",
+      "type": 1,
+      "hash": "0000000000000000000000000000123456789000000000000000000000000000"
+    },
+    {
+      "address": "bitcoincash:rvqqqqqqqqqqqqqqqqqqqqqqzg69v7ysqqqqqqqqqqqqqqqqqqqqqn9alsp2y",
+      "type": 3,
+      "hash": "0000000000000000000000000000123456789000000000000000000000000000"
+    },
+    {
+      "address": "bitcoincash:pdzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3jh2p5nn",
+      "type": 1,
+      "hash": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    {
+      "address": "bitcoincash:rdzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygrpttc42c",
+      "type": 3,
+      "hash": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    {
+      "address": "bitcoincash:pwyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsh3sujgcr",
+      "type": 1,
+      "hash": "8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    {
+      "address": "bitcoincash:rwyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygs9zvatfpg",
+      "type": 3,
+      "hash": "8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    {
+      "address": "bitcoincash:p0xvenxvenxvenxvenxvenxvenxvenxvenxvenxvenxvenxvenxvcm6gz4t77",
+      "type": 1,
+      "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "address": "bitcoincash:r0xvenxvenxvenxvenxvenxvenxvenxvenxvenxvenxvenxvenxvcff5rv284",
+      "type": 3,
+      "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "address": "bitcoincash:p0llllllllllllllllllllllllllllllllllllllllllllllllll7x3vthu35",
+      "type": 1,
+      "hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "address": "bitcoincash:r0llllllllllllllllllllllllllllllllllllllllllllllllll75zs2wagl",
+      "type": 3,
+      "hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-quote-fees"
+description = "Enables the quote_fees command without any pre-configured scope."
+commands.allow = ["quote_fees"]
+
+[[permission]]
+identifier = "deny-quote-fees"
+description = "Denies the quote_fees command without any pre-configured scope."
+commands.deny = ["quote_fees"]

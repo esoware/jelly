@@ -1,0 +1,26 @@
+[package]
+name         = "jelly_store"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[dependencies]
+jelly_core  = { workspace = true }
+
+hex         = { workspace = true }
+parking_lot = { workspace = true }
+rusqlite    = { workspace = true }
+serde_json  = { workspace = true }
+thiserror   = { workspace = true }
+tokio       = { workspace = true }
+tracing     = { workspace = true }
+
+[dev-dependencies]
+jelly_core = { workspace = true, features = ["test-util"] }
+
+proptest   = { workspace = true }
+tempfile   = { workspace = true }

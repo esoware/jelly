@@ -1,0 +1,15 @@
+/target/
+node_modules/
+dist/
+dist-ssr/
+*.local
+.env
+*.log
+*.tsbuildinfo
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+apps/wallet/src-tauri/gen/schemas/
+_reference/
+/work/

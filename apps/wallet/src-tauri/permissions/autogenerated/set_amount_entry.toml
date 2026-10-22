@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-amount-entry"
+description = "Enables the set_amount_entry command without any pre-configured scope."
+commands.allow = ["set_amount_entry"]
+
+[[permission]]
+identifier = "deny-set-amount-entry"
+description = "Denies the set_amount_entry command without any pre-configured scope."
+commands.deny = ["set_amount_entry"]

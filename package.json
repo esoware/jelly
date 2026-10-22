@@ -1,0 +1,23 @@
+{
+  "name": "jelly",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter jelly-wallet tauri dev",
+    "build": "pnpm --filter jelly-wallet tauri build",
+    "build:debug": "pnpm --filter jelly-wallet tauri build --debug",
+    "tauri": "pnpm --filter jelly-wallet tauri",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "lint": "oxlint --type-aware",
+    "lint:fix": "oxlint --type-aware --fix --fix-suggestions",
+    "knip": "knip",
+    "check": "pnpm -C apps/wallet check"
+  },
+  "devDependencies": {
+    "eslint-plugin-better-tailwindcss": "4.9.1",
+    "knip": "6.41.0",
+    "oxfmt": "0.73.0",
+    "oxlint": "1.88.0",
+    "oxlint-tsgolint": "7.0.2004"
+  }
+}

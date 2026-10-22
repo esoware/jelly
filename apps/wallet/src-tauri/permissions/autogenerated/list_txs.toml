@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-txs"
+description = "Enables the list_txs command without any pre-configured scope."
+commands.allow = ["list_txs"]
+
+[[permission]]
+identifier = "deny-list-txs"
+description = "Denies the list_txs command without any pre-configured scope."
+commands.deny = ["list_txs"]

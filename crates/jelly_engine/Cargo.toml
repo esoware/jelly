@@ -1,0 +1,50 @@
+[package]
+name         = "jelly_engine"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+ipc = ["dep:specta", "jelly_core/ipc"]
+# Reads and plants of persisted state, probes of sessions, sync loops, and the event
+# pump, and the fixtures, operations, and fakes only tests use. Enable only from
+# [dev-dependencies].
+test-util = ["jelly_core/test-util"]
+
+[dependencies]
+jelly_core     = { workspace = true }
+jelly_keypair  = { workspace = true }
+jelly_mnemonic = { workspace = true }
+jelly_store    = { workspace = true }
+jelly_vault    = { workspace = true }
+
+arc-swap    = { workspace = true }
+async-trait = { workspace = true }
+hex         = { workspace = true }
+hmac        = { workspace = true }
+parking_lot = { workspace = true }
+secrecy     = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+sha2        = { workspace = true }
+specta      = { workspace = true, optional = true }
+tempfile    = { workspace = true }
+thiserror   = { workspace = true }
+tokio       = { workspace = true }
+tokio-util  = { workspace = true }
+tracing     = { workspace = true }
+zeroize     = { workspace = true }
+
+[dev-dependencies]
+jelly_chains  = { workspace = true }
+jelly_core    = { workspace = true, features = ["test-util"] }
+jelly_engine  = { workspace = true, features = ["test-util"] }
+jelly_net     = { workspace = true, features = ["test-util"] }
+jelly_vault   = { workspace = true, features = ["test-util"] }
+jelly_keypair = { workspace = true, features = ["test-util"] }
+tokio         = { workspace = true, features = ["test-util"] }

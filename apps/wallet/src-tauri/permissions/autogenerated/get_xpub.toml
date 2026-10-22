@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-xpub"
+description = "Enables the get_xpub command without any pre-configured scope."
+commands.allow = ["get_xpub"]
+
+[[permission]]
+identifier = "deny-get-xpub"
+description = "Denies the get_xpub command without any pre-configured scope."
+commands.deny = ["get_xpub"]

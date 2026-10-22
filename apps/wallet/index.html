@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" spellcheck="false">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="color-scheme" content="only dark" />
+    <link rel="stylesheet" href="/src/styles/index.css" />
+    <title>Jelly</title>
+  </head>
+  <body>
+    <svg class="absolute size-0">
+      <filter id="glass-sm" color-interpolation-filters="sRGB">
+        <feGaussianBlur stdDeviation="8" result="blur" />
+        <feFlood class="[flood-color:var(--color-canvas)]" result="canvas" />
+        <feMerge>
+          <feMergeNode in="canvas" />
+          <feMergeNode in="blur" />
+        </feMerge>
+      </filter>
+      <filter id="glass-lg" color-interpolation-filters="sRGB">
+        <feGaussianBlur stdDeviation="24" result="blur" />
+        <feFlood class="[flood-color:var(--color-canvas)]" result="canvas" />
+        <feMerge>
+          <feMergeNode in="canvas" />
+          <feMergeNode in="blur" />
+        </feMerge>
+      </filter>
+    </svg>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

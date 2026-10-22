@@ -1,0 +1,94 @@
+{
+  "format": [
+    { "base_units": "0", "decimals": 0, "text": "0" },
+    { "base_units": "0", "decimals": 8, "text": "0" },
+    { "base_units": "0", "decimals": 18, "text": "0" },
+    { "base_units": "1", "decimals": 0, "text": "1" },
+    { "base_units": "1", "decimals": 6, "text": "0.000001" },
+    { "base_units": "1", "decimals": 8, "text": "0.00000001" },
+    { "base_units": "1", "decimals": 9, "text": "0.000000001" },
+    { "base_units": "1", "decimals": 12, "text": "0.000000000001" },
+    { "base_units": "1", "decimals": 18, "text": "0.000000000000000001" },
+    { "base_units": "100000000", "decimals": 8, "text": "1" },
+    { "base_units": "120000000", "decimals": 8, "text": "1.2" },
+    { "base_units": "1200000000", "decimals": 8, "text": "12" },
+    { "base_units": "1050000", "decimals": 6, "text": "1.05" },
+    { "base_units": "1000000", "decimals": 6, "text": "1" },
+    { "base_units": "1500000", "decimals": 6, "text": "1.5" },
+    { "base_units": "1000000000", "decimals": 9, "text": "1" },
+    { "base_units": "1000000000000", "decimals": 12, "text": "1" },
+    { "base_units": "1000000000000000000", "decimals": 18, "text": "1" },
+    { "base_units": "1230000000000000000", "decimals": 18, "text": "1.23" },
+    { "base_units": "18446744073709551615", "decimals": 0, "text": "18446744073709551615" },
+    { "base_units": "18446744073709551615", "decimals": 8, "text": "184467440737.09551615" },
+    { "base_units": "18446744073709551616", "decimals": 8, "text": "184467440737.09551616" },
+    {
+      "base_units": "340282366920938463463374607431768211455",
+      "decimals": 0,
+      "text": "340282366920938463463374607431768211455"
+    },
+    {
+      "base_units": "340282366920938463463374607431768211455",
+      "decimals": 18,
+      "text": "340282366920938463463.374607431768211455"
+    },
+    {
+      "base_units": "340282366920938463463374607431768211455",
+      "decimals": 38,
+      "text": "3.40282366920938463463374607431768211455"
+    }
+  ],
+  "parse_ok": [
+    { "text": "0", "decimals": 0, "base_units": "0" },
+    { "text": "0", "decimals": 8, "base_units": "0" },
+    { "text": "1", "decimals": 0, "base_units": "1" },
+    { "text": "1", "decimals": 8, "base_units": "100000000" },
+    { "text": "1.2", "decimals": 8, "base_units": "120000000" },
+    { "text": "0.00000001", "decimals": 8, "base_units": "1" },
+    { "text": "0.000001", "decimals": 6, "base_units": "1" },
+    { "text": "0.000000001", "decimals": 9, "base_units": "1" },
+    { "text": "0.000000000001", "decimals": 12, "base_units": "1" },
+    { "text": "1.230", "decimals": 18, "base_units": "1230000000000000000" },
+    { "text": "000001", "decimals": 0, "base_units": "1" },
+    { "text": "184467440737.09551615", "decimals": 8, "base_units": "18446744073709551615" },
+    { "text": "184467440737.09551616", "decimals": 8, "base_units": "18446744073709551616" },
+    {
+      "text": "340282366920938463463374607431768211455",
+      "decimals": 0,
+      "base_units": "340282366920938463463374607431768211455"
+    },
+    {
+      "text": "3.40282366920938463463374607431768211455",
+      "decimals": 38,
+      "base_units": "340282366920938463463374607431768211455"
+    }
+  ],
+  "parse_err": [
+    { "text": "", "decimals": 8, "error": "empty" },
+    { "text": "+1", "decimals": 8, "error": "invalid_digit", "position": 0 },
+    { "text": "-1", "decimals": 8, "error": "invalid_digit", "position": 0 },
+    { "text": " 1", "decimals": 8, "error": "invalid_digit", "position": 0 },
+    { "text": "1 ", "decimals": 8, "error": "invalid_digit", "position": 1 },
+    { "text": "1a", "decimals": 8, "error": "invalid_digit", "position": 1 },
+    { "text": "1_000", "decimals": 8, "error": "invalid_digit", "position": 1 },
+    { "text": "1e8", "decimals": 8, "error": "invalid_digit", "position": 1 },
+    { "text": "1,5", "decimals": 8, "error": "invalid_digit", "position": 1 },
+    { "text": "1.2.3", "decimals": 8, "error": "multiple_points" },
+    { "text": ".", "decimals": 8, "error": "missing_digits" },
+    { "text": "1.", "decimals": 8, "error": "missing_digits" },
+    { "text": ".5", "decimals": 8, "error": "missing_digits" },
+    { "text": "0.000000001", "decimals": 8, "error": "too_precise", "got": 9 },
+    { "text": "1.0000001", "decimals": 6, "error": "too_precise", "got": 7 },
+    { "text": "0.1", "decimals": 0, "error": "too_precise", "got": 1 },
+    {
+      "text": "340282366920938463463374607431768211456",
+      "decimals": 0,
+      "error": "overflow"
+    },
+    {
+      "text": "3.40282366920938463463374607431768211456",
+      "decimals": 38,
+      "error": "overflow"
+    }
+  ]
+}

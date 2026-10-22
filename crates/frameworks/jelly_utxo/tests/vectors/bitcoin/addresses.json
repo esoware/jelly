@@ -1,0 +1,64 @@
+{
+  "_recorded": "Derived from the secp256k1 generator point, the public key behind the BIP-173 and BIP-350 example mainnet addresses.",
+  "pubkey": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+  "derived": [
+    {
+      "scriptKind": "p2tr",
+      "address": "bc1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5sspknck9",
+      "scriptPubkey": "5120da4710964f7852695de2da025290e24af6d8c281de5a0b902b7135fd9fd74d21"
+    },
+    {
+      "scriptKind": "p2wpkh",
+      "address": "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+      "scriptPubkey": "0014751e76e8199196d454941c45d1b3a323f1433bd6"
+    },
+    {
+      "scriptKind": "p2sh_p2wpkh",
+      "address": "3JvL6Ymt8MVWiCNHC7oWU6nLeHNJKLZGLN",
+      "scriptPubkey": "a914bcfeb728b584253d5f3f70bcb780e9ef218a68f487"
+    },
+    {
+      "scriptKind": "p2pkh",
+      "address": "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+      "scriptPubkey": "76a914751e76e8199196d454941c45d1b3a323f1433bd688ac"
+    }
+  ],
+  "canonical": [
+    {
+      "input": "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4",
+      "output": "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+      "note": "bech32 is case insensitive on the wire and lowercase in canonical form"
+    },
+    {
+      "input": "  1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH  ",
+      "output": "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+      "note": "surrounding whitespace is trimmed"
+    }
+  ],
+  "invalid": [
+    { "address": "", "note": "empty" },
+    {
+      "address": "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+      "note": "testnet, which this build never talks to"
+    },
+    {
+      "address": "ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9",
+      "note": "litecoin, whose bech32 prefix is not bitcoin's"
+    },
+    {
+      "address": "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMG",
+      "note": "the base58 checksum does not match"
+    },
+    {
+      "address": "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5",
+      "note": "the bech32 checksum does not match"
+    },
+    { "address": "not an address", "note": "not an encoding at all" }
+  ],
+  "unwatchable": [
+    {
+      "address": "bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3",
+      "note": "a valid p2wsh address, but this build has no key that spends one"
+    }
+  ]
+}

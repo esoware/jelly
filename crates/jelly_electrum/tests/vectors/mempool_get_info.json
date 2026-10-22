@@ -1,0 +1,33 @@
+{
+  "_recorded": "The mempool.get_info shape that protocol 1.6 added, with the floors in exponent notation.",
+  "result": {
+    "loaded": true,
+    "size": 31417,
+    "bytes": 16107806,
+    "usage": 88190720,
+    "total_fee": 0.31210592,
+    "maxmempool": 300000000,
+    "mempoolminfee": 1e-5,
+    "minrelaytxfee": 1e-5,
+    "incrementalrelayfee": 1e-5,
+    "unbroadcastcount": 0,
+    "fullrbf": true
+  },
+  "expect": {
+    "mempool_min_fee_sat_per_kwu": 250,
+    "min_relay_tx_fee_sat_per_kwu": 250,
+    "incremental_relay_fee_sat_per_kwu": 250,
+    "relay_floor_sat_per_kwu": 250
+  },
+  "congested": {
+    "result": {
+      "mempoolminfee": 0.00003471,
+      "minrelaytxfee": 1e-5,
+      "incrementalrelayfee": 1e-5
+    },
+    "expect": {
+      "mempool_min_fee_sat_per_kwu": 868,
+      "relay_floor_sat_per_kwu": 868
+    }
+  }
+}

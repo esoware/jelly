@@ -1,0 +1,19 @@
+{
+  "_recorded": "Ed25519 over fixed seeds and messages, produced on 2026-08-14 by libsodium through PyNaCl, an implementation Jelly does not link. RFC 8032 signing is deterministic, so these are exact.",
+  "cases": [
+    {
+      "name": "seed of repeated 0x07",
+      "seed": "0707070707070707070707070707070707070707070707070707070707070707",
+      "message": "6a656c6c7920736f6c616e61207369676e696e6720766563746f72207631",
+      "pubkey": "GmaDrppBC7P5ARKV8g3djiwP89vz1jLK23V2GBjuAEGB",
+      "signature": "56xe71MBguZzzfUHrVeK9Hu9vVLWW3bAzUhMy1H18TkmTbRXxdrToM6GeJvzbEHjA238Lm9CuvDEUqvszFpD5qa9"
+    },
+    {
+      "name": "seed of ascending bytes",
+      "seed": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+      "message": "6a656c6c7920736f6c616e61207369676e696e6720766563746f72207632",
+      "pubkey": "9C6hybhQ6Aycep9jaUnP6uL9ZYvDjUp1aSkFWPUFJtpj",
+      "signature": "5Sw4SXpB9erEhPf7ydk4yffKma8iUxUQjBkVRgGHcFjFCaBRBGwAiKeDRi7PMriD456ypL3Wat7udhxizvn5sT2y"
+    }
+  ]
+}

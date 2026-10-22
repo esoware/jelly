@@ -1,0 +1,58 @@
+[package]
+name         = "jelly_solana"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# The adapter's and the node's test seams, and the fixtures both test suites
+# share. Enable only from [dev-dependencies].
+test-util = []
+
+[dependencies]
+jelly_core    = { workspace = true }
+jelly_keypair = { workspace = true }
+jelly_net     = { workspace = true }
+
+async-trait   = { workspace = true }
+base64        = { workspace = true }
+bs58          = { workspace = true }
+hex           = { workspace = true }
+parking_lot   = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+thiserror     = { workspace = true }
+tokio         = { workspace = true }
+tracing       = { workspace = true }
+zeroize       = { workspace = true }
+
+borsh                                  = { workspace = true }
+solana-compute-budget-interface        = { workspace = true }
+solana-hash                            = { workspace = true }
+solana-instruction                     = { workspace = true }
+solana-message                         = { workspace = true }
+solana-pubkey                          = { workspace = true }
+solana-signature                       = { workspace = true }
+solana-system-interface                = { workspace = true }
+solana-transaction                     = { workspace = true }
+spl-associated-token-account-interface = { workspace = true }
+spl-token-interface                    = { workspace = true }
+spl-token-2022-interface               = { workspace = true }
+wincode                                = { workspace = true }
+
+[dev-dependencies]
+jelly_core         = { workspace = true, features = ["test-util"] }
+jelly_keypair      = { workspace = true, features = ["test-util"] }
+jelly_net          = { workspace = true, features = ["test-util"] }
+jelly_solana       = { workspace = true, features = ["test-util"] }
+tokio              = { workspace = true, features = ["test-util"] }
+
+# Upstream reference implementations. Tests check the workspace's signer
+# against them.
+solana-keypair = { workspace = true }
+solana-signer  = { workspace = true }

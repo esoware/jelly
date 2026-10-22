@@ -1,0 +1,33 @@
+{
+  "_recorded": "Recorded from https://api.trongrid.io on 2026-08-13 for mainnet transaction 34a574df, a USDT transfer.",
+  "raw_data": {
+    "ref_block_bytes": "a60e",
+    "ref_block_hash": "76af4c193b687d8f",
+    "expiration": 1786585719000,
+    "contract": [
+      {
+        "parameter": {
+          "value": {
+            "owner_address": "41a19ba110ed5ee1a45ac5f391e6d72afa733c1221",
+            "contract_address": "41a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+            "data": "a9059cbb000000000000000000000000ba3164aad6603b543832f35718a5d970a793b7d80000000000000000000000000000000000000000000000000000000059682f00"
+          },
+          "type_url": "type.googleapis.com/protocol.TriggerSmartContract"
+        },
+        "type": "TriggerSmartContract"
+      }
+    ],
+    "timestamp": 1786585661039,
+    "fee_limit": 100000000
+  },
+  "signature": [
+    "7024ae4eca666c231dbc22741521ddaf27dbf1654e60a7a1c603d4d5ab0397f149ab1c1011d93f46054def994d5bfc9db03ed67929cfc2ba3c662b9e93a97bf301"
+  ],
+  "ret": [
+    {
+      "contractRet": "SUCCESS"
+    }
+  ],
+  "raw_data_hex": "0a02a60e220876af4c193b687d8f40d8c1bac6ff335aae01081f12a9010a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412740a1541a19ba110ed5ee1a45ac5f391e6d72afa733c1221121541a614f803b6fd780986a42c78ec9c7f77e6ded13c2244a9059cbb000000000000000000000000ba3164aad6603b543832f35718a5d970a793b7d80000000000000000000000000000000000000000000000000000000059682f0070effcb6c6ff33900180c2d72f",
+  "txID": "34a574df1c0ed42fd47863965275edf862640d00c2ce70a26f7c5013a2d652ec"
+}

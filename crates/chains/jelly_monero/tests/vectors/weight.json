@@ -1,0 +1,10 @@
+{
+  "_source": "Pinned outputs of estimate_weight in src/fee.rs for the one shape this adapter builds: CLSAG with Bulletproofs+ and view tags, a ring of 16, two outputs, and a 44-byte extra. The arithmetic follows wallet2's estimate_rct_tx_size (src/wallet/wallet2.cpp), but these rows were generated from src/fee.rs, not by wallet2, so they pin the estimator against silent drift rather than prove it matches wallet2.",
+  "cases": [
+    { "inputs": 1, "weight": 1536 },
+    { "inputs": 2, "weight": 2215 },
+    { "inputs": 4, "weight": 3573 },
+    { "inputs": 8, "weight": 6289 },
+    { "inputs": 16, "weight": 11721 }
+  ]
+}

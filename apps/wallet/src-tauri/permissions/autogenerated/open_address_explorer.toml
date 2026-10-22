@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-address-explorer"
+description = "Enables the open_address_explorer command without any pre-configured scope."
+commands.allow = ["open_address_explorer"]
+
+[[permission]]
+identifier = "deny-open-address-explorer"
+description = "Denies the open_address_explorer command without any pre-configured scope."
+commands.deny = ["open_address_explorer"]

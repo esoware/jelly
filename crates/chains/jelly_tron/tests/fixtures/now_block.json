@@ -1,0 +1,15 @@
+{
+  "_recorded": "Recorded from https://api.trongrid.io on 2026-08-13, with the transactions array removed.",
+  "blockID": "000000000515a651af7c721ebc0c55d84f973b989508d8f40ba10affa980fd3e",
+  "block_header": {
+    "raw_data": {
+      "number": 85304913,
+      "txTrieRoot": "1b4d6649a472ce3760421d607ed33e26394111fff8b38be062ff3a0b079c717c",
+      "witness_address": "414ce8225c8ea6c8e1e0a483132211610c765fc6df",
+      "parentHash": "000000000515a65071d3635c6aba87c121bca0b937450dafa30f5b172f9b5de2",
+      "version": 36,
+      "timestamp": 1786585806000
+    },
+    "witness_signature": "281bfd3c78cd32003c7c46f4eb1685ca2ae75895882cc95101a028a15e7e7a573ea8ec3f6ccdf6789d9facfad057e9c08668171fad4a09732efc04193913746f01"
+  }
+}

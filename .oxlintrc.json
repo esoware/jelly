@@ -1,0 +1,335 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "react", "import", "unicorn", "oxc", "promise"],
+  "jsPlugins": ["eslint-plugin-better-tailwindcss"],
+  "options": {
+    "typeAware": true,
+    "denyWarnings": true,
+    "reportUnusedDisableDirectives": "deny"
+  },
+  "env": {
+    "browser": true,
+    "es2024": true
+  },
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "error",
+    "perf": "error",
+    "style": "error",
+    "restriction": "error",
+    "nursery": "error"
+  },
+  "rules": {
+    "better-tailwindcss/enforce-canonical-classes": "error",
+    "better-tailwindcss/no-unnecessary-whitespace": "error",
+    "eslint/func-style": ["error", "declaration"],
+    "eslint/id-denylist": [
+      "error",
+      "val",
+      "tmp",
+      "res",
+      "buf",
+      "str",
+      "ctx",
+      "cfg",
+      "conf",
+      "req",
+      "resp",
+      "msg",
+      "err",
+      "conn",
+      "addr",
+      "sig",
+      "prev",
+      "len",
+      "idx",
+      "cb",
+      "evt",
+      "el",
+      "btn",
+      "out",
+      "obj",
+      "arr",
+      "num",
+      "opts",
+      "meta",
+      "dir",
+      "dest",
+      "src",
+      "dst",
+      "pos",
+      "ret",
+      "fn"
+    ],
+    "eslint/max-params": [
+      "error",
+      {
+        "max": 5
+      }
+    ],
+    "eslint/no-duplicate-imports": [
+      "error",
+      {
+        "allowSeparateTypeImports": true
+      }
+    ],
+    "eslint/no-magic-numbers": [
+      "error",
+      {
+        "ignore": [0, 1, -1, 2, "0n", "1n", "-1n"],
+        "ignoreArrayIndexes": true,
+        "ignoreEnums": true,
+        "ignoreNumericLiteralTypes": true,
+        "ignoreTypeIndexes": true
+      }
+    ],
+    "eslint/no-restricted-globals": [
+      "error",
+      {
+        "checkGlobalObject": true,
+        "globals": [
+          {
+            "name": "fetch",
+            "message": "The webview has no network access. Call a Rust command."
+          },
+          {
+            "name": "XMLHttpRequest",
+            "message": "The webview has no network access. Call a Rust command."
+          },
+          {
+            "name": "WebSocket",
+            "message": "The webview has no network access. Call a Rust command."
+          },
+          {
+            "name": "EventSource",
+            "message": "The webview has no network access. Call a Rust command."
+          },
+          {
+            "name": "Image",
+            "message": "The webview has no network access. Render an img element."
+          },
+          {
+            "name": "open",
+            "message": "The webview opens no windows and no external links."
+          }
+        ]
+      }
+    ],
+    "eslint/no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "regex": "^\\."
+          },
+          {
+            "regex": "^@base-ui/react/(alert-dialog|collapsible|combobox|context-menu|dialog|drawer|menu|popover|preview-card|select|tooltip)$",
+            "message": "Import this from ui/, which owns its enter and exit motion."
+          }
+        ]
+      }
+    ],
+    "eslint/no-restricted-properties": [
+      "error",
+      {
+        "object": "navigator",
+        "property": "sendBeacon",
+        "message": "The webview has no network access. Call a Rust command."
+      }
+    ],
+    "eslint/one-var": ["error", "never"],
+    "import/no-unassigned-import": [
+      "error",
+      {
+        "allow": ["**/*.css"]
+      }
+    ],
+    "react/forbid-dom-props": [
+      "error",
+      {
+        "forbid": [
+          {
+            "propName": "title",
+            "message": "Native tooltips are off. Use TooltipText or Tooltip from ui/tooltip.tsx."
+          }
+        ]
+      }
+    ],
+    "typescript/only-throw-error": [
+      "error",
+      {
+        "allow": [
+          {
+            "from": "package",
+            "package": "@tanstack/router-core",
+            "name": ["Redirect"]
+          }
+        ]
+      }
+    ],
+    "eslint/class-methods-use-this": "off",
+    "eslint/complexity": "off",
+    "eslint/default-case": "off",
+    "eslint/id-length": "off",
+    "eslint/max-lines": "off",
+    "eslint/max-lines-per-function": "off",
+    "eslint/max-statements": "off",
+    "eslint/no-alert": "off",
+    "eslint/no-bitwise": "off",
+    "eslint/no-div-regex": "off",
+    "eslint/no-empty": "off",
+    "eslint/no-empty-function": "off",
+    "eslint/no-eq-null": "off",
+    "eslint/no-implicit-globals": "off",
+    "eslint/no-param-reassign": "off",
+    "eslint/no-plusplus": "off",
+    "eslint/no-proto": "off",
+    "eslint/no-regex-spaces": "off",
+    "eslint/no-sequences": "off",
+    "eslint/no-ternary": "off",
+    "eslint/no-undefined": "off",
+    "eslint/no-use-before-define": "off",
+    "eslint/no-var": "off",
+    "eslint/no-void": "off",
+    "eslint/sort-imports": "off",
+    "eslint/sort-keys": "off",
+    "eslint/unicode-bom": "off",
+    "import/exports-last": "off",
+    "import/extensions": "off",
+    "import/group-exports": "off",
+    "import/max-dependencies": "off",
+    "import/no-amd": "off",
+    "import/no-commonjs": "off",
+    "import/no-dynamic-require": "off",
+    "import/no-named-export": "off",
+    "import/no-relative-parent-imports": "off",
+    "import/no-webpack-loader-syntax": "off",
+    "import/prefer-default-export": "off",
+    "import/unambiguous": "off",
+    "oxc/bad-bitwise-operator": "off",
+    "oxc/no-async-await": "off",
+    "oxc/no-barrel-file": "off",
+    "oxc/no-const-enum": "off",
+    "oxc/no-optional-chaining": "off",
+    "oxc/no-rest-spread-properties": "off",
+    "promise/catch-or-return": "off",
+    "promise/spec-only": "off",
+    "react/button-has-type": "off",
+    "react/forbid-component-props": "off",
+    "react/forbid-elements": "off",
+    "react/jsx-filename-extension": "off",
+    "react/jsx-max-depth": "off",
+    "react/jsx-no-literals": "off",
+    "react/jsx-props-no-spreading": "off",
+    "react/no-clone-element": "off",
+    "react/no-danger": "off",
+    "react/no-multi-comp": "off",
+    "react/no-react-children": "off",
+    "react/no-set-state": "off",
+    "react/no-unknown-property": "off",
+    "react/only-export-components": "off",
+    "react/prefer-function-component": "off",
+    "react/react-in-jsx-scope": "off",
+    "react/todo": "off",
+    "typescript/consistent-return": "off",
+    "typescript/explicit-function-return-type": "off",
+    "typescript/explicit-member-accessibility": "off",
+    "typescript/explicit-module-boundary-types": "off",
+    "typescript/no-dynamic-delete": "off",
+    "typescript/no-empty-object-type": "off",
+    "typescript/no-import-type-side-effects": "off",
+    "typescript/no-invalid-void-type": "off",
+    "typescript/no-namespace": "off",
+    "typescript/no-non-null-asserted-nullish-coalescing": "off",
+    "typescript/no-require-imports": "off",
+    "typescript/no-restricted-types": "off",
+    "typescript/no-var-requires": "off",
+    "typescript/non-nullable-type-assertion-style": "off",
+    "typescript/prefer-literal-enum-member": "off",
+    "typescript/prefer-readonly-parameter-types": "off",
+    "typescript/promise-function-async": "off",
+    "typescript/use-unknown-in-catch-callback-variable": "off",
+    "unicorn/import-style": "off",
+    "unicorn/no-abusive-eslint-disable": "off",
+    "unicorn/no-anonymous-default-export": "off",
+    "unicorn/no-array-for-each": "off",
+    "unicorn/no-array-reduce": "off",
+    "unicorn/no-document-cookie": "off",
+    "unicorn/no-length-as-slice-end": "off",
+    "unicorn/no-magic-array-flat-depth": "off",
+    "unicorn/no-null": "off",
+    "unicorn/no-process-exit": "off",
+    "unicorn/no-useless-error-capture-stack-trace": "off",
+    "unicorn/no-useless-undefined": "off",
+    "unicorn/number-literal-case": "off",
+    "unicorn/prefer-global-this": "off",
+    "unicorn/prefer-modern-math-apis": "off",
+    "unicorn/prefer-module": "off",
+    "unicorn/prefer-node-protocol": "off",
+    "unicorn/prefer-number-properties": "off"
+  },
+  "settings": {
+    "better-tailwindcss": {
+      "cwd": "apps/wallet",
+      "entryPoint": "src/styles/index.css",
+      "selectors": [
+        {
+          "kind": "attribute",
+          "name": "^(?:className|.*ClassName)$",
+          "match": [
+            { "type": "strings" },
+            { "type": "objectValues" },
+            { "type": "anonymousFunctionReturn", "match": [{ "type": "strings" }] }
+          ]
+        },
+        {
+          "kind": "callee",
+          "name": "^appendClassName$",
+          "match": [{ "type": "strings" }]
+        },
+        {
+          "kind": "callee",
+          "name": "^(?:useRender|mergeProps)$",
+          "match": [{ "type": "objectValues", "path": "^(?:props\\.)?className$" }]
+        },
+        {
+          "kind": "variable",
+          "name": "^[A-Z][A-Z0-9_]*_CLASSES$",
+          "match": [{ "type": "strings" }, { "type": "objectValues" }]
+        }
+      ]
+    }
+  },
+  "overrides": [
+    {
+      "files": ["**/*.config.ts"],
+      "env": {
+        "node": true
+      },
+      "rules": {
+        "import/no-default-export": "off"
+      }
+    },
+    {
+      "files": ["apps/wallet/src/ui/**"],
+      "rules": {
+        "eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "^\\."
+              },
+              {
+                "regex": "^@/((ipc|store|query|widgets|features|shell)/|(main|router|session|store)\\.tsx?$)",
+                "message": "ui/ holds primitives that know nothing about the app."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "ignorePatterns": ["dist", "node_modules", "target", "apps/wallet/src-tauri/gen", "**/*.gen.ts"]
+}

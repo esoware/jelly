@@ -1,0 +1,118 @@
+{
+  "_recorded": "eth_getLogs results for the ERC-20 Transfer topic over one window, in the shape a geth Ethereum mainnet node returns. The recipient-side and sender-side filters overlap, so the incoming log appears twice. One log belongs to a contract outside the registry, one carries a null transaction hash, and one was removed by a reorg.",
+  "result": [
+    {
+      "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000005041ed759dd4afc3a72b8192c143f72f4724081a",
+        "0x000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045"
+      ],
+      "data": "0x00000000000000000000000000000000000000000000000000000000002625a0",
+      "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000001",
+      "blockNumber": "0x112a880",
+      "blockTimestamp": "0x64d9df00",
+      "transactionHash": "0x11d9d4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
+      "transactionIndex": "0x5",
+      "logIndex": "0x2a",
+      "removed": false
+    },
+    {
+      "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000005041ed759dd4afc3a72b8192c143f72f4724081a",
+        "0x000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045"
+      ],
+      "data": "0x00000000000000000000000000000000000000000000000000000000002625a0",
+      "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000001",
+      "blockNumber": "0x112a880",
+      "blockTimestamp": "0x64d9df00",
+      "transactionHash": "0x11d9d4c1a8fbf1f9e1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
+      "transactionIndex": "0x5",
+      "logIndex": "0x2a",
+      "removed": false
+    },
+    {
+      "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "0x0000000000000000000000005041ed759dd4afc3a72b8192c143f72f4724081a"
+      ],
+      "data": "0x00000000000000000000000000000000000000000000000000000000000f4240",
+      "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000002",
+      "blockNumber": "0x112a881",
+      "blockTimestamp": "0x64d9df0c",
+      "transactionHash": "0x22e0e5d2b9fc02fae2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5",
+      "transactionIndex": "0x2",
+      "logIndex": "0x5",
+      "removed": false
+    },
+    {
+      "address": "0x1111111111111111111111111111111111111111",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000005041ed759dd4afc3a72b8192c143f72f4724081a",
+        "0x000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045"
+      ],
+      "data": "0x0000000000000000000000000000000000000000000000000000000000000001",
+      "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000003",
+      "blockNumber": "0x112a882",
+      "blockTimestamp": "0x64d9df18",
+      "transactionHash": "0x33e0e5d2b9fc02fae2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f6",
+      "transactionIndex": "0x1",
+      "logIndex": "0x1",
+      "removed": false
+    },
+    {
+      "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000005041ed759dd4afc3a72b8192c143f72f4724081a",
+        "0x000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045"
+      ],
+      "data": "0x0000000000000000000000000000000000000000000000000000000000000009",
+      "blockHash": null,
+      "blockNumber": null,
+      "transactionHash": null,
+      "transactionIndex": null,
+      "logIndex": null,
+      "removed": false
+    },
+    {
+      "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000005041ed759dd4afc3a72b8192c143f72f4724081a",
+        "0x000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045"
+      ],
+      "data": "0x0000000000000000000000000000000000000000000000000000000000000007",
+      "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000009",
+      "blockNumber": "0x112a883",
+      "blockTimestamp": "0x64d9df24",
+      "transactionHash": "0x99e0e5d2b9fc02fae2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f9",
+      "transactionIndex": "0x0",
+      "logIndex": "0x0",
+      "removed": true
+    }
+  ],
+  "oversized_value": [
+    {
+      "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000005041ed759dd4afc3a72b8192c143f72f4724081a",
+        "0x000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045"
+      ],
+      "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000004",
+      "blockNumber": "0x112a883",
+      "blockTimestamp": "0x64d9df24",
+      "transactionHash": "0x44e0e5d2b9fc02fae2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f7",
+      "transactionIndex": "0x0",
+      "logIndex": "0x0",
+      "removed": false
+    }
+  ]
+}

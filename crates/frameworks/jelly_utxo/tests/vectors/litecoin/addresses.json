@@ -1,0 +1,94 @@
+{
+  "_recorded": "Derived from the BIP-39 test phrase below with an empty passphrase, at Litecoin's SLIP-44 coin type 2, and cross-checked against Electrum-LTC and litecoinspace.org.",
+  "phrase": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+  "derived": [
+    {
+      "path": "m/84'/2'/0'/0/0",
+      "scriptKind": "p2wpkh",
+      "address": "ltc1qjmxnz78nmc8nq77wuxh25n2es7rzm5c2rkk4wh",
+      "scriptPubkey": "001496cd3178f3de0f307bcee1aeaa4d5987862dd30a"
+    },
+    {
+      "path": "m/84'/2'/0'/0/1",
+      "scriptKind": "p2wpkh",
+      "address": "ltc1qwlezpr3890hcp6vva9twqh27mr6edadreqvhnn",
+      "scriptPubkey": "001477f2208e272bef80e98ce956e05d5ed8f596f5a3"
+    },
+    {
+      "path": "m/49'/2'/0'/0/0",
+      "scriptKind": "p2sh_p2wpkh",
+      "address": "M7wtsL7wSHDBJVMWWhtQfTMSYYkyooAAXM",
+      "scriptPubkey": "a91400846c3f4a7bb38e9b422b4129bf8b191287289e87"
+    },
+    {
+      "path": "m/44'/2'/0'/0/0",
+      "scriptKind": "p2pkh",
+      "address": "LUWPbpM43E2p7ZSh8cyTBEkvpHmr3cB8Ez",
+      "scriptPubkey": "76a91465d4f0444069f3881221e24bb6a99b1d53e008cf88ac"
+    }
+  ],
+  "canonical": [
+    {
+      "input": "LTC1QJMXNZ78NMC8NQ77WUXH25N2ES7RZM5C2RKK4WH",
+      "output": "ltc1qjmxnz78nmc8nq77wuxh25n2es7rzm5c2rkk4wh",
+      "note": "bech32 is case insensitive on the wire and lowercase in canonical form"
+    },
+    {
+      "input": "  LUWPbpM43E2p7ZSh8cyTBEkvpHmr3cB8Ez  ",
+      "output": "LUWPbpM43E2p7ZSh8cyTBEkvpHmr3cB8Ez",
+      "note": "surrounding whitespace is trimmed"
+    },
+    {
+      "input": "31jkZShyVAMkVz5cQpu4qp73DrAXtFP3rZ",
+      "output": "31jkZShyVAMkVz5cQpu4qp73DrAXtFP3rZ",
+      "note": "the deprecated 3... script-hash form, the same script hash as M7wtsL7wSHDBJVMWWhtQfTMSYYkyooAAXM under version byte 0x05; read as written and never produced"
+    }
+  ],
+  "invalid": [
+    { "address": "", "note": "empty" },
+    {
+      "address": "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu",
+      "note": "bitcoin segwit, whose human-readable part is not litecoin's"
+    },
+    {
+      "address": "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+      "note": "bitcoin pay-to-public-key-hash, whose version byte is not litecoin's"
+    },
+    {
+      "address": "tltc1qw508d6qejxtdg4y5r3zarvary0c5xw7klfsuq0",
+      "note": "litecoin testnet, which this build never talks to"
+    },
+    {
+      "address": "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+      "note": "an ethereum address"
+    },
+    {
+      "address": "ltc1qjmxnz78nmc8nq77wuxh25n2es7rzm5c2rkk4wx",
+      "note": "the bech32 checksum does not match"
+    },
+    {
+      "address": "LUWPbpM43E2p7ZSh8cyTBEkvpHmr3cB8Ex",
+      "note": "the base58check checksum does not match"
+    },
+    { "address": "not an address", "note": "not an encoding at all" }
+  ],
+  "refused": [
+    {
+      "address": "ltcmweb1qqfyxdrgtqzrsfsjtlnywsn6vswdla2wsuqw4vfhkq0nug5xy0enq8q",
+      "reason": "mweb",
+      "note": "a MimbleWimble stealth address: not an output script, and invisible to a scripthash index"
+    }
+  ],
+  "payable": [
+    {
+      "address": "ltc1pqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqzywff7",
+      "scriptPubkey": "51200000000000000000000000000000000000000000000000000000000000000000",
+      "note": "a well formed segwit version one address over an all-zero program: litecoin relays taproot, so it is paid, and no key is ever derived under the flavour"
+    },
+    {
+      "address": "ltc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqgnwq3z",
+      "scriptPubkey": "00200000000000000000000000000000000000000000000000000000000000000000",
+      "note": "a well formed segwit v0 pay-to-witness-script-hash address: paid like any other script, and never an input a single-key wallet signs for, so it is a recipient and never a watched row"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-restore-height"
+description = "Enables the set_restore_height command without any pre-configured scope."
+commands.allow = ["set_restore_height"]
+
+[[permission]]
+identifier = "deny-set-restore-height"
+description = "Denies the set_restore_height command without any pre-configured scope."
+commands.deny = ["set_restore_height"]

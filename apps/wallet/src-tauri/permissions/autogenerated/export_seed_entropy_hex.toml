@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-export-seed-entropy-hex"
+description = "Enables the export_seed_entropy_hex command without any pre-configured scope."
+commands.allow = ["export_seed_entropy_hex"]
+
+[[permission]]
+identifier = "deny-export-seed-entropy-hex"
+description = "Denies the export_seed_entropy_hex command without any pre-configured scope."
+commands.deny = ["export_seed_entropy_hex"]

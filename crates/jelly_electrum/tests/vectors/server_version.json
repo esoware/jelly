@@ -1,0 +1,17 @@
+{
+  "_recorded": "Built to the Electrum protocol 1.6 wire shapes, not captured from a live server.",
+  "cases": [
+    {
+      "name": "fulcrum",
+      "result": ["Fulcrum 1.12.0", "1.6"],
+      "software": "Fulcrum 1.12.0",
+      "protocol": "1.6"
+    },
+    {
+      "name": "electrumx",
+      "result": ["ElectrumX 1.16.0", "1.4"],
+      "software": "ElectrumX 1.16.0",
+      "protocol": "1.4"
+    }
+  ]
+}

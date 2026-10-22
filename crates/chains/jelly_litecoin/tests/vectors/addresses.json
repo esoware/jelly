@@ -1,0 +1,127 @@
+{
+  "_source": {
+    "derived": "No published vector. Reproduced by an independent implementation and pinned here as a regression. Derived from the all-abandon BIP-39 phrase.",
+    "raw": "trustwallet/wallet-core CoinAddressDerivationTests.cpp, whose key is 32 bytes of 0x46.",
+    "scripts": "Litecoin's own derived addresses plus four of Bitcoin's witness programs re-encoded under Litecoin's human-readable part by the BIP-173 and BIP-350 reference implementations, so their scripts are the Bitcoin bytes by construction.",
+    "uris": "Payment requests in the chain's own scheme, and bare addresses. A request in another chain's scheme is refused as the wrong network by the chain table, which these rows do not reach."
+  },
+  "derived": [
+    {
+      "path": "m/84'/2'/0'/0/0",
+      "address": "ltc1qjmxnz78nmc8nq77wuxh25n2es7rzm5c2rkk4wh"
+    },
+    {
+      "path": "m/84'/2'/0'/0/1",
+      "address": "ltc1qwlezpr3890hcp6vva9twqh27mr6edadreqvhnn"
+    },
+    {
+      "path": "m/84'/2'/0'/1/0",
+      "address": "ltc1qyeljcy9v88jg8sqvnqh0m5q390xruc5r98q9yy"
+    },
+    {
+      "path": "m/44'/2'/0'/0/0",
+      "script": "p2pkh",
+      "address": "LUWPbpM43E2p7ZSh8cyTBEkvpHmr3cB8Ez"
+    },
+    {
+      "path": "m/49'/2'/0'/0/0",
+      "script": "p2sh_p2wpkh",
+      "address": "M7wtsL7wSHDBJVMWWhtQfTMSYYkyooAAXM"
+    }
+  ],
+  "raw": [
+    {
+      "secret": "4646464646464646464646464646464646464646464646464646464646464646",
+      "script": "p2wpkh",
+      "address": "ltc1qhkfq3zahaqkkzx5mjnamwjsfpq2jk7z0tamvsu"
+    }
+  ],
+  "scripts": [
+    {
+      "address": "ltc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxq4arnzx",
+      "script_kind": "p2tr",
+      "script_pubkey": "5120a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c"
+    },
+    {
+      "address": "ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9",
+      "script_kind": "p2wpkh",
+      "script_pubkey": "0014751e76e8199196d454941c45d1b3a323f1433bd6"
+    },
+    {
+      "address": "ltc1qjmxnz78nmc8nq77wuxh25n2es7rzm5c2rkk4wh",
+      "script_kind": "p2wpkh",
+      "script_pubkey": "001496cd3178f3de0f307bcee1aeaa4d5987862dd30a"
+    },
+    {
+      "address": "M7wtsL7wSHDBJVMWWhtQfTMSYYkyooAAXM",
+      "script_kind": "p2sh_p2wpkh",
+      "script_pubkey": "a91400846c3f4a7bb38e9b422b4129bf8b191287289e87"
+    },
+    {
+      "address": "31jkZShyVAMkVz5cQpu4qp73DrAXtFP3rZ",
+      "script_kind": "p2sh_p2wpkh",
+      "script_pubkey": "a91400846c3f4a7bb38e9b422b4129bf8b191287289e87",
+      "why": "the superseded version byte pays the script the current M... form pays"
+    },
+    {
+      "address": "LUWPbpM43E2p7ZSh8cyTBEkvpHmr3cB8Ez",
+      "script_kind": "p2pkh",
+      "script_pubkey": "76a91465d4f0444069f3881221e24bb6a99b1d53e008cf88ac"
+    },
+    {
+      "address": "ltc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qmu8tk5",
+      "script_pubkey": "00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262",
+      "why": "pay-to-witness-script-hash: payable, and no single-key flavour"
+    },
+    {
+      "address": "ltc1zw508d6qejxtdg4y5r3zarvary0c5xw7ktjy0v3",
+      "script_pubkey": "5214751e76e8199196d454941c45d1b3a323f1433bd6",
+      "why": "witness version two: payable, and nothing this build spends"
+    }
+  ],
+  "valid": [
+    "ltc1qjmxnz78nmc8nq77wuxh25n2es7rzm5c2rkk4wh",
+    "LUWPbpM43E2p7ZSh8cyTBEkvpHmr3cB8Ez",
+    "M7wtsL7wSHDBJVMWWhtQfTMSYYkyooAAXM"
+  ],
+  "invalid": [
+    {
+      "address": "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu",
+      "why": "bitcoin"
+    },
+    {
+      "address": "1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA",
+      "why": "bitcoin base58"
+    },
+    {
+      "address": "tltc1qw508d6qejxtdg4y5r3zarvary0c5xw7klfsuq0",
+      "why": "litecoin testnet"
+    },
+    {
+      "address": "ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kGmn4n9",
+      "why": "one character upper case, which bech32 forbids"
+    },
+    {
+      "address": "ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7ka8rek8",
+      "why": "witness version zero written with the bech32m checksum"
+    },
+    {
+      "address": "ltc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqqpnl8y",
+      "why": "witness version one written with the bech32 checksum"
+    }
+  ],
+  "uris": {
+    "accepted": [
+      {
+        "uri": "litecoin:ltc1qjmxnz78nmc8nq77wuxh25n2es7rzm5c2rkk4wh?amount=2",
+        "address": "ltc1qjmxnz78nmc8nq77wuxh25n2es7rzm5c2rkk4wh"
+      }
+    ],
+    "unsupported": [
+      {
+        "uri": "litecoin:ltc1qjmxnz78nmc8nq77wuxh25n2es7rzm5c2rkk4wh?req-somethingnew=1",
+        "why": "a required parameter Jelly does not know"
+      }
+    ]
+  }
+}

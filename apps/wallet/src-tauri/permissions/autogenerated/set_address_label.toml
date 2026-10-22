@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-address-label"
+description = "Enables the set_address_label command without any pre-configured scope."
+commands.allow = ["set_address_label"]
+
+[[permission]]
+identifier = "deny-set-address-label"
+description = "Denies the set_address_label command without any pre-configured scope."
+commands.deny = ["set_address_label"]

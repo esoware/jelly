@@ -1,0 +1,42 @@
+@utility scroll-y-* {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-inline: --spacing(--value(number));
+  padding-inline-end: calc(--spacing(--value(number)) - var(--spacing-scrollbar));
+}
+
+@utility overlay-sm {
+  @apply border border-edge bg-overlay shadow-sm;
+  backdrop-filter: url(#glass-sm);
+}
+
+@utility overlay-lg {
+  @apply border border-edge bg-overlay shadow-lg;
+  backdrop-filter: url(#glass-lg);
+}
+
+@utility app-region-drag {
+  app-region: drag;
+}
+
+@utility app-region-no-drag {
+  app-region: no-drag;
+}
+
+@utility motion-pop {
+  will-change: scale;
+  transition-property: opacity, scale;
+  transition-duration: var(--transition-duration-base);
+  transition-timing-function: var(--ease-enter);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    scale: 0.96;
+  }
+
+  &[data-ending-style] {
+    transition-duration: var(--transition-duration-fast);
+    transition-timing-function: var(--ease-exit);
+  }
+}

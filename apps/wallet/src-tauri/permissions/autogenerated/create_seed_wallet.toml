@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-create-seed-wallet"
+description = "Enables the create_seed_wallet command without any pre-configured scope."
+commands.allow = ["create_seed_wallet"]
+
+[[permission]]
+identifier = "deny-create-seed-wallet"
+description = "Denies the create_seed_wallet command without any pre-configured scope."
+commands.deny = ["create_seed_wallet"]

@@ -1,0 +1,9 @@
+{
+  "_recorded": "Recorded from https://api.trongrid.io on 2026-08-13 for balanceOf(address) against the USDT contract.",
+  "constant_result": ["000000000000000000000000000000000000000000000000000000071e934ebe"],
+  "result": {
+    "result": true
+  },
+  "energy_used": 4062,
+  "energy_penalty": 3127
+}

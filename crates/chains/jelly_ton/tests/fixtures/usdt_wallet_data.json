@@ -1,0 +1,63 @@
+{
+  "@type": "smc.runResult",
+  "gas_used": 837,
+  "stack": [
+    ["num", "0x0"],
+    [
+      "cell",
+      {
+        "bytes": "te6cckEBAQEAJAAAQ4AUPGsCB+oHBGks4E/WQD8VoYBDFK43SgpC9TyWeqauJpCLJ7+N",
+        "object": {
+          "data": {
+            "b64": "gBQ8awIH6gcEaSzgT9ZAPxWhgEMUrjdKCkL1PJZ6pq4mkA==",
+            "len": 267
+          },
+          "refs": [],
+          "special": false
+        }
+      }
+    ],
+    [
+      "cell",
+      {
+        "bytes": "te6cckEBAQEAJAAAQ4AWInUylqBJQs4z7SJyZR1usrLYcUS+sgUWKN/ZuGxDv9C6Xu/I",
+        "object": {
+          "data": {
+            "b64": "gBYidTKWoElCzjPtInJlHW6ysthxRL6yBRYo39m4bEO/0A==",
+            "len": 267
+          },
+          "refs": [],
+          "special": false
+        }
+      }
+    ],
+    [
+      "cell",
+      {
+        "bytes": "te6cckEBAQEAIwAIQgKPRS16Tf10BmtoI2UXclntBXNENb52tf1L1divK3w9aCBrv3Y=",
+        "object": {
+          "data": {
+            "b64": "Ao9FLXpN/XQGa2gjZRdyWe0Fc0Q1vna1/UvV2K8rfD1o",
+            "len": 264
+          },
+          "refs": [],
+          "special": true
+        }
+      }
+    ]
+  ],
+  "exit_code": 0,
+  "block_id": {
+    "@type": "ton.blockIdExt",
+    "workchain": -1,
+    "shard": "-9223372036854775808",
+    "seqno": 100128097,
+    "root_hash": "kg87BxgYUtIVA6dHxeSRGYuKLOZ/uLcKxzaHRIoAVAw=",
+    "file_hash": "OKSAz4eYloQdPFmMQLD8sCSZ6DB5bxRKfo/cFdZuL5g="
+  },
+  "last_transaction_id": {
+    "@type": "internal.transactionId",
+    "lt": "70036281000009",
+    "hash": "hPyNPFJdkgWApKWn6ghiNmxRNwUoWtIIhrVcEV+xEpY="
+  }
+}

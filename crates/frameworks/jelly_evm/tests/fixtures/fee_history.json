@@ -1,0 +1,50 @@
+{
+  "_recorded": "result is an eth_feeHistory answer in the shape a geth Ethereum mainnet node returns, for blockCount 4 at percentiles 10, 20 and 30. The suite pins its four reward rows, whose columns have medians of 1, 2 and 3 gwei, and the trailing predicted base fee of 12 gwei. avalanche is a verbatim answer from the Ava Labs public C-Chain endpoint, recorded 2026-10-20 for blockCount 5 at percentiles 10, 20 and 30, where the base fee rests at its 2.5 gwei floor and every block tipped far above what the node's own oracle suggests. empty_blocks, no_reward_array and no_prediction are hand-made variants for providers that send all-zero rewards, omit reward, or omit the trailing prediction.",
+  "result": {
+    "oldestBlock": "0x112a880",
+    "baseFeePerGas": ["0x2540be400", "0x28fa6ae00", "0x2cb417800", "0x2cb417800", "0x2cb417800"],
+    "gasUsedRatio": [0.5, 0.62, 0.55, 0.71],
+    "reward": [
+      ["0x3b9aca00", "0x77359400", "0xb2d05e00"],
+      ["0x3b9aca00", "0x77359400", "0xb2d05e00"],
+      ["0x77359400", "0xb2d05e00", "0xee6b2800"],
+      ["0x3b9aca00", "0x77359400", "0xb2d05e00"]
+    ]
+  },
+  "empty_blocks": {
+    "oldestBlock": "0x112a880",
+    "baseFeePerGas": ["0x3b9aca00", "0x3b9aca00"],
+    "gasUsedRatio": [0.0],
+    "reward": [["0x0", "0x0", "0x0"]]
+  },
+  "no_reward_array": {
+    "oldestBlock": "0x112a880",
+    "baseFeePerGas": ["0x3b9aca00", "0x3b9aca00"],
+    "gasUsedRatio": [0.0]
+  },
+  "no_prediction": {
+    "oldestBlock": "0x112a880",
+    "baseFeePerGas": ["0x2540be400"],
+    "gasUsedRatio": [],
+    "reward": []
+  },
+  "avalanche": {
+    "oldestBlock": "0x5d78156",
+    "reward": [
+      ["0x4a817d61", "0x4a817d61", "0x4a817d61"],
+      ["0x53d1ac100", "0x53d1ac100", "0x53d1ac100"],
+      ["0x3b9aca96", "0x3b9aca96", "0x3b9aca96"],
+      ["0x1dcd6500", "0x1dcd6500", "0x1dcd6500"],
+      ["0x16229bc1", "0x3b9aca00", "0x3b9aca00"]
+    ],
+    "baseFeePerGas": [
+      "0x9502f900",
+      "0x9502f900",
+      "0x9502f900",
+      "0x9502f900",
+      "0x9502f900",
+      "0x9538e2a4"
+    ],
+    "gasUsedRatio": [0.0008125, 0.0078018625, 0.0069317625, 0.0038592875, 0.012286925]
+  }
+}

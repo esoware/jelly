@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-enabled-chains"
+description = "Enables the list_enabled_chains command without any pre-configured scope."
+commands.allow = ["list_enabled_chains"]
+
+[[permission]]
+identifier = "deny-list-enabled-chains"
+description = "Denies the list_enabled_chains command without any pre-configured scope."
+commands.deny = ["list_enabled_chains"]

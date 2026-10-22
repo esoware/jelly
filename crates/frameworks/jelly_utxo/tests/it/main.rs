@@ -1,0 +1,21 @@
+mod common;
+
+mod addresses;
+mod bitcoin_cash;
+mod broadcast;
+mod capabilities;
+mod chains;
+mod cpfp;
+mod dogecoin;
+mod entries;
+mod fee;
+mod fee_api;
+mod pending;
+mod replacement;
+mod send;
+mod sign;
+mod sources;
+mod sync;
+mod vectors;
+mod watch;
+mod wiring;

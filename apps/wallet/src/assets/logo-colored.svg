@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <filter id="jf-b22" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="22"/></filter>
+    <filter id="jf-b18" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="18"/></filter>
+    <filter id="jf-b8" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="8"/></filter>
+    <mask id="jf-mask" maskUnits="userSpaceOnUse" x="-2000" y="-2000" width="4000" height="4000">
+      <g fill="#ffffff" stroke="#ffffff" stroke-width="20" stroke-linecap="round">
+        <path stroke="none" d="M256 118C322 118 380 164 380 226C380 252 368 266 348 268C320 270 288 274 256 274C224 274 192 270 164 268C144 266 132 252 132 226C132 164 190 118 256 118Z"/>
+        <path fill="none" d="M198 290C184 312 212 334 198 360"/>
+        <path fill="none" d="M256 296C240 320 272 346 256 374"/>
+        <path fill="none" d="M314 290C328 312 300 334 314 360"/>
+      </g>
+    </mask>
+  </defs>
+  <g transform="scale(0.3812) translate(-124.5 -115.2) rotate(45 256 246)">
+    <g mask="url(#jf-mask)">
+      <rect x="80" y="60" width="360" height="380" fill="#ff55a1"/>
+      <ellipse cx="200" cy="160" rx="75" ry="55" fill="#ff9fd0" filter="url(#jf-b22)" opacity="0.95"/>
+      <ellipse cx="300" cy="140" rx="45" ry="40" fill="#ff9fd0" filter="url(#jf-b18)" opacity="0.7"/>
+      <ellipse cx="256" cy="270" rx="120" ry="34" fill="#e6308b" filter="url(#jf-b18)" opacity="0.75"/>
+      <ellipse cx="372" cy="220" rx="40" ry="40" fill="#e6308b" filter="url(#jf-b18)" opacity="0.6"/>
+      <circle cx="198" cy="292" r="14" fill="#ff9fd0" filter="url(#jf-b8)" opacity="0.6"/>
+      <circle cx="256" cy="298" r="14" fill="#ff9fd0" filter="url(#jf-b8)" opacity="0.6"/>
+      <circle cx="314" cy="292" r="14" fill="#ff9fd0" filter="url(#jf-b8)" opacity="0.6"/>
+      <circle cx="198" cy="358" r="16" fill="#e6308b" filter="url(#jf-b8)" opacity="0.7"/>
+      <circle cx="256" cy="372" r="16" fill="#e6308b" filter="url(#jf-b8)" opacity="0.7"/>
+      <circle cx="314" cy="358" r="16" fill="#e6308b" filter="url(#jf-b8)" opacity="0.7"/>
+    </g>
+  </g>
+</svg>

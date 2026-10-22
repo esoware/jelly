@@ -1,0 +1,24 @@
+[package]
+name         = "jelly_bitcoin_cash"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[dependencies]
+jelly_core    = { workspace = true }
+jelly_net     = { workspace = true }
+jelly_utxo    = { workspace = true }
+
+bitcoin = { workspace = true }
+
+[dev-dependencies]
+jelly_core    = { workspace = true, features = ["test-util"] }
+jelly_keypair = { workspace = true, features = ["test-util"] }
+jelly_utxo    = { workspace = true, features = ["test-util"] }
+hex           = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }

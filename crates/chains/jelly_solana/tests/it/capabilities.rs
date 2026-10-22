@@ -1,0 +1,24 @@
+use jelly_core::{ChainAdapter as _, ChainId};
+use jelly_solana::SPEC;
+
+use crate::common::Harness;
+
+#[test]
+fn the_spec_declares_exactly_the_capabilities_this_adapter_implements() {
+    let harness = Harness::new();
+    let adapter = &harness.adapter;
+
+    assert_eq!(adapter.chain(), ChainId::Solana);
+    assert_eq!(adapter.chain(), SPEC.chain);
+    assert_eq!(
+        adapter.fee_bump().is_some(),
+        SPEC.can_bump_fee,
+        "the interface offers a fee bump exactly when this adapter can plan one"
+    );
+    assert_eq!(
+        adapter.subaddresses().is_some(),
+        SPEC.has_subaddresses,
+        "the interface asks for a subaddress exactly when this adapter derives one"
+    );
+    assert!(adapter.pending_tracker().is_some());
+}

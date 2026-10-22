@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-export-seed-passphrase"
+description = "Enables the export_seed_passphrase command without any pre-configured scope."
+commands.allow = ["export_seed_passphrase"]
+
+[[permission]]
+identifier = "deny-export-seed-passphrase"
+description = "Denies the export_seed_passphrase command without any pre-configured scope."
+commands.deny = ["export_seed_passphrase"]

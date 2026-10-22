@@ -1,0 +1,48 @@
+{
+  "_recorded": "eth_getTransactionReceipt results in the shape a geth Ethereum mainnet node returns. They are one successful EIP-1559 receipt, the same transaction reported in a different block after a reorg, and one whose execution reverted.",
+  "success": {
+    "type": "0x2",
+    "status": "0x1",
+    "cumulativeGasUsed": "0xf4240",
+    "logs": [],
+    "transactionHash": "0x22e0e5d2b9fc02fae2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5",
+    "transactionIndex": "0x2",
+    "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000002",
+    "blockNumber": "0x112a881",
+    "gasUsed": "0xfde8",
+    "effectiveGasPrice": "0x4a817c800",
+    "from": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+    "to": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "contractAddress": null
+  },
+  "success_reorganised": {
+    "type": "0x2",
+    "status": "0x1",
+    "cumulativeGasUsed": "0xf4240",
+    "logs": [],
+    "transactionHash": "0x22e0e5d2b9fc02fae2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5",
+    "transactionIndex": "0x4",
+    "blockHash": "0xbb00000000000000000000000000000000000000000000000000000000000002",
+    "blockNumber": "0x112a882",
+    "gasUsed": "0xfde8",
+    "effectiveGasPrice": "0x4a817c800",
+    "from": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+    "to": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "contractAddress": null
+  },
+  "reverted": {
+    "type": "0x2",
+    "status": "0x0",
+    "cumulativeGasUsed": "0xf4240",
+    "logs": [],
+    "transactionHash": "0x55e0e5d2b9fc02fae2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f8",
+    "transactionIndex": "0x7",
+    "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000005",
+    "blockNumber": "0x112a884",
+    "gasUsed": "0x5208",
+    "effectiveGasPrice": "0x4a817c800",
+    "from": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+    "to": "0x5041ed759dd4afc3a72b8192c143f72f4724081a",
+    "contractAddress": null
+  }
+}

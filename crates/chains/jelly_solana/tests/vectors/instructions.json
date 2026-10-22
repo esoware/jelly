@@ -1,0 +1,42 @@
+{
+  "_recorded": "Instruction layouts pinned against the shipped builders on 2026-08-14. The associated-token addresses were produced independently by the SPL token CLI and re-derived here, so a change in either derivation fails.",
+  "systemTransfer": {
+    "lamports": 1000000000,
+    "data": "0200000000ca9a3b00000000"
+  },
+  "transferChecked": {
+    "tag": 12,
+    "amount": 1500000,
+    "decimals": 6,
+    "data": "0c60e316000000000006"
+  },
+  "createIdempotent": {
+    "tag": 1,
+    "data": "01"
+  },
+  "setComputeUnitLimit": {
+    "units": 45000,
+    "data": "02c8af0000"
+  },
+  "setComputeUnitPrice": {
+    "microLamports": 1000,
+    "data": "03e803000000000000"
+  },
+  "associatedTokenAddresses": [
+    {
+      "owner": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "address": "FGETo8T8wMcN2wCjav8VK6eh3dLk63evNDPxzLSJra8B"
+    },
+    {
+      "owner": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "mint": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+      "address": "TB5FCqbNsnuLQgEjUuPaT9qtVPTT4U1A8rvi7qzEj2M"
+    },
+    {
+      "owner": "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9",
+      "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "address": "FzbcyEZ9m8xjtergWgWDq7mfPoHEbboBF791B6cTpzbq"
+    }
+  ]
+}

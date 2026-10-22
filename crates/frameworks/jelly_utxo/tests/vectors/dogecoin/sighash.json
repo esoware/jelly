@@ -1,0 +1,11 @@
+{
+  "_source": "A one-input P2PKH spend Dogecoin mined at the recorded height, with the output it spends, fetched on 2026-10-10 and its signature checked by an independent implementation. Dogecoin signs with Bitcoin's legacy sighash unchanged.",
+  "mainnet": {
+    "txid": "985392db0ded638147846b8da8cbdd6fc4f729fe4c3250cbf6eb7fe82504fd74",
+    "height": 6409482,
+    "tx": "01000000010f50df73b32ec7e020f6654a38f3a69b203728181c4e0c8a41d9439ff97547db010000006a47304402207ab930fb5566f5f13e5e8e9b436cd574e9036e51f281c367cd7f33d4be38ed6702207f6a1d32c12b71013affb61bc594bbf1044e25ab4e058b1c44d5ec7e5e5a86a9012103f5d3e92f9aad61b7963baaae4d34baefe0836277017d81dae24178b37e2e2be8ffffffff0203b543f23200000017a914008fa6d2796ecfe377a13956296a88dcdb7ff76787f27cae325b0400001976a9144c26f954eebed62002c440079ff9b8a5516decce88ac00000000",
+    "input": 0,
+    "value": 5008642119413,
+    "scriptPubkey": "76a9144c26f954eebed62002c440079ff9b8a5516decce88ac"
+  }
+}

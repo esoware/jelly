@@ -1,0 +1,30 @@
+{
+  "_note": "The two published BIP-143 examples. sighash is what SighashCache must produce for the input, and signature is the DER encoding of the RFC 6979 signature over it. scriptCode holds the P2WPKH script that SighashCache expands into the BIP-143 scriptCode, which is the output script for a native spend and the redeem script for a wrapped one.",
+  "_source": "The Native P2WPKH and P2SH-P2WPKH examples in BIP-143.",
+  "cases": [
+    {
+      "name": "native p2wpkh",
+      "scriptKind": "p2wpkh",
+      "unsignedTx": "0100000002fff7f7881a8099afa6940d42d1e7f6362bec38171ea3edf433541db4e4ad969f0000000000eeffffffef51e1b804cc89d182d279655c3aa89e815b1b309fe287d9b2b55d57b90ec68a0100000000ffffffff02202cb206000000001976a9148280b37df378db99f66f85c95a783a76ac7a6d5988ac9093510d000000001976a9143bde42dbee7e4dbe6a21b2d50ce2f0167faa815988ac11000000",
+      "inputIndex": 1,
+      "scriptCode": "00141d0f172a0ecb48aee1be1f2687d2963ae33f71a1",
+      "value": 600000000,
+      "privateKey": "619c335025c7f4012e556c2a58b2506e30b8511b53ade95ea316fd8c3286feb9",
+      "publicKey": "025476c2e83188368da1ff3e292e7acafcdb3566bb0ad253f62fc70f07aeee6357",
+      "sighash": "c37af31116d1b27caf68aae9e3ac82f1477929014d5b917657d0eb49478cb670",
+      "signature": "304402203609e17b84f6a7d30c80bfa610b5b4542f32a8a0d5447a12fb1366d7f01cc44a0220573a954c4518331561406f90300e8f3358f51928d43c212a8caed02de67eebee"
+    },
+    {
+      "name": "p2sh wrapped p2wpkh",
+      "scriptKind": "p2sh_p2wpkh",
+      "unsignedTx": "0100000001db6b1b20aa0fd7b23880be2ecbd4a98130974cf4748fb66092ac4d3ceb1a54770100000000feffffff02b8b4eb0b000000001976a914a457b684d7f0d539a46a45bbc043f35b59d0d96388ac0008af2f000000001976a914fd270b1ee6abcaea97fea7ad0402e8bd8ad6d77c88ac92040000",
+      "inputIndex": 0,
+      "scriptCode": "001479091972186c449eb1ded22b78e40d009bdf0089",
+      "value": 1000000000,
+      "privateKey": "eb696a065ef48a2192da5b28b694f87544b30fae8327c4510137a922f32c6dcf",
+      "publicKey": "03ad1d8e89212f0b92c74d23bb710c00662ad1470198ac48c43f7d6f93a2a26873",
+      "sighash": "64f3b0f4dd2bb3aa1ce8566d220cc74dda9df97d8490cc81d89d735c92e59fb6",
+      "signature": "3044022047ac8e878352d3ebbde1c94ce3a10d057c24175747116f8288e5d794d12d482f0220217f36a485cae903c713331d877c1f64677e3622ad4010726870540656fe9dcb"
+    }
+  ]
+}

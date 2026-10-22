@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-create-imported-address"
+description = "Enables the create_imported_address command without any pre-configured scope."
+commands.allow = ["create_imported_address"]
+
+[[permission]]
+identifier = "deny-create-imported-address"
+description = "Denies the create_imported_address command without any pre-configured scope."
+commands.deny = ["create_imported_address"]

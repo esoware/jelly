@@ -1,0 +1,23 @@
+{
+  "_source": {
+    "derived": "The MetaMask default path over the standard test phrase. Base derives at Ethereum's coin type, as MetaMask and Trust Wallet do, so its addresses are Ethereum's.",
+    "secret": "The secret the same path derives, as MetaMask and every EVM wallet export it."
+  },
+  "phrase": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+  "secret_path": "m/44'/60'/0'/0/0",
+  "secret": "1ab42cc412b618bdea3a599e3c9bae199ebf030895b039e9db1e30dafb12b727",
+  "derived": [
+    {
+      "path": "m/44'/60'/0'/0/0",
+      "address": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
+    },
+    {
+      "path": "m/44'/60'/0'/0/1",
+      "address": "0x6Fac4D18c912343BF86fa7049364Dd4E424Ab9C0"
+    },
+    {
+      "path": "m/44'/60'/0'/0/2",
+      "address": "0xb6716976A3ebe8D39aCEB04372f22Ff8e6802D7A"
+    }
+  ]
+}

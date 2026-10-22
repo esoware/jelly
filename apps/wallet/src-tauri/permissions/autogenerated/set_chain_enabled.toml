@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-chain-enabled"
+description = "Enables the set_chain_enabled command without any pre-configured scope."
+commands.allow = ["set_chain_enabled"]
+
+[[permission]]
+identifier = "deny-set-chain-enabled"
+description = "Denies the set_chain_enabled command without any pre-configured scope."
+commands.deny = ["set_chain_enabled"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-export-account-seed"
+description = "Enables the export_account_seed command without any pre-configured scope."
+commands.allow = ["export_account_seed"]
+
+[[permission]]
+identifier = "deny-export-account-seed"
+description = "Denies the export_account_seed command without any pre-configured scope."
+commands.deny = ["export_account_seed"]

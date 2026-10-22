@@ -1,0 +1,56 @@
+{
+  "@type": "ext.transaction",
+  "address": {
+    "@type": "accountAddress",
+    "account_address": "EQB61bsO2ekfVGrBkk8o8HWqoQkdbht3q2B9VywE4dnv-5Ko"
+  },
+  "account": "0:7AD5BB0ED9E91F546AC1924F28F075AAA1091D6E1B77AB607D572C04E1D9EFFB",
+  "utime": 1791853750,
+  "data": "te6cckECBwEAAXAAA7N3rVuw7Z6R9UasGSTyjwdaqhCR1uG3erYH1XLATh2e/7AABjrDuSyEY+qPldRZXuQd+VgcVLB2cn9YX+ytlIT3y1yCN23ETB8QAAY6w52EcFas2EtgACBK2cgBAgMCAeAEBQCCcnskpm7ejach+o+CGlSgPGdKVT4WGlm8WKmb1C4eEAZAWMDBJhEu6tuQpB8H8zPFZN8BhbTUbCZ7V+1cd0Wccz8AGwRASMBUdwHAJWzSrZ5AAK1oAJ0VL3E8T10ajiHY3XG3815n+ho9DxXuoYvV7Xx1KhWbAB61bsO2ekfVGrBkk8o8HWqoQkdbht3q2B9VywE4dnv+zAVHcAVbPAAAx1h3JZCK1ZsJbEABAd8GALNYAPWrdh2z0j6o1YMknlHg61VCEjrcNu9WwPquWAnDs9/3ABOipe4nieujUcQ7G642/mvM/0NHoeK91DF6va+OpUKzSTXEBVs8AADHWHclkI7Vmwlsf////8ByRLyq",
+  "transaction_id": {
+    "@type": "internal.transactionId",
+    "lt": "109591385000006",
+    "hash": "kWzxE44IGvN35d1Q1sl0WUeHiwmaomEYtEk4yBMNeTs="
+  },
+  "fee": "66668",
+  "storage_fee": "1",
+  "other_fee": "66667",
+  "in_msg": {
+    "@type": "ext.message",
+    "hash": "4fDbr2+dCD0G9L1MHK2e4guAFr/bSSoW2/6DClw+mFg=",
+    "source": "EQBOipe4nieujUcQ7G642_mvM_0NHoeK91DF6va-OpUKzUMn",
+    "destination": "EQB61bsO2ekfVGrBkk8o8HWqoQkdbht3q2B9VywE4dnv-5Ko",
+    "value": "86492",
+    "extra_currencies": [],
+    "fwd_fee": "44446",
+    "ihr_fee": "0",
+    "created_lt": "109591385000005",
+    "body_hash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+    "msg_data": {
+      "@type": "msg.dataRaw",
+      "body": "te6cckEBAQEAAgAAAEysuc0=",
+      "init_state": ""
+    },
+    "message": ""
+  },
+  "out_msgs": [
+    {
+      "@type": "ext.message",
+      "hash": "x0bpIE8f9paazDOLo1BFrUzl3zoe4TPLjA5ZPGXW4as=",
+      "source": "EQB61bsO2ekfVGrBkk8o8HWqoQkdbht3q2B9VywE4dnv-5Ko",
+      "destination": "EQBOipe4nieujUcQ7G642_mvM_0NHoeK91DF6va-OpUKzUMn",
+      "value": "19825",
+      "extra_currencies": [],
+      "fwd_fee": "44446",
+      "ihr_fee": "0",
+      "created_lt": "109591385000007",
+      "body_hash": "2kgTJil7CKGfT/jw1tLMcQJ5ngwOSgK6iXnDY6CA2IY=",
+      "msg_data": {
+        "@type": "msg.dataRaw",
+        "body": "te6cckEBAQEABgAACP/////btDe4",
+        "init_state": ""
+      },
+      "message": "/////w==\n"
+    }
+  ]
+}

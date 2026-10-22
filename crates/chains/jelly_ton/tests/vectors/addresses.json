@@ -1,0 +1,30 @@
+[
+  {
+    "_source": "No published vector. Reproduced by the TON SDK at the default path over the standard test phrase, abandon eleven times then about, whose BIP-39 seed with no passphrase is the seed below. The V4R2 and V3R2 addresses are @ton/ton 16.3.0's WalletContractV4 and WalletContractV3R2 for the same key.",
+    "seed": "5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4",
+    "derived": [
+      {
+        "path": "m/44'/607'/0'",
+        "secret": "b477ef5ed17fb8a2b8faddd7a9835a227243a82c70b190c7af4896155aa7df9f",
+        "addresses": {
+          "ton_v5r1": "UQBHyu-oZVDHRYQ1-rKlGqpHy5yAqanPBirEQNMNOmfHLtaT",
+          "ton_v4r2": "UQAzWZa6nM5mJev91wGc7VCSfBoIsYRqKJpV78N8Add9-RKY",
+          "ton_v3r2": "UQC9LJL69GjPHMTyZ_9_P2QKTGnQhMWs2eRk6MVDiDina88a"
+        }
+      }
+    ]
+  },
+  {
+    "_source": "wallet-core tests/chains/TheOpenNetwork/TWAnyAddressTests.cpp TWTheOpenNetwork.Address: Trust Wallet's V4R2 address for the phrase stuff diamond cycle federal scan spread pigeon people engage teach snack grain at TON's default path, whose BIP-39 seed is the seed below. Its secret is the key of wallet-core's V4R2 signing tests.",
+    "seed": "7babd07997fae13cdeddf8e4784779f8b4a0ba6835b778a3a222506a08ef2164bde3caafc46a8bdf5d2d8c2494520f966fd842a64254a99e3efbba449a3d63b5",
+    "derived": [
+      {
+        "path": "m/44'/607'/0'",
+        "secret": "c38f49de2fb13223a9e7d37d5d0ffbdd89a5eb7c8b0ee4d1c299f2cefe7dc4a0",
+        "addresses": {
+          "ton_v4r2": "UQDYW_1eScJVxtitoBRksvoV9cCYo4uKGWLVNIHB1JqRRyQx"
+        }
+      }
+    ]
+  }
+]

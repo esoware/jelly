@@ -1,0 +1,31 @@
+[package]
+name         = "jelly_prices"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+ipc = ["dep:specta", "jelly_core/ipc"]
+
+[dependencies]
+jelly_core = { workspace = true }
+jelly_net  = { workspace = true }
+
+async-trait = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+specta      = { workspace = true, optional = true }
+thiserror   = { workspace = true }
+tokio       = { workspace = true }
+tracing     = { workspace = true }
+
+[dev-dependencies]
+jelly_core = { workspace = true, features = ["test-util"] }
+
+parking_lot = { workspace = true }
+tokio       = { workspace = true, features = ["test-util"] }

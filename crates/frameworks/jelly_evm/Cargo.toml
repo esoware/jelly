@@ -1,0 +1,43 @@
+[package]
+name         = "jelly_evm"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# Scripted EVM services and the adapter's test seams. Enable only from [dev-dependencies].
+test-util = []
+
+[dependencies]
+jelly_core    = { workspace = true }
+jelly_keypair = { workspace = true }
+jelly_net     = { workspace = true }
+
+alloy       = { workspace = true }
+async-trait = { workspace = true }
+parking_lot = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+thiserror   = { workspace = true }
+tokio       = { workspace = true }
+tracing     = { workspace = true }
+zeroize     = { workspace = true }
+
+[dev-dependencies]
+jelly_keypair   = { workspace = true, features = ["test-util"] }
+jelly_core      = { workspace = true, features = ["test-util"] }
+jelly_net       = { workspace = true, features = ["test-util"] }
+jelly_evm       = { workspace = true, features = ["test-util"] }
+# The integration tests run against the networks as their chain crates ship them.
+jelly_ethereum  = { workspace = true }
+jelly_bsc       = { workspace = true }
+jelly_polygon   = { workspace = true }
+jelly_arbitrum  = { workspace = true }
+jelly_base      = { workspace = true }
+jelly_avalanche = { workspace = true }
+tokio           = { workspace = true, features = ["test-util", "net", "io-util"] }

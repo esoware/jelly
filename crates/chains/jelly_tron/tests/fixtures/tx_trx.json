@@ -1,0 +1,32 @@
+{
+  "_recorded": "Recorded from https://api.trongrid.io on 2026-08-13 for mainnet transaction a46244ab, a plain TRX transfer.",
+  "raw_data": {
+    "ref_block_bytes": "a63d",
+    "ref_block_hash": "437d27f93863a488",
+    "expiration": 1786585860000,
+    "contract": [
+      {
+        "parameter": {
+          "value": {
+            "owner_address": "41a5b43182dad15ff0b707d829ffa67b1af6719483",
+            "to_address": "41df0c86c531205eb7a4e27d9589ba7188dfb32f08",
+            "amount": 7
+          },
+          "type_url": "type.googleapis.com/protocol.TransferContract"
+        },
+        "type": "TransferContract"
+      }
+    ],
+    "timestamp": 1786585802673
+  },
+  "signature": [
+    "b610a8e0e95c967115f470abc1807c4645e04c2c1c0b265214840e5105c752f2533652fa8a366a8f52d0c21b75bae8ffe4521be310c481a9e7ed6f9db6dd4cd901"
+  ],
+  "ret": [
+    {
+      "contractRet": "SUCCESS"
+    }
+  ],
+  "raw_data_hex": "0a02a63d2208437d27f93863a48840a08fc3c6ff335a65080112610a2d747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e5472616e73666572436f6e747261637412300a1541a5b43182dad15ff0b707d829ffa67b1af6719483121541df0c86c531205eb7a4e27d9589ba7188dfb32f08180770b1cfbfc6ff33",
+  "txID": "a46244abb4be3f4247c538712715c41476b5b0b0f515f657c6acd76b67674bc8"
+}

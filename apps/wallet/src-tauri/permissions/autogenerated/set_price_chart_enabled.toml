@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-price-chart-enabled"
+description = "Enables the set_price_chart_enabled command without any pre-configured scope."
+commands.allow = ["set_price_chart_enabled"]
+
+[[permission]]
+identifier = "deny-set-price-chart-enabled"
+description = "Denies the set_price_chart_enabled command without any pre-configured scope."
+commands.deny = ["set_price_chart_enabled"]

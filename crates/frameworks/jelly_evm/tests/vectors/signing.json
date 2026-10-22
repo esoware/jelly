@@ -1,0 +1,23 @@
+{
+  "_source": "EIP-1559 signing over two fixed transactions. secretKey is throwaway test material, not a wallet key, and address is the EIP-55 sender this crate derives from it. signatureHash is keccak256 over the 0x02-prefixed RLP of the unsigned transaction, rawTx is the EIP-2718 wire encoding, and txid is keccak256 over those bytes.",
+  "cases": [
+    {
+      "name": "ethereum native transfer",
+      "kind": "native",
+      "secretKey": "8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63",
+      "address": "0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73",
+      "signatureHash": "0xfcec20f9b454244904b5a9c811d827974a3941e4b0e78d85f12a0a15a1e38d0f",
+      "rawTx": "0x02f8730107843b9aca008506fc23ac00825208945041ed759dd4afc3a72b8192c143f72f4724081a880de0b6b3a764000080c001a03fd9c438594106d807396902c545e8955917badaf7829718a909da7dd0d2a537a00604a7d7ff803189aa4ee234c8f17e425d4b35e840858871960dd3f3f7eb752a",
+      "txid": "0xc9d9483b5a2bfd6ea47255447c3e09bf60c9a9a9521f932318ca989e161c7805"
+    },
+    {
+      "name": "ethereum usdt transfer",
+      "kind": "token",
+      "secretKey": "8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63",
+      "address": "0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73",
+      "signatureHash": "0x0e04380322e3daca996ca1a9f4d06ce007b201b8455de221a47a3b7a0594d452",
+      "rawTx": "0x02f8b0010c84773594008509502f900082fde894dac17f958d2ee523a2206206994597c13d831ec780b844a9059cbb0000000000000000000000005041ed759dd4afc3a72b8192c143f72f4724081a00000000000000000000000000000000000000000000000000000000002625a0c080a001258ab89cd93497aaddfa5e0bb2a02d32949d61565be84cf0c142043287c43ea04e89dd21b508302ca329ba323b3a1bc414049d093e6740f0948b54c2caace973",
+      "txid": "0x6d7380a0612e0c8359b23195dd8aac719eaa6f4c11fa09b6c58850d09e098aff"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "_derived": "Page one of the internal transfers of TR5NMmWJ9UJvut6hBmrre4Gz28Ez4C1XPK, written by hand rather than recorded, in the row shape the TronGrid reference documents for GET /v1/accounts/{address}/internal-transactions (read 2026-10-06) and the envelope of the recorded native pages. The ids are placeholders. Row one is a 1 TRX payout from contract 416804040d601e099c588b5e7392e92c56a54609c9, whose transaction internal_parent.json lists. Row two is a step that reverted and moved nothing. There is no fingerprint, so the stream ends here.",
+  "data": [
+    {
+      "internal_tx_id": "c41d7e0a92b35f68e1a4d7b0c3f6a9e2d5b8c1f4a7e0d3b6c9f2a5e8d1b4c7f0",
+      "data": { "note": "call", "rejected": false, "call_value": { "_": 1000000 } },
+      "block_timestamp": 1786585800000,
+      "to_address": "41a5b43182dad15ff0b707d829ffa67b1af6719483",
+      "tx_id": "7a3f0c9e1b5d2a8c4e6f0b1d3c5e7a9b2d4f6a8c0e1b3d5f7a9c1e3b5d7f9a1c",
+      "from_address": "416804040d601e099c588b5e7392e92c56a54609c9"
+    },
+    {
+      "internal_tx_id": "d52e8f1ba3c4607912b5e8c1d4a7f0b3e6c9d2a5f8b1e4c7d0a3f6b9e2c5d8a1",
+      "data": { "note": "call", "rejected": true, "call_value": { "_": 2000000 } },
+      "block_timestamp": 1786585500000,
+      "to_address": "41a5b43182dad15ff0b707d829ffa67b1af6719483",
+      "tx_id": "3e8d1f6a0c2b4d5e7f9a1b3c5d7e9f0a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d0e",
+      "from_address": "416804040d601e099c588b5e7392e92c56a54609c9"
+    }
+  ],
+  "success": true,
+  "meta": {
+    "at": 1786586066075,
+    "page_size": 2
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": false,
+  "singleQuote": false,
+  "trailingComma": "all",
+  "insertFinalNewline": true,
+  "endOfLine": "lf",
+  "sortImports": {
+    "groups": [
+      "builtin",
+      "external",
+      "internal",
+      ["side_effect", "side_effect_style", "style"],
+      "unknown"
+    ],
+    "newlinesBetween": true,
+    "sortSideEffects": false
+  },
+  "sortPackageJson": true,
+  "sortTailwindcss": {
+    "stylesheet": "apps/wallet/src/styles/index.css",
+    "functions": ["appendClassName"]
+  },
+  "ignorePatterns": ["**/*.gen.ts", "**/*.toml"]
+}

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-poll-interval"
+description = "Enables the set_poll_interval command without any pre-configured scope."
+commands.allow = ["set_poll_interval"]
+
+[[permission]]
+identifier = "deny-set-poll-interval"
+description = "Denies the set_poll_interval command without any pre-configured scope."
+commands.deny = ["set_poll_interval"]

@@ -1,0 +1,17 @@
+{
+  "_recorded": "Recorded from https://api.trongrid.io on 2026-08-13, with the assetNetUsed and assetNetLimit maps trimmed to two entries.",
+  "freeNetLimit": 600,
+  "assetNetUsed": [
+    { "key": "1002721", "value": 0 },
+    { "key": "1003812", "value": 0 }
+  ],
+  "assetNetLimit": [
+    { "key": "1002721", "value": 0 },
+    { "key": "1003812", "value": 0 }
+  ],
+  "TotalNetLimit": 43200000000,
+  "TotalNetWeight": 26895037255,
+  "EnergyLimit": 19,
+  "TotalEnergyLimit": 180000000000,
+  "TotalEnergyWeight": 18786867650
+}

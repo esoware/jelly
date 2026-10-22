@@ -1,0 +1,18 @@
+{
+  "_note": "One unit per virtual byte is exactly 250 per 1000 weight units, so a rate per virtual byte is exact at three decimals with no float in either direction. A fee is charged over the integer virtual size, ceil(weight / 4), and rounded up, because a node truncates and a fee that undershoots does not relay.",
+  "fee": [
+    { "satPerKwu": 0, "weightWu": 561, "vsize": 141, "fee": 0 },
+    { "satPerKwu": 125, "weightWu": 561, "vsize": 141, "fee": 71 },
+    { "satPerKwu": 250, "weightWu": 561, "vsize": 141, "fee": 141 },
+    { "satPerKwu": 250, "weightWu": 562, "vsize": 141, "fee": 141 },
+    { "satPerKwu": 250, "weightWu": 565, "vsize": 142, "fee": 142 },
+    { "satPerKwu": 250000, "weightWu": 561, "vsize": 141, "fee": 141000 },
+    { "satPerKwu": 250250, "weightWu": 561, "vsize": 141, "fee": 141141 }
+  ],
+  "rate": [
+    { "fee": 141, "weightWu": 561, "satPerKwu": 250, "satPerVb": "1" },
+    { "fee": 71, "weightWu": 561, "satPerKwu": 125, "satPerVb": "0.5" },
+    { "fee": 141000, "weightWu": 561, "satPerKwu": 250000, "satPerVb": "1000" },
+    { "fee": 0, "weightWu": 561, "satPerKwu": 0, "satPerVb": "0" }
+  ]
+}

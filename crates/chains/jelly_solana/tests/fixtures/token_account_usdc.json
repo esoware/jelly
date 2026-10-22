@@ -1,0 +1,18 @@
+{
+  "_recorded": "getAccountInfo for FGETo8T8wMcN2wCjav8VK6eh3dLk63evNDPxzLSJra8B, the associated USDC account of 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM, from https://api.mainnet-beta.solana.com on 2026-10-20 with base64 encoding. A jsonParsed read of the same slot reported 1095076785 base units held by that owner, initialized and unfrozen.",
+  "context": {
+    "apiVersion": "4.3.2",
+    "slot": 459018468
+  },
+  "value": {
+    "data": [
+      "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWF+jAiHYL/eHd3PMsF/IJuCQu5SqvEx+s2I0OosbQsG8rGLRUEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "base64"
+    ],
+    "executable": false,
+    "lamports": 2039310,
+    "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "rentEpoch": 18446744073709551615,
+    "space": 165
+  }
+}

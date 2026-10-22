@@ -1,0 +1,17 @@
+{
+  "chain": "zcash",
+  "note": "Public Zcash Blockbook servers, verified with /api/v2 reporting Zcash in sync, block zero's hash from /api/v2/block-index/0, and the block, transaction, unspent and address history reads. Each refuses with HTTP 429 after a few dozen reads a minute, but they count separately, so a refused read moves on to the next. Zelcore's zec-2 host shares the first row's count and is omitted, and Trezor's and Guarda's hosts refuse requests from outside their own wallets.",
+  "endpoints": [
+    { "url": "https://blockbook.zec.zelcore.io", "transport": "blockbook", "note": "Zelcore" },
+    {
+      "url": "https://blockbook.zec-1.zelcore.io",
+      "transport": "blockbook",
+      "note": "Zelcore, second host"
+    },
+    {
+      "url": "https://blockbook-zec.sspwallet.io",
+      "transport": "blockbook",
+      "note": "SSP Wallet"
+    }
+  ]
+}

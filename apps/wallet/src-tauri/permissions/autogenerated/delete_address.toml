@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-delete-address"
+description = "Enables the delete_address command without any pre-configured scope."
+commands.allow = ["delete_address"]
+
+[[permission]]
+identifier = "deny-delete-address"
+description = "Denies the delete_address command without any pre-configured scope."
+commands.deny = ["delete_address"]

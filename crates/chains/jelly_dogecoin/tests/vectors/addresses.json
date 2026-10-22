@@ -1,0 +1,78 @@
+{
+  "_source": {
+    "derived": "No published vector. Reproduced by bip_utils, an independent implementation, at the chain's SLIP-44 coin type. Derived from the all-abandon BIP-39 phrase.",
+    "raw": "trustwallet/wallet-core CoinAddressDerivationTests.cpp, whose key is 32 bytes of 0x46. The row also reproduces under bip_utils.",
+    "scripts": "A derived address and Litecoin's derived script hash re-encoded under Dogecoin's version byte by bip_utils.",
+    "uris": "Payment requests in the chain's own scheme, and bare addresses. A request in another chain's scheme is refused as the wrong network by the chain table, which these rows do not reach."
+  },
+  "derived": [
+    {
+      "path": "m/44'/3'/0'/0/0",
+      "address": "DBus3bamQjgJULBJtYXpEzDWQRwF5iwxgC"
+    },
+    {
+      "path": "m/44'/3'/0'/0/1",
+      "address": "DAcDAtJRztxBHyA6D6h8du1HguyTR43Mas"
+    },
+    {
+      "path": "m/44'/3'/0'/1/0",
+      "script": "p2pkh",
+      "address": "D7ReBLrRv12mi9pYh5HtfFLTt1PSoeAa7e"
+    }
+  ],
+  "raw": [
+    {
+      "secret": "4646464646464646464646464646464646464646464646464646464646464646",
+      "address": "DNRTC6GZ5evmM7BZWwPqF54fyDqUqULMyu"
+    }
+  ],
+  "scripts": [
+    {
+      "address": "DBus3bamQjgJULBJtYXpEzDWQRwF5iwxgC",
+      "script_kind": "p2pkh",
+      "script_pubkey": "76a9144a483568665dcdfa68dd58a1f62893448a64333988ac"
+    },
+    {
+      "address": "9rV1JHmsZEEeQMT5pxZV5wjQvRYZtP2eyZ",
+      "script_pubkey": "a91400846c3f4a7bb38e9b422b4129bf8b191287289e87",
+      "why": "pay-to-script-hash: payable, and no single-key flavour"
+    }
+  ],
+  "valid": ["DBus3bamQjgJULBJtYXpEzDWQRwF5iwxgC", "9rV1JHmsZEEeQMT5pxZV5wjQvRYZtP2eyZ"],
+  "invalid": [
+    {
+      "address": "1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA",
+      "why": "bitcoin base58"
+    },
+    {
+      "address": "ltc1qjmxnz78nmc8nq77wuxh25n2es7rzm5c2rkk4wh",
+      "why": "litecoin segwit"
+    },
+    {
+      "address": "bitcoincash:qqyx49mu0kkn9ftfj6hje6g2wfer34yfnq5tahq3q6",
+      "why": "bitcoin cash"
+    },
+    {
+      "address": "DBus3bamQjgJULBJtYXpEzDWQRwF5iwxgD",
+      "why": "checksum"
+    },
+    {
+      "address": "nmUWv71U1dPVE5kkYm3HVUeyD6DmpUR42p",
+      "why": "dogecoin testnet"
+    }
+  ],
+  "uris": {
+    "accepted": [
+      {
+        "uri": "dogecoin:DBus3bamQjgJULBJtYXpEzDWQRwF5iwxgC?amount=100",
+        "address": "DBus3bamQjgJULBJtYXpEzDWQRwF5iwxgC"
+      }
+    ],
+    "unsupported": [
+      {
+        "uri": "dogecoin:DBus3bamQjgJULBJtYXpEzDWQRwF5iwxgC?amount=100&req-somethingnew=1",
+        "why": "a required parameter Jelly does not know"
+      }
+    ]
+  }
+}

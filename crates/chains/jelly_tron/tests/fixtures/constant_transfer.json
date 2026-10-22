@@ -1,0 +1,20 @@
+{
+  "_recorded": "Recorded from https://api.trongrid.io on 2026-08-13 for transfer(address,uint256) against the USDT contract, measured but not sent.",
+  "constant_result": ["0000000000000000000000000000000000000000000000000000000000000000"],
+  "result": {
+    "result": true
+  },
+  "logs": [
+    {
+      "address": "a614f803b6fd780986a42c78ec9c7f77e6ded13c",
+      "topics": [
+        "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "00000000000000000000000012314847b53186be947735b62e9d6ebe6d8c6e18",
+        "000000000000000000000000fd49eda0f23ff7ec1d03b52c3a45991c24cd440e"
+      ],
+      "data": "00000000000000000000000000000000000000000000000000000000000f4240"
+    }
+  ],
+  "energy_used": 130285,
+  "energy_penalty": 100635
+}

@@ -1,0 +1,66 @@
+[package]
+name         = "jelly"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# IPC inspection and Windows test linking. Enable only from [dev-dependencies].
+test-util = ["dep:specta-typescript"]
+
+# The library and the binary need different names, or on Windows both write the
+# same pdb.
+[lib]
+name = "jelly_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "jelly"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+jelly_chains       = { workspace = true }
+jelly_core         = { workspace = true, features = ["ipc"] }
+jelly_engine       = { workspace = true, features = ["ipc"] }
+jelly_net          = { workspace = true, features = ["ipc"] }
+jelly_prices       = { workspace = true, features = ["ipc"] }
+jelly_vault        = { workspace = true }
+
+parking_lot                  = { workspace = true }
+secrecy                      = { workspace = true }
+serde                        = { workspace = true }
+specta                       = { workspace = true }
+specta-typescript            = { workspace = true, optional = true }
+tauri                        = { workspace = true }
+tauri-plugin-clipboard-manager = { workspace = true }
+tauri-plugin-opener          = { workspace = true }
+tauri-plugin-prevent-default = { workspace = true, features = ["platform-windows"] }
+tauri-plugin-single-instance = { workspace = true }
+tauri-specta                 = { workspace = true }
+thiserror                    = { workspace = true }
+tokio                        = { workspace = true }
+tokio-util                   = { workspace = true }
+tracing                      = { workspace = true }
+tracing-appender             = { workspace = true }
+tracing-subscriber           = { workspace = true }
+zeroize                      = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+jelly_win32 = { workspace = true }
+
+[dev-dependencies]
+jelly        = { path = ".", features = ["test-util"] }
+jelly_core   = { workspace = true, features = ["test-util"] }
+jelly_engine = { workspace = true, features = ["test-util"] }
+jelly_vault  = { workspace = true, features = ["test-util"] }
+
+serde_json = { workspace = true }
+tempfile   = { workspace = true }

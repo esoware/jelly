@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-import-seed-wallet"
+description = "Enables the import_seed_wallet command without any pre-configured scope."
+commands.allow = ["import_seed_wallet"]
+
+[[permission]]
+identifier = "deny-import-seed-wallet"
+description = "Denies the import_seed_wallet command without any pre-configured scope."
+commands.deny = ["import_seed_wallet"]

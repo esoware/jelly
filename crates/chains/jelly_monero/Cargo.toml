@@ -1,0 +1,53 @@
+[package]
+name         = "jelly_monero"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# The adapter's test seams and operations on what it persists and compiles in.
+# Enable only from [dev-dependencies].
+test-util = []
+
+[dependencies]
+jelly_core    = { workspace = true }
+jelly_keypair = { workspace = true }
+jelly_net     = { workspace = true }
+
+async-trait      = { workspace = true }
+hex              = { workspace = true }
+parking_lot      = { workspace = true }
+serde            = { workspace = true }
+serde_json       = { workspace = true }
+thiserror        = { workspace = true }
+tokio            = { workspace = true }
+tracing          = { workspace = true }
+zeroize          = { workspace = true }
+
+monero-address    = { workspace = true }
+monero-interface  = { workspace = true }
+monero-wallet     = { workspace = true }
+monero-daemon-rpc = { workspace = true }
+monero-seed       = { workspace = true }
+
+# monero-address takes monero-ed25519 points, so the compressed 32-byte
+# encoding is the interchange between the two dalek generations in the tree.
+curve25519-dalek = { workspace = true }
+monero-ed25519   = { workspace = true }
+
+# monero-wallet's RNG bounds are rand_core 0.6 traits.
+rand_core_06 = { workspace = true }
+
+[dev-dependencies]
+jelly_core    = { workspace = true, features = ["test-util"] }
+jelly_keypair = { workspace = true, features = ["test-util"] }
+jelly_monero  = { workspace = true, features = ["test-util"] }
+jelly_net     = { workspace = true, features = ["test-util"] }
+
+proptest = { workspace = true }
+tokio    = { workspace = true, features = ["test-util"] }

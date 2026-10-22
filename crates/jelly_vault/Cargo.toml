@@ -1,0 +1,39 @@
+[package]
+name         = "jelly_vault"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# Vault fakes and fixtures for tests. Enable only from [dev-dependencies].
+test-util = []
+
+[dependencies]
+jelly_core = { workspace = true }
+
+argon2           = { workspace = true }
+chacha20poly1305 = { workspace = true }
+hex              = { workspace = true, features = ["serde"] }
+hkdf             = { workspace = true }
+hmac             = { workspace = true }
+keyring          = { workspace = true }
+parking_lot      = { workspace = true }
+secrecy          = { workspace = true }
+serde            = { workspace = true }
+serde_json       = { workspace = true }
+sha2             = { workspace = true }
+subtle           = { workspace = true }
+tempfile         = { workspace = true }
+thiserror        = { workspace = true }
+tracing          = { workspace = true }
+zeroize          = { workspace = true }
+
+[dev-dependencies]
+jelly_vault = { workspace = true, features = ["test-util"] }
+
+base64 = { workspace = true }

@@ -1,0 +1,36 @@
+[package]
+name         = "jelly_electrum"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# An in-memory Electrum server and the client's test-only accessors. Enable only from
+# [dev-dependencies].
+test-util = []
+
+[dependencies]
+jelly_core = { workspace = true }
+jelly_net  = { workspace = true }
+
+async-trait = { workspace = true }
+bitcoin     = { workspace = true }
+hex         = { workspace = true }
+parking_lot = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+sha2        = { workspace = true }
+thiserror   = { workspace = true }
+tokio       = { workspace = true, features = ["io-util"] }
+tracing     = { workspace = true }
+
+[dev-dependencies]
+jelly_core     = { workspace = true, features = ["test-util"] }
+jelly_electrum = { workspace = true, features = ["test-util"] }
+jelly_net      = { workspace = true, features = ["test-util"] }
+tokio          = { workspace = true, features = ["test-util"] }

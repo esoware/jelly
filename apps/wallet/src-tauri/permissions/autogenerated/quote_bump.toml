@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-quote-bump"
+description = "Enables the quote_bump command without any pre-configured scope."
+commands.allow = ["quote_bump"]
+
+[[permission]]
+identifier = "deny-quote-bump"
+description = "Denies the quote_bump command without any pre-configured scope."
+commands.deny = ["quote_bump"]

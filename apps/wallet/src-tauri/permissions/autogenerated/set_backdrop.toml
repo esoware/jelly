@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-backdrop"
+description = "Enables the set_backdrop command without any pre-configured scope."
+commands.allow = ["set_backdrop"]
+
+[[permission]]
+identifier = "deny-set-backdrop"
+description = "Denies the set_backdrop command without any pre-configured scope."
+commands.deny = ["set_backdrop"]

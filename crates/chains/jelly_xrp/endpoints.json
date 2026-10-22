@@ -1,0 +1,21 @@
+{
+  "chain": "xrp",
+  "endpoints": [
+    { "url": "https://s1.ripple.com:51234", "transport": "http_jsonrpc", "note": "Ripple mainnet" },
+    {
+      "url": "https://s2.ripple.com:51234",
+      "transport": "http_jsonrpc",
+      "note": "Ripple full history"
+    },
+    {
+      "url": "https://xrplcluster.com",
+      "transport": "http_jsonrpc",
+      "note": "XRP Ledger community cluster"
+    },
+    {
+      "url": "https://honeycluster.io",
+      "transport": "http_jsonrpc",
+      "note": "Honeycluster, full history"
+    }
+  ]
+}

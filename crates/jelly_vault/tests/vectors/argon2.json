@@ -1,0 +1,16 @@
+{
+  "_source": "RFC 9106 section 5.3, Argon2id",
+  "cases": [
+    {
+      "name": "rfc9106-argon2id",
+      "m_cost_kib": 32,
+      "t_cost": 3,
+      "p_cost": 4,
+      "password": { "repeat": { "byte": 1, "count": 32 } },
+      "salt": { "repeat": { "byte": 2, "count": 16 } },
+      "secret": { "repeat": { "byte": 3, "count": 8 } },
+      "associated_data": { "repeat": { "byte": 4, "count": 12 } },
+      "tag": "0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659"
+    }
+  ]
+}

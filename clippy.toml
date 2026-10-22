@@ -1,0 +1,45 @@
+msrv = "1.99.0"
+avoid-breaking-exported-api = false
+check-private-items = true
+allow-mixed-uninlined-format-args = false
+check-inconsistent-struct-field-initializers = true
+upper-case-acronyms-aggressive = true
+matches-for-let-else = "AllTypes"
+lint-commented-code = true
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+
+disallowed-names = [
+  "..",
+  "val", "tmp", "res", "buf", "str", "ctx", "cfg", "conf", "req", "resp", "msg",
+  "err", "conn", "addr", "sig", "prev", "len", "idx", "cb", "rx", "pk", "sk", "kp",
+  "vs", "dst", "src", "doc", "recid", "dir", "dest", "hk", "out", "ret", "obj", "arr",
+  "num", "cnt", "opt", "opts", "meta", "ws", "fut", "hdr", "cur", "pos", "ch", "evt",
+  "el", "btn",
+]
+
+disallowed-types = [
+  { path = "std::sync::Mutex",   reason = "poisoning; use parking_lot::Mutex or tokio::sync::Mutex" },
+  { path = "std::sync::RwLock",  reason = "poisoning; use parking_lot::RwLock or tokio::sync::RwLock" },
+  { path = "std::sync::Condvar", reason = "use tokio::sync::Notify" },
+]
+
+disallowed-methods = [
+  { path = "std::time::SystemTime::now",     reason = "use jelly_core::Clock" },
+  { path = "std::time::SystemTime::elapsed", reason = "use jelly_core::Clock" },
+  { path = "std::time::Instant::now",        reason = "use jelly_core::Clock" },
+  { path = "std::time::Instant::elapsed",    reason = "use jelly_core::Clock" },
+  { path = "tokio::time::Instant::now",      reason = "use jelly_core::Clock" },
+  { path = "tokio::time::Instant::elapsed",  reason = "use jelly_core::Clock" },
+  { path = "getrandom::fill",                reason = "use jelly_core::random_bytes or random_fill" },
+  { path = "getrandom::fill_uninit",         reason = "use jelly_core::random_bytes or random_fill" },
+  { path = "getrandom::u32",                 reason = "use jelly_core::random_bytes or random_fill" },
+  { path = "getrandom::u64",                 reason = "use jelly_core::random_bytes or random_fill" },
+  { path = "f32::from",                      reason = "no floats on money paths" },
+  { path = "f64::from",                      reason = "no floats on money paths" },
+  { path = "reqwest::Client::builder",       reason = "use jelly_net::HttpClient::new" },
+  { path = "reqwest::Client::new",           reason = "use jelly_net::HttpClient::new" },
+  { path = "rustls::ClientConfig::builder",  reason = "jelly_net owns the one trust configuration" },
+]

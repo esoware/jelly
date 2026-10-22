@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.vault binary
+*.sqlite binary
+Cargo.lock linguist-generated
+pnpm-lock.yaml linguist-generated
+*.gen.ts linguist-generated

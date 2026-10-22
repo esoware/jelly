@@ -1,0 +1,64 @@
+{
+  "_recorded": "Derived from the secp256k1 generator point, the public key behind the BIP-173 example addresses, as CashAddr by bip_utils, an independent implementation. The legacy rows are the same key hash under Bitcoin's version bytes, which Bitcoin Cash kept.",
+  "pubkey": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+  "derived": [
+    {
+      "scriptKind": "p2pkh",
+      "address": "bitcoincash:qp63uahgrxged4z5jswyt5dn5v3lzsem6cy4spdc2h",
+      "scriptPubkey": "76a914751e76e8199196d454941c45d1b3a323f1433bd688ac"
+    }
+  ],
+  "canonical": [
+    {
+      "input": "qp63uahgrxged4z5jswyt5dn5v3lzsem6cy4spdc2h",
+      "output": "bitcoincash:qp63uahgrxged4z5jswyt5dn5v3lzsem6cy4spdc2h",
+      "note": "the prefix is optional on the wire and always written"
+    },
+    {
+      "input": "BITCOINCASH:QP63UAHGRXGED4Z5JSWYT5DN5V3LZSEM6CY4SPDC2H",
+      "output": "bitcoincash:qp63uahgrxged4z5jswyt5dn5v3lzsem6cy4spdc2h",
+      "note": "an all-uppercase spelling, which QR codes use, is written in lower case"
+    },
+    {
+      "input": "  1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH  ",
+      "output": "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+      "note": "a legacy address is read as written, which is also Bitcoin's spelling of the same script"
+    },
+    {
+      "input": "bitcoincash:zp63uahgrxged4z5jswyt5dn5v3lzsem6crlrlr74y",
+      "output": "bitcoincash:zp63uahgrxged4z5jswyt5dn5v3lzsem6crlrlr74y",
+      "note": "a token-aware address keeps its type and pays the plain P2PKH script"
+    }
+  ],
+  "invalid": [
+    { "address": "", "note": "empty" },
+    {
+      "address": "bchtest:qr7fzmep8g7h7ymfxy74lgc0v950j3r295pdnvy3hr",
+      "note": "testnet, which this build never talks to"
+    },
+    {
+      "address": "ecash:qp63uahgrxged4z5jswyt5dn5v3lzsem6cacy2kzvq",
+      "note": "eCash, which split from Bitcoin Cash and kept the format under its own prefix"
+    },
+    {
+      "address": "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+      "note": "bitcoin segwit, which Bitcoin Cash has no form of"
+    },
+    { "address": "LUWPbpM43E2p7ZSh8cyTBEkvpHmr3cB8Ez", "note": "a litecoin version byte" },
+    {
+      "address": "bitcoincash:qp63uahgrxged4z5jswyt5dn5v3lzsem6cy4spdc2x",
+      "note": "the checksum does not match"
+    },
+    {
+      "address": "bitcoincash:qp63uahgrxged4z5jswyt5dn5v3lzsem6cy4spdc2H",
+      "note": "a mix of cases"
+    },
+    { "address": "not an address", "note": "not an encoding at all" }
+  ],
+  "unwatchable": [
+    {
+      "address": "bitcoincash:pz70adegkkzz202l8acteduqa8hjrzng7s9tg65l3m",
+      "note": "a script hash: payable, and no key a single-key wallet derives"
+    }
+  ]
+}

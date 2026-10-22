@@ -1,0 +1,10 @@
+{
+  "_derived": "The head block that mainnet transaction 34a574df (tests/fixtures/tx_usdt.json) referenced, rebuilt the same way as now_block_trx.json. ref_block_bytes a60e are the low 16 bits of the height 0x0515a60e, and ref_block_hash 76af4c193b687d8f is bytes 8..16 of the block id.",
+  "blockID": "000000000515a60e76af4c193b687d8f00000000000000000000000000000000",
+  "block_header": {
+    "raw_data": {
+      "number": 85304846,
+      "timestamp": 1786585661039
+    }
+  }
+}

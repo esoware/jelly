@@ -1,0 +1,46 @@
+{
+  "_derived": "Page two of the walk native_page1.json starts, in the same envelope. The row is mainnet transaction 1791a3e2 as recorded from api.trongrid.io on 2026-08-13, and its raw_data object is the decoding of its own raw_data_hex. This page carries its own fingerprint, so a walk that reaches it still has a further page to fetch.",
+  "data": [
+    {
+      "ret": [{ "contractRet": "SUCCESS", "fee": 0 }],
+      "signature": [
+        "dfc9e97cdaf14034a523a645ed1a488cc3ee0a8f8bd8bc38c99d3cb283e2c9927c118d4b4a3f8fbb28a087af9793ebbd14f3a418433970002852e7e64a25b2b301"
+      ],
+      "txID": "1791a3e2006845081e6f8486e7999aa87cca92cd4b696a91057b30ffb39bdb8a",
+      "net_usage": 265,
+      "raw_data_hex": "0a02f4a022080b69ec9a832eee2b4090b1ba85ff335a65080112610a2d747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e5472616e73666572436f6e747261637412300a1541a5b43182dad15ff0b707d829ffa67b1af67194831215416804040d601e099c588b5e7392e92c56a54609c9180870abe5b685ff33",
+      "net_fee": 0,
+      "energy_usage": 0,
+      "blockNumber": 85259443,
+      "block_timestamp": 1786449345000,
+      "energy_fee": 0,
+      "energy_usage_total": 0,
+      "raw_data": {
+        "contract": [
+          {
+            "parameter": {
+              "value": {
+                "amount": 8,
+                "owner_address": "41a5b43182dad15ff0b707d829ffa67b1af6719483",
+                "to_address": "416804040d601e099c588b5e7392e92c56a54609c9"
+              },
+              "type_url": "type.googleapis.com/protocol.TransferContract"
+            },
+            "type": "TransferContract"
+          }
+        ],
+        "ref_block_bytes": "f4a0",
+        "ref_block_hash": "0b69ec9a832eee2b",
+        "expiration": 1786449402000,
+        "timestamp": 1786449343147
+      },
+      "internal_transactions": []
+    }
+  ],
+  "success": true,
+  "meta": {
+    "at": 1786586066075,
+    "fingerprint": "2NativePageTwoFingerprintMarker111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+    "page_size": 1
+  }
+}

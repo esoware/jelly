@@ -1,0 +1,11 @@
+{
+  "_source": "No published vector. Reproduced by xrpl.js at the default path over the standard test phrase, abandon eleven times then about, whose BIP-39 seed with no passphrase is the seed below.",
+  "seed": "5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4",
+  "derived": [
+    {
+      "path": "m/44'/144'/0'/0/0",
+      "secret": "90802a50aa84efb6cdb225f17c27616ea94048c179142fecf03f4712a07ea7a4",
+      "address": "rHsMGQEkVNJmpGWs8XUBoTBiAAbwxZN5v3"
+    }
+  ]
+}

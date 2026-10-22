@@ -1,0 +1,9 @@
+{
+  "_recorded": "The /v1 history endpoints answer with an empty data array and no fingerprint once a walk runs out of pages. TronGrid returns a fingerprint while a further page might exist, so its absence ends the stream.",
+  "data": [],
+  "success": true,
+  "meta": {
+    "at": 1786586066075,
+    "page_size": 0
+  }
+}

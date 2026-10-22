@@ -1,0 +1,56 @@
+{
+  "_recorded": "Page one of the TRC-20 history of TBdQCi6AvGhCNk17Pmhqx9eoXMRFqEBiqo, recorded from https://api.trongrid.io on 2026-08-13. Each row gained the block_number field TronGrid reports for a mined transfer, so the height and confirmation path is covered offline. Row one shares the timestamp of block 85304913 in tests/fixtures/now_block.json, and the other two are counted back from it at one block per three seconds.",
+  "data": [
+    {
+      "transaction_id": "0dce78f724bd4030f33c19ef006683fc7943f5f481faace26c45e4d95f736019",
+      "token_info": {
+        "symbol": "USDT",
+        "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+        "decimals": 6,
+        "name": "Tether USD"
+      },
+      "block_timestamp": 1786585806000,
+      "from": "TBdQCi6AvGhCNk17Pmhqx9eoXMRFqEBiqo",
+      "to": "TEpPGH6bFVgD7J4tnGfFqAstxTS3e6bPiF",
+      "type": "Transfer",
+      "value": "125000000",
+      "block_number": 85304913
+    },
+    {
+      "transaction_id": "3ab144c09961bb529e8251b5a4f813084d84996337ab36af81e8f90985bae683",
+      "token_info": {
+        "symbol": "USDT",
+        "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+        "decimals": 6,
+        "name": "Tether USD"
+      },
+      "block_timestamp": 1786585050000,
+      "from": "TBdQCi6AvGhCNk17Pmhqx9eoXMRFqEBiqo",
+      "to": "TEpPGH6bFVgD7J4tnGfFqAstxTS3e6bPiF",
+      "type": "Transfer",
+      "value": "495000000",
+      "block_number": 85304661
+    },
+    {
+      "transaction_id": "ab5cfdaca53fb8779804e7ea7b5798de571894d99b4c31d17c2a730a16ad20f7",
+      "token_info": {
+        "symbol": "USDT",
+        "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+        "decimals": 6,
+        "name": "Tether USD"
+      },
+      "block_timestamp": 1786584978000,
+      "from": "TBdQCi6AvGhCNk17Pmhqx9eoXMRFqEBiqo",
+      "to": "TEpPGH6bFVgD7J4tnGfFqAstxTS3e6bPiF",
+      "type": "Transfer",
+      "value": "172000000",
+      "block_number": 85304637
+    }
+  ],
+  "success": true,
+  "meta": {
+    "at": 1786586066075,
+    "fingerprint": "TmGrm87rBdhJFGjasxCHrqM3m7JA7dQfkijZXL3y57McWTG6zqNqASqzj3tj9dGPSjCZUep91oxVvT5gmxAKPHv3V43BB6DoRBdR2fjkPLPmHUfnigDAxTLH5FS4sy2yotXfSmsLbvm1anBHzGXccuZyuiFWMZgzsnQFEwV752BvLBrgDcMiDQeSUvx7mHq3p2MSftJJbejA1gMYyKrmC5ygEtekS",
+    "page_size": 3
+  }
+}

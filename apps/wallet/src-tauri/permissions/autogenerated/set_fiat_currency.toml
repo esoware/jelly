@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-fiat-currency"
+description = "Enables the set_fiat_currency command without any pre-configured scope."
+commands.allow = ["set_fiat_currency"]
+
+[[permission]]
+identifier = "deny-set-fiat-currency"
+description = "Denies the set_fiat_currency command without any pre-configured scope."
+commands.deny = ["set_fiat_currency"]

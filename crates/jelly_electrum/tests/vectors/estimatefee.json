@@ -1,0 +1,10 @@
+{
+  "_recorded": "blockchain.estimatefee answers in BTC per kvB, and -1 means the server has no estimate.",
+  "cases": [
+    { "target": 1, "result": 0.00010223, "sat_per_kwu": 2556 },
+    { "target": 2, "result": 0.00001234, "sat_per_kwu": 309 },
+    { "target": 3, "result": 0.00004521, "sat_per_kwu": 1131 },
+    { "target": 6, "result": 1e-5, "sat_per_kwu": 250 },
+    { "target": 25, "result": -1, "sat_per_kwu": null }
+  ]
+}

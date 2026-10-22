@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-balance-totals"
+description = "Enables the list_balance_totals command without any pre-configured scope."
+commands.allow = ["list_balance_totals"]
+
+[[permission]]
+identifier = "deny-list-balance-totals"
+description = "Denies the list_balance_totals command without any pre-configured scope."
+commands.deny = ["list_balance_totals"]

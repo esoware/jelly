@@ -1,0 +1,138 @@
+{
+  "_source": {
+    "derived": "No published vector. Reproduced by bip_utils, an independent implementation, at the chain's SLIP-44 coin type. Derived from the all-abandon BIP-39 phrase.",
+    "raw": "trustwallet/wallet-core CoinAddressDerivationTests.cpp, whose key is 32 bytes of 0x46. The row also reproduces under bip_utils.",
+    "scripts": "A derived address, CashAddr specification vectors with their token-aware twins and a 32-byte script hash, and two of the specification's legacy translations.",
+    "uris": "Payment requests in the chain's own scheme, and bare addresses. A request in another chain's scheme is refused as the wrong network by the chain table, which these rows do not reach."
+  },
+  "derived": [
+    {
+      "path": "m/44'/145'/0'/0/0",
+      "address": "bitcoincash:qqyx49mu0kkn9ftfj6hje6g2wfer34yfnq5tahq3q6"
+    },
+    {
+      "path": "m/44'/145'/0'/0/1",
+      "address": "bitcoincash:qp8sfdhgjlq68hlzka9lcsxtcnvuvnd0xqxugfzzc5"
+    },
+    {
+      "path": "m/44'/145'/0'/1/0",
+      "address": "bitcoincash:qr8aeharupyrmhfu0d4tdmsnc5y8cfk47y6qrsjsrx"
+    },
+    {
+      "path": "m/44'/0'/0'/0/0",
+      "address": "bitcoincash:qrvcdmgpk73zyfd8pmdl9wnuld36zh9n4gms8s0u59"
+    }
+  ],
+  "raw": [
+    {
+      "secret": "4646464646464646464646464646464646464646464646464646464646464646",
+      "script": "p2pkh",
+      "address": "bitcoincash:qz7eyzytkl5z6cg6nw20hd62pyyp22mcfuardfd2vn"
+    }
+  ],
+  "scripts": [
+    {
+      "address": "bitcoincash:qqyx49mu0kkn9ftfj6hje6g2wfer34yfnq5tahq3q6",
+      "script_kind": "p2pkh",
+      "script_pubkey": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac"
+    },
+    {
+      "address": "bitcoincash:qr7fzmep8g7h7ymfxy74lgc0v950j3r2959lhtxxsl",
+      "script_kind": "p2pkh",
+      "script_pubkey": "76a914fc916f213a3d7f1369313d5fa30f6168f9446a2d88ac"
+    },
+    {
+      "address": "bitcoincash:zr7fzmep8g7h7ymfxy74lgc0v950j3r295z4y4gq0v",
+      "script_kind": "p2pkh",
+      "script_pubkey": "76a914fc916f213a3d7f1369313d5fa30f6168f9446a2d88ac",
+      "why": "token-aware: the same script as its plain twin"
+    },
+    {
+      "address": "bitcoincash:ppawqn2h74a4t50phuza84kdp3794pq3ccvm92p8sh",
+      "script_pubkey": "a9147ae04d57f57b55d1e1bf05d3d6cd0c7c5a8411c687",
+      "why": "pay-to-script-hash: payable, and no single-key flavour"
+    },
+    {
+      "address": "bitcoincash:rpawqn2h74a4t50phuza84kdp3794pq3cct3k50p0y",
+      "script_pubkey": "a9147ae04d57f57b55d1e1bf05d3d6cd0c7c5a8411c687",
+      "why": "token-aware: the same script as its plain twin"
+    },
+    {
+      "address": "bitcoincash:pvqqqqqqqqqqqqqqqqqqqqqqzg69v7ysqqqqqqqqqqqqqqqqqqqqqpkp7fqn0",
+      "script_pubkey": "aa20000000000000000000000000000012345678900000000000000000000000000087",
+      "why": "the 32-byte script hash form"
+    },
+    {
+      "address": "1BpEi6DfDAUFd7GtittLSdBeYJvcoaVggu",
+      "script_kind": "p2pkh",
+      "script_pubkey": "76a91476a04053bda0a88bda5177b86a15c3b29f55987388ac",
+      "why": "legacy: read as written"
+    },
+    {
+      "address": "3CWFddi6m4ndiGyKqzYvsFYagqDLPVMTzC",
+      "script_pubkey": "a91476a04053bda0a88bda5177b86a15c3b29f55987387",
+      "why": "legacy: read as written"
+    }
+  ],
+  "valid": [
+    "bitcoincash:qqyx49mu0kkn9ftfj6hje6g2wfer34yfnq5tahq3q6",
+    "bitcoincash:zr7fzmep8g7h7ymfxy74lgc0v950j3r295z4y4gq0v",
+    "1BpEi6DfDAUFd7GtittLSdBeYJvcoaVggu"
+  ],
+  "invalid": [
+    {
+      "address": "bchtest:qr7fzmep8g7h7ymfxy74lgc0v950j3r295pdnvy3hr",
+      "why": "testnet"
+    },
+    {
+      "address": "prefix:qr7fzmep8g7h7ymfxy74lgc0v950j3r295fu6e430r",
+      "why": "another network's prefix"
+    },
+    {
+      "address": "bitcoincash:qr7fzmep8g7h7ymfxy74lgc0v950j3r2959lhtxxsq",
+      "why": "checksum"
+    },
+    {
+      "address": "bitcoincash:qr7fzmep8g7h7ymfxy74lgc0v950j3r2959lhtxxSL",
+      "why": "mixed case"
+    },
+    {
+      "address": "bitcoincash:qr6m7j9njldwwzlg9v7v53unlr4jkmx6eylep8ekgb",
+      "why": "not in the base32 alphabet"
+    },
+    {
+      "address": "bitcoincash:q9adhakpwzztepkpwp5z0dq62m6u5v5xtyj7j3h2ws4mr9g0",
+      "why": "a 24-byte key hash, which no script pays"
+    },
+    {
+      "address": "prefix:0r6m7j9njldwwzlg9v7v53unlr4jkmx6ey3qnjwsrf",
+      "why": "an unknown type"
+    },
+    {
+      "address": "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu",
+      "why": "bitcoin segwit"
+    },
+    {
+      "address": "LUWPbpM43E2p7ZSh8cyTBEkvpHmr3cB8Ez",
+      "why": "litecoin base58"
+    }
+  ],
+  "uris": {
+    "accepted": [
+      {
+        "uri": "bitcoincash:qqyx49mu0kkn9ftfj6hje6g2wfer34yfnq5tahq3q6?amount=0.5&label=Shop",
+        "address": "bitcoincash:qqyx49mu0kkn9ftfj6hje6g2wfer34yfnq5tahq3q6"
+      },
+      {
+        "uri": "BITCOINCASH:QQYX49MU0KKN9FTFJ6HJE6G2WFER34YFNQ5TAHQ3Q6",
+        "address": "bitcoincash:qqyx49mu0kkn9ftfj6hje6g2wfer34yfnq5tahq3q6"
+      }
+    ],
+    "unsupported": [
+      {
+        "uri": "bitcoincash:qqyx49mu0kkn9ftfj6hje6g2wfer34yfnq5tahq3q6?req-somethingnew=1",
+        "why": "a required parameter Jelly does not know"
+      }
+    ]
+  }
+}

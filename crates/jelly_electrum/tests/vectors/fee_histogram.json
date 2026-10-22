@@ -1,0 +1,15 @@
+{
+  "_recorded": "mempool.get_fee_histogram answers in satoshi per vB, highest rate first.",
+  "result": [
+    [12.5, 25000],
+    [8, 120000],
+    [3.2, 340000],
+    [1, 1200000]
+  ],
+  "expect": [
+    { "sat_per_kwu": 3125, "vsize": 25000 },
+    { "sat_per_kwu": 2000, "vsize": 120000 },
+    { "sat_per_kwu": 800, "vsize": 340000 },
+    { "sat_per_kwu": 250, "vsize": 1200000 }
+  ]
+}

@@ -1,0 +1,317 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/jelly_core",
+    "crates/jelly_keypair",
+    "crates/jelly_mnemonic",
+    "crates/jelly_vault",
+    "crates/jelly_store",
+    "crates/jelly_net",
+    "crates/jelly_electrum",
+    "crates/jelly_prices",
+    "crates/jelly_engine",
+    "crates/jelly_chains",
+    "crates/jelly_win32",
+    "crates/frameworks/*",
+    "crates/chains/*",
+    "apps/wallet/src-tauri",
+]
+
+[workspace.package]
+version      = "0.1.0"
+edition      = "2024"
+rust-version = "1.99.0"
+publish      = false
+
+[workspace.dependencies]
+jelly_core             = { path = "crates/jelly_core" }
+jelly_keypair          = { path = "crates/jelly_keypair" }
+jelly_mnemonic         = { path = "crates/jelly_mnemonic" }
+jelly_vault            = { path = "crates/jelly_vault" }
+jelly_store            = { path = "crates/jelly_store" }
+jelly_net              = { path = "crates/jelly_net" }
+jelly_electrum         = { path = "crates/jelly_electrum" }
+jelly_utxo             = { path = "crates/frameworks/jelly_utxo" }
+jelly_evm              = { path = "crates/frameworks/jelly_evm" }
+jelly_bitcoin          = { path = "crates/chains/jelly_bitcoin" }
+jelly_litecoin         = { path = "crates/chains/jelly_litecoin" }
+jelly_dogecoin         = { path = "crates/chains/jelly_dogecoin" }
+jelly_bitcoin_cash     = { path = "crates/chains/jelly_bitcoin_cash" }
+jelly_zcash            = { path = "crates/chains/jelly_zcash" }
+jelly_ethereum         = { path = "crates/chains/jelly_ethereum" }
+jelly_bsc              = { path = "crates/chains/jelly_bsc" }
+jelly_polygon          = { path = "crates/chains/jelly_polygon" }
+jelly_arbitrum         = { path = "crates/chains/jelly_arbitrum" }
+jelly_base             = { path = "crates/chains/jelly_base" }
+jelly_avalanche        = { path = "crates/chains/jelly_avalanche" }
+jelly_solana           = { path = "crates/chains/jelly_solana" }
+jelly_tron             = { path = "crates/chains/jelly_tron" }
+jelly_xrp              = { path = "crates/chains/jelly_xrp" }
+jelly_ton              = { path = "crates/chains/jelly_ton" }
+jelly_monero           = { path = "crates/chains/jelly_monero" }
+jelly_chains           = { path = "crates/jelly_chains" }
+jelly_prices           = { path = "crates/jelly_prices" }
+jelly_engine           = { path = "crates/jelly_engine" }
+jelly_win32            = { path = "crates/jelly_win32" }
+
+serde      = { version = "1.0.229", default-features = false, features = ["std", "derive"] }
+serde_json = { version = "1.0.151", default-features = false, features = ["std", "raw_value"] }
+
+tokio        = { version = "1.53.2", default-features = false, features = ["rt", "rt-multi-thread", "sync", "time", "macros"] }
+tokio-util   = { version = "0.7.19", default-features = false, features = ["rt"] }
+async-trait  = "0.1.92"
+parking_lot  = "0.12.5"
+arc-swap     = "1.9.2"
+
+thiserror          = "2.0.21"
+tracing            = "0.1.44"
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["std", "fmt", "env-filter"] }
+tracing-appender   = "0.2.5"
+
+zeroize   = { version = "1.9.1", features = ["derive"] }
+secrecy   = "0.10.3"
+subtle    = "2.6.1"
+getrandom = "0.4.3"
+
+sha2             = "0.11.0"
+sha3             = { version = "0.11.0", default-features = false, features = ["zeroize"] }
+hmac             = "0.13.0"
+hkdf             = "0.13.0"
+pbkdf2           = { version = "0.13.0", default-features = false, features = ["hmac"] }
+scrypt           = { version = "0.12.0", default-features = false }
+aes              = "0.9.3"
+ctr              = "0.10.1"
+argon2           = { version = "0.6.0", default-features = false, features = ["alloc", "zeroize"] }
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc", "zeroize"] }
+
+bs58             = { version = "0.5.1", default-features = false, features = ["std", "check"] }
+hex              = "0.4.3"
+base64           = "0.23.1"
+url              = "2.5.8"
+percent-encoding = "2.3.2"
+
+unicode-normalization = { version = "0.1.25", default-features = false, features = ["std"] }
+
+# No std or alloc, so its non-wiping normalizers and Vec-returning entropy are
+# compiled out, and no rand, because entropy comes from jelly_core::random_fill.
+bip39     = { version = "3.0.0", default-features = false, features = ["zeroize"] }
+bitcoin   = { version = "0.32.102", default-features = false, features = ["std", "serde", "base64"] }
+secp256k1 = { version = "0.29.1", default-features = false, features = ["std", "recovery"] }
+
+reqwest       = { version = "0.13.5", default-features = false, features = ["http2", "rustls-no-provider", "charset", "socks"] }
+rustls        = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+tokio-rustls  = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }
+webpki-roots  = "1.0.9"
+# Only the websocket protocol, with no TLS or connector. jelly_net's own dialler
+# supplies the socket, so its TLS stack and egress policy cover websockets too.
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
+futures-util      = { version = "0.3.34", default-features = false, features = ["std", "sink"] }
+
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+tempfile = "3.27.0"
+keyring  = { version = "4.2.0", default-features = false, features = ["v1"] }
+
+# Consensus encoding, the ABI codec, and primitives only. jelly_net owns the one
+# HTTP client and jelly_keypair the one secp256k1 signer, so alloy's transport,
+# provider, and signer stacks stay off.
+alloy = { version = "2.5.0", default-features = false, features = [
+    "std", "serde", "rlp", "consensus", "eips", "sol-types",
+] }
+# The umbrella's primitives and ABI codec on their own, for jelly_evm's address
+# code and jelly_tron, which need no consensus types. Keep them on the alloy-core
+# release the umbrella resolves, so the tree holds one copy of each.
+alloy-primitives = { version = "1.7.3", default-features = false, features = ["std"] }
+alloy-sol-types  = { version = "1.7.3", default-features = false, features = ["std"] }
+
+solana-pubkey                   = { version = "4.4.0", default-features = false, features = ["std", "curve25519", "sha2"] }
+solana-hash                     = { version = "4.7.0", default-features = false, features = ["std", "copy", "decode", "sanitize"] }
+solana-instruction              = { version = "4.0.0", default-features = false, features = ["std"] }
+solana-message                  = { version = "5.1.0", default-features = false, features = ["std", "wincode"] }
+solana-transaction              = { version = "5.1.0", default-features = false, features = ["std", "wincode"] }
+solana-signature                = { version = "3.6.0", default-features = false, features = ["std", "wincode"] }
+solana-system-interface         = { version = "3.3.0", default-features = false, features = ["std", "wincode"] }
+solana-compute-budget-interface = { version = "3.1.0", default-features = false, features = ["borsh"] }
+wincode                         = { version = "0.6.2", default-features = false, features = ["std"] }
+borsh                           = { version = "1.8.1", default-features = false }
+tonlib-core                    = "=0.26.11"
+
+ed25519-dalek                   = { version = "3.0.0", default-features = false, features = ["alloc", "fast", "zeroize"] }
+solana-keypair                  = "4.0.0"
+solana-signer                   = "4.0.0"
+
+spl-token-interface                    = { version = "3.0.0", default-features = false }
+spl-token-2022-interface               = { version = "3.1.2", default-features = false }
+spl-associated-token-account-interface = { version = "2.0.0", default-features = false, features = ["borsh"] }
+
+zcash_address     = { version = "=0.14.0-pre.1", default-features = false, features = ["std"] }
+zcash_primitives  = { version = "=0.31.0-pre.1", default-features = false, features = ["std"] }
+zcash_protocol    = { version = "=0.11.0-pre.0", default-features = false, features = ["std"] }
+zcash_transparent = { version = "=0.11.0-pre.1", default-features = false, features = ["std"] }
+zcash_script      = { version = "0.6", default-features = false }
+
+prost       = "0.14.4"
+prost-types = "0.14.4"
+prost-build = "0.14.4"
+protox      = "0.9.1"
+
+# monero-daemon-rpc is generic over HttpTransport, so jelly_monero reaches
+# monerod through jelly_net's shared client. monero-simple-request-rpc is left
+# out because its HTTPS client trusts the platform root store.
+monero-wallet     = "=0.2.0"
+monero-interface  = "=0.2.0"
+monero-address    = "=0.1.0"
+monero-daemon-rpc = "=0.2.0"
+rand_core_06      = { package = "rand_core", version = "0.6.4", features = ["getrandom"] }
+curve25519-dalek  = { version = "5.0.0", default-features = false, features = ["alloc", "precomputed-tables", "zeroize"] }
+monero-ed25519    = { version = "=0.1.0", default-features = false, features = ["std"] }
+# monero-oxide publishes monero-seed only from its wallet utilities repository; the
+# crates.io name holds an empty placeholder. It shares curve25519-dalek 4, zeroize, and
+# rand_core 0.6 with monero-wallet.
+monero-seed       = { git = "https://github.com/monero-oxide/monero-wallet-util", rev = "011f90d73f79bd96cc29f524e3a55d2cf9a5d7b1" }
+
+tauri                         = "2.12.1"
+tauri-build                   = "2.7.1"
+tauri-plugin-clipboard-manager = "2.5.0"
+tauri-plugin-opener            = "2.7.0"
+tauri-plugin-prevent-default  = "6.0.1"
+tauri-plugin-single-instance  = "2.5.2"
+specta                        = { version = "=2.0.0-rc.25", features = ["derive"] }
+specta-typescript             = "=0.0.12"
+tauri-specta                  = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+windows-version               = "0.1.7"
+raw-window-handle             = { version = "0.6.2", features = ["std"] }
+# The version tauri builds its webview on, so the controller it hands out is the same type.
+webview2-com                  = "0.39.1"
+windows                       = { version = "0.62.2", features = [
+    "Foundation", "System", "UI_Composition", "UI_Composition_Desktop", "UI_ViewManagement",
+    "Win32_Foundation", "Win32_Graphics_Dwm", "Win32_System_WinRT",
+    "Win32_System_WinRT_Composition",
+] }
+windows-numerics              = "0.3.1"
+
+proptest = "1.11.0"
+
+# crates/jelly_win32/Cargo.toml repeats these tables, so keep it in step with them.
+[workspace.lints.rust]
+# Every lint rustc turns on by default fails the build. The allow-by-default lints have
+# no group, so the ones this workspace wants are named one by one.
+warnings         = { level = "deny", priority = -1 }
+rust_2018_idioms = { level = "deny", priority = -1 }
+
+ambiguous_negative_literals   = "deny"
+closure_returning_async_block = "deny"
+deprecated_in_future          = "deny"
+impl_trait_redundant_captures = "deny"
+macro_use_extern_crate        = "deny"
+meta_variable_misuse          = "deny"
+missing_debug_implementations = "deny"
+non_ascii_idents              = "deny"
+raw_borrows_via_references    = "deny"
+redundant_imports             = "deny"
+redundant_lifetimes           = "deny"
+trivial_numeric_casts         = "deny"
+unit_bindings                 = "deny"
+unnameable_types              = "deny"
+unreachable_pub               = "deny"
+unsafe_code                   = "forbid"
+unused_import_braces          = "deny"
+unused_lifetimes              = "deny"
+unused_macro_rules            = "deny"
+unused_qualifications         = "deny"
+
+[workspace.lints.clippy]
+all         = { level = "deny", priority = -1 }
+cargo       = { level = "deny", priority = -1 }
+nursery     = { level = "deny", priority = -1 }
+pedantic    = { level = "deny", priority = -1 }
+restriction = { level = "deny", priority = -1 }
+
+alloc_instead_of_core             = "allow"
+arbitrary_source_item_ordering    = "allow"
+# assert_is_empty rewrites `assert!(x.is_empty())` as `assert_eq!(x, [] as [T; 0])`, which
+# the denied as_conversions and absolute_paths lints then reject.
+assert_is_empty                   = "allow"
+big_endian_bytes                  = "allow"
+# Clippy expects restriction lints to be picked one at a time. This table turns the whole
+# group on and lists the exceptions instead, so the lint against doing that is off.
+blanket_clippy_restriction_lints  = "allow"
+cognitive_complexity              = "allow"
+create_dir                        = "allow"
+decimal_literal_representation    = "allow"
+default_numeric_fallback          = "allow"
+default_union_representation      = "allow"
+definition_in_module_root         = "allow"
+disallowed_script_idents          = "allow"
+else_if_without_else              = "allow"
+exhaustive_enums                  = "allow"
+exhaustive_structs                = "allow"
+field_scoped_visibility_modifiers = "allow"
+implicit_return                   = "allow"
+impl_trait_in_params              = "allow"
+inline_asm_x86_att_syntax         = "allow"
+inline_asm_x86_intel_syntax       = "allow"
+inline_modules                    = "allow"
+inline_trait_bounds               = "allow"
+integer_division_remainder_used   = "allow"
+let_underscore_must_use           = "allow"
+let_underscore_untyped            = "allow"
+little_endian_bytes               = "allow"
+map_err_ignore                    = "allow"
+min_ident_chars                   = "allow"
+missing_asserts_for_indexing      = "allow"
+missing_docs_in_private_items     = "allow"
+missing_errors_doc                = "allow"
+missing_inline_in_public_items    = "allow"
+missing_panics_doc                = "allow"
+missing_trait_methods             = "allow"
+module_name_repetitions           = "allow"
+multiple_crate_versions           = "allow"
+multiple_inherent_impl            = "allow"
+must_use_candidate                = "allow"
+mutex_atomic                      = "allow"
+mutex_integer                     = "allow"
+option_if_let_else                = "allow"
+pattern_type_mismatch             = "allow"
+pub_use                           = "allow"
+pub_with_shorthand                = "allow"
+question_mark_used                = "allow"
+rc_mutex                          = "allow"
+# redundant_pub_crate asks for `pub` on items in private modules, which the denied
+# unreachable_pub rejects. No spelling satisfies both, so the clippy side is off.
+redundant_pub_crate               = "allow"
+ref_patterns                      = "allow"
+rest_pattern_accessible_field     = "allow"
+self_named_module_files           = "allow"
+semicolon_outside_block           = "allow"
+shadow_reuse                      = "allow"
+shadow_same                       = "allow"
+shadow_unrelated                  = "allow"
+significant_drop_tightening       = "allow"
+similar_names                     = "allow"
+single_call_fn                    = "allow"
+single_char_lifetime_names        = "allow"
+std_instead_of_alloc              = "allow"
+std_instead_of_core               = "allow"
+tests_outside_test_module         = "allow"
+unseparated_literal_suffix        = "allow"
+
+[profile.dev]
+opt-level = 0
+debug     = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+opt-level      = 3
+lto            = "fat"
+codegen-units  = 1
+strip          = true
+overflow-checks = true
+panic          = "unwind"
+
+[profile.profiling]
+inherits = "release"
+debug    = "line-tables-only"
+strip    = "debuginfo"
+lto      = "thin"

@@ -1,0 +1,86 @@
+{
+  "chain": "bitcoin_cash",
+  "note": "Public Fulcrum servers for Bitcoin Cash, drawn from Electron Cash's own server list, the Cake Wallet list, and community servers, each verified on 2026-10-10 with server.version, a blockchain.headers.subscribe tip read, block zero, and block 840000 over TLS. Bitcoin Cash shares Bitcoin's block zero, so block 840000 is what proves the chain. ElectrumX servers are left out, because ElectrumX does not parse CashTokens and files an output that carries tokens under the wrong script hash, so its history and unspent set disagree with Fulcrum's. Servers that failed to answer, refused the connection, or reported a stale tip at verification time are omitted, and Fulcrum 2.x is listed ahead of older builds. There is no fee API row, because blocks have room to spare and every wallet pays the relay floor.",
+  "endpoints": [
+    {
+      "url": "ssl://bch.imaginary.cash:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate, run by Fulcrum's author"
+    },
+    {
+      "url": "ssl://electrum.imaginary.cash:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://bch.loping.net:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://bch.soul-dev.com:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://blackie.c3-soft.com:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://electron.jochen-hoenicke.de:51002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://bch.cyberbits.eu:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://cashnode.bch.ninja:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://fulcrum.jettscythe.xyz:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://fulcrum.aglauck.com:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://fulcrum.greyh.at:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://bch0.kister.net:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, CA-valid certificate"
+    },
+    {
+      "url": "ssl://electroncash.dk:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, self-signed certificate"
+    },
+    {
+      "url": "ssl://bch.aftrek.org:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 2.1, self-signed certificate"
+    },
+    {
+      "url": "ssl://bitcoincash.stackwallet.com:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 1.9, CA-valid certificate, Stack Wallet infrastructure"
+    },
+    {
+      "url": "ssl://fulcrum.criptolayer.net:50002",
+      "transport": "electrum_ssl",
+      "note": "Fulcrum 1.11, self-signed certificate"
+    }
+  ]
+}

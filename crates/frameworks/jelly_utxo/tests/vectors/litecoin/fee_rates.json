@@ -1,0 +1,48 @@
+{
+  "_recorded": "One litoshi per virtual byte is exactly 250 litoshi per kilo weight unit, so every expectation below was computed by hand in integer arithmetic. The recommended bodies have the shape litecoinspace.org serves, and the Electrum answers have the shape an ElectrumX-LTC server sends. Every automatic rate is floored at Litecoin Core's 10 lit/vB wallet minimum, which is what a quiet chain pays.",
+  "relayFloorKwu": 250,
+  "recommended": {
+    "note": "The halfHourFee is the automatic rate.",
+    "answer": {
+      "fastestFee": 29,
+      "halfHourFee": 25,
+      "hourFee": 21,
+      "economyFee": 10,
+      "minimumFee": 5
+    },
+    "kwu": 6250,
+    "floorKwu": 1250
+  },
+  "quiet": {
+    "note": "A mempool with no backlog prices every rate at the relay floor, which is the usual Litecoin answer.",
+    "answer": {
+      "fastestFee": 1,
+      "halfHourFee": 1,
+      "hourFee": 1,
+      "economyFee": 1,
+      "minimumFee": 1
+    },
+    "kwu": 2500
+  },
+  "estimate": {
+    "note": "blockchain.estimatefee answers in whole coin units per kilo virtual byte, for the six block target.",
+    "ltcPerKvb": "0.00015",
+    "kwu": 3750
+  },
+  "estimateBelowTheFloor": {
+    "note": "An estimate at the relay floor is raised to the wallet minimum.",
+    "ltcPerKvb": "0.00001",
+    "kwu": 2500
+  },
+  "histogram": {
+    "note": "Buckets are [litoshi per virtual byte, total virtual size], highest rate first. One block holds a million virtual bytes here as on Bitcoin, so the rate is the one at which six blocks of backlog are cleared. The same buckets read against Bitcoin's three-block target price fifteen times higher, which is why the target is a chain parameter.",
+    "buckets": [
+      [20, 2500000],
+      [15, 1000000],
+      [1, 20000000]
+    ],
+    "rawKwu": 250,
+    "kwu": 2500,
+    "bitcoinRawKwu": 3750
+  }
+}

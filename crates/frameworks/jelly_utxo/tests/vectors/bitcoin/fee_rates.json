@@ -1,0 +1,46 @@
+{
+  "_recorded": "One satoshi per virtual byte is exactly 250 satoshi per kilo weight unit, so every expectation below was computed by hand in integer arithmetic. Every automatic rate is floored at the relay floor and at Core's 1 sat/vB wallet minimum.",
+  "recommended": {
+    "note": "The halfHourFee is the automatic rate.",
+    "answer": {
+      "fastestFee": 12,
+      "halfHourFee": 8,
+      "hourFee": 4,
+      "economyFee": 2,
+      "minimumFee": 1
+    },
+    "kwu": 2000
+  },
+  "quiet": {
+    "note": "The precise route answers below one satoshi per virtual byte on a quiet mempool, and the wallet minimum raises it.",
+    "answer": {
+      "fastestFee": 1.01,
+      "halfHourFee": 0.756,
+      "hourFee": 0.5,
+      "economyFee": 0.3,
+      "minimumFee": 0.1
+    },
+    "kwu": 250
+  },
+  "estimate": {
+    "note": "blockchain.estimatefee answers in whole coin units per kilo virtual byte, for the three block target.",
+    "btcPerKvb": "0.00005000",
+    "kwu": 1250
+  },
+  "estimateBelowTheFloor": {
+    "note": "An estimate below the wallet minimum is raised to it.",
+    "btcPerKvb": "0.00000500",
+    "kwu": 250
+  },
+  "histogram": {
+    "note": "Buckets are [satoshi per virtual byte, total virtual size], highest rate first. One block holds a million virtual bytes, so the rate is the one at which three blocks of backlog are cleared.",
+    "buckets": [
+      [20, 500000],
+      [10, 1500000],
+      [5, 2000000],
+      [1, 3000000]
+    ],
+    "rawKwu": 1250,
+    "kwu": 1250
+  }
+}

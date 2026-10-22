@@ -1,0 +1,26 @@
+use jelly_core::{ChainAdapter as _, ChainId};
+
+use crate::common::Harness;
+
+#[tokio::test]
+async fn the_chain_spec_declares_exactly_the_capabilities_this_adapter_implements() {
+    let harness = Harness::new().await.unwrap();
+    let adapter = &harness.adapter;
+    let spec = &jelly_monero::SPEC;
+
+    assert_eq!(adapter.chain(), ChainId::Monero);
+    assert_eq!(
+        adapter.fee_bump().is_some(),
+        spec.can_bump_fee,
+        "the interface offers a fee bump exactly when this adapter can plan one"
+    );
+    assert_eq!(
+        adapter.subaddresses().is_some(),
+        spec.has_subaddresses,
+        "the interface asks for a subaddress exactly when this adapter derives one"
+    );
+    assert!(
+        adapter.pending_tracker().is_none(),
+        "a monero build reserves nothing; the reservation begins inside broadcast"
+    );
+}

@@ -1,0 +1,15 @@
+{
+  "_source": {
+    "derived": "The MetaMask default path over the standard test phrase. BNB Smart Chain derives at Ethereum's coin type, so its addresses are Ethereum's.",
+    "secret": "The secret the same path derives, as MetaMask and every EVM wallet export it."
+  },
+  "phrase": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+  "secret_path": "m/44'/60'/0'/0/0",
+  "secret": "1ab42cc412b618bdea3a599e3c9bae199ebf030895b039e9db1e30dafb12b727",
+  "derived": [
+    {
+      "path": "m/44'/60'/0'/0/0",
+      "address": "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
+    }
+  ]
+}

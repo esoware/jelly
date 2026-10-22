@@ -1,0 +1,47 @@
+[package]
+name         = "jelly_utxo"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# Deterministic UTXO fixtures for tests. Enable only from [dev-dependencies].
+test-util = ["jelly_core/test-util", "jelly_electrum/test-util", "jelly_keypair/test-util", "dep:hex"]
+
+[dependencies]
+jelly_core     = { workspace = true }
+jelly_electrum = { workspace = true }
+jelly_keypair  = { workspace = true }
+jelly_net      = { workspace = true }
+
+async-trait = { workspace = true }
+bitcoin     = { workspace = true }
+hex         = { workspace = true, optional = true }
+parking_lot = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+thiserror   = { workspace = true }
+tokio       = { workspace = true }
+tracing     = { workspace = true }
+zeroize     = { workspace = true }
+
+[dev-dependencies]
+jelly_core     = { workspace = true, features = ["test-util"] }
+jelly_electrum = { workspace = true, features = ["test-util"] }
+jelly_keypair  = { workspace = true, features = ["test-util"] }
+jelly_net      = { workspace = true, features = ["test-util"] }
+jelly_utxo     = { workspace = true, features = ["test-util"] }
+hex            = { workspace = true }
+proptest       = { workspace = true }
+tokio          = { workspace = true, features = ["test-util"] }
+
+# The integration tests run the shared engine over each chain crate's own table.
+jelly_bitcoin      = { workspace = true }
+jelly_bitcoin_cash = { workspace = true }
+jelly_dogecoin     = { workspace = true }
+jelly_litecoin     = { workspace = true }

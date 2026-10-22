@@ -1,0 +1,22 @@
+{
+  "_note": "A key-path spend with SIGHASH_DEFAULT. The signature is BIP-340 with the auxiliary randomness pinned to zero, which makes it reproducible.",
+  "_source": "Constructed for this suite. tests/it/vectors.rs checks the digest against an independent SigMsg written from the Common Signature Message section of BIP-341.",
+  "cases": [
+    {
+      "name": "key path, sighash default, one input",
+      "privateKey": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+      "internalKey": "552c630b64b54bf50210c9e253d38bd4949c72e22873500f6285c2bede312a84",
+      "scriptPubkey": "51203f2520e87f91d97f85f7d1853f2948fdbd26539e0e59ec3d5561767e1945981e",
+      "unsignedTx": "020000000101010101010101010101010101010101010101010101010101010101010101010000000000fdffffff01905f0100000000002251203f2520e87f91d97f85f7d1853f2948fdbd26539e0e59ec3d5561767e1945981e00350c00",
+      "inputIndex": 0,
+      "prevouts": [
+        {
+          "value": 100000,
+          "scriptPubkey": "51203f2520e87f91d97f85f7d1853f2948fdbd26539e0e59ec3d5561767e1945981e"
+        }
+      ],
+      "sighash": "138cccf3fb47cb13ed275181f2d95f45e82eaf146e435cceaa9f39c9f8bc2b0c",
+      "signature": "4c43fb68303e8d452c2d8623b2ff49e35a696695ce8670c0896137fd7fbc552060f8862da770c4b8ead719e6f51e1346b742a6dc61043afc3c2a27dc27f21d21"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "chain": "avalanche",
+  "note": "Free public Avalanche C-Chain JSON-RPC endpoints, verified with eth_chainId returning 0xa86a, a JSON-RPC batch, eth_feeHistory with reward percentiles, a Multicall3 eth_call, an eth_getLogs window of 10,000 blocks, and logs from the USDt deployment. Endpoints that refused eth_getLogs or capped it below that width, needed a key, or were unreachable at verification time are omitted. PublicNode answers not found for logs outside its recent history and has no old receipts, and Pocket Network's gateway sometimes routes an old window to a pruned node, so older windows and receipts come from the others. The websocket rows carry the newHeads subscription that wakes a sync pass when blocks land, and each was verified by subscribing and receiving a push. The history API rows are Routescan's Etherscan-compatible service, which runs the Snowtrace explorer and answers without a key, so the Etherscan key is never sent to them. Etherscan's own v2 service serves chainid 43114 on paid plans only.",
+  "endpoints": [
+    {
+      "url": "https://api.avax.network/ext/bc/C/rpc",
+      "transport": "http_jsonrpc",
+      "note": "Ava Labs public endpoint"
+    },
+    {
+      "url": "https://avalanche-c-chain-rpc.publicnode.com",
+      "transport": "http_jsonrpc",
+      "note": "PublicNode, no key, recent history only"
+    },
+    {
+      "url": "https://avax.api.pocket.network",
+      "transport": "http_jsonrpc",
+      "note": "Pocket Network public gateway"
+    },
+    {
+      "url": "https://rpc.sentio.xyz/avalanche",
+      "transport": "http_jsonrpc",
+      "note": "Sentio public endpoint"
+    },
+    {
+      "url": "https://avalanche.gateway.tenderly.co",
+      "transport": "http_jsonrpc",
+      "note": "Tenderly public gateway"
+    },
+    {
+      "url": "wss://api.avax.network/ext/bc/C/ws",
+      "transport": "ws_jsonrpc",
+      "note": "Ava Labs public websocket"
+    },
+    {
+      "url": "wss://avalanche-c-chain-rpc.publicnode.com",
+      "transport": "ws_jsonrpc",
+      "note": "PublicNode websocket"
+    },
+    {
+      "url": "wss://avalanche.drpc.org",
+      "transport": "ws_jsonrpc",
+      "note": "dRPC public websocket"
+    },
+    {
+      "url": "wss://avalanche.gateway.tenderly.co",
+      "transport": "ws_jsonrpc",
+      "note": "Tenderly public websocket"
+    },
+    {
+      "url": "https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api",
+      "transport": "history_api",
+      "note": "Routescan history API, no key"
+    },
+    {
+      "url": "https://api.snowtrace.io/api",
+      "transport": "history_api",
+      "note": "Snowtrace history API, no key"
+    }
+  ]
+}

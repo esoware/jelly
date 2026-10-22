@@ -1,0 +1,45 @@
+{
+  "_recorded": "Derived from the secp256k1 generator point, the public key behind the BIP-173 example addresses, under Dogecoin's version bytes by bip_utils, an independent implementation.",
+  "pubkey": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+  "derived": [
+    {
+      "scriptKind": "p2pkh",
+      "address": "DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE",
+      "scriptPubkey": "76a914751e76e8199196d454941c45d1b3a323f1433bd688ac"
+    }
+  ],
+  "canonical": [
+    {
+      "input": "  DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE  ",
+      "output": "DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE",
+      "note": "surrounding whitespace is trimmed"
+    }
+  ],
+  "invalid": [
+    { "address": "", "note": "empty" },
+    { "address": "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH", "note": "a bitcoin version byte" },
+    {
+      "address": "ltc1qjmxnz78nmc8nq77wuxh25n2es7rzm5c2rkk4wh",
+      "note": "litecoin segwit, which Dogecoin has no form of"
+    },
+    {
+      "address": "bitcoincash:qp63uahgrxged4z5jswyt5dn5v3lzsem6cy4spdc2h",
+      "note": "a bitcoin cash address"
+    },
+    {
+      "address": "nmUWv71U1dPVE5kkYm3HVUeyD6DmpUR42p",
+      "note": "testnet, which this build never talks to"
+    },
+    {
+      "address": "DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLF",
+      "note": "the base58check checksum does not match"
+    },
+    { "address": "not an address", "note": "not an encoding at all" }
+  ],
+  "unwatchable": [
+    {
+      "address": "A9faqPqnCRNQcZjkcFTviEQiLrkLPctjsJ",
+      "note": "a script hash: payable, and no key a single-key wallet derives"
+    }
+  ]
+}

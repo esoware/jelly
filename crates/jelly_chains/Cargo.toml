@@ -1,0 +1,40 @@
+[package]
+name         = "jelly_chains"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+[lints]
+workspace = true
+
+[dependencies]
+jelly_core = { workspace = true }
+jelly_net  = { workspace = true }
+
+jelly_bitcoin      = { workspace = true }
+jelly_litecoin     = { workspace = true }
+jelly_dogecoin     = { workspace = true }
+jelly_bitcoin_cash = { workspace = true }
+jelly_zcash        = { workspace = true }
+jelly_ethereum     = { workspace = true }
+jelly_bsc          = { workspace = true }
+jelly_polygon      = { workspace = true }
+jelly_arbitrum     = { workspace = true }
+jelly_base         = { workspace = true }
+jelly_avalanche    = { workspace = true }
+jelly_solana       = { workspace = true }
+jelly_tron         = { workspace = true }
+jelly_xrp          = { workspace = true }
+jelly_ton          = { workspace = true }
+jelly_monero       = { workspace = true }
+
+async-trait = { workspace = true }
+tracing     = { workspace = true }
+
+[dev-dependencies]
+jelly_core    = { workspace = true, features = ["test-util"] }
+jelly_keypair = { workspace = true }
+jelly_net     = { workspace = true, features = ["test-util"] }
+
+tokio = { workspace = true, features = ["io-util", "net"] }

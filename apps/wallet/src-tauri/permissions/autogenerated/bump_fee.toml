@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bump-fee"
+description = "Enables the bump_fee command without any pre-configured scope."
+commands.allow = ["bump_fee"]
+
+[[permission]]
+identifier = "deny-bump-fee"
+description = "Denies the bump_fee command without any pre-configured scope."
+commands.deny = ["bump_fee"]

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Jelly",
+  "identifier": "cash.jelly.wallet",
+  "build": {
+    "beforeDevCommand": "pnpm --filter jelly-wallet dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm --filter jelly-wallet build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "Jelly",
+        "width": 800,
+        "height": 600,
+        "minWidth": 700,
+        "minHeight": 400,
+        "center": true,
+        "decorations": false,
+        "dragDropEnabled": false,
+        "incognito": true
+      }
+    ],
+    "security": {
+      "capabilities": ["main", "secret-exports"],
+      "freezePrototype": true,
+      "assetProtocol": { "enable": false, "scope": [] },
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src ipc: http://ipc.localhost; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'; frame-ancestors 'none'",
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp",
+        "Cross-Origin-Resource-Policy": "same-origin",
+        "X-Content-Type-Options": "nosniff",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=(), usb=(), hid=(), serial=(), payment=(), midi=(), xr-spatial-tracking=()"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "Jelly",
+    "category": "Finance",
+    "shortDescription": "Self-custody multi-chain desktop wallet",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "allowDowngrades": false,
+      "nsis": { "installMode": "currentUser", "compression": "lzma" }
+    }
+  }
+}

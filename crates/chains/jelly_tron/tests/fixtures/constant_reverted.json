@@ -1,0 +1,7 @@
+{
+  "_derived": "The shape java-tron answers triggerconstantcontract with when the contract executes and reverts. The request itself was well formed, so result.result stays true and result.code is the default SUCCESS, which protobuf leaves out. The only failure signal is result.message, the hex of \"REVERT opcode executed\". A refusal before execution, such as CONTRACT_VALIDATE_ERROR, is a different answer.",
+  "result": {
+    "result": true,
+    "message": "524556455254206f70636f6465206578656375746564"
+  }
+}

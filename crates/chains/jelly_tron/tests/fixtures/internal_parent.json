@@ -1,0 +1,49 @@
+{
+  "_derived": "The transactions 4125883a7c842f157d3a4cbea1976c92591d674d16 sent in block 85304911, as the native history route answers a query bounded to that block's time, written by hand rather than recorded. The row has the shape of the recorded native pages, and its internal_transactions list has the shape the TronGrid reference documents for internal transfers. It is the payout internal_page1.json lists: a call to contract 416804040d601e099c588b5e7392e92c56a54609c9 that paid TR5NMmWJ9UJvut6hBmrre4Gz28Ez4C1XPK 1 TRX and another account 3 TRX, and burned 1.234 TRX of the caller's for energy.",
+  "data": [
+    {
+      "ret": [{ "contractRet": "SUCCESS", "fee": 1234000 }],
+      "txID": "7a3f0c9e1b5d2a8c4e6f0b1d3c5e7a9b2d4f6a8c0e1b3d5f7a9c1e3b5d7f9a1c",
+      "net_usage": 0,
+      "net_fee": 0,
+      "energy_usage": 0,
+      "blockNumber": 85304911,
+      "block_timestamp": 1786585800000,
+      "energy_fee": 1234000,
+      "raw_data": {
+        "contract": [
+          {
+            "parameter": {
+              "value": {
+                "data": "3ccfd60b",
+                "owner_address": "4125883a7c842f157d3a4cbea1976c92591d674d16",
+                "contract_address": "416804040d601e099c588b5e7392e92c56a54609c9"
+              },
+              "type_url": "type.googleapis.com/protocol.TriggerSmartContract"
+            },
+            "type": "TriggerSmartContract"
+          }
+        ]
+      },
+      "internal_transactions": [
+        {
+          "internal_tx_id": "c41d7e0a92b35f68e1a4d7b0c3f6a9e2d5b8c1f4a7e0d3b6c9f2a5e8d1b4c7f0",
+          "data": { "note": "call", "rejected": false, "call_value": { "_": 1000000 } },
+          "to_address": "41a5b43182dad15ff0b707d829ffa67b1af6719483",
+          "from_address": "416804040d601e099c588b5e7392e92c56a54609c9"
+        },
+        {
+          "internal_tx_id": "e63f902cb4d5718a23c6f9d2e5b8a1c4f7d0e3b6a9c2f5d8e1b4a7c0d3f6e9b2",
+          "data": { "note": "call", "rejected": false, "call_value": { "_": 3000000 } },
+          "to_address": "41df0c86c531205eb7a4e27d9589ba7188dfb32f08",
+          "from_address": "416804040d601e099c588b5e7392e92c56a54609c9"
+        }
+      ]
+    }
+  ],
+  "success": true,
+  "meta": {
+    "at": 1786586066075,
+    "page_size": 1
+  }
+}

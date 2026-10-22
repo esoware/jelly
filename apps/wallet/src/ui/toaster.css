@@ -1,0 +1,35 @@
+@reference "@/styles/index.css";
+
+@layer components {
+  .toaster-toast {
+    --stack-gap: --spacing(2);
+    --stack-peek: --spacing(2);
+    --stack-scale: max(0, 1 - var(--toast-index) * 0.05);
+    --stack-height: var(--toast-frontmost-height, var(--toast-height));
+    --stack-y: calc(
+      var(--toast-index) * var(--stack-peek) * -1 - (1 - var(--stack-scale)) *
+        var(--stack-height, 0px)
+    );
+    --stack-shift-x: 0px;
+    --stack-shift-y: 0px;
+
+    transform: translateX(calc(var(--toast-swipe-movement-x) + var(--stack-shift-x)))
+      translateY(calc(var(--stack-y) + var(--toast-swipe-movement-y) + var(--stack-shift-y)))
+      scale(var(--stack-scale));
+
+    &[data-expanded] {
+      --stack-scale: 1;
+      --stack-y: calc(var(--toast-offset-y) * -1 - var(--toast-index) * var(--stack-gap));
+    }
+
+    &[data-starting-style],
+    &[data-ending-style] {
+      --stack-shift-y: 100%;
+    }
+
+    &[data-ending-style][data-swipe-direction="right"] {
+      --stack-shift-x: 100%;
+      --stack-shift-y: 0px;
+    }
+  }
+}

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-xpub-for-address"
+description = "Enables the get_xpub_for_address command without any pre-configured scope."
+commands.allow = ["get_xpub_for_address"]
+
+[[permission]]
+identifier = "deny-get-xpub-for-address"
+description = "Denies the get_xpub_for_address command without any pre-configured scope."
+commands.deny = ["get_xpub_for_address"]

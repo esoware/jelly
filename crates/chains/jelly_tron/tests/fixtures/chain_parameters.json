@@ -1,0 +1,14 @@
+{
+  "_recorded": "Recorded from https://api.trongrid.io on 2026-08-13 and trimmed to the governance keys this build reads, plus a few it must ignore.",
+  "chainParameter": [
+    { "key": "getMaintenanceTimeInterval", "value": 21600000 },
+    { "key": "getCreateAccountFee", "value": 100000 },
+    { "key": "getTransactionFee", "value": 1000 },
+    { "key": "getCreateNewAccountFeeInSystemContract", "value": 1000000 },
+    { "key": "getCreateNewAccountBandwidthRate", "value": 1 },
+    { "key": "getEnergyFee", "value": 100 },
+    { "key": "getAllowUpdateAccountName" },
+    { "key": "getTotalEnergyLimit", "value": 180000000000 },
+    { "key": "getMaxFeeLimit", "value": 15000000000 }
+  ]
+}

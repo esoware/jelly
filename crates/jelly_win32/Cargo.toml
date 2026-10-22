@@ -1,0 +1,122 @@
+[package]
+name         = "jelly_win32"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+publish      = false
+
+# The workspace forbids unsafe code, and no attribute can lift a forbid. This crate holds
+# the Win32 calls that cannot be made without it, so it repeats the workspace lints with
+# unsafe code denied rather than forbidden, and each function with an unsafe block carries
+# its own `expect`. Keep these tables in step with `[workspace.lints]` in the root
+# Cargo.toml.
+[lints.rust]
+# Every lint rustc turns on by default fails the build. The allow-by-default lints have
+# no group, so the ones this workspace wants are named one by one.
+warnings         = { level = "deny", priority = -1 }
+rust_2018_idioms = { level = "deny", priority = -1 }
+
+ambiguous_negative_literals   = "deny"
+closure_returning_async_block = "deny"
+deprecated_in_future          = "deny"
+impl_trait_redundant_captures = "deny"
+macro_use_extern_crate        = "deny"
+meta_variable_misuse          = "deny"
+missing_debug_implementations = "deny"
+non_ascii_idents              = "deny"
+raw_borrows_via_references    = "deny"
+redundant_imports             = "deny"
+redundant_lifetimes           = "deny"
+trivial_numeric_casts         = "deny"
+unit_bindings                 = "deny"
+unnameable_types              = "deny"
+unreachable_pub               = "deny"
+unsafe_code                   = "deny"
+unused_import_braces          = "deny"
+unused_lifetimes              = "deny"
+unused_macro_rules            = "deny"
+unused_qualifications         = "deny"
+
+[lints.clippy]
+all         = { level = "deny", priority = -1 }
+cargo       = { level = "deny", priority = -1 }
+nursery     = { level = "deny", priority = -1 }
+pedantic    = { level = "deny", priority = -1 }
+restriction = { level = "deny", priority = -1 }
+
+alloc_instead_of_core             = "allow"
+arbitrary_source_item_ordering    = "allow"
+# assert_is_empty rewrites `assert!(x.is_empty())` as `assert_eq!(x, [] as [T; 0])`, which
+# the denied as_conversions and absolute_paths lints then reject.
+assert_is_empty                   = "allow"
+big_endian_bytes                  = "allow"
+# Clippy expects restriction lints to be picked one at a time. This table turns the whole
+# group on and lists the exceptions instead, so the lint against doing that is off.
+blanket_clippy_restriction_lints  = "allow"
+cognitive_complexity              = "allow"
+create_dir                        = "allow"
+decimal_literal_representation    = "allow"
+default_numeric_fallback          = "allow"
+default_union_representation      = "allow"
+definition_in_module_root         = "allow"
+disallowed_script_idents          = "allow"
+else_if_without_else              = "allow"
+exhaustive_enums                  = "allow"
+exhaustive_structs                = "allow"
+field_scoped_visibility_modifiers = "allow"
+implicit_return                   = "allow"
+impl_trait_in_params              = "allow"
+inline_asm_x86_att_syntax         = "allow"
+inline_asm_x86_intel_syntax       = "allow"
+inline_modules                    = "allow"
+inline_trait_bounds               = "allow"
+integer_division_remainder_used   = "allow"
+let_underscore_must_use           = "allow"
+let_underscore_untyped            = "allow"
+little_endian_bytes               = "allow"
+map_err_ignore                    = "allow"
+min_ident_chars                   = "allow"
+missing_asserts_for_indexing      = "allow"
+missing_docs_in_private_items     = "allow"
+missing_errors_doc                = "allow"
+missing_inline_in_public_items    = "allow"
+missing_panics_doc                = "allow"
+missing_trait_methods             = "allow"
+module_name_repetitions           = "allow"
+multiple_crate_versions           = "allow"
+multiple_inherent_impl            = "allow"
+must_use_candidate                = "allow"
+mutex_atomic                      = "allow"
+mutex_integer                     = "allow"
+option_if_let_else                = "allow"
+pattern_type_mismatch             = "allow"
+pub_use                           = "allow"
+pub_with_shorthand                = "allow"
+question_mark_used                = "allow"
+rc_mutex                          = "allow"
+# redundant_pub_crate asks for `pub` on items in private modules, which the denied
+# unreachable_pub rejects. No spelling satisfies both, so the clippy side is off.
+redundant_pub_crate               = "allow"
+ref_patterns                      = "allow"
+rest_pattern_accessible_field     = "allow"
+self_named_module_files           = "allow"
+semicolon_outside_block           = "allow"
+shadow_reuse                      = "allow"
+shadow_same                       = "allow"
+shadow_unrelated                  = "allow"
+significant_drop_tightening       = "allow"
+similar_names                     = "allow"
+single_call_fn                    = "allow"
+single_char_lifetime_names        = "allow"
+std_instead_of_alloc              = "allow"
+std_instead_of_core               = "allow"
+tests_outside_test_module         = "allow"
+unseparated_literal_suffix        = "allow"
+
+[target.'cfg(windows)'.dependencies]
+raw-window-handle = { workspace = true }
+thiserror         = { workspace = true }
+webview2-com      = { workspace = true }
+windows           = { workspace = true }
+windows-numerics  = { workspace = true }
+windows-version   = { workspace = true }

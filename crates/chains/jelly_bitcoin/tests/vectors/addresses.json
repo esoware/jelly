@@ -1,0 +1,140 @@
+{
+  "_source": {
+    "derived": "BIP-84 and BIP-86 test vectors, verbatim from the BIP texts. The legacy and wrapped rows have no published mainnet vector and were reproduced by an independent implementation. Derived from the all-abandon BIP-39 phrase.",
+    "raw": "trustwallet/wallet-core CoinAddressDerivationTests.cpp, whose key is 32 bytes of 0x46.",
+    "scripts": "The BIP-86 and BIP-84 first receive addresses, the m/49' and m/44' derived rows, the BIP-173 P2WSH example, and the BIP-173 key hash under witness version two.",
+    "uris": "Payment requests in the chain's own scheme, and bare addresses. A request in another chain's scheme is refused as the wrong network by the chain table, which these rows do not reach."
+  },
+  "derived": [
+    {
+      "path": "m/84'/0'/0'/0/0",
+      "script": "p2wpkh",
+      "address": "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu"
+    },
+    {
+      "path": "m/84'/0'/0'/0/1",
+      "script": "p2wpkh",
+      "address": "bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g"
+    },
+    {
+      "path": "m/84'/0'/0'/1/0",
+      "script": "p2wpkh",
+      "address": "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el"
+    },
+    {
+      "path": "m/86'/0'/0'/0/0",
+      "address": "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr"
+    },
+    {
+      "path": "m/86'/0'/0'/0/1",
+      "address": "bc1p4qhjn9zdvkux4e44uhx8tc55attvtyu358kutcqkudyccelu0was9fqzwh"
+    },
+    {
+      "path": "m/86'/0'/0'/1/0",
+      "address": "bc1p3qkhfews2uk44qtvauqyr2ttdsw7svhkl9nkm9s9c3x4ax5h60wqwruhk7"
+    },
+    {
+      "path": "m/44'/0'/0'/0/0",
+      "script": "p2pkh",
+      "address": "1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA"
+    },
+    {
+      "path": "m/49'/0'/0'/0/0",
+      "script": "p2sh_p2wpkh",
+      "address": "37VucYSaXLCAsxYyAPfbSi9eh4iEcbShgf"
+    }
+  ],
+  "raw": [
+    {
+      "secret": "4646464646464646464646464646464646464646464646464646464646464646",
+      "script": "p2wpkh",
+      "address": "bc1qhkfq3zahaqkkzx5mjnamwjsfpq2jk7z00ppggv"
+    }
+  ],
+  "scripts": [
+    {
+      "address": "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr",
+      "script_kind": "p2tr",
+      "script_pubkey": "5120a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c"
+    },
+    {
+      "address": "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu",
+      "script_kind": "p2wpkh",
+      "script_pubkey": "0014c0cebcd6c3d3ca8c75dc5ec62ebe55330ef910e2"
+    },
+    {
+      "address": "37VucYSaXLCAsxYyAPfbSi9eh4iEcbShgf",
+      "script_kind": "p2sh_p2wpkh",
+      "script_pubkey": "a9143fb6e95812e57bb4691f9a4a628862a61a4f769b87"
+    },
+    {
+      "address": "1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA",
+      "script_kind": "p2pkh",
+      "script_pubkey": "76a914d986ed01b7a22225a70edbf2ba7cfb63a15cb3aa88ac"
+    },
+    {
+      "address": "bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3",
+      "script_pubkey": "00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262",
+      "why": "pay-to-witness-script-hash: payable, and no single-key flavour"
+    },
+    {
+      "address": "bc1zw508d6qejxtdg4y5r3zarvary0c5xw7k0w7t5p",
+      "script_pubkey": "5214751e76e8199196d454941c45d1b3a323f1433bd6",
+      "why": "witness version two: payable, and nothing this build spends"
+    }
+  ],
+  "valid": [
+    "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr",
+    "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu",
+    "37VucYSaXLCAsxYyAPfbSi9eh4iEcbShgf",
+    "1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA"
+  ],
+  "invalid": [
+    {
+      "address": "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+      "why": "testnet"
+    },
+    {
+      "address": "ltc1qjmxnz78nmc8nq77wuxh25n2es7rzm5c2rkk4wh",
+      "why": "litecoin"
+    },
+    {
+      "address": "",
+      "why": "empty"
+    }
+  ],
+  "uris": {
+    "accepted": [
+      {
+        "uri": "bitcoin:bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr?amount=0.01&label=Shop",
+        "address": "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr"
+      },
+      {
+        "uri": "BITCOIN:BC1P5CYXNUXMEUWUVKWFEM96LQZSZD02N6XDCJRS20CAC6YQJJWUDPXQKEDRCR",
+        "address": "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr"
+      },
+      {
+        "uri": "bitcoin://bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr",
+        "address": "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr"
+      },
+      {
+        "uri": "bitcoin:bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr?amount=1&lightning=lnbc1",
+        "address": "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr"
+      },
+      {
+        "uri": "  bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr\n",
+        "address": "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr"
+      }
+    ],
+    "unsupported": [
+      {
+        "uri": "bitcoin:bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr?req-pop=1",
+        "why": "a required parameter Jelly does not know"
+      },
+      {
+        "uri": "bitcoin:?lightning=lnbc1",
+        "why": "a lightning invoice and no address"
+      }
+    ]
+  }
+}

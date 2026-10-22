@@ -1,0 +1,76 @@
+{
+  "_source": {
+    "a": "knaccc/subaddress-js test/index.test.js, corroborated by the monero-oxide monero-address test constants",
+    "b": "monero-ecosystem/monero-python tests/test_seed.py",
+    "c": "the monero-seed crate src/tests.rs, English entry",
+    "subaddresses.cross_checked": "Rows with cross_checked true have no published source and were reproduced by an independent implementation."
+  },
+  "accounts": [
+    {
+      "name": "a",
+      "phrase": "vary ambush western rafts session laboratory jerseys napkin muffin exult tolerant efficient ensign fewest sulking wonders pledge alerts acquire tubes rogue outbreak lifestyle lopped pledge",
+      "spend_secret": "8d8c8eeca38ac3b46aa293fd519b3860e96b5f873c12a95e3e1cdeda0bac4903",
+      "view_secret": "99c57d1f0f997bc8ca98559a0ccc3fada3899756e63d1516dba58b7e468cfc05",
+      "public_spend": "f8631661f6ab4e6fda310c797330d86e23a682f20d5bc8cc27b18051191f16d7",
+      "public_view": "4a1535063ad1fee2dabbf909d4fd9a873e29541b401f0944754e17c9a41820ce",
+      "address": "4B33mFPMq6mKi7Eiyd5XuyKRVMGVZz1Rqb9ZTyGApXW5d1aT7UBDZ89ewmnWFkzJ5wPd2SFbn313vCT8a4E2Qf4KQH4pNey",
+      "subaddresses": [
+        {
+          "major": 0,
+          "minor": 1,
+          "address": "8C5zHM5ud8nGC4hC2ULiBLSWx9infi8JUUmWEat4fcTf8J4H38iWYVdFmPCA9UmfLTZxD43RsyKnGEdZkoGij6csDeUnbEB",
+          "public_spend": "fe358188b528335ad1cfdc24a22a23988d742c882b6f19a602892eaab3c1b62b",
+          "public_view": "9bc2b464de90d058468522098d5610c5019c45fd1711a9517db1eea7794f5470"
+        },
+        {
+          "major": 0,
+          "minor": 256,
+          "address": "883z7xonbVBGXpsatJZ53vcDiXQkrkTHUHPxrdrHXiPnZY8DMaYJ7a88C5ovncy5zHWkLc2cQ2hUoaKYCjFtjwFV4vtcpiF"
+        },
+        {
+          "major": 256,
+          "minor": 1,
+          "address": "87X4ksVMRv2UGhHcgVjY6KJDjqP9S4zrCNkmomL1ziQVeZXF3RXbAx7i2rRt3UU5eXDzG9TWZ6Rk1Fyg6pZrAKQCNfLrSne"
+        },
+        {
+          "major": 256,
+          "minor": 256,
+          "address": "86gYdT7yqDJUXegizt1vbF3YKz5qSYVaMB61DFBDzrpVEpYgDbmuXJbXE77LQfAygrVGwYpw8hxxx9DRTiyHAemA8B5yBAq"
+        },
+        {
+          "major": 1,
+          "minor": 0,
+          "address": "8BmFEhoz4GS3f99cbF83fiUuaxKB63gfXbw5JJTmNDFp4QNFhpShgg1Z3vcZxi4ASHcBZvNHKUh4jHxpBocEhSTPFHmHvZG",
+          "cross_checked": true
+        },
+        {
+          "major": 1,
+          "minor": 1,
+          "address": "85GSHA8XZiziUkHiBghJgR172q5muRk8VWFdLk4qUDuaTQ4nwFD41woLH66A9XpBm3eaWqUbJ8ph71ZgSHqU9fkUGikgpdV",
+          "cross_checked": true
+        }
+      ]
+    },
+    {
+      "name": "b",
+      "phrase": "adjust mugged vaults atlas nasty mews damp toenail suddenly toxic possible framed succeed fuzzy return demonstrate nucleus album noises peculiar virtual rowboat inorganic jester fuzzy",
+      "spend_secret": "482700617ba810f94035d7f4d7ccc1a29878e165b4867872b705204c85406906",
+      "view_secret": "09ed72c713d3e9e19bef2f5204cf85f6cb25de7842aa0722abeb12697f171903",
+      "public_spend": "4ee576f52b9c6a824a3d5c2832d117177d2bb9992507c2c78788bb8dbaf4b640",
+      "public_view": "e1ef99d66312ec0b16b17c66c591ab59594e21621588b63b62fa69fe615a768e",
+      "address": "44cWztNFdAqNnycvZbUoj44vsbAEmKnx9aNgkjHdjtMsBrSeKiY8J4s2raH7EMawA2Fwo9utaRTV7Aw8EcTMNMxhH4YtKdH",
+      "subaddresses": []
+    },
+    {
+      "name": "c",
+      "phrase": "washing thirsty occur lectures tuesday fainted toxic adapt abnormal memoir nylon mostly building shrugged online ember northern ruby woes dauntless boil family illness inroads northern",
+      "spend_secret": "c0af65c0dd837e666b9d0dfed62745f4df35aed7ea619b2798a709f0fe545403",
+      "view_secret": "513ba91c538a5a9069e0094de90e927c0cd147fa10428ce3ac1afd49f63e3b01",
+      "subaddresses": []
+    }
+  ],
+  "seed_to_hex": {
+    "phrase": "wedge going quick racetrack auburn physics lectures light waist axes whipped habitat square awkward together injury niece nugget guarded hive obnoxious waxing faked folding square",
+    "hex": "8ffa9f586b86d294d93731765d192765311bddc76a4fa60311f8af36bbf6fb06"
+  }
+}

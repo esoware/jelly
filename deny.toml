@@ -1,0 +1,34 @@
+[graph]
+targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]
+
+[advisories]
+yanked = "deny"
+# Only direct dependencies are checked. The unmaintained transitive ones (gtk3
+# through tauri on Linux, and paste through alloy-primitives) have no upgrade
+# path from here.
+unmaintained = "workspace"
+ignore = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+# reqwest's rustls-no-provider feature links rustls-platform-verifier and
+# rustls-native-certs, but nothing constructs them. jelly_net gives
+# tls_backend_preconfigured a ClientConfig with only the webpki roots.
+deny = [
+  { name = "aws-lc-rs" },
+  { name = "aws-lc-sys" },
+  { name = "openssl-sys" },
+  { name = "native-tls" },
+]
+skip-tree = [
+  { name = "monero-wallet" },   # It depends on rand 0.8, rand_core 0.6, and curve25519-dalek 4.
+  { name = "windows-sys" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git      = "deny"
+# monero-oxide publishes monero-seed from git only.
+allow-git        = ["https://github.com/monero-oxide/monero-wallet-util"]

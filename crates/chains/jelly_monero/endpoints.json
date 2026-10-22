@@ -1,0 +1,66 @@
+{
+  "chain": "monero",
+  "note": "Public Monero remote nodes on their restricted RPC, verified with POST /json_rpc get_info returning mainnet and status OK, get_fee_estimate, get_block_headers_range, a pruned get_blocks.bin read of one scan batch, and the full get_output_distribution.bin a send reads its decoys from. The later rows come from the monero.fail, Feather and Cake Wallet lists. Every shipped row is TLS with a CA-valid certificate, because the client accepts no other: the MoneroDevs, StormyCloud, HashVault and xmr.support nodes now present self-signed certificates and xmr-tw an expired one, so they are omitted. A plaintext node is reachable only when the user adds it and marks it insecure. Scanning is client-side with the view key, so no secret ever reaches the node; the node only learns which block ranges were requested. A user who minds that metadata should point Jelly at their own node.",
+  "endpoints": [
+    {
+      "url": "https://xmr-node.cakewallet.com:18081",
+      "transport": "monero_rpc",
+      "note": "Cake Wallet public node, CA-valid certificate"
+    },
+    {
+      "url": "https://monero.stackwallet.com:18081",
+      "transport": "monero_rpc",
+      "note": "Stack Wallet public node"
+    },
+    {
+      "url": "https://xmr.cryptostorm.is:18081",
+      "transport": "monero_rpc",
+      "note": "Cryptostorm public node"
+    },
+    {
+      "url": "https://xmr.0xrpc.io",
+      "transport": "monero_rpc",
+      "note": "0xRPC public node on the standard TLS port"
+    },
+    {
+      "url": "https://xmr.unshakled.net",
+      "transport": "monero_rpc",
+      "note": "Unshakled public node on the standard TLS port"
+    },
+    {
+      "url": "https://xmr.surveillance.monster",
+      "transport": "monero_rpc",
+      "note": "Surveillance Monster public node on the standard TLS port"
+    },
+    {
+      "url": "https://xmr-lim.tari.com",
+      "transport": "monero_rpc",
+      "note": "Tari Labs public node"
+    },
+    {
+      "url": "https://xmr-bhs.tari.com",
+      "transport": "monero_rpc",
+      "note": "Tari Labs public node, second site"
+    },
+    {
+      "url": "https://kowalski.fiatfaucet.com",
+      "transport": "monero_rpc",
+      "note": "Fiat Faucet public node"
+    },
+    {
+      "url": "https://xmr.hexide.com",
+      "transport": "monero_rpc",
+      "note": "Hexide public node"
+    },
+    {
+      "url": "https://node.chaoswg.dev",
+      "transport": "monero_rpc",
+      "note": "chaoswg.dev public node"
+    },
+    {
+      "url": "https://monero.konku.rs:18089",
+      "transport": "monero_rpc",
+      "note": "konku.rs public node on the restricted RPC port"
+    }
+  ]
+}

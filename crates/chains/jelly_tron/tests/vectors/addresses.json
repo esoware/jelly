@@ -1,0 +1,44 @@
+{
+  "_source": {
+    "derived": "No published vector. Reproduced by an independent implementation over the standard test phrase and pinned here as a regression.",
+    "raw": "trustwallet/wallet-core CoinAddressDerivationTests.cpp, whose key is 32 bytes of 0x46, and Tron/AddressTests.cpp.",
+    "keystore": "The Test Vectors section of the Web3 Secret Storage Definition. TRON reads the same document, so the address is the EVM address behind TRON's prefix byte."
+  },
+  "derived": [
+    {
+      "path": "m/44'/195'/0'/0/0",
+      "address": "TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH"
+    },
+    {
+      "path": "m/44'/195'/0'/0/1",
+      "address": "TSeJkUh4Qv67VNFwY8LaAxERygNdy6NQZK"
+    }
+  ],
+  "raw": [
+    {
+      "secret": "4646464646464646464646464646464646464646464646464646464646464646",
+      "address": "TQLCsShbQNXMTVCjprY64qZmEA4rBarpQp"
+    },
+    {
+      "secret": "2d8f68944bdbfbc0769542fba8fc2d2a3de67393334471624364c7006da2aa54",
+      "address": "TJRyWwFs9wTFGZg3JbrVriFbNfCug5tDeC"
+    },
+    {
+      "secret": "be88df1d0bf30a923cb39c3bb953178baaf3726e8d3ce81e7c8462e046e0d835",
+      "address": "THRF3GuPnvvPzKoaT8pJex5XHmo8NNbCb3"
+    }
+  ],
+  "body_hex": "415a523b449890854c8fc460ab602df9f31fe4293f",
+  "body_address": "TJCnKsPa7y5okkXvQAidZBzqx3QyQ6sxMW",
+  "valid": ["TJCnKsPa7y5okkXvQAidZBzqx3QyQ6sxMW"],
+  "invalid": [
+    { "address": "TJCnKsPa7y5okkXvQAidZBzqx3QyQ6sxMX", "why": "checksum" },
+    { "address": "1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA", "why": "bitcoin" }
+  ],
+  "keystore": {
+    "password": "testpassword",
+    "secret": "7a28b5ba57c53603b0b07b56bba752f7784bf506fa95edc395f5cf6c7514fe9d",
+    "evm_address": "008aeeda4d805471df9b2a5b0f38a0c3bcba786b",
+    "pbkdf2": "{\"crypto\":{\"cipher\":\"aes-128-ctr\",\"cipherparams\":{\"iv\":\"6087dab2f9fdbbfaddc31a909735c1e6\"},\"ciphertext\":\"5318b4d5bcd28de64ee5559e671353e16f075ecae9f99c7a79a38af5f869aa46\",\"kdf\":\"pbkdf2\",\"kdfparams\":{\"c\":262144,\"dklen\":32,\"prf\":\"hmac-sha256\",\"salt\":\"ae3cd4e7013836a3df6bd7241b12db061dbe2c6785853cce422d148a624ce0bd\"},\"mac\":\"517ead924a9d0dc3124507e3393d175ce3ff7c1e96529c6c555ce9e51205e9b2\"},\"id\":\"3198bc9c-6672-5ab3-d995-4942343ae5b6\",\"version\":3}"
+  }
+}

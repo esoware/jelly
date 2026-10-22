@@ -1,0 +1,10 @@
+{
+  "_recorded": "The receipt of mainnet transaction a46244ab, recorded from https://api.trongrid.io on 2026-08-13.",
+  "id": "a46244abb4be3f4247c538712715c41476b5b0b0f515f657c6acd76b67674bc8",
+  "blockNumber": 85304913,
+  "blockTimeStamp": 1786585806000,
+  "contractResult": [""],
+  "receipt": {
+    "net_usage": 265
+  }
+}

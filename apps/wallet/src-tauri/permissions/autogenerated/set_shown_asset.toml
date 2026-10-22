@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-shown-asset"
+description = "Enables the set_shown_asset command without any pre-configured scope."
+commands.allow = ["set_shown_asset"]
+
+[[permission]]
+identifier = "deny-set-shown-asset"
+description = "Denies the set_shown_asset command without any pre-configured scope."
+commands.deny = ["set_shown_asset"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-add-address-at"
+description = "Enables the add_address_at command without any pre-configured scope."
+commands.allow = ["add_address_at"]
+
+[[permission]]
+identifier = "deny-add-address-at"
+description = "Denies the add_address_at command without any pre-configured scope."
+commands.deny = ["add_address_at"]

@@ -1,0 +1,2 @@
+mod mnemonic;
+mod vectors;

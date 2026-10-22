@@ -1,0 +1,20 @@
+{
+  "_source": "Read from the vendored java-tron protos at GreatVoyage-v4.8.2. These discriminants and the type urls built from their message names go on the wire, so a re-vendor that renumbers or renames them fails here rather than in a broadcast.",
+  "contracts": [
+    {
+      "name": "TransferContract",
+      "discriminant": 1,
+      "typeUrl": "type.googleapis.com/protocol.TransferContract"
+    },
+    {
+      "name": "TriggerSmartContract",
+      "discriminant": 31,
+      "typeUrl": "type.googleapis.com/protocol.TriggerSmartContract"
+    }
+  ],
+  "selectors": {
+    "_note": "Each selector is the first four bytes of the keccak-256 hash of its signature.",
+    "transfer(address,uint256)": "a9059cbb",
+    "balanceOf(address)": "70a08231"
+  }
+}

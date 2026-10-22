@@ -1,0 +1,10 @@
+{
+  "chain": "ton",
+  "endpoints": [
+    {
+      "url": "https://toncenter.com/api/v2/jsonRPC",
+      "transport": "http_jsonrpc",
+      "note": "TON Center mainnet"
+    }
+  ]
+}

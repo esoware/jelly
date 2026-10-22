@@ -1,0 +1,10 @@
+{
+  "_source": "The BIP-86 account extended keys, the BIP-84 first public key, and the BIP-86 first internal key, verbatim from the BIP texts. Derived from the all-abandon BIP-39 phrase.",
+  "account_xprv_path": "m/86'/0'/0'",
+  "account_xprv": "xprv9xgqHN7yz9MwCkxsBPN5qetuNdQSUttZNKw1dcYTV4mkaAFiBVGQziHs3NRSWMkCzvgjEe3n9xV8oYywvM8at9yRqyaZVz6TYYhX98VjsUk",
+  "account_xpub": "xpub6BgBgsespWvERF3LHQu6CnqdvfEvtMcQjYrcRzx53QJjSxarj2afYWcLteoGVky7D3UKDP9QyrLprQ3VCECoY49yfdDEHGCtMMj92pReUsQ",
+  "bip84_pubkey_path": "m/84'/0'/0'/0/0",
+  "bip84_pubkey": "0330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c",
+  "bip86_x_only_path": "m/86'/0'/0'/0/0",
+  "bip86_x_only": "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115"
+}

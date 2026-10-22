@@ -1,0 +1,25 @@
+{
+  "_recorded": "Built to the Electrum protocol 1.6 wire shapes, not captured from a live server.",
+  "cases": [
+    {
+      "name": "refused",
+      "error": { "code": 1, "message": "unsupported protocol version: 1.6" },
+      "expect": "rpc"
+    },
+    {
+      "name": "too_old",
+      "result": ["ElectrumX 1.9.5", "1.2"],
+      "expect": "version_too_old"
+    },
+    {
+      "name": "too_new",
+      "result": ["Fulcrum 2.0.0", "1.9"],
+      "expect": "version_too_new"
+    },
+    {
+      "name": "unreadable",
+      "result": ["Fulcrum 2.0.0", "one point six"],
+      "expect": "unreadable_version"
+    }
+  ]
+}

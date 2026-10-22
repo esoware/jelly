@@ -1,0 +1,25 @@
+{
+  "_recorded": "Built to the Electrum protocol 1.6 wire shapes, not captured from a live server.",
+  "result": [
+    {
+      "tx_hash": "a6c9c361bd0bc536d6a22648efbf8f9b200e425ef6c3a7a9669dc444c532a347",
+      "tx_pos": 0,
+      "height": 2472,
+      "value": 45318048
+    },
+    {
+      "tx_hash": "9c42f84b2fcdaff676ba25d9d4941741cc0d1a01cce0c23fdc4c0b2afa38431c",
+      "tx_pos": 1,
+      "height": 0,
+      "value": 919195
+    }
+  ],
+  "expect": {
+    "outpoints": [
+      "a6c9c361bd0bc536d6a22648efbf8f9b200e425ef6c3a7a9669dc444c532a347:0",
+      "9c42f84b2fcdaff676ba25d9d4941741cc0d1a01cce0c23fdc4c0b2afa38431c:1"
+    ],
+    "values": [45318048, 919195],
+    "heights": [2472, null]
+  }
+}
