@@ -222,7 +222,7 @@ function Titlebar({ title, center, right }: TitlebarProps) {
     <header
       ref={barRef}
       data-tauri-drag-region="deep"
-      className="relative flex h-8 shrink-0 items-center gap-1 pl-2 select-none app-region-drag [&_button]:app-region-no-drag"
+      className="relative flex h-8 shrink-0 items-center gap-1 pl-2 select-none app-region-drag in-data-[window-controls=system]:pl-20 [&_button]:app-region-no-drag"
     >
       <img src={logoUrl} alt="" className="pointer-events-none size-icon-lg" />
 
@@ -236,12 +236,14 @@ function Titlebar({ title, center, right }: TitlebarProps) {
         {right === null || right === undefined ? null : (
           <div className="flex items-center gap-1 pr-2">{right}</div>
         )}
-        <CaptionButton glyph="minimize" onClick={minimizeWindow} />
-        <CaptionButton
-          glyph={isMaximized ? "restore" : "maximize"}
-          onClick={toggleMaximizeWindow}
-        />
-        <CaptionButton glyph="close" onClick={closeWindow} />
+        <div className="flex h-full in-data-[window-controls=system]:hidden">
+          <CaptionButton glyph="minimize" onClick={minimizeWindow} />
+          <CaptionButton
+            glyph={isMaximized ? "restore" : "maximize"}
+            onClick={toggleMaximizeWindow}
+          />
+          <CaptionButton glyph="close" onClick={closeWindow} />
+        </div>
       </div>
     </header>
   )

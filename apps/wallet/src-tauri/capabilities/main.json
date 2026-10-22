@@ -83,6 +83,7 @@
     "allow-get-startup-status",
     "allow-repair-proxy",
     "allow-get-window-backdrop",
+    "allow-get-window-controls",
     "allow-list-chain-metadata",
     "allow-list-asset-metadata"
   ]
