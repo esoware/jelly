@@ -49,4 +49,14 @@ The subject starts with a lowercase imperative verb and has no period. Write `ad
 
 The body is required, and one sentence is enough for a dependency bump. Write prose wrapped at 72 columns that says why the change was needed and what behaves differently now. No Markdown headings, lists, file lists, step narration, or "this PR".
 
-Trailers come last, `Closes #N` before `Co-authored-by:`, and nothing follows them. A PR description leaves out `Co-authored-by:`, because GitHub adds it from the branch commits when it squashes.
+Trailers come last, `Closes #N` before `Co-authored-by:`, and nothing follows them.
+
+### Merging
+
+Squash with the PR description as the exact commit body:
+
+```
+gh pr merge <number> --squash --body "$(gh pr view <number> --json body --jq .body)"
+```
+
+GitHub's default message adds a `---------` line and its own `Co-authored-by:` trailers after the description.
