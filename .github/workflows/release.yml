@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    name: Check the version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fail if the tag doesn't match the workspace version
+        if: github.ref_type == 'tag'
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match version $version in Cargo.toml."
+            exit 1
+          fi
+
+  build:
+    name: Build for ${{ matrix.platform }}
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: target/x86_64-pc-windows-msvc/release/jelly.exe
+          - platform: windows-arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            artifact: target/aarch64-pc-windows-msvc/release/jelly.exe
+          - platform: macos-x64
+            runner: macos-latest
+            target: x86_64-apple-darwin
+            artifact: target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+          - platform: macos-arm64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+            artifact: target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          - platform: linux-x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            artifact: |
+              target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
+              target/x86_64-unknown-linux-gnu/release/bundle/rpm/*.rpm
+              target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+          - platform: linux-arm64
+            runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            artifact: |
+              target/aarch64-unknown-linux-gnu/release/bundle/deb/*.deb
+              target/aarch64-unknown-linux-gnu/release/bundle/rpm/*.rpm
+              target/aarch64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          rust-cache: false
+          tools: just
+
+      - name: Build
+        run: just build --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: jelly-${{ matrix.platform }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error
+
+  release:
+    name: Draft the release
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: artifacts
+
+      # Both Windows builds are named jelly.exe, so they get the names Tauri gives the other bundles.
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          mv artifacts/jelly-windows-x64/jelly.exe "artifacts/Jelly_${version}_x64.exe"
+          mv artifacts/jelly-windows-arm64/jelly.exe "artifacts/Jelly_${version}_arm64.exe"
+          find artifacts -type f -print0 |
+            xargs -0 gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes
