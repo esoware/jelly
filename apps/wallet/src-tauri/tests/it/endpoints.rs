@@ -5,7 +5,7 @@ use std::path::Path;
 use std::pin::pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::task::{Context, Wake, Waker};
+use std::task::{Context, Poll, Wake, Waker};
 use std::time::Duration;
 
 use jelly_core::{ChainId, Transport, test_util::FakeClock};
@@ -169,11 +169,22 @@ async fn a_reload_that_read_before_a_concurrent_edit_does_not_revert_it() {
 
     engine.add_endpoint(ChainId::Ethereum, added.clone(), added).await.unwrap();
     {
-        let mut first_reload = pin!(services.endpoints_changed());
         let read_finished = Arc::new(ReadFinished(Notify::new()));
         let waker = Waker::from(Arc::clone(&read_finished));
-        let polled = first_reload.as_mut().poll(&mut Context::from_waker(&waker));
-        assert!(polled.is_pending(), "the first reload is reading the table");
+        // On a busy machine the read can finish before the first poll checks on it, and the
+        // reload then completes without pausing, so reloads start until one pauses.
+        let mut paused_reload = None;
+        for _ in 0..100 {
+            let mut reload = Box::pin(services.endpoints_changed());
+            match reload.as_mut().poll(&mut Context::from_waker(&waker)) {
+                Poll::Pending => {
+                    paused_reload = Some(reload);
+                    break;
+                }
+                Poll::Ready(result) => result.unwrap(),
+            }
+        }
+        let mut first_reload = paused_reload.expect("no reload paused to read the table");
         read_finished.0.notified().await;
 
         let mut second_command = pin!(async {
