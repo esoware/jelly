@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query"
 
 import { commands } from "@/ipc/bindings.gen.ts"
 import type {
+  Platform,
   ProxySetting,
   StartupStatus,
   WindowBackdrop,
@@ -33,6 +34,7 @@ export const appQueries = {
 export const appCommands = {
   startupStatus: (): Promise<StartupStatus> => unwrap(commands.getStartupStatus()),
   repairProxy: (proxy: ProxySetting | null): Promise<null> => unwrap(commands.repairProxy(proxy)),
+  platform: (): Promise<Platform> => unwrap(commands.getPlatform()),
   windowBackdrop: (): Promise<WindowBackdrop> => unwrap(commands.getWindowBackdrop()),
   windowControls: (): Promise<WindowControls> => unwrap(commands.getWindowControls()),
 }

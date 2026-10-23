@@ -222,9 +222,13 @@ function Titlebar({ title, center, right }: TitlebarProps) {
     <header
       ref={barRef}
       data-tauri-drag-region="deep"
-      className="relative flex h-8 shrink-0 items-center gap-1 pl-2 select-none app-region-drag in-data-[window-controls=system]:pl-20 [&_button]:app-region-no-drag"
+      className="relative flex h-8 shrink-0 items-center gap-1 pl-2 select-none app-region-drag in-data-[os=macos]:pl-20 [&_button]:app-region-no-drag"
     >
-      <img src={logoUrl} alt="" className="pointer-events-none size-icon-lg" />
+      <img
+        src={logoUrl}
+        alt=""
+        className="pointer-events-none size-icon-lg in-data-[os=macos]:hidden"
+      />
 
       {center === null || center === undefined ? null : (
         <div className="absolute top-1/2 left-1/2 max-w-64 -translate-1/2 truncate text-caption text-fg-muted">
