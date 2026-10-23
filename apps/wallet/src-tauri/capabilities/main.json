@@ -82,6 +82,7 @@
     "allow-get-data-dir",
     "allow-get-startup-status",
     "allow-repair-proxy",
+    "allow-get-platform",
     "allow-get-window-backdrop",
     "allow-get-window-controls",
     "allow-list-chain-metadata",

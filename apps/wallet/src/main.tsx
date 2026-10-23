@@ -99,12 +99,14 @@ function Providers({ client, children }: ProvidersProps) {
 
 refuseBrowserInput()
 try {
-  const [backdrop, windowControls] = await Promise.all([
+  const [backdrop, windowControls, platform] = await Promise.all([
     appCommands.windowBackdrop(),
     appCommands.windowControls(),
+    appCommands.platform(),
   ])
   document.documentElement.dataset["backdrop"] = backdrop
   document.documentElement.dataset["windowControls"] = windowControls
+  document.documentElement.dataset["os"] = platform
 } catch (error) {
   reportError(error)
 }
