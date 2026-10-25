@@ -129,5 +129,6 @@ Copy is any text a user reads. That means every string the frontend renders, plu
 - Routes are declared in code in `router.tsx`. It holds only route definitions, and every view it mounts lives in `features/` or `shell/`. Only `main.tsx` imports `router.tsx` and `session.ts`.
 - Generated TypeScript source files end with `.gen.ts`.
 - Brand SVG filenames use the canonical asset display name from `jelly_core` in kebab-case, not its ticker or wire ID.
+- Fonts are bundled in `assets/fonts` beside their licenses, and `tokens.css` names one family per role with no fallback stack. Open Sans ships only the 400 to 600 weights the theme defines, so a new weight token needs the font exported again from upstream.
 - Accessibility is not a focus. Use ARIA attributes only when ordinary functionality (like keyboard navigation and more) or a component needs them, never just to make something accessible.
 - oxc's React Compiler turns a BigInt literal inside a component or hook into undefined, so put it elsewhere or do it elsehow.
