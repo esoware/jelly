@@ -215,17 +215,17 @@ function invert(affine: Affine): Affine {
   return { factor: 1 / affine.factor, offset: -affine.offset / affine.factor }
 }
 
-function apply(affine: Affine, y: number): number {
-  return affine.offset + affine.factor * y
+function apply(affine: Affine, position: number): number {
+  return affine.offset + affine.factor * position
 }
 
-function hiddenLine(line: LineMark, y: Affine): LineMark {
+function absentLine(line: LineMark, view: Relation): LineMark {
   return {
+    ...line,
     vertices: line.vertices.map((vertex) => ({
       unixSecs: vertex.unixSecs,
-      y: apply(y, vertex.y),
+      y: apply(view.y, vertex.y),
     })),
-    rise: line.rise,
     opacity: 0,
   }
 }
@@ -315,7 +315,7 @@ function absentCandle(candle: CandleMark, onto: Plot, view: Relation): CandleMar
   }
 }
 
-function mixCandles({ key, from, to }: CandlePair, pace: Pace): CandleMark {
+function blendCandles({ key, from, to }: CandlePair, pace: Pace): CandleMark {
   return {
     key,
     startUnixSecs: lerp(from.startUnixSecs, to.startUnixSecs, pace.progress),
@@ -387,8 +387,8 @@ export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
     y: relate(from.price, to.price, priceShiftBaseUnits),
   }
   const backward = { x: invert(forward.x), y: invert(forward.y) }
-  const fromLine = from.line ?? (to.line === null ? null : hiddenLine(to.line, backward.y))
-  const toLine = to.line ?? (from.line === null ? null : hiddenLine(from.line, forward.y))
+  const fromLine = from.line ?? (to.line === null ? null : absentLine(to.line, backward))
+  const toLine = to.line ?? (from.line === null ? null : absentLine(from.line, forward))
   const line = fromLine === null || toLine === null ? null : pairLines(fromLine, toLine)
   const candles = pairCandles(from, to, forward, backward)
 
@@ -410,7 +410,7 @@ export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
       priceTicks: blendTicks(from.priceTicks, to.priceTicks, pace.y),
       timeTicks: blendTicks(from.timeTicks, to.timeTicks, pace.x),
       line: line === null ? null : blendLines(line, pace),
-      candles: candles.map((pair) => mixCandles(pair, pace)),
+      candles: candles.map((pair) => blendCandles(pair, pace)),
     }
   }
   return frame

@@ -95,7 +95,7 @@ function sectorPath(start: number, end: number, ring: Ring, inset: number): stri
   return apex < ring.outer ? `${head}L${polar(apex, start + half)}Z` : null
 }
 
-function layoutSectors(slices: readonly DonutSlice[], geometry: Geometry): Sector[] {
+function drawSectors(slices: readonly DonutSlice[], geometry: Geometry): Sector[] {
   const inner = CENTER - geometry.thickness
   const visibleSlices = slices.filter((slice) => slice.weight > 0)
   const minSweep =
@@ -230,7 +230,7 @@ export function Donut({
   const middle = CENTER - geometry.thickness / 2
   const { target: sectors, shown } = useMorph(
     slices,
-    (source) => layoutSectors(source, geometry),
+    (source) => drawSectors(source, geometry),
     blendSectors,
   )
   const shownSectors = shown.filter((sector) => sector.end > sector.start)
