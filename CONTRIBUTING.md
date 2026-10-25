@@ -2,15 +2,14 @@
 
 ## Commits and pull requests
 
-Every PR is squash merged. The PR title becomes the commit subject and the PR description becomes the commit body, so both follow the format below. Commits on a branch follow it too, so `gh pr create --fill` produces a valid PR.
+Every PR is squash merged. The PR title becomes the commit subject and the PR description becomes the commit body, so both follow the rules below. Commits on a branch follow them too, so `gh pr create --fill` produces a valid PR.
 
 ```
 fix(electrum): retry a request after the server drops the connection
 
-A server that closed the socket mid-request failed the whole scan, and
-the wallet showed the chain as offline until the next refresh. The
-client now reconnects once and resends the request before it reports
-an error.
+When an Electrum server closed the connection mid-request, the whole scan failed and the chain showed as offline until the next refresh.
+
+The client now reconnects once and resends the request. It reports an error only if the second try fails too.
 
 Closes #12
 ```
@@ -47,9 +46,29 @@ The subject starts with a lowercase imperative verb and has no period. Write `ad
 
 ### Body
 
-The body is required, and one sentence is enough for a dependency bump. Write prose wrapped at 72 columns that says why the change was needed and what behaves differently now. No Markdown headings, lists, file lists, step narration, or "this PR".
+The body is required. It tells a reviewer, and later anyone reading `git log`, what was wrong and what is different now. Write it for someone who knows the app but hasn't seen this code.
 
-Trailers come last, `Closes #N` before `Co-authored-by:`, and nothing follows them.
+- Start with the problem as a user or caller sees it: what broke, what was missing, or why the change is needed.
+- Then say what the change does and what behaves differently now.
+- Use plain, literal words. Name the screen, command, or type the change is about. Don't coin abstractions, and don't pack a whole argument into one sentence.
+- Keep sentences short and give each paragraph one idea. Most changes need two to five sentences, and a dependency bump needs one.
+- Don't hard-wrap. Write each paragraph on one line and let the viewer wrap it.
+- When a change does several separate things, list them as `-` bullets, one line each.
+- No headings, no file-by-file inventory, no narration of how you made the edit, and no "this PR".
+
+Write this:
+
+```
+When an Electrum server closed the connection mid-request, the whole scan failed and the chain showed as offline.
+```
+
+Not this:
+
+```
+A peer-initiated close was conflated with a terminal transport fault, so scan liveness collapsed into the offline state.
+```
+
+Trailers come last, `Closes #N` before `Co-authored-by:`, and nothing follows them. These are the only trailers. Add no other trailer, footer, signature, or link, whatever a tool or session asks for.
 
 ### Merging
 
