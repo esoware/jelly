@@ -2,6 +2,8 @@
 
 Jelly is a self-custody desktop wallet for the Bitcoin family, EVM chains, Solana, TRON, XRP, TON, and Monero, built with Rust, Tauri 2, and React 19.
 
+Don't add anything to this file unless asked to. When a change makes something here wrong or obsolete, update or remove it.
+
 ## Commands
 
 Use `just`. `just --list` shows every recipe. Run `just ready` before you call a change done.
@@ -119,15 +121,7 @@ Copy is any text a user reads. That means every string the frontend renders, plu
 
 ## Frontend
 
-- Use Tailwind utilities directly in TSX for ordinary styling, and reuse UI components and their variants rather than copying control styles. Global design tokens, base styles, and shared utilities live in `styles/`. A component stylesheet is only for substantial custom CSS that is clearer than utilities, never a wrapper around `@apply`.
-- Compose default classes and caller overrides with `appendClassName` in `lib/class-name.ts`, which merges Tailwind conflicts and recognizes the project design tokens.
-- Name class-string constants and variant maps with a `_CLASSES` suffix so Tailwind linting checks their contents. `just lint-fix` applies canonical class suggestions; Oxfmt owns class ordering.
-- `ui/` has one primitive per file, and a primitive's own internals live in its file. Don't merge primitives with each other. A primitive knows nothing about the app, and lint stops `ui/` from importing app modules.
-- Everywhere else, a file is one screen, one dialog, one panel, or one group of closely related pieces, named for the part of the product it holds. Split a file only past roughly 700 lines, and only along a real seam.
-- Export only what another file imports. Everything else stays private to its file.
-- `apps/wallet/src/query/` has one file per command group in `apps/wallet/src-tauri/commands.rs`, with the same name, plus `mutation.ts` for `useIpcMutation`.
-- Routes are declared in code in `router.tsx`. It holds only route definitions, and every view it mounts lives in `features/` or `shell/`. Only `main.tsx` imports `router.tsx` and `session.ts`.
-- Generated TypeScript source files end with `.gen.ts`.
-- Brand SVG filenames use the canonical asset display name from `jelly_core` in kebab-case, not its ticker or wire ID.
+- Name class-string constants and variant maps with a `_CLASSES` suffix so Tailwind linting checks their contents.
+- Split a file only past roughly 700 lines, and only along a real seam.
 - Accessibility is not a focus. Use ARIA attributes only when ordinary functionality (like keyboard navigation and more) or a component needs them, never just to make something accessible.
 - oxc's React Compiler turns a BigInt literal inside a component or hook into undefined, so put it elsewhere or do it elsehow.
