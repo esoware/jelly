@@ -20,7 +20,7 @@ const SECRET_COMMANDS: [&str; 6] = [
 
 /// Window chrome and event listening. Anything else from `core:` needs a reason and a
 /// line here, and a plugin permission needs both in `PLUGIN_PERMISSIONS`.
-const CORE_PERMISSIONS: [&str; 9] = [
+const CORE_PERMISSIONS: [&str; 10] = [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "core:window:allow-set-title",
@@ -30,6 +30,7 @@ const CORE_PERMISSIONS: [&str; 9] = [
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "core:window:allow-is-maximized",
+    "core:window:allow-is-fullscreen",
 ];
 
 /// Native text writes let non-secret copies reach clipboard history without leaving incognito

@@ -183,15 +183,23 @@ export function startWindowDrag(): void {
   attemptWindowAction("startDragging", () => getCurrentWindow().startDragging())
 }
 
-export function watchMaximized(onChange: (isMaximized: boolean) => void): () => void {
+interface WindowState {
+  isMaximized: boolean
+  isFullscreen: boolean
+}
+
+export function watchWindowState(onChange: (state: WindowState) => void): () => void {
   const handle = getCurrentWindow()
   let isDisposed = false
 
   function push(): void {
-    attemptWindowAction("isMaximized", async () => {
-      const isMaximized = await handle.isMaximized()
+    attemptWindowAction("isMaximized and isFullscreen", async () => {
+      const [isMaximized, isFullscreen] = await Promise.all([
+        handle.isMaximized(),
+        handle.isFullscreen(),
+      ])
       if (!isDisposed) {
-        onChange(isMaximized)
+        onChange({ isMaximized, isFullscreen })
       }
     })
   }

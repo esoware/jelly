@@ -1,4 +1,4 @@
-use jelly_core::{AssetId, ChainId, CustomFee, FeeLevel, ProxySetting, ScriptKind};
+use jelly_core::{AssetId, ChainId, CustomFee, FeeLevel, ProxySetting, ScriptKind, wire_enum};
 use serde::Serialize;
 use specta::Type;
 use tauri::{AppHandle, State};
@@ -93,6 +93,27 @@ pub(crate) async fn repair_proxy(
     proxy: Option<ProxySetting>,
 ) -> Result<(), IpcError> {
     state.repair_proxy(proxy).await
+}
+
+wire_enum! {
+    #[derive(Type)]
+    pub(crate) enum Platform {
+        Macos => "macos",
+        Windows => "windows",
+        Linux => "linux",
+    }
+}
+
+const PLATFORM: Platform = cfg_select! {
+    target_os = "macos" => Platform::Macos,
+    windows => Platform::Windows,
+    target_os = "linux" => Platform::Linux,
+};
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn get_platform() -> Result<Platform, IpcError> {
+    Ok(PLATFORM)
 }
 
 #[tauri::command]

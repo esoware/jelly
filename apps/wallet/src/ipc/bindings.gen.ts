@@ -238,6 +238,7 @@ export const commands = {
 	getStartupStatus: () => typedError<StartupStatus, IpcError>(__TAURI_INVOKE("get_startup_status")),
 	/**  Saves a replacement proxy without starting networking. Reopen Jelly afterward. */
 	repairProxy: (proxy: { kind: "system" } | { kind: "socks5h"; url: string } | { kind: "http"; url: string } | null) => typedError<null, IpcError>(__TAURI_INVOKE("repair_proxy", { proxy })),
+	getPlatform: () => typedError<Platform, IpcError>(__TAURI_INVOKE("get_platform")),
 	getWindowBackdrop: () => typedError<WindowBackdrop, IpcError>(__TAURI_INVOKE("get_window_backdrop")),
 	getWindowControls: () => typedError<WindowControls, IpcError>(__TAURI_INVOKE("get_window_controls")),
 	listChainMetadata: () => typedError<ChainMeta[], IpcError>(__TAURI_INVOKE("list_chain_metadata")),
@@ -681,6 +682,8 @@ export type PendingTxId = string;
 /**  How many words a generated BIP-39 phrase has. */
 export type PhraseWords = "twelve" | "twenty_four";
 
+export type Platform = "macos" | "windows" | "linux";
+
 /**  A built and authorised transaction awaiting submit, as the interface sees it. */
 export type PreparedTx = {
 	id: PendingTxId,
@@ -1088,10 +1091,7 @@ export type WindowBackdrop =
 export type WindowControls = 
 /**  The page draws them at the right end of its title bar. */
 "page" | 
-/**
- *  The system draws them over the left end of the page's title bar, so the page
- *  leaves that end clear.
- */
+/**  The system draws them over the page's title bar. */
 "system";
 
 /* Tauri Specta runtime */

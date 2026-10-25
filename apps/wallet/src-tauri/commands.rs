@@ -96,6 +96,7 @@ jelly_commands! {
         get_data_dir,
         get_startup_status,
         repair_proxy,
+        get_platform,
         get_window_backdrop,
         get_window_controls,
         list_chain_metadata,
