@@ -2,15 +2,14 @@
 
 ## Commits and pull requests
 
-Every PR is squash merged. The PR title becomes the commit subject and the PR description becomes the commit body, so both follow the format below. Commits on a branch follow it too, so `gh pr create --fill` produces a valid PR.
+PRs are squash merged, so the PR title becomes the commit subject and the PR description becomes the commit body.
 
 ```
 fix(electrum): retry a request after the server drops the connection
 
-A server that closed the socket mid-request failed the whole scan, and
-the wallet showed the chain as offline until the next refresh. The
-client now reconnects once and resends the request before it reports
-an error.
+When an Electrum server closed the connection mid-request, the whole scan failed and the chain showed as offline until the next refresh.
+
+The client now reconnects once and resends the request before it reports an error.
 
 Closes #12
 ```
@@ -43,20 +42,10 @@ Separate several scopes with commas and no spaces, as in `fix(utxo,bitcoin): ...
 
 Put `!` before the colon when existing installs have to migrate, such as for a new database schema, vault format, or persisted document: `feat(store)!: ...`.
 
-The subject starts with a lowercase imperative verb and has no period. Write `add`, not `Add`, `added`, or `adds`.
+The subject starts with a lowercase imperative verb, such as `add`, and has no period.
 
-### Body
+### Description
 
-The body is required, and one sentence is enough for a dependency bump. Write prose wrapped at 72 columns that says why the change was needed and what behaves differently now. No Markdown headings, lists, file lists, step narration, or "this PR".
+Say what was wrong or missing, then what the change does about it. A few plain sentences are usually enough, and a list works when a change does several separate things.
 
-Trailers come last, `Closes #N` before `Co-authored-by:`, and nothing follows them.
-
-### Merging
-
-Squash with the PR description as the exact commit body:
-
-```
-gh pr merge <number> --squash --body "$(gh pr view <number> --json body --jq .body)"
-```
-
-GitHub's default message adds a `---------` line and its own `Co-authored-by:` trailers after the description.
+Trailers go at the end, `Closes #N` before `Co-authored-by:`.
