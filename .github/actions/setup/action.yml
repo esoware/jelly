@@ -1,13 +1,10 @@
 name: Setup
-description: Install the Linux build dependencies, the frontend packages, the pinned Rust toolchain, and cargo tools.
+description: Install the Linux packages, the frontend packages, the pinned Rust toolchain, and cargo tools.
 
 inputs:
   rust-cache:
     description: Restores the Rust build cache, and saves it from runs on main.
     default: "true"
-  tools:
-    description: Comma-separated tools for taiki-e/install-action.
-    required: true
 
 runs:
   using: composite
@@ -22,24 +19,25 @@ runs:
         key: apt-${{ runner.arch }}-${{ github.run_id }}
         restore-keys: apt-${{ runner.arch }}-
 
-    - name: Install the Linux build and bundling dependencies
+    - name: Install the Linux packages
       id: apt
       if: runner.os == 'Linux'
       shell: bash
       run: |
         mkdir -p ~/apt-archives/partial
-        count_debs() { find ~/apt-archives -maxdepth 1 -name '*.deb' | wc -l; }
-        before=$(count_debs)
+        list_debs() { find ~/apt-archives -maxdepth 1 -name '*.deb' | sort; }
+        before=$(list_debs)
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
           -o Dir::Cache::Archives="$HOME/apt-archives" -o APT::Keep-Downloaded-Packages=true \
-          libwebkit2gtk-4.1-dev libdbus-1-dev librsvg2-dev patchelf
-        if [ "$(count_debs)" != "$before" ]; then
-          echo "downloaded=true" >> "$GITHUB_OUTPUT"
+          libwebkit2gtk-4.1-dev libdbus-1-dev librsvg2-dev patchelf gnome-keyring
+        sudo apt-get autoclean -o Dir::Cache::Archives="$HOME/apt-archives"
+        if [ "$(list_debs)" != "$before" ]; then
+          echo "changed=true" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Save the Linux packages
-      if: runner.os == 'Linux' && github.ref == 'refs/heads/main' && steps.apt.outputs.downloaded == 'true'
+      if: runner.os == 'Linux' && github.ref == 'refs/heads/main' && steps.apt.outputs.changed == 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/apt-archives/*.deb
@@ -49,7 +47,7 @@ runs:
 
     - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
-        node-version: 24
+        node-version-file: .node-version
         cache: pnpm
 
     - name: Install the frontend packages
@@ -76,4 +74,4 @@ runs:
 
     - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
       with:
-        tool: ${{ inputs.tools }}
+        tool: just@1.59.0,cargo-nextest@0.9.148,cargo-deny@0.20.2

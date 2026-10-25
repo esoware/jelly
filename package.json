@@ -5,8 +5,7 @@
     "fmt": "oxfmt",
     "lint": "oxlint --type-aware",
     "lint:fix": "oxlint --type-aware --fix --fix-suggestions",
-    "knip": "knip",
-    "check": "pnpm -C apps/wallet check"
+    "knip": "knip"
   },
   "devDependencies": {
     "eslint-plugin-better-tailwindcss": "4.9.1",

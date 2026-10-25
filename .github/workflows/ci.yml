@@ -24,9 +24,9 @@ jobs:
       matrix:
         include:
           - os: Windows
-            runner: windows-latest
+            runner: windows-2025-vs2026
           - os: macOS
-            runner: macos-latest
+            runner: macos-26
           - os: Linux
             runner: ubuntu-22.04
     runs-on: ${{ matrix.runner }}
@@ -37,20 +37,18 @@ jobs:
           persist-credentials: false
 
       - uses: ./.github/actions/setup
-        with:
-          tools: just,cargo-nextest,cargo-deny
-
-      - name: Run just ready
-        if: runner.os != 'Linux'
-        run: just ready
 
       # The vault's keychain test needs a Secret Service, and a runner has no desktop
       # session to provide one.
-      - name: Run just ready with a Secret Service
+      - name: Start a Secret Service
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get install -y --no-install-recommends gnome-keyring
-          dbus-run-session -- bash -c 'echo -n ci | gnome-keyring-daemon --unlock --components=secrets && just ready'
+          address=$(dbus-daemon --session --fork --print-address)
+          echo "DBUS_SESSION_BUS_ADDRESS=$address" >> "$GITHUB_ENV"
+          echo -n ci | DBUS_SESSION_BUS_ADDRESS=$address gnome-keyring-daemon --unlock --components=secrets
 
-      - name: Fail if just ready changed a file
-        run: git diff --exit-code
+      - name: Run just ready
+        run: just ready
+
+      - name: Fail if just ready changed or added a file
+        run: git add --all && git diff --cached --exit-code

@@ -13,7 +13,7 @@ alias f := fmt
 # Install the frontend packages, cargo-nextest, and cargo-deny
 init:
   pnpm install
-  cargo install cargo-nextest cargo-deny --locked
+  cargo install --locked cargo-nextest@0.9.148 cargo-deny@0.20.2
 
 # Run the app with the frontend served by Vite
 dev:
@@ -25,13 +25,13 @@ build *args:
 
 # CI runs this on every OS and fails if it leaves any file changed.
 
-# Run fmt, clippy, oxlint, knip, tsc, the tests, and cargo-deny
+# Run fmt, clippy, oxlint, knip, the frontend build, the tests, and cargo-deny
 ready:
   just fmt
   just lint
   pnpm lint
   pnpm knip
-  pnpm check
+  pnpm --filter jelly-wallet build
   just test
   just deny
   git status
