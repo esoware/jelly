@@ -52,7 +52,7 @@ export interface Candle {
   close: bigint
 }
 
-interface Chart {
+export interface Chart {
   currency: FiatCurrency
   candles: readonly Candle[]
 }
@@ -69,8 +69,13 @@ interface ChartPoint {
 }
 
 export type ChartSeries =
-  | { mode: "line"; points: readonly ChartPoint[] }
-  | { mode: "candles"; candles: readonly Candle[]; bucketSeconds: number }
+  | { mode: "line"; currency: FiatCurrency; points: readonly ChartPoint[] }
+  | {
+      mode: "candles"
+      currency: FiatCurrency
+      candles: readonly Candle[]
+      bucketSeconds: number
+    }
 
 interface Change {
   from: bigint
@@ -180,7 +185,7 @@ export function chartCandles(
       buckets.push({ ...candle, openUnixSecs })
     }
   }
-  return { mode: "candles", candles: buckets, bucketSeconds }
+  return { mode: "candles", currency: chart.currency, candles: buckets, bucketSeconds }
 }
 
 export function seriesChange(points: readonly ChartPoint[]): Change | null {
@@ -208,16 +213,7 @@ export function formatChange(change: Change): string {
   return `${text}%`
 }
 
-export const AXIS_GAP = 6
 const COORDINATE_DIGITS = 1
-const MIDDLE = 0.5
-
-export interface Bounds {
-  left: number
-  right: number
-  top: number
-  bottom: number
-}
 
 interface Extent {
   low: bigint
@@ -232,11 +228,6 @@ interface Domain {
 export interface Spot {
   x: number
   y: number
-}
-
-export interface PositionedTick {
-  at: number
-  label: string
 }
 
 const NO_EXTENT: Extent = { low: 0n, high: 0n }
@@ -273,20 +264,6 @@ export function seriesDomain(series: ChartSeries): Domain {
     startUnixSecs: series.candles.at(0)?.openUnixSecs ?? 0,
     endUnixSecs: (series.candles.at(-1)?.openUnixSecs ?? 0) + series.bucketSeconds,
   }
-}
-
-export function yOf(price: bigint, extent: Extent, bounds: Bounds): number {
-  const span = extent.high - extent.low
-  const share = span === 0n ? MIDDLE : Number(price - extent.low) / Number(span)
-  return bounds.bottom - share * (bounds.bottom - bounds.top)
-}
-
-export function xOf(unixSecs: number, domain: Domain, bounds: Bounds): number {
-  const span = domain.endUnixSecs - domain.startUnixSecs
-  if (span === 0) {
-    return (bounds.left + bounds.right) / 2
-  }
-  return bounds.left + ((unixSecs - domain.startUnixSecs) / span) * (bounds.right - bounds.left)
 }
 
 export function coordinate(value: number): string {
@@ -370,12 +347,12 @@ const DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 })
 
-interface PriceTick {
+export interface PriceTick {
   price: bigint
   label: string
 }
 
-interface TimeTick {
+export interface TimeTick {
   unixSecs: number
   label: string
 }

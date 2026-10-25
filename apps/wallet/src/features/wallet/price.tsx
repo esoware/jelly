@@ -1,9 +1,16 @@
 import { useQuery } from "@tanstack/react-query"
 import { Fragment, useId, useLayoutEffect, useRef, useState } from "react"
-import type { PointerEvent, ReactNode, RefObject } from "react"
+import type { PointerEvent, ReactNode } from "react"
 
 import {
   AXIS_GAP,
+  blendPlots,
+  drawPlot,
+  placePrice,
+  placeTime,
+} from "@/features/wallet/price-plot.ts"
+import type { CandleMark, LineMark, Plot } from "@/features/wallet/price-plot.ts"
+import {
   CHART_RANGES,
   chartCandles,
   chartPoints,
@@ -12,25 +19,19 @@ import {
   formatChartTime,
   isRisingChange,
   nearestIndex,
-  priceTicks,
   readChart,
   seriesChange,
-  seriesDomain,
-  seriesExtent,
-  timeTicks,
-  xOf,
-  yOf,
 } from "@/features/wallet/price-scale.ts"
 import type {
-  Bounds,
   Candle,
+  Chart,
   ChartMode,
   ChartRange,
   ChartSeries,
-  PositionedTick,
   Spot,
 } from "@/features/wallet/price-scale.ts"
-import type { AssetId, CandleInterval, FiatCurrency } from "@/ipc/bindings.gen.ts"
+import type { AssetId, CandleInterval } from "@/ipc/bindings.gen.ts"
+import { assetKey } from "@/lib/chain.ts"
 import { formatFiat } from "@/lib/fiat.ts"
 import { NONE, unixSecondsOf } from "@/lib/format.ts"
 import { moneyQueries } from "@/query/money.ts"
@@ -39,18 +40,14 @@ import { EmptyState } from "@/ui/empty-state.tsx"
 import { Panel, PanelHeader } from "@/ui/panel.tsx"
 import { Segmented } from "@/ui/segmented.tsx"
 import { Skeleton } from "@/ui/skeleton.tsx"
+import { mixColors, useMorph } from "@/ui/use-morph.ts"
 import { FiatValue } from "@/widgets/amounts.tsx"
 
-function useLabelWidth(labels: readonly string[]): [RefObject<SVGGElement | null>, number] {
-  const labelsRef = useRef<SVGGElement>(null)
-  const [width, setWidth] = useState(0)
+const RISING_COLOR = "var(--color-ok)"
+const FALLING_COLOR = "var(--color-danger)"
 
-  useLayoutEffect(() => {
-    const group = labelsRef.current
-    setWidth(group === null || labels.length === 0 ? 0 : Math.ceil(group.getBBox().width))
-  }, [labels])
-
-  return [labelsRef, width]
+function riseColor(rise: number): string {
+  return mixColors(FALLING_COLOR, RISING_COLOR, rise)
 }
 
 interface ChartReadoutProps {
@@ -72,25 +69,30 @@ function ChartReadout({ x, width, children }: ChartReadoutProps) {
 }
 
 interface ChartAxesProps {
-  bounds: Bounds
-  priceAxis: readonly PositionedTick[]
-  timeAxis: readonly PositionedTick[]
-  priceLabelsRef: RefObject<SVGGElement | null>
+  plot: Plot
+  clipPath: string
 }
 
-function ChartAxes({ bounds, priceAxis, timeAxis, priceLabelsRef }: ChartAxesProps) {
+function ChartAxes({ plot, clipPath }: ChartAxesProps) {
+  const { bounds } = plot
   return (
     <g className="text-caption tabular-nums">
-      {priceAxis.map((tick) => (
-        <line
-          key={tick.label}
-          x1={bounds.left}
-          x2={bounds.right}
-          y1={tick.at}
-          y2={tick.at}
-          className="stroke-edge/50"
-        />
-      ))}
+      <g clipPath={clipPath}>
+        {plot.priceTicks.map(({ tick, opacity }) => {
+          const y = placePrice(plot.price, tick.price)
+          return (
+            <line
+              key={tick.price.toString()}
+              x1={bounds.left}
+              x2={bounds.right}
+              y1={y}
+              y2={y}
+              opacity={opacity}
+              className="stroke-edge/50"
+            />
+          )
+        })}
+      </g>
       <line
         x1={bounds.left}
         x2={bounds.left}
@@ -98,16 +100,28 @@ function ChartAxes({ bounds, priceAxis, timeAxis, priceLabelsRef }: ChartAxesPro
         y2={bounds.bottom}
         className="stroke-edge"
       />
-      <g ref={priceLabelsRef} textAnchor="end" className="fill-fg-faint">
-        {priceAxis.map((tick) => (
-          <text key={tick.label} x={bounds.left - AXIS_GAP} y={tick.at} dominantBaseline="central">
+      <g textAnchor="end" className="fill-fg-faint">
+        {plot.priceTicks.map(({ tick, opacity }) => (
+          <text
+            key={tick.price.toString()}
+            x={bounds.left - AXIS_GAP}
+            y={placePrice(plot.price, tick.price)}
+            opacity={opacity}
+            dominantBaseline="central"
+          >
             {tick.label}
           </text>
         ))}
       </g>
       <g textAnchor="middle" className="fill-fg-faint">
-        {timeAxis.map((tick) => (
-          <text key={tick.at} x={tick.at} y={bounds.bottom + AXIS_GAP} dominantBaseline="hanging">
+        {plot.timeTicks.map(({ tick, opacity }) => (
+          <text
+            key={tick.unixSecs}
+            x={placeTime(plot.time, tick.unixSecs)}
+            y={bounds.bottom + AXIS_GAP}
+            opacity={opacity}
+            dominantBaseline="hanging"
+          >
             {tick.label}
           </text>
         ))}
@@ -119,44 +133,37 @@ function ChartAxes({ bounds, priceAxis, timeAxis, priceLabelsRef }: ChartAxesPro
 const BODY_RADIUS = 1
 
 interface CandleMarksProps {
-  candles: readonly Candle[]
-  spots: readonly Spot[]
-  bodyWidth: number
-  toY: (price: bigint) => number
-  hoveredIndex: number | null
+  candles: readonly CandleMark[]
+  hoveredKey: string | null
 }
 
-function CandleMarks({ candles, spots, bodyWidth, toY, hoveredIndex }: CandleMarksProps) {
-  return candles.map((candle, i) => {
-    const x = spots[i]?.x ?? 0
-    const openY = toY(candle.open)
-    const closeY = toY(candle.close)
-    return (
-      <g
-        key={candle.openUnixSecs}
-        data-tone={candle.close >= candle.open ? "rising" : "falling"}
-        data-dimmed={hoveredIndex !== null && hoveredIndex !== i}
-        className="transition-opacity data-[dimmed=true]:opacity-40 data-[tone=falling]:text-danger data-[tone=rising]:text-ok"
-      >
+function CandleMarks({ candles, hoveredKey }: CandleMarksProps) {
+  return candles.map((candle) => (
+    <g
+      key={candle.key}
+      data-dimmed={hoveredKey !== null && hoveredKey !== candle.key}
+      className="transition-opacity data-[dimmed=true]:opacity-40"
+    >
+      <g opacity={candle.opacity} style={{ color: riseColor(candle.rise) }}>
         <line
-          x1={x}
-          x2={x}
-          y1={toY(candle.high)}
-          y2={toY(candle.low)}
+          x1={candle.x}
+          x2={candle.x}
+          y1={candle.highY}
+          y2={candle.lowY}
           shapeRendering="crispEdges"
           className="stroke-current"
         />
         <rect
-          x={x - bodyWidth / 2}
-          y={Math.min(openY, closeY)}
-          width={bodyWidth}
-          height={Math.max(1, Math.abs(openY - closeY))}
+          x={candle.x - candle.width / 2}
+          y={Math.min(candle.openY, candle.closeY)}
+          width={candle.width}
+          height={Math.max(1, Math.abs(candle.openY - candle.closeY))}
           rx={BODY_RADIUS}
           className="fill-current"
         />
       </g>
-    )
-  })
+    </g>
+  ))
 }
 
 const LINE_WIDTH = 1.5
@@ -165,28 +172,32 @@ const DOT_RADIUS = 3
 const HALO_RADIUS = 7
 
 interface LineMarksProps {
-  spots: readonly Spot[]
-  bounds: Bounds
-  isRising: boolean
+  line: LineMark
+  plot: Plot
   hoveredSpot: Spot | undefined
 }
 
-function LineMarks({ spots, bounds, isRising, hoveredSpot }: LineMarksProps) {
+function LineMarks({ line, plot, hoveredSpot }: LineMarksProps) {
   const baseId = useId()
   const fillId = `${baseId}-fill`
   const pastId = `${baseId}-past`
   const futureId = `${baseId}-future`
-  const line = spots
+  const { bounds } = plot
+  const spots = line.vertices.map((vertex) => ({
+    x: placeTime(plot.time, vertex.unixSecs),
+    y: vertex.y,
+  }))
+  const path = spots
     .map((spot, i) => `${i === 0 ? "M" : "L"}${coordinate(spot.x)} ${coordinate(spot.y)}`)
     .join("")
   const floor = coordinate(bounds.bottom)
-  const area = `${line}L${coordinate(spots.at(-1)?.x ?? bounds.right)} ${floor}L${coordinate(spots.at(0)?.x ?? bounds.left)} ${floor}Z`
+  const area = `${path}L${coordinate(spots.at(-1)?.x ?? bounds.right)} ${floor}L${coordinate(spots.at(0)?.x ?? bounds.left)} ${floor}Z`
 
   const series = (
     <>
       <path d={area} fill={`url(#${fillId})`} />
       <path
-        d={line}
+        d={path}
         strokeWidth={LINE_WIDTH}
         strokeLinejoin="round"
         strokeLinecap="round"
@@ -196,10 +207,7 @@ function LineMarks({ spots, bounds, isRising, hoveredSpot }: LineMarksProps) {
   )
 
   return (
-    <g
-      data-tone={isRising ? "rising" : "falling"}
-      className="data-[tone=falling]:text-danger data-[tone=rising]:text-ok"
-    >
+    <g opacity={line.opacity} style={{ color: riseColor(line.rise) }}>
       <defs>
         <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="currentColor" stopOpacity={AREA_OPACITY} />
@@ -238,15 +246,6 @@ function LineMarks({ spots, bounds, isRising, hoveredSpot }: LineMarksProps) {
   )
 }
 
-const INSET_TOP = 8
-const INSET_RIGHT = 4
-const TIME_AXIS_HEIGHT = 20
-const EDGE_ROOM = 16
-const MIN_PRICE_TICK_GAP = 28
-const MIN_TIME_TICK_GAP = 72
-const BODY_SHARE = 0.6
-const MAX_BODY_WIDTH = 12
-
 const OHLC_ROWS = [
   { label: "Open", pick: (candle: Candle) => candle.open },
   { label: "High", pick: (candle: Candle) => candle.high },
@@ -263,17 +262,136 @@ function pointerX(event: PointerEvent<SVGSVGElement>): number {
   return event.clientX - event.currentTarget.getBoundingClientRect().left
 }
 
-interface PriceChartProps {
+interface ChartPlotProps {
   series: ChartSeries
-  isRising: boolean
   interval: CandleInterval
-  currency: FiatCurrency
+  width: number
+  height: number
 }
 
-function PriceChart({ series, isRising, interval, currency }: PriceChartProps) {
+function ChartPlot({ series, interval, width, height }: ChartPlotProps) {
+  const labelsRef = useRef<SVGGElement>(null)
+  const clipId = useId()
+  const [labelWidth, setLabelWidth] = useState(0)
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+
+  const plotSize = { width, height, labelWidth }
+  const target = drawPlot(series, plotSize)
+  const plot = useMorph(series, (source) => drawPlot(source, plotSize), blendPlots)
+  const labels = target.priceTicks.map((mark) => mark.tick.label)
+
+  useLayoutEffect(() => {
+    const group = labelsRef.current
+    setLabelWidth(group === null || labels.length === 0 ? 0 : Math.ceil(group.getBBox().width))
+  }, [labels])
+
+  const spots =
+    target.line === null
+      ? target.candles.map((candle) => ({ x: candle.x, y: candle.closeY }))
+      : target.line.vertices.map((vertex) => ({
+          x: placeTime(target.time, vertex.unixSecs),
+          y: vertex.y,
+        }))
+  const hoveredSpot = hoveredIndex === null ? undefined : spots[hoveredIndex]
+  const hoveredKey = hoveredIndex === null ? null : (target.candles[hoveredIndex]?.key ?? null)
+  const clipPath = `url(#${clipId})`
+
+  function readout(spot: Spot, i: number): ReactNode {
+    if (series.mode === "line") {
+      const point = series.points[i]
+      return point === undefined ? null : (
+        <ChartReadout x={spot.x} width={width}>
+          <p className="font-medium tabular-nums">
+            {formatFiat(point.price, series.currency, { isPrice: true })}
+          </p>
+          <p className="text-fg-muted">{formatChartTime(point.labelUnixSecs, interval)}</p>
+        </ChartReadout>
+      )
+    }
+    const candle = series.candles[i]
+    return candle === undefined ? null : (
+      <ChartReadout x={spot.x} width={width}>
+        <p className="text-fg-muted">{formatChartTime(candle.openUnixSecs, interval)}</p>
+        <dl className="grid grid-cols-[auto_auto] gap-x-3 tabular-nums">
+          {OHLC_ROWS.map(({ label, pick }) => (
+            <Fragment key={label}>
+              <dt className="text-fg-faint">{label}</dt>
+              <dd className="text-right">
+                {formatFiat(pick(candle), series.currency, { isPrice: true })}
+              </dd>
+            </Fragment>
+          ))}
+        </dl>
+      </ChartReadout>
+    )
+  }
+
+  return (
+    <>
+      <svg
+        width={width}
+        height={height}
+        className="block"
+        onPointerMove={(event) => {
+          const x = pointerX(event)
+          setHoveredIndex(x < target.bounds.left ? null : nearestIndex(spots, x))
+        }}
+        onPointerLeave={() => {
+          setHoveredIndex(null)
+        }}
+      >
+        <defs>
+          <clipPath id={clipId}>
+            <rect
+              x={plot.bounds.left}
+              y={0}
+              width={Math.max(0, width - plot.bounds.left)}
+              height={plot.bounds.bottom + LINE_WIDTH}
+            />
+          </clipPath>
+        </defs>
+
+        <ChartAxes plot={plot} clipPath={clipPath} />
+
+        <g ref={labelsRef} className="invisible text-caption tabular-nums">
+          {labels.map((label) => (
+            <text key={label}>{label}</text>
+          ))}
+        </g>
+
+        {hoveredSpot === undefined ? null : (
+          <line
+            x1={hoveredSpot.x}
+            x2={hoveredSpot.x}
+            y1={target.bounds.top}
+            y2={target.bounds.bottom}
+            className="stroke-edge"
+          />
+        )}
+
+        <g clipPath={clipPath}>
+          {plot.line === null ? null : (
+            <LineMarks line={plot.line} plot={plot} hoveredSpot={hoveredSpot} />
+          )}
+          <CandleMarks candles={plot.candles} hoveredKey={hoveredKey} />
+        </g>
+      </svg>
+
+      {hoveredIndex === null || hoveredSpot === undefined
+        ? null
+        : readout(hoveredSpot, hoveredIndex)}
+    </>
+  )
+}
+
+interface PriceChartProps {
+  series: ChartSeries
+  interval: CandleInterval
+}
+
+function PriceChart({ series, interval }: PriceChartProps) {
   const frameRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<Size | null>(null)
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
   useLayoutEffect(() => {
     const frame = frameRef.current
@@ -293,132 +411,11 @@ function PriceChart({ series, isRising, interval, currency }: PriceChartProps) {
     }
   }, [])
 
-  const extent = seriesExtent(series)
-  const plotHeight = size === null ? 0 : size.height - INSET_TOP - TIME_AXIS_HEIGHT
-  const priceAxisTicks =
-    size === null
-      ? []
-      : priceTicks(extent.low, extent.high, Math.floor(plotHeight / MIN_PRICE_TICK_GAP), currency)
-  const [priceLabelsRef, priceLabelWidth] = useLabelWidth(priceAxisTicks.map((tick) => tick.label))
-
-  if (size === null) {
-    return <div ref={frameRef} className="relative size-full" />
-  }
-
-  const { width, height } = size
-  const bounds: Bounds = {
-    left: priceLabelWidth + AXIS_GAP,
-    right: width - INSET_RIGHT,
-    top: INSET_TOP,
-    bottom: height - TIME_AXIS_HEIGHT,
-  }
-  const domain = seriesDomain(series)
-  function toY(price: bigint): number {
-    return yOf(price, extent, bounds)
-  }
-  const spots =
-    series.mode === "line"
-      ? series.points.map((point) => ({
-          x: xOf(point.unixSecs, domain, bounds),
-          y: toY(point.price),
-        }))
-      : series.candles.map((candle) => ({
-          x: xOf(candle.openUnixSecs + series.bucketSeconds / 2, domain, bounds),
-          y: toY(candle.close),
-        }))
-  const timeAxisTicks = timeTicks(
-    domain.startUnixSecs,
-    domain.endUnixSecs,
-    Math.floor((bounds.right - bounds.left) / MIN_TIME_TICK_GAP),
-  )
-    .map((tick) => ({ at: xOf(tick.unixSecs, domain, bounds), label: tick.label }))
-    .filter((tick) => tick.at >= bounds.left + EDGE_ROOM && tick.at <= bounds.right - EDGE_ROOM)
-  const hoveredSpot = hoveredIndex === null ? undefined : spots[hoveredIndex]
-
-  function readout(spot: Spot, i: number): ReactNode {
-    if (series.mode === "line") {
-      const point = series.points[i]
-      return point === undefined ? null : (
-        <ChartReadout x={spot.x} width={width}>
-          <p className="font-medium tabular-nums">
-            {formatFiat(point.price, currency, { isPrice: true })}
-          </p>
-          <p className="text-fg-muted">{formatChartTime(point.labelUnixSecs, interval)}</p>
-        </ChartReadout>
-      )
-    }
-    const candle = series.candles[i]
-    return candle === undefined ? null : (
-      <ChartReadout x={spot.x} width={width}>
-        <p className="text-fg-muted">{formatChartTime(candle.openUnixSecs, interval)}</p>
-        <dl className="grid grid-cols-[auto_auto] gap-x-3 tabular-nums">
-          {OHLC_ROWS.map(({ label, pick }) => (
-            <Fragment key={label}>
-              <dt className="text-fg-faint">{label}</dt>
-              <dd className="text-right">
-                {formatFiat(pick(candle), currency, { isPrice: true })}
-              </dd>
-            </Fragment>
-          ))}
-        </dl>
-      </ChartReadout>
-    )
-  }
-
   return (
     <div ref={frameRef} className="relative size-full">
-      <svg
-        width={width}
-        height={height}
-        className="block"
-        onPointerMove={(event) => {
-          const x = pointerX(event)
-          setHoveredIndex(x < bounds.left ? null : nearestIndex(spots, x))
-        }}
-        onPointerLeave={() => {
-          setHoveredIndex(null)
-        }}
-      >
-        <ChartAxes
-          bounds={bounds}
-          priceAxis={priceAxisTicks.map((tick) => ({ at: toY(tick.price), label: tick.label }))}
-          timeAxis={timeAxisTicks}
-          priceLabelsRef={priceLabelsRef}
-        />
-
-        {hoveredSpot === undefined ? null : (
-          <line
-            x1={hoveredSpot.x}
-            x2={hoveredSpot.x}
-            y1={bounds.top}
-            y2={bounds.bottom}
-            className="stroke-edge"
-          />
-        )}
-
-        {series.mode === "line" ? (
-          <LineMarks spots={spots} bounds={bounds} isRising={isRising} hoveredSpot={hoveredSpot} />
-        ) : (
-          <CandleMarks
-            candles={series.candles}
-            spots={spots}
-            bodyWidth={Math.min(
-              MAX_BODY_WIDTH,
-              Math.max(
-                1,
-                ((bounds.right - bounds.left) * series.bucketSeconds * BODY_SHARE) /
-                  (domain.endUnixSecs - domain.startUnixSecs),
-              ),
-            )}
-            toY={toY}
-            hoveredIndex={hoveredIndex}
-          />
-        )}
-      </svg>
-
-      {hoveredIndex === null || hoveredSpot === undefined
-        ? null
-        : readout(hoveredSpot, hoveredIndex)}
+      {size === null ? null : (
+        <ChartPlot series={series} interval={interval} width={size.width} height={size.height} />
+      )}
     </div>
   )
 }
@@ -438,6 +435,23 @@ const RANGES = [
   { value: "max", label: "Max" },
 ] as const satisfies readonly { value: ChartRange; label: string }[]
 
+interface ShownChart {
+  asset: string
+  chart: Chart
+  range: ChartRange
+  nowUnixSecs: number
+}
+
+function isSameChart(kept: ShownChart | null, loaded: ShownChart): boolean {
+  return (
+    kept !== null &&
+    kept.asset === loaded.asset &&
+    kept.chart === loaded.chart &&
+    kept.range === loaded.range &&
+    kept.nowUnixSecs === loaded.nowUnixSecs
+  )
+}
+
 interface PricePanelProps {
   asset: AssetId
 }
@@ -448,22 +462,36 @@ export function PricePanel({ asset }: PricePanelProps) {
   const isStale = useIsFiatStale(asset)
   const [range, setRange] = useState<ChartRange>("1d")
   const [mode, setMode] = useState<ChartMode>("line")
-  const { interval } = CHART_RANGES[range]
   const ranged = useQuery({
-    ...moneyQueries.priceChart(asset, interval, currency),
+    ...moneyQueries.priceChart(asset, CHART_RANGES[range].interval, currency),
     select: readChart,
   })
+  const loaded =
+    ranged.data === undefined
+      ? null
+      : {
+          asset: assetKey(asset),
+          chart: ranged.data,
+          range,
+          nowUnixSecs: unixSecondsOf(ranged.dataUpdatedAt),
+        }
+  const [kept, setKept] = useState(loaded)
+  if (loaded !== null && !isSameChart(kept, loaded)) {
+    setKept(loaded)
+  }
+  const shown =
+    kept?.asset !== assetKey(asset) || (ranged.isError && ranged.data === undefined) ? null : kept
 
   const live = livePrice === null || isStale ? null : { price: livePrice, currency }
-  const nowUnixSecs = unixSecondsOf(ranged.dataUpdatedAt)
-  const points = ranged.data === undefined ? [] : chartPoints(ranged.data, range, live, nowUnixSecs)
+  const points =
+    shown === null ? [] : chartPoints(shown.chart, shown.range, live, shown.nowUnixSecs)
   const rangeChange = seriesChange(points)
 
   function chartArea(): ReactNode {
-    if (ranged.data === undefined && !ranged.isError) {
+    if (shown === null && !ranged.isError) {
       return <Skeleton className="size-full" />
     }
-    if (ranged.data === undefined || rangeChange === null) {
+    if (shown === null || rangeChange === null) {
       return (
         <EmptyState
           isCompact
@@ -476,11 +504,11 @@ export function PricePanel({ asset }: PricePanelProps) {
     return (
       <PriceChart
         series={
-          mode === "line" ? { mode, points } : chartCandles(ranged.data, range, live, nowUnixSecs)
+          mode === "line"
+            ? { mode, currency: shown.chart.currency, points }
+            : chartCandles(shown.chart, shown.range, live, shown.nowUnixSecs)
         }
-        isRising={isRisingChange(rangeChange)}
-        interval={interval}
-        currency={ranged.data.currency}
+        interval={CHART_RANGES[shown.range].interval}
       />
     )
   }

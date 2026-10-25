@@ -5,6 +5,7 @@ import { assetKey } from "@/lib/chain.ts"
 import { appendClassName } from "@/lib/class-name.ts"
 import { sliceWeights } from "@/lib/portfolio.ts"
 import type { Allocation } from "@/lib/portfolio.ts"
+import { lerp, mixColors, useMorph } from "@/ui/use-morph.ts"
 import { assetBrand } from "@/widgets/logos.tsx"
 
 const VIEW = 100
@@ -80,29 +81,8 @@ function sectorPath(start: number, end: number, ring: Ring, inset: number): stri
   return apex < ring.outer ? `${head}L${polar(apex, start + half)}Z` : null
 }
 
-interface DonutProps {
-  slices: readonly DonutSlice[]
-  size?: keyof typeof GEOMETRIES | undefined
-  activeId?: string | null | undefined
-  onActiveChange?: ((id: string | null) => void) | undefined
-  onSelect?: ((id: string) => void) | undefined
-  className?: string | undefined
-  children?: ReactNode
-}
-
-export function Donut({
-  slices,
-  size = "lg",
-  activeId = null,
-  onActiveChange,
-  onSelect,
-  className,
-  children,
-}: DonutProps) {
-  const baseId = useId()
-  const geometry: Geometry = GEOMETRIES[size]
+function layoutSectors(slices: readonly DonutSlice[], geometry: Geometry): Sector[] {
   const inner = CENTER - geometry.thickness
-  const middle = CENTER - geometry.thickness / 2
   const visibleSlices = slices.filter((slice) => slice.weight > 0)
   const minSweep =
     inner > 0
@@ -127,7 +107,74 @@ export function Donut({
     sectors.push({ slice, start: angle, end })
     angle = end
   }
+  return sectors
+}
+
+function blendSectors(from: readonly Sector[], to: readonly Sector[], progress: number): Sector[] {
+  const fromById = new Map(from.map((sector) => [sector.slice.id, sector]))
+  const toById = new Map(to.map((sector) => [sector.slice.id, sector]))
+  const blended: Sector[] = []
+  let toEnd = 0
+  for (const sector of from) {
+    const match = toById.get(sector.slice.id)
+    if (match === undefined) {
+      blended.push({
+        slice: sector.slice,
+        start: lerp(sector.start, toEnd, progress),
+        end: lerp(sector.end, toEnd, progress),
+      })
+    } else {
+      toEnd = match.end
+    }
+  }
+  let fromEnd = 0
+  for (const sector of to) {
+    const match = fromById.get(sector.slice.id)
+    const fromStart = match?.start ?? fromEnd
+    fromEnd = match?.end ?? fromEnd
+    blended.push({
+      slice:
+        match === undefined
+          ? sector.slice
+          : { ...sector.slice, color: mixColors(match.slice.color, sector.slice.color, progress) },
+      start: lerp(fromStart, sector.start, progress),
+      end: lerp(fromEnd, sector.end, progress),
+    })
+  }
+  return blended
+}
+
+interface DonutProps {
+  slices: readonly DonutSlice[]
+  size?: keyof typeof GEOMETRIES | undefined
+  activeId?: string | null | undefined
+  onActiveChange?: ((id: string | null) => void) | undefined
+  onSelect?: ((id: string) => void) | undefined
+  className?: string | undefined
+  children?: ReactNode
+}
+
+export function Donut({
+  slices,
+  size = "lg",
+  activeId = null,
+  onActiveChange,
+  onSelect,
+  className,
+  children,
+}: DonutProps) {
+  const baseId = useId()
+  const geometry: Geometry = GEOMETRIES[size]
+  const inner = CENTER - geometry.thickness
+  const middle = CENTER - geometry.thickness / 2
+  const sectors = layoutSectors(slices, geometry)
+  const shownSectors = useMorph(
+    slices,
+    (source) => layoutSectors(source, geometry),
+    blendSectors,
+  ).filter((sector) => sector.end > sector.start)
   const isWhole = sectors.length === 1
+  const isShownWhole = shownSectors.length === 1
   const reach = { inner: inner - HIT_SLOP, outer: CENTER }
 
   function gradientId(slice: DonutSlice): string {
@@ -144,7 +191,7 @@ export function Donut({
         }}
       >
         <defs>
-          {sectors.map(({ slice }) =>
+          {shownSectors.map(({ slice }) =>
             slice.gradient === undefined ? null : (
               <linearGradient key={slice.id} id={gradientId(slice)} x1="0" y1="1" x2="1" y2="0">
                 <stop offset="0%" stopColor={slice.gradient[0]} />
@@ -164,10 +211,10 @@ export function Donut({
           />
         ) : null}
 
-        {sectors.map(({ slice, start, end }) => {
+        {shownSectors.map(({ slice, start, end }) => {
           const paint = slice.gradient === undefined ? slice.color : `url(#${gradientId(slice)})`
           const isDimmed = activeId !== null && activeId !== slice.id
-          if (isWhole) {
+          if (isShownWhole) {
             return (
               <circle
                 key={slice.id}
