@@ -38,19 +38,19 @@ jobs:
       matrix:
         include:
           - platform: windows-x64
-            runner: windows-latest
+            runner: windows-2025-vs2026
             target: x86_64-pc-windows-msvc
             artifact: target/x86_64-pc-windows-msvc/release/jelly.exe
           - platform: windows-arm64
-            runner: windows-11-arm
+            runner: windows-11-vs2026-arm
             target: aarch64-pc-windows-msvc
             artifact: target/aarch64-pc-windows-msvc/release/jelly.exe
           - platform: macos-x64
-            runner: macos-latest
+            runner: macos-26
             target: x86_64-apple-darwin
             artifact: target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
           - platform: macos-arm64
-            runner: macos-latest
+            runner: macos-26
             target: aarch64-apple-darwin
             artifact: target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
           - platform: linux-x64
@@ -83,7 +83,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           rust-cache: false
-          tools: just
 
       # Tauri downloads any AppImage tool missing from its cache without checking a hash, and takes
       # the AppImage plugin from a release tag that upstream overwrites. Verified copies placed there
@@ -110,7 +109,12 @@ jobs:
           chmod +x "AppRun-$arch" "linuxdeploy-07333c6-$arch.AppImage" linuxdeploy-plugin-appimage.AppImage
 
       - name: Build
-        run: just build --target ${{ matrix.target }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          rustup target add "$TARGET"
+          just build --target "$TARGET" -- --locked
 
       - name: Fail if Tauri fetched an AppImage tool that isn't pinned
         if: runner.os == 'Linux'
@@ -149,7 +153,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           version=${GITHUB_REF_NAME#v}
-          mv artifacts/jelly-windows-x64/jelly.exe "artifacts/Jelly_${version}_x64.exe"
-          mv artifacts/jelly-windows-arm64/jelly.exe "artifacts/Jelly_${version}_arm64.exe"
-          find artifacts -type f -print0 |
-            xargs -0 gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes
+          mkdir release
+          mv artifacts/jelly-windows-x64/jelly.exe "release/Jelly_${version}_x64.exe"
+          mv artifacts/jelly-windows-arm64/jelly.exe "release/Jelly_${version}_arm64.exe"
+          find artifacts -type f -exec mv -t release {} +
+          cd release
+          sha256sum * > SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes *

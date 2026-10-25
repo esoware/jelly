@@ -6,7 +6,6 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "check": "tsc",
     "tauri": "tauri"
   },
   "dependencies": {
