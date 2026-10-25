@@ -97,19 +97,20 @@ function Providers({ client, children }: ProvidersProps) {
   )
 }
 
-refuseBrowserInput()
-try {
-  const [backdrop, windowControls, platform] = await Promise.all([
-    appCommands.windowBackdrop(),
-    appCommands.windowControls(),
-    appCommands.platform(),
-  ])
-  document.documentElement.dataset["backdrop"] = backdrop
-  document.documentElement.dataset["windowControls"] = windowControls
-  document.documentElement.dataset["os"] = platform
-} catch (error) {
-  reportError(error)
+async function setRootData(key: string, value: Promise<string>): Promise<void> {
+  try {
+    document.documentElement.dataset[key] = await value
+  } catch (error) {
+    reportError(error)
+  }
 }
+
+refuseBrowserInput()
+await Promise.all([
+  setRootData("backdrop", appCommands.windowBackdrop()),
+  setRootData("windowControls", appCommands.windowControls()),
+  setRootData("platform", appCommands.platform()),
+])
 
 const queryClient = makeQueryClient()
 

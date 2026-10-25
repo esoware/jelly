@@ -49,8 +49,7 @@ wire_enum! {
     pub(crate) enum WindowControls {
         /// The page draws them at the right end of its title bar.
         Page => "page",
-        /// The system draws them over the left end of the page's title bar, so the page
-        /// leaves that end clear.
+        /// The system draws them over the page's title bar.
         System => "system",
     }
 }

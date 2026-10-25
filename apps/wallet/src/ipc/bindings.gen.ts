@@ -682,7 +682,6 @@ export type PendingTxId = string;
 /**  How many words a generated BIP-39 phrase has. */
 export type PhraseWords = "twelve" | "twenty_four";
 
-/**  The OS the app runs on, so the page can branch on the ways the systems differ. */
 export type Platform = "macos" | "windows" | "linux";
 
 /**  A built and authorised transaction awaiting submit, as the interface sees it. */
@@ -1092,10 +1091,7 @@ export type WindowBackdrop =
 export type WindowControls = 
 /**  The page draws them at the right end of its title bar. */
 "page" | 
-/**
- *  The system draws them over the left end of the page's title bar, so the page
- *  leaves that end clear.
- */
+/**  The system draws them over the page's title bar. */
 "system";
 
 /* Tauri Specta runtime */

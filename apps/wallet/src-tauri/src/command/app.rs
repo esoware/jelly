@@ -97,7 +97,6 @@ pub(crate) async fn repair_proxy(
 
 wire_enum! {
     #[derive(Type)]
-    /// The OS the app runs on, so the page can branch on the ways the systems differ.
     pub(crate) enum Platform {
         Macos => "macos",
         Windows => "windows",
@@ -105,14 +104,10 @@ wire_enum! {
     }
 }
 
-/// The OS is compile time, so the const matches the build and the page never has to guess
-/// what it runs on.
-pub(crate) const PLATFORM: Platform = if cfg!(target_os = "macos") {
-    Platform::Macos
-} else if cfg!(windows) {
-    Platform::Windows
-} else {
-    Platform::Linux
+const PLATFORM: Platform = cfg_select! {
+    target_os = "macos" => Platform::Macos,
+    windows => Platform::Windows,
+    target_os = "linux" => Platform::Linux,
 };
 
 #[tauri::command]
