@@ -61,10 +61,9 @@
   --color-avatar-glyph: oklch(100% 0 0);
   --color-avatar-shade: oklch(0% 0 0 / 8%);
 
-  --font-sans: "Open Sans";
+  --font-sans: "Google Sans";
   --font-mono: "Cascadia Mono";
   --default-font-family: var(--font-sans);
-  --default-font-feature-settings: "ss02";
   --default-mono-font-family: var(--font-mono);
 
   --font-weight-medium: 500;

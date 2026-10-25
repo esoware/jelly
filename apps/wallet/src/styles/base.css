@@ -1,12 +1,12 @@
 @font-face {
-  font-family: "Open Sans";
-  src: url("../assets/fonts/open-sans.woff2");
+  font-family: "Google Sans";
+  src: url("../assets/fonts/google-sans.woff2");
   font-weight: 400 600;
 }
 
 @font-face {
-  font-family: "Open Sans";
-  src: url("../assets/fonts/open-sans-italic.woff2");
+  font-family: "Google Sans";
+  src: url("../assets/fonts/google-sans-italic.woff2");
   font-style: italic;
   font-weight: 400 600;
 }
