@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 const MORPH_MS = 500
 const EASE_POWER = 3
@@ -12,12 +12,32 @@ interface Morph<S, P> {
   nowMs: number
 }
 
+interface Morphed<P> {
+  target: P
+  shown: P
+}
+
 function easedProgress<S, P>(morph: Morph<S, P>): number {
   if (morph.startedAtMs === null) {
     return 0
   }
   const linear = Math.min(1, (morph.nowMs - morph.startedAtMs) / MORPH_MS)
   return 1 - (1 - linear) ** EASE_POWER
+}
+
+function isSameData(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) {
+    return true
+  }
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) {
+    return false
+  }
+  const aEntries = Object.entries(a)
+  const bValues = new Map(Object.entries(b))
+  return (
+    aEntries.length === bValues.size &&
+    aEntries.every(([key, value]) => bValues.has(key) && isSameData(value, bValues.get(key)))
+  )
 }
 
 export function lerp(from: number, to: number, progress: number): number {
@@ -37,8 +57,8 @@ export function mixColors(from: string, to: string, progress: number): string {
 export function useMorph<S, P>(
   source: S,
   draw: (source: S) => P,
-  blend: (from: P, to: P, progress: number) => P,
-): P {
+  blend: (from: P, to: P) => (progress: number) => P,
+): Morphed<P> {
   const [morph, setMorph] = useState<Morph<S, P>>({
     source,
     from: null,
@@ -68,15 +88,18 @@ export function useMorph<S, P>(
     }
   }, [isMorphing])
 
-  if (morph.source !== source) {
-    const shown =
-      morph.from === null
-        ? draw(morph.source)
-        : blend(morph.from, draw(morph.source), easedProgress(morph))
+  const target = useMemo(() => draw(source), [draw, source])
+  const play = useMemo(
+    () => (morph.from === null ? null : blend(morph.from, target)),
+    [blend, morph.from, target],
+  )
+
+  if (!isSameData(morph.source, source)) {
+    const previous = draw(morph.source)
+    const shown = morph.from === null ? previous : blend(morph.from, previous)(easedProgress(morph))
     setMorph({ source, from: shown, startedAtMs: null, nowMs: morph.nowMs })
-    return shown
+    return { target, shown }
   }
 
-  const target = draw(source)
-  return morph.from === null ? target : blend(morph.from, target, easedProgress(morph))
+  return { target, shown: play === null ? target : play(easedProgress(morph)) }
 }

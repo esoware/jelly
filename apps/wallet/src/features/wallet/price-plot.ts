@@ -42,6 +42,7 @@ interface Pace {
 }
 
 interface TickMark<T> {
+  key: string
   tick: T
   opacity: number
 }
@@ -49,6 +50,18 @@ interface TickMark<T> {
 interface Vertex {
   unixSecs: number
   y: number
+}
+
+interface VertexPair {
+  unixSecs: number
+  fromY: number
+  toY: number
+}
+
+interface LinePair {
+  from: LineMark
+  to: LineMark
+  vertices: readonly VertexPair[]
 }
 
 export interface LineMark {
@@ -81,6 +94,12 @@ export interface Plot {
   candles: readonly CandleMark[]
 }
 
+interface CandlePair {
+  key: string
+  from: CandleMark
+  to: CandleMark
+}
+
 interface PlotSize {
   width: number
   height: number
@@ -93,6 +112,10 @@ export function placeTime(scale: Scale<number>, unixSecs: number): number {
 
 export function placePrice(scale: Scale<bigint>, price: bigint): number {
   return scale.at + scale.perUnit * Number(price - scale.origin)
+}
+
+function bodyWidth(spanSecs: number, time: Scale<number>): number {
+  return Math.min(MAX_BODY_WIDTH, Math.max(1, spanSecs * time.perUnit * BODY_SHARE))
 }
 
 export function drawPlot(series: ChartSeries, size: PlotSize): Plot {
@@ -129,7 +152,7 @@ export function drawPlot(series: ChartSeries, size: PlotSize): Plot {
       extent.high,
       Math.floor(plotHeight / MIN_PRICE_TICK_GAP),
       series.currency,
-    ).map((tick) => ({ tick, opacity: 1 })),
+    ).map((tick) => ({ key: `${tick.price.toString()} ${tick.label}`, tick, opacity: 1 })),
     timeTicks: timeTicks(
       domain.startUnixSecs,
       domain.endUnixSecs,
@@ -139,7 +162,7 @@ export function drawPlot(series: ChartSeries, size: PlotSize): Plot {
         const x = placeTime(time, tick.unixSecs)
         return x >= bounds.left + EDGE_ROOM && x <= bounds.right - EDGE_ROOM
       })
-      .map((tick) => ({ tick, opacity: 1 })),
+      .map((tick) => ({ key: `${String(tick.unixSecs)} ${tick.label}`, tick, opacity: 1 })),
     line:
       series.mode === "line"
         ? {
@@ -158,10 +181,7 @@ export function drawPlot(series: ChartSeries, size: PlotSize): Plot {
             startUnixSecs: candle.openUnixSecs,
             endUnixSecs: candle.openUnixSecs + series.bucketSeconds,
             x: placeTime(time, candle.openUnixSecs + series.bucketSeconds / 2),
-            width: Math.min(
-              MAX_BODY_WIDTH,
-              Math.max(1, series.bucketSeconds * time.perUnit * BODY_SHARE),
-            ),
+            width: bodyWidth(series.bucketSeconds, time),
             openY: placePrice(price, candle.open),
             closeY: placePrice(price, candle.close),
             highY: placePrice(price, candle.high),
@@ -229,19 +249,27 @@ function traceAlong(vertices: readonly Vertex[], times: readonly number[]): numb
   })
 }
 
-function blendLines(from: LineMark, to: LineMark, pace: Pace): LineMark {
+function pairLines(from: LineMark, to: LineMark): LinePair {
   const times = [
     ...new Set([...from.vertices, ...to.vertices].map((vertex) => vertex.unixSecs)),
   ].toSorted((a, b) => a - b)
   const fromYs = traceAlong(from.vertices, times)
   const toYs = traceAlong(to.vertices, times)
   return {
-    vertices: times.map((unixSecs, i) => ({
-      unixSecs,
-      y: lerp(fromYs[i] ?? 0, toYs[i] ?? 0, pace.y),
+    from,
+    to,
+    vertices: times.map((unixSecs, i) => ({ unixSecs, fromY: fromYs[i] ?? 0, toY: toYs[i] ?? 0 })),
+  }
+}
+
+function blendLines(pair: LinePair, pace: Pace): LineMark {
+  return {
+    vertices: pair.vertices.map((vertex) => ({
+      unixSecs: vertex.unixSecs,
+      y: lerp(vertex.fromY, vertex.toY, pace.y),
     })),
-    rise: lerp(from.rise, to.rise, pace.progress),
-    opacity: lerp(from.opacity, to.opacity, pace.progress),
+    rise: lerp(pair.from.rise, pair.to.rise, pace.progress),
+    opacity: lerp(pair.from.opacity, pair.to.opacity, pace.progress),
   }
 }
 
@@ -250,12 +278,14 @@ function covers(host: CandleMark, candle: CandleMark): boolean {
   return host.startUnixSecs <= middle && middle < host.endUnixSecs
 }
 
-function absentCandle(candle: CandleMark, line: LineMark | null, view: Relation): CandleMark {
+function absentCandle(candle: CandleMark, onto: Plot, view: Relation): CandleMark {
   const x = apply(view.x, candle.x)
+  const { line } = onto
   if (line === null) {
     return {
       ...candle,
       x,
+      width: bodyWidth(candle.endUnixSecs - candle.startUnixSecs, onto.time),
       openY: apply(view.y, candle.openY),
       closeY: apply(view.y, candle.closeY),
       highY: apply(view.y, candle.highY),
@@ -285,7 +315,7 @@ function absentCandle(candle: CandleMark, line: LineMark | null, view: Relation)
   }
 }
 
-function mixCandles(key: string, from: CandleMark, to: CandleMark, pace: Pace): CandleMark {
+function mixCandles({ key, from, to }: CandlePair, pace: Pace): CandleMark {
   return {
     key,
     startUnixSecs: lerp(from.startUnixSecs, to.startUnixSecs, pace.progress),
@@ -301,50 +331,44 @@ function mixCandles(key: string, from: CandleMark, to: CandleMark, pace: Pace): 
   }
 }
 
-function blendCandles(
-  from: Plot,
-  to: Plot,
-  forward: Relation,
-  backward: Relation,
-  pace: Pace,
-): CandleMark[] {
+function pairCandles(from: Plot, to: Plot, forward: Relation, backward: Relation): CandlePair[] {
   const toKeys = new Set(to.candles.map((candle) => candle.key))
   const fromByKey = new Map(from.candles.map((candle) => [candle.key, candle]))
   const leaving = from.candles
     .filter((candle) => !toKeys.has(candle.key))
-    .map((candle) => {
-      const host =
-        to.candles.find((target) => covers(target, candle)) ??
-        absentCandle(candle, to.line, forward)
-      return mixCandles(candle.key, candle, host, pace)
-    })
-  const arriving = to.candles.map((candle) => {
-    const source =
+    .map((candle) => ({
+      key: candle.key,
+      from: candle,
+      to: to.candles.find((target) => covers(target, candle)) ?? absentCandle(candle, to, forward),
+    }))
+  const arriving = to.candles.map((candle) => ({
+    key: candle.key,
+    from:
       fromByKey.get(candle.key) ??
       from.candles.find((shown) => covers(shown, candle)) ??
-      absentCandle(candle, from.line, backward)
-    return mixCandles(candle.key, source, candle, pace)
-  })
+      absentCandle(candle, from, backward),
+    to: candle,
+  }))
   return [...leaving, ...arriving]
 }
 
 function blendTicks<T>(
   from: readonly TickMark<T>[],
   to: readonly TickMark<T>[],
-  keyOf: (tick: T) => string,
   reach: number,
 ): TickMark<T>[] {
-  const toKeys = new Set(to.map((mark) => keyOf(mark.tick)))
-  const fromByKey = new Map(from.map((mark) => [keyOf(mark.tick), mark]))
+  const toKeys = new Set(to.map((mark) => mark.key))
+  const fromByKey = new Map(from.map((mark) => [mark.key, mark]))
   const fadeOut = Math.min(1, reach * 2)
   const fadeIn = Math.max(0, reach * 2 - 1)
   return [
     ...from
-      .filter((mark) => !toKeys.has(keyOf(mark.tick)))
-      .map((mark) => ({ tick: mark.tick, opacity: lerp(mark.opacity, 0, fadeOut) })),
+      .filter((mark) => !toKeys.has(mark.key))
+      .map((mark) => ({ key: mark.key, tick: mark.tick, opacity: lerp(mark.opacity, 0, fadeOut) })),
     ...to.map((mark) => {
-      const shown = fromByKey.get(keyOf(mark.tick))
+      const shown = fromByKey.get(mark.key)
       return {
+        key: mark.key,
         tick: mark.tick,
         opacity:
           shown === undefined
@@ -355,34 +379,39 @@ function blendTicks<T>(
   ]
 }
 
-export function blendPlots(from: Plot, to: Plot, progress: number): Plot {
-  const timeShift = from.time.origin - to.time.origin
-  const priceShift = Number(from.price.origin - to.price.origin)
+export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
+  const timeShiftSecs = from.time.origin - to.time.origin
+  const priceShiftBaseUnits = Number(from.price.origin - to.price.origin)
   const forward = {
-    x: relate(from.time, to.time, timeShift),
-    y: relate(from.price, to.price, priceShift),
+    x: relate(from.time, to.time, timeShiftSecs),
+    y: relate(from.price, to.price, priceShiftBaseUnits),
   }
   const backward = { x: invert(forward.x), y: invert(forward.y) }
   const fromLine = from.line ?? (to.line === null ? null : hiddenLine(to.line, backward.y))
   const toLine = to.line ?? (from.line === null ? null : hiddenLine(from.line, forward.y))
-  const pace = {
-    progress,
-    x: zoomReach(from.time, to.time, progress),
-    y: zoomReach(from.price, to.price, progress),
-  }
+  const line = fromLine === null || toLine === null ? null : pairLines(fromLine, toLine)
+  const candles = pairCandles(from, to, forward, backward)
 
-  return {
-    bounds: {
-      left: lerp(from.bounds.left, to.bounds.left, progress),
-      right: lerp(from.bounds.right, to.bounds.right, progress),
-      top: lerp(from.bounds.top, to.bounds.top, progress),
-      bottom: lerp(from.bounds.bottom, to.bounds.bottom, progress),
-    },
-    time: blendScale(from.time, to.time, timeShift, pace.x),
-    price: blendScale(from.price, to.price, priceShift, pace.y),
-    priceTicks: blendTicks(from.priceTicks, to.priceTicks, (tick) => tick.price.toString(), pace.y),
-    timeTicks: blendTicks(from.timeTicks, to.timeTicks, (tick) => String(tick.unixSecs), pace.x),
-    line: fromLine === null || toLine === null ? null : blendLines(fromLine, toLine, pace),
-    candles: blendCandles(from, to, forward, backward, pace),
+  function frame(progress: number): Plot {
+    const pace = {
+      progress,
+      x: zoomReach(from.time, to.time, progress),
+      y: zoomReach(from.price, to.price, progress),
+    }
+    return {
+      bounds: {
+        left: lerp(from.bounds.left, to.bounds.left, progress),
+        right: lerp(from.bounds.right, to.bounds.right, progress),
+        top: lerp(from.bounds.top, to.bounds.top, progress),
+        bottom: lerp(from.bounds.bottom, to.bounds.bottom, progress),
+      },
+      time: blendScale(from.time, to.time, timeShiftSecs, pace.x),
+      price: blendScale(from.price, to.price, priceShiftBaseUnits, pace.y),
+      priceTicks: blendTicks(from.priceTicks, to.priceTicks, pace.y),
+      timeTicks: blendTicks(from.timeTicks, to.timeTicks, pace.x),
+      line: line === null ? null : blendLines(line, pace),
+      candles: candles.map((pair) => mixCandles(pair, pace)),
+    }
   }
+  return frame
 }

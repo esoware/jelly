@@ -52,7 +52,7 @@ export interface Candle {
   close: bigint
 }
 
-export interface Chart {
+interface Chart {
   currency: FiatCurrency
   candles: readonly Candle[]
 }
