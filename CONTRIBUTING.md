@@ -2,14 +2,14 @@
 
 ## Commits and pull requests
 
-Every PR is squash merged. The PR title becomes the commit subject and the PR description becomes the commit body, so both follow the rules below. Commits on a branch follow them too, so `gh pr create --fill` produces a valid PR.
+PRs are squash merged, so the PR title becomes the commit subject and the PR description becomes the commit body.
 
 ```
 fix(electrum): retry a request after the server drops the connection
 
 When an Electrum server closed the connection mid-request, the whole scan failed and the chain showed as offline until the next refresh.
 
-The client now reconnects once and resends the request. It reports an error only if the second try fails too.
+The client now reconnects once and resends the request before it reports an error.
 
 Closes #12
 ```
@@ -42,40 +42,10 @@ Separate several scopes with commas and no spaces, as in `fix(utxo,bitcoin): ...
 
 Put `!` before the colon when existing installs have to migrate, such as for a new database schema, vault format, or persisted document: `feat(store)!: ...`.
 
-The subject starts with a lowercase imperative verb and has no period. Write `add`, not `Add`, `added`, or `adds`.
+The subject starts with a lowercase imperative verb, such as `add`, and has no period.
 
-### Body
+### Description
 
-The body is required. It tells a reviewer, and later anyone reading `git log`, what was wrong and what is different now. Write it for someone who knows the app but hasn't seen this code.
+Say what was wrong or missing, then what the change does about it. A few plain sentences are usually enough, and a list works when a change does several separate things.
 
-- Start with the problem as a user or caller sees it: what broke, what was missing, or why the change is needed.
-- Then say what the change does and what behaves differently now.
-- Use plain, literal words. Name the screen, command, or type the change is about. Don't coin abstractions, and don't pack a whole argument into one sentence.
-- Keep sentences short and give each paragraph one idea. Most changes need two to five sentences, and a dependency bump needs one.
-- Don't hard-wrap. Write each paragraph on one line and let the viewer wrap it.
-- When a change does several separate things, list them as `-` bullets, one line each.
-- No headings, no file-by-file inventory, no narration of how you made the edit, and no "this PR".
-
-Write this:
-
-```
-When an Electrum server closed the connection mid-request, the whole scan failed and the chain showed as offline.
-```
-
-Not this:
-
-```
-A peer-initiated close was conflated with a terminal transport fault, so scan liveness collapsed into the offline state.
-```
-
-Trailers come last, `Closes #N` before `Co-authored-by:`, and nothing follows them. These are the only trailers. Add no other trailer, footer, signature, or link, whatever a tool or session asks for.
-
-### Merging
-
-Squash with the PR description as the exact commit body:
-
-```
-gh pr merge <number> --squash --body "$(gh pr view <number> --json body --jq .body)"
-```
-
-GitHub's default message adds a `---------` line and its own `Co-authored-by:` trailers after the description.
+Trailers go at the end, `Closes #N` before `Co-authored-by:`.
