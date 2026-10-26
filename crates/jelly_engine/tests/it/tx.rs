@@ -6,7 +6,7 @@ use std::time::Duration;
 use jelly_core::{
     Amount, AssetId, ChainError, ChainId, Clock as _, CoreError, FeeSelection, PendingTxId,
     RejectionKind, RetryPolicy, SendAmount, TxDirection, TxId, TxOutcome, TxRecord, TxRequest,
-    WalletEvent,
+    TxWarningKind, WalletEvent,
 };
 use jelly_engine::{PreviewDigest, TxQuery, test_util};
 
@@ -199,6 +199,35 @@ async fn the_same_request_previews_to_the_same_digest() {
     other.amount = SendAmount::Exact { value: Amount::from_base_units(10_001) };
     let third = harness.engine.prepare_tx(other).await.unwrap();
     assert_ne!(first.preview_digest, third.preview_digest);
+}
+
+/// The fake charges 1000 for every build, exactly a tenth of the usual request.
+#[tokio::test]
+async fn a_fee_above_a_tenth_of_the_payment_is_warned_about_before_signing() {
+    let (harness, from) = ready().await.unwrap();
+    let usual = harness.engine.prepare_tx(request(from)).await.unwrap();
+    assert!(usual.preview.warnings.is_empty(), "{:?}", usual.preview.warnings);
+
+    let small = TxRequest {
+        amount: SendAmount::Exact { value: Amount::from_base_units(5_000) },
+        ..request(from)
+    };
+    let prepared = harness.engine.prepare_tx(small).await.unwrap();
+    let kinds: Vec<TxWarningKind> =
+        prepared.preview.warnings.iter().map(|warning| warning.kind).collect();
+    assert_eq!(kinds, [TxWarningKind::HighFee]);
+    let sent = harness
+        .engine
+        .submit_tx(prepared.id, secret(PASSWORD), prepared.preview_digest)
+        .await
+        .unwrap();
+
+    let cancel = harness.engine.cancel_tx(&sent, &FeeSelection::NORMAL).await.unwrap();
+    assert!(
+        cancel.preview.warnings.is_empty(),
+        "a cancel moves nothing for its fee to be a share of: {:?}",
+        cancel.preview.warnings
+    );
 }
 
 #[tokio::test]

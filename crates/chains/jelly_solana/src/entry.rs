@@ -1,6 +1,6 @@
 use jelly_core::{
-    Address, AddressCodec, AddressError, ChainEntry, ChainSpec, CustomFee, FeeLevel, ImportedKey,
-    KeyError, KeyKind, KeyMaterial, ScriptKind, SecretText, Transport, payment_uri,
+    Address, AddressCodec, AddressError, Amount, ChainEntry, ChainSpec, CustomFee, FeeLevel,
+    ImportedKey, KeyError, KeyKind, KeyMaterial, ScriptKind, SecretText, Transport, payment_uri,
 };
 use jelly_keypair::Ed25519Key;
 use zeroize::Zeroizing;
@@ -21,6 +21,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::PriorityFee),
+    // A fee level pays at most 0.01 SOL of priority fee, so only a custom fee or a broken
+    // estimate comes to five times that.
+    high_fee: Amount::from_base_units(50_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "solana",

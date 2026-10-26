@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use jelly_core::{
-    BuildError, BuildRequest, ChainAdapter, ChainEntry, ChainId, ChainSpec, CustomFee, FeeLevel,
-    KeyKind, TokenId, Transport,
+    Amount, BuildError, BuildRequest, ChainAdapter, ChainEntry, ChainId, ChainSpec, CustomFee,
+    FeeLevel, KeyKind, TokenId, Transport,
 };
 use jelly_evm::{EvmCodec, EvmEntry, EvmParams};
 use jelly_net::{Endpoint, Network, ProbeReport};
@@ -20,6 +20,10 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::FeeCap),
+    // A token transfer to a new holder uses about 65000 gas, which cost about 0.052 ETH at
+    // the 800 gwei daily average of the May 2022 Otherside mint, the largest gas spike
+    // Ethereum has had.
+    high_fee: Amount::from_base_units(100_000_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,
     uri_scheme: "ethereum",

@@ -137,7 +137,7 @@ async fn a_sample_above_the_ceiling_is_capped_and_the_preview_says_so() {
 }
 
 #[tokio::test]
-async fn a_chosen_fee_is_never_capped_and_a_large_one_is_called_out() {
+async fn a_chosen_fee_is_never_capped() {
     let config = SolanaConfig { max_level_priority_fee_lamports: 1, ..SolanaConfig::default() };
     let harness = Harness::with(config);
     harness.node.priced().unwrap();
@@ -145,16 +145,9 @@ async fn a_chosen_fee_is_never_capped_and_a_large_one_is_called_out() {
     let quote =
         harness.adapter.quote_fee(&with_chosen_fee(PEER, native(), 1_000, 1_000)).await.unwrap();
     assert_eq!(quote.fee, Amount::from(common::BASE_FEE_LAMPORTS + 1_000));
-    let quiet =
+    let chosen =
         harness.adapter.build_tx(&with_chosen_fee(PEER, native(), 1_000, 1_000)).await.unwrap();
-    assert!(!common::warns(&quiet.preview.warnings, TxWarningKind::HighFee));
-
-    let large = harness
-        .adapter
-        .build_tx(&with_chosen_fee(PEER, native(), 1_000, 60_000_000))
-        .await
-        .unwrap();
-    assert!(common::warns(&large.preview.warnings, TxWarningKind::HighFee));
+    assert!(!common::warns(&chosen.preview.warnings, TxWarningKind::HighFee));
 }
 
 #[tokio::test]

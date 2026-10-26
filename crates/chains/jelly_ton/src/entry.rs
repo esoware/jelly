@@ -1,6 +1,6 @@
 use jelly_core::{
-    Address, AddressCodec, AddressError, ChainEntry, ChainSpec, ImportedKey, KeyError, KeyKind,
-    KeyMaterial, ScriptKind, SecretText, Transport, phrase_words,
+    Address, AddressCodec, AddressError, Amount, ChainEntry, ChainSpec, ImportedKey, KeyError,
+    KeyKind, KeyMaterial, ScriptKind, SecretText, Transport, phrase_words,
 };
 use jelly_keypair::{
     Ed25519Key, HEX_KEY_FORMAT, decode_secret_hex, encode_secret_hex, is_secret_hex,
@@ -26,6 +26,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[],
     custom_fee: None,
+    // The most a network fee estimate may be. A jetton transfer adds the gas it attaches,
+    // so only an estimate far above the usual one passes this.
+    high_fee: Amount::from_base_units(100_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "ton",

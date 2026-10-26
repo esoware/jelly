@@ -5,10 +5,6 @@ use crate::fee::PAYMENT_AND_CHANGE;
 use crate::params::{ASSET, CHAIN, FEE_RATE_UNIT, RING_LEN, piconero};
 use crate::send::{Built, Plan};
 
-/// The fee above which monero-gui and Feather both mark a confirmation as a high
-/// fee, 0.01 XMR.
-const HIGH_FEE_PICONERO: u64 = 10_000_000_000;
-
 /// A scan gap wider than this warns that the view of the chain is stale.
 const STALE_SCAN_WARN_BLOCKS: u64 = 720;
 
@@ -93,15 +89,6 @@ fn warnings(config: &MoneroConfig, plan: &Plan, built: &Built) -> Vec<TxWarning>
         warnings.push(TxWarning::new(
             TxWarningKind::DroppedChange,
             "This payment uses the selected coins exactly and leaves no change.",
-        ));
-    }
-    if built.fee_piconero > HIGH_FEE_PICONERO {
-        warnings.push(TxWarning::new(
-            TxWarningKind::HighFee,
-            format!(
-                "The {} fee is unusually high for Monero. Check the fee level before signing.",
-                xmr(piconero(built.fee_piconero))
-            ),
         ));
     }
     if built.input_count >= config.inputs() {

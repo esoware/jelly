@@ -28,6 +28,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::Rate),
+    // A payment spending five inputs, about 410 vB, would need 2400 lit/vB to pay this, 240
+    // times the wallet's minimum. Half the fee a build refuses.
+    high_fee: Amount::from_base_units(1_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "litecoin",

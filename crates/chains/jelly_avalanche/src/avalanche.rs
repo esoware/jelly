@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use jelly_core::{
-    BuildError, BuildRequest, ChainAdapter, ChainEntry, ChainId, ChainSpec, CustomFee, FeeLevel,
-    KeyKind, TokenId, Transport,
+    Amount, BuildError, BuildRequest, ChainAdapter, ChainEntry, ChainId, ChainSpec, CustomFee,
+    FeeLevel, KeyKind, TokenId, Transport,
 };
 use jelly_evm::{EvmCodec, EvmEntry, EvmParams};
 use jelly_net::{Endpoint, Network, ProbeReport};
@@ -25,6 +25,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::FeeCap),
+    // A token transfer to a new holder, about 65000 gas, at about 15000 nAVAX, three times
+    // the 5000 nAVAX of the December 2023 inscription surge.
+    high_fee: Amount::from_base_units(1_000_000_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,
     uri_scheme: "ethereum",

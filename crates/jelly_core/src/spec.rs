@@ -1,8 +1,14 @@
+use crate::amount::Amount;
+use crate::asset::AssetId;
 use crate::chain::{ChainId, ScriptKind};
 use crate::error::KeyError;
 use crate::secret::KeyKind;
 use crate::transport::Transport;
-use crate::tx::{CustomFee, FeeLevel};
+use crate::tx::{CustomFee, FeeLevel, TxPreview, TxWarning, TxWarningKind};
+
+/// The share of a payment above which its fee is a large part of what it moves. Electrum
+/// warns from 5% of the amount sent, and Sparrow above 10% of every output, change included.
+const HIGH_FEE_PERCENT: u128 = 10;
 
 /// Templates use `{index}`, `{txid}`, and `{address}` placeholders.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +43,10 @@ pub struct ChainSpec {
     pub fee_levels: &'static [FeeLevel],
     /// What a custom fee names, or `None` when the chain takes only its levels.
     pub custom_fee: Option<CustomFee>,
+    /// The fee in the chain's coin above which a preview warns that it is unusually high.
+    /// It sits well above what the chain's costliest ordinary send paid at its worst
+    /// congestion, so it flags a mistake or a broken estimate and not a busy network.
+    pub high_fee: Amount,
     /// Whether a send can replace the account's next nonce.
     pub can_pin_nonce: bool,
     /// Whether a send can carry calldata in place of the generated transfer.
@@ -120,11 +130,53 @@ impl ChainSpec {
         });
         if is_websocket { Transport::WsJsonrpc } else { self.primary_transport }
     }
+
+    /// The warning `preview` needs when its fee looks wrong: above
+    /// [`ChainSpec::high_fee`], or else a large share of a payment in the chain's own coin.
+    ///
+    /// A preview whose adapter already warns about the fee, from what it knows of its own
+    /// market, gets none, so a preview carries one fee warning at most. A token payment is
+    /// counted in another unit than its fee, and a payment of nothing, such as a cancel, has
+    /// no share to take, so neither is measured against its fee.
+    pub fn high_fee_warning(&self, preview: &TxPreview) -> Option<TxWarning> {
+        if preview.warnings.iter().any(|warning| warning.kind == TxWarningKind::HighFee) {
+            return None;
+        }
+        let coin = |amount: Amount| {
+            format!("{} {}", amount.format(self.chain.native_decimals()), self.chain.ticker())
+        };
+        if preview.fee > self.high_fee {
+            return Some(TxWarning::new(
+                TxWarningKind::HighFee,
+                format!(
+                    "The {} fee is unusually high. {} transactions almost never cost more than {}.",
+                    coin(preview.fee),
+                    self.chain.display_name(),
+                    coin(self.high_fee)
+                ),
+            ));
+        }
+        let is_large_share = preview.asset == AssetId::Native(self.chain)
+            && !preview.amount.is_zero()
+            && preview.fee.base_units().saturating_mul(100)
+                > preview.amount.base_units().saturating_mul(HIGH_FEE_PERCENT);
+        is_large_share.then(|| {
+            TxWarning::new(
+                TxWarningKind::HighFee,
+                format!(
+                    "The {} fee exceeds {HIGH_FEE_PERCENT}% of the {} payment.",
+                    coin(preview.fee),
+                    coin(preview.amount)
+                ),
+            )
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::asset::TokenId;
 
     const UTXO: ChainSpec = ChainSpec {
         chain: ChainId::Bitcoin,
@@ -143,6 +195,7 @@ mod tests {
         fee_rate_unit: Some("sat/vB"),
         fee_levels: &FeeLevel::ALL,
         custom_fee: Some(CustomFee::Rate),
+        high_fee: Amount::from_base_units(1_000_000),
         can_pin_nonce: false,
         can_carry_data: false,
         uri_scheme: "bitcoin",
@@ -183,5 +236,84 @@ mod tests {
         assert_eq!(UTXO.transport_for("ws://127.0.0.1:8546"), Transport::WsJsonrpc);
         assert_eq!(UTXO.transport_for("https://node.example.org"), Transport::ElectrumSsl);
         assert_eq!(UTXO.transport_for("node.example.org:50002"), Transport::ElectrumSsl);
+    }
+
+    fn preview(asset: AssetId, amount: u128, fee: u128) -> TxPreview {
+        TxPreview {
+            chain: asset.chain(),
+            asset,
+            from: vec![String::from("bc1qsender")],
+            to: String::from("bc1qrecipient"),
+            destination_tag: None,
+            amount: Amount::from_base_units(amount),
+            fee: Amount::from_base_units(fee),
+            details: Vec::new(),
+            warnings: Vec::new(),
+        }
+    }
+
+    const BITCOIN: AssetId = AssetId::Native(ChainId::Bitcoin);
+
+    fn fee_warning(message: &str) -> TxWarning {
+        TxWarning::new(TxWarningKind::HighFee, message)
+    }
+
+    #[test]
+    fn a_fee_above_the_chains_ceiling_is_called_unusually_high() {
+        assert_eq!(UTXO.high_fee_warning(&preview(BITCOIN, 100_000_000, 1_000_000)), None);
+        assert_eq!(
+            UTXO.high_fee_warning(&preview(BITCOIN, 100_000_000, 1_000_001)),
+            Some(fee_warning(
+                "The 0.01000001 BTC fee is unusually high. Bitcoin transactions almost never cost more than 0.01 BTC."
+            ))
+        );
+    }
+
+    #[test]
+    fn a_fee_above_a_tenth_of_the_payment_is_called_a_large_share() {
+        assert_eq!(UTXO.high_fee_warning(&preview(BITCOIN, 1_000, 100)), None, "exactly a tenth");
+        assert_eq!(
+            UTXO.high_fee_warning(&preview(BITCOIN, 1_000, 101)),
+            Some(fee_warning("The 0.00000101 BTC fee exceeds 10% of the 0.00001 BTC payment."))
+        );
+        assert!(
+            UTXO.high_fee_warning(&preview(BITCOIN, 294, 141)).is_some(),
+            "a fee can be most of a payment"
+        );
+    }
+
+    #[test]
+    fn a_fee_above_the_ceiling_is_named_once_even_when_it_is_also_a_large_share() {
+        assert_eq!(
+            UTXO.high_fee_warning(&preview(BITCOIN, 2_000_000, 1_500_000)),
+            Some(fee_warning(
+                "The 0.015 BTC fee is unusually high. Bitcoin transactions almost never cost more than 0.01 BTC."
+            ))
+        );
+    }
+
+    #[test]
+    fn a_token_payment_or_a_payment_of_nothing_is_not_measured_against_its_fee() {
+        let ethereum = ChainSpec { chain: ChainId::Ethereum, ..UTXO };
+        let token = AssetId::Token(TokenId::UsdtErc20);
+        assert_eq!(ethereum.high_fee_warning(&preview(token, 1, 900_000)), None);
+        assert!(
+            ethereum.high_fee_warning(&preview(token, 1, 1_000_001)).is_some(),
+            "the ceiling still holds, because the fee is always in the chain's coin"
+        );
+        assert_eq!(UTXO.high_fee_warning(&preview(BITCOIN, 0, 5_000)), None, "a cancel");
+    }
+
+    #[test]
+    fn a_fee_the_adapter_already_flagged_gets_no_second_warning() {
+        let mut flagged = preview(BITCOIN, 1_000, 2_000_000);
+        flagged.warnings.push(TxWarning::new(
+            TxWarningKind::HighFee,
+            "The 500 sat/vB fee rate is far above the fast rate of 10 sat/vB. Check the fee before signing.",
+        ));
+        assert_eq!(UTXO.high_fee_warning(&flagged), None);
+
+        flagged.warnings = vec![TxWarning::new(TxWarningKind::Other, "Something else.")];
+        assert!(UTXO.high_fee_warning(&flagged).is_some(), "only a fee warning stands in");
     }
 }

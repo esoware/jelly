@@ -1,6 +1,6 @@
 use jelly_core::{
-    Address, AddressCodec, AddressError, ChainEntry, ChainSpec, CustomFee, FeeLevel, KeyError,
-    KeyKind, KeyMaterial, ScriptKind, Transport, payment_uri,
+    Address, AddressCodec, AddressError, Amount, ChainEntry, ChainSpec, CustomFee, FeeLevel,
+    KeyError, KeyKind, KeyMaterial, ScriptKind, Transport, payment_uri,
 };
 use zeroize::Zeroizing;
 
@@ -20,6 +20,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::Rate),
+    // monero-gui marks a fee above 0.01 XMR as a high fee, and Feather as an unrealistic
+    // one that may come from a malicious node.
+    high_fee: Amount::from_base_units(10_000_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "monero",

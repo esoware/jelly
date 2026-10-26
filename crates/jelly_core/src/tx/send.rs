@@ -29,6 +29,8 @@ wire_enum! {
     /// Why a preview carries a warning.
     pub enum TxWarningKind {
         DustOutput => "dust_output",
+        /// The fee looks wrong: far above the market's rate, above anything the chain
+        /// normally costs, or a large share of the payment. A preview carries one at most.
         HighFee => "high_fee",
         DroppedChange => "dropped_change",
         AmbiguousAddress => "ambiguous_address",

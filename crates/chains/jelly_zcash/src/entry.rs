@@ -1,6 +1,6 @@
 use jelly_core::{
-    Address, AddressCodec, AddressError, ChainEntry, ChainSpec, CustomFee, FeeLevel, ImportedKey,
-    KeyError, KeyKind, KeyMaterial, ScriptKind, SecretText, Transport, payment_uri,
+    Address, AddressCodec, AddressError, Amount, ChainEntry, ChainSpec, CustomFee, FeeLevel,
+    ImportedKey, KeyError, KeyKind, KeyMaterial, ScriptKind, SecretText, Transport, payment_uri,
 };
 use jelly_keypair::{
     HEX_KEY_FORMAT, Secp256k1Key, decode_secret_hex, is_secret_hex, wif_decode, wif_encode,
@@ -30,6 +30,10 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[FeeLevel::Normal],
     custom_fee: Some(CustomFee::Total),
+    // The ZIP 317 fee of 100 logical actions at 5000 zatoshis each. A custom fee may be four
+    // times the ZIP 317 fee, so a payment spending up to 25 inputs stays under it at any
+    // fee a build takes.
+    high_fee: Amount::from_base_units(500_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "zcash",

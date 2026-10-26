@@ -183,6 +183,27 @@ fn each_table_offers_the_fee_levels_its_market_prices() {
     }
 }
 
+/// A high-fee warning above the fee a build refuses could never show.
+///
+/// A flat market pays its reference rate at every level, so its warning sits at what the
+/// largest standard transaction pays at that rate, which only a custom rate passes.
+#[test]
+fn each_tables_high_fee_warning_sits_under_the_fee_it_refuses() {
+    for params in TABLES {
+        let high_fee = spec(&params).unwrap().high_fee;
+        assert!(high_fee < params.fee_ceiling, "{}", params.chain);
+        if params.fee_market == FeeMarket::Flat {
+            assert_eq!(
+                high_fee.base_units() * 1000,
+                u128::from(params.min_tx_fee.sat_per_kwu())
+                    * u128::from(params.max_standard_weight.to_wu()),
+                "{}",
+                params.chain
+            );
+        }
+    }
+}
+
 #[test]
 fn only_bitcoin_cash_signs_with_a_fork_id_and_carries_tokens() {
     for params in TABLES {

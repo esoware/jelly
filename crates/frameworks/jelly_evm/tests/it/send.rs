@@ -258,8 +258,14 @@ async fn a_send_max_native_spends_the_balance_exactly() {
         "send max reserves the worst case, and what the base fee leaves unused is refunded"
     );
     assert!(
-        preview.warnings.iter().any(|warning| warning.kind == TxWarningKind::HighFee),
+        preview.warnings.iter().any(|warning| warning.kind == TxWarningKind::Other
+            && warning.message.starts_with("At the maximum gas fee, this leaves")),
         "{:?}",
+        preview.warnings
+    );
+    assert!(
+        preview.warnings.iter().all(|warning| warning.kind != TxWarningKind::HighFee),
+        "what a send-max leaves says nothing about whether the fee is wrong: {:?}",
         preview.warnings
     );
 }

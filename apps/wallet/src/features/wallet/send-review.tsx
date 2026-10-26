@@ -3,9 +3,10 @@ import type { ComponentProps } from "react"
 
 import { isSubmitting, preparedOf } from "@/features/wallet/send-state.ts"
 import type { SendState } from "@/features/wallet/send-state.ts"
-import type { PendingTxId, TxPreview, TxWarningKind } from "@/ipc/bindings.gen.ts"
-import { addAmounts } from "@/lib/amount.ts"
+import type { FiatCurrency, PendingTxId, TxPreview, TxWarningKind } from "@/ipc/bindings.gen.ts"
+import { ZERO_AMOUNT, addAmounts, pow10 } from "@/lib/amount.ts"
 import { chainMeta, formatAddressList, nativeAsset } from "@/lib/chain.ts"
+import { PRICE_DECIMALS, formatFiat } from "@/lib/fiat.ts"
 import { useFiatCurrency, useFiatValue, useIsFiatStale } from "@/store.ts"
 import { Button } from "@/ui/button.tsx"
 import { Callout } from "@/ui/callout.tsx"
@@ -122,6 +123,51 @@ const WARNING_CALLOUTS = {
   other: { tone: "warn", heading: "Review before sending" },
 } satisfies Record<TxWarningKind, Pick<ComponentProps<typeof Callout>, "tone" | "heading">>
 
+const FIAT_UNIT = pow10(PRICE_DECIMALS)
+
+const HIGH_FEE_FIAT = {
+  usd: 500n * FIAT_UNIT,
+  eur: 450n * FIAT_UNIT,
+  gbp: 400n * FIAT_UNIT,
+  aud: 750n * FIAT_UNIT,
+  cad: 700n * FIAT_UNIT,
+  jpy: 75_000n * FIAT_UNIT,
+  chf: 400n * FIAT_UNIT,
+} satisfies Record<FiatCurrency, bigint>
+
+const HIGH_FEE_PERCENT = 10n
+
+const WHOLE_PERCENT = 100n
+
+interface FiatFeeWarningProps {
+  preview: TxPreview
+}
+
+function FiatFeeWarning({ preview }: FiatFeeWarningProps) {
+  const feeValue = useFiatValue(preview.fee, nativeAsset(preview.chain))
+  const amountValue = useFiatValue(preview.amount, preview.asset)
+  const currency = useFiatCurrency()
+  if (feeValue === null || preview.warnings.some((warning) => warning.kind === "high_fee")) {
+    return null
+  }
+  const ceiling = HIGH_FEE_FIAT[currency]
+  let message: string | null = null
+  if (feeValue > ceiling) {
+    message = `The ${formatFiat(feeValue, currency)} fee is unusually high. Transactions almost never cost more than ${formatFiat(ceiling, currency)}.`
+  } else if (
+    preview.asset.kind === "token" &&
+    amountValue !== null &&
+    amountValue > ZERO_AMOUNT &&
+    feeValue * WHOLE_PERCENT > amountValue * HIGH_FEE_PERCENT
+  ) {
+    message = `The ${formatFiat(feeValue, currency)} fee exceeds ${String(HIGH_FEE_PERCENT)}% of the ${formatFiat(amountValue, currency)} payment.`
+  }
+  if (message === null) {
+    return null
+  }
+  return <Callout {...WARNING_CALLOUTS.high_fee}>{message}</Callout>
+}
+
 interface ReviewStepProps {
   state: SendState
   onBack: () => void
@@ -166,6 +212,7 @@ export function ReviewStep({ state, onBack, onConfirm }: ReviewStepProps) {
                 {warning.message}
               </Callout>
             ))}
+            <FiatFeeWarning preview={preview} />
 
             <Card className="flex flex-col gap-1 p-3 text-body">
               <p className="flex flex-wrap items-baseline gap-x-2">

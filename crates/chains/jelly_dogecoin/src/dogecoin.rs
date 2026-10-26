@@ -30,6 +30,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &[FeeLevel::Normal],
     custom_fee: Some(CustomFee::Rate),
+    // What the largest standard transaction, 100000 bytes, pays at the recommended
+    // 0.01 DOGE/kB.
+    high_fee: Amount::from_base_units(100_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "dogecoin",

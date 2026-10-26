@@ -1,6 +1,6 @@
 use jelly_core::{
-    Address, AddressCodec, AddressError, ChainEntry, ChainSpec, CustomFee, FeeLevel, ImportedKey,
-    KeyError, KeyKind, KeyMaterial, ScriptKind, SecretText, Transport,
+    Address, AddressCodec, AddressError, Amount, ChainEntry, ChainSpec, CustomFee, FeeLevel,
+    ImportedKey, KeyError, KeyKind, KeyMaterial, ScriptKind, SecretText, Transport,
 };
 use jelly_keypair::{
     HEX_KEY_FORMAT, Secp256k1Key, decode_secret_hex, encode_secret_hex, is_secret_hex,
@@ -22,6 +22,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[FeeLevel::Normal],
     custom_fee: Some(CustomFee::Total),
+    // The cap xrpl.js puts on a fee it fills in. A payment fee over 0.1 XRP is refused, so
+    // only an account deletion, whose fee is the owner reserve, can come near it.
+    high_fee: Amount::from_base_units(2_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "xrpl",

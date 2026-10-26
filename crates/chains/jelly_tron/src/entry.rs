@@ -1,6 +1,6 @@
 use jelly_core::{
-    Address, AddressCodec, AddressError, ChainEntry, ChainSpec, ImportedKey, KeyError, KeyKind,
-    KeyMaterial, ScriptKind, SecretText, Transport, payment_uri,
+    Address, AddressCodec, AddressError, Amount, ChainEntry, ChainSpec, ImportedKey, KeyError,
+    KeyKind, KeyMaterial, ScriptKind, SecretText, Transport, payment_uri,
 };
 use jelly_keypair::{Secp256k1Key, export_web3_key, import_web3_key, recognize_web3_key};
 use zeroize::Zeroizing;
@@ -23,6 +23,10 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[],
     custom_fee: None,
+    // A USDT transfer to an address that holds none burns about 131000 energy, which is
+    // 13 TRX at the 100 sun energy price of August 2025 and was 55 TRX at 420 sun, before
+    // two governance cuts.
+    high_fee: Amount::from_base_units(100_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "tron",
