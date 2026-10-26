@@ -1,6 +1,6 @@
 use jelly_core::{
-    Address, AddressCodec, AddressError, ChainEntry, ChainSpec, ImportedKey, KeyError, KeyKind,
-    KeyMaterial, ScriptKind, SecretText, Transport, payment_uri,
+    Address, AddressCodec, AddressError, Amount, ChainEntry, ChainSpec, ImportedKey, KeyError,
+    KeyKind, KeyMaterial, ScriptKind, SecretText, Transport, payment_uri,
 };
 use jelly_keypair::{Secp256k1Key, export_web3_key, import_web3_key, recognize_web3_key};
 use zeroize::Zeroizing;
@@ -23,6 +23,10 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[],
     custom_fee: None,
+    // About $4.95 at the October 2026 price of $0.33. It sits above the 6.5 to 13.4 TRX a
+    // USDT transfer that no staked energy covers always burns, so such a transfer does not
+    // warn. A TRX transfer costs nothing or about 0.27 TRX of bandwidth.
+    high_fee: Amount::from_base_units(15_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "tron",

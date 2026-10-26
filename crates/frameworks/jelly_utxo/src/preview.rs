@@ -13,8 +13,6 @@ const HIGH_RATE_MULTIPLE: u64 = 20;
 /// A rate under `1 / LOW_RATE_DIVISOR` of the network's slow rate gets a warning,
 /// because a rate just under it still confirms.
 const LOW_RATE_DIVISOR: u64 = 2;
-/// A fee above `1 / HIGH_FEE_DIVISOR` of what is sent gets a warning.
-const HIGH_FEE_DIVISOR: u128 = 10;
 
 /// The fee context the preview warnings compare against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,8 +48,6 @@ struct PreviewOutput<'a> {
 struct DecodedTx<'a> {
     inputs: Vec<PreviewInput>,
     outputs: Vec<PreviewOutput<'a>>,
-    /// Value leaving the wallet, which is every output that is not change.
-    sent: Amount,
     /// What the recorded recipient receives.
     paid: Amount,
     fee: Amount,
@@ -105,10 +101,6 @@ fn decode<'a>(params: &UtxoParams, payload: &'a UtxoPayload) -> Result<DecodedTx
         })
         .collect();
 
-    let sent = Amount::checked_sum(
-        outputs.iter().filter(|output| !output.is_change).map(|output| output.value),
-    )
-    .ok_or_else(|| UtxoError::overflow("an output total"))?;
     let paid = recipient_index
         .and_then(|index| outputs.get(index))
         .map_or(Amount::ZERO, |output| output.value);
@@ -117,7 +109,6 @@ fn decode<'a>(params: &UtxoParams, payload: &'a UtxoPayload) -> Result<DecodedTx
     Ok(DecodedTx {
         inputs,
         outputs,
-        sent,
         paid,
         fee: payload.fee(),
         vsize: vsize(weight),
@@ -153,8 +144,8 @@ fn warnings(
                 TxWarningKind::DustOutput,
                 format!(
                     "The output of {} to {to} is below the {} network minimum. Nodes will reject it.",
-                    params.format_amount(output.value),
-                    params.format_amount(threshold)
+                    params.chain.format_amount(output.value),
+                    params.chain.format_amount(threshold)
                 ),
             ));
         }
@@ -165,7 +156,7 @@ fn warnings(
             TxWarningKind::DroppedChange,
             format!(
                 "The remaining {} would cost more to return as change. It is added to the fee.",
-                params.format_amount(intent.donated)
+                params.chain.format_amount(intent.donated)
             ),
         ));
     }
@@ -186,18 +177,6 @@ fn warnings(
     }
 
     warnings.extend(rate_warning(params, decoded, quote, intent.pays_for.is_some()));
-
-    let tenth = decoded.sent.base_units().div_euclid(HIGH_FEE_DIVISOR);
-    if !decoded.sent.is_zero() && decoded.fee.base_units() > tenth {
-        warnings.push(TxWarning::new(
-            TxWarningKind::HighFee,
-            format!(
-                "The {} fee exceeds 10% of the {} payment.",
-                params.format_amount(decoded.fee),
-                params.format_amount(decoded.sent)
-            ),
-        ));
-    }
 
     if let Some(replaced) = intent.replaces {
         warnings.push(TxWarning::new(
@@ -224,8 +203,8 @@ fn warnings(
                 TxWarningKind::Replacement,
                 format!(
                     "The higher fee reduces the payment to {} instead of {}.",
-                    params.format_amount(reduction.to),
-                    params.format_amount(reduction.from)
+                    params.chain.format_amount(reduction.to),
+                    params.chain.format_amount(reduction.from)
                 ),
             ));
         }
@@ -301,7 +280,7 @@ fn flatten(
             input.address.as_deref().map_or_else(String::new, |address| format!(" from {address}"));
         details.push(TxDetail::new(
             format!("Input {index}"),
-            format!("{} - {}{from}", input.outpoint, params.format_amount(input.value)),
+            format!("{} - {}{from}", input.outpoint, params.chain.format_amount(input.value)),
         ));
     }
     details.push(TxDetail::new("Outputs", decoded.outputs.len().to_string()));
@@ -310,10 +289,10 @@ fn flatten(
         let to = output.address.as_deref().unwrap_or("a non-standard script");
         details.push(TxDetail::new(
             format!("Output {index}"),
-            format!("{} to {to}{note}", params.format_amount(output.value)),
+            format!("{} to {to}{note}", params.chain.format_amount(output.value)),
         ));
     }
-    details.push(TxDetail::new("Fee", params.format_amount(decoded.fee)));
+    details.push(TxDetail::new("Fee", params.chain.format_amount(decoded.fee)));
     details.push(TxDetail::new("Fee rate", params.format_rate(decoded.rate)));
     if params.has_segwit {
         details.push(TxDetail::new("Virtual size", format!("{} vB", decoded.vsize)));
@@ -321,7 +300,7 @@ fn flatten(
         details.push(TxDetail::new("Size", format!("{} bytes", decoded.vsize)));
     }
     if !intent.donated.is_zero() {
-        details.push(TxDetail::new("To the miner", params.format_amount(intent.donated)));
+        details.push(TxDetail::new("To the miner", params.chain.format_amount(intent.donated)));
     }
 
     TxPreview {
@@ -369,7 +348,6 @@ mod tests {
         assert_eq!(payment.address.as_deref(), Some(scene.theirs.address()));
         assert_eq!(change.address.as_deref(), Some(scene.ours.address()));
         assert_eq!(decoded.paid, units(50_000));
-        assert_eq!(decoded.sent, units(50_000));
         let input_total = Amount::checked_sum(decoded.inputs.iter().map(|input| input.value));
         let output_total = Amount::checked_sum(decoded.outputs.iter().map(|output| output.value));
         assert_eq!(input_total, output_total.and_then(|total| total.checked_add(decoded.fee)));
@@ -607,19 +585,6 @@ mod tests {
             .expect("the rate is below the floor");
         assert!(warning.message.contains("below the 10 lit/vB network minimum"), "{warning:?}");
         assert!(!warning.message.contains("sat/vB"), "{warning:?}");
-    }
-
-    #[test]
-    fn a_fee_worth_more_than_a_tenth_of_the_payment_is_flagged() {
-        let scene = bitcoin_scene().unwrap();
-        // 294 base units paid with a 141 base unit fee.
-        let built = scene.build(Some(294), ONE_PER_VB, &scene.coins(&[200_000])).unwrap();
-        let rendered = preview(&scene.params, &built.payload, FLOOR_QUOTE).unwrap();
-        assert!(
-            rendered.warnings.iter().any(|warning| warning.message.contains("10%")),
-            "{:?}",
-            rendered.warnings
-        );
     }
 
     #[test]

@@ -1055,7 +1055,12 @@ export type TxWarning = {
 };
 
 /**  Why a preview carries a warning. */
-export type TxWarningKind = "dust_output" | "high_fee" | "dropped_change" | "ambiguous_address" | "remote_decoys" | "account_activation" | "account_deletion" | "rent_exemption" | "replacement" | 
+export type TxWarningKind = "dust_output" | 
+/**
+ *  The fee is unusually high: far above the market's rate, or above the chain's
+ *  high-fee limit.
+ */
+"high_fee" | "dropped_change" | "ambiguous_address" | "remote_decoys" | "account_activation" | "account_deletion" | "rent_exemption" | "replacement" | 
 /**  A second transaction that pays the fee of an unconfirmed one. */
 "child_pays" | "estimated" | "other";
 

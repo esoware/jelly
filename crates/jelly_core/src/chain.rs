@@ -1,3 +1,4 @@
+use crate::amount::Amount;
 use crate::wire_enum;
 
 wire_enum! {
@@ -76,6 +77,11 @@ impl ChainId {
             Self::Ton => "GRAM",
             Self::Monero => "XMR",
         }
+    }
+
+    /// An amount of the chain's own coin with its ticker, such as `0.0001 BTC`.
+    pub fn format_amount(self, amount: Amount) -> String {
+        format!("{} {}", amount.format(self.native_decimals()), self.ticker())
     }
 
     /// User-facing chain name. Do not display the wire string.

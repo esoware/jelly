@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use jelly_core::{
-    BuildError, BuildRequest, ChainAdapter, ChainEntry, ChainId, ChainSpec, CustomFee, FeeLevel,
-    KeyKind, TokenId, Transport,
+    Amount, BuildError, BuildRequest, ChainAdapter, ChainEntry, ChainId, ChainSpec, CustomFee,
+    FeeLevel, KeyKind, TokenId, Transport,
 };
 use jelly_evm::{EvmCodec, EvmEntry, EvmParams};
 use jelly_net::{Endpoint, Network, ProbeReport};
@@ -23,6 +23,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::FeeCap),
+    // About $2.10 at the October 2026 price of $2328. Gas costs about 0.02 gwei now, so even
+    // 100000 gas costs 0.000002 ETH.
+    high_fee: Amount::from_base_units(900_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,
     uri_scheme: "ethereum",

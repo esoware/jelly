@@ -5,7 +5,7 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 use jelly_core::{
-    AdapterSet, ChainAdapter, ChainId, CoreError, PendingTxId, TxPreview, UnsignedTx,
+    AdapterSet, ChainAdapter, ChainId, CoreError, PendingTxId, TxPreview, TxWarning, UnsignedTx,
     duration_millis,
 };
 use jelly_store::AddressRow;
@@ -35,8 +35,9 @@ pub struct PreviewDigest(#[cfg_attr(feature = "ipc", specta(type = String))] [u8
 impl PreviewDigest {
     pub const LEN: usize = 32;
 
-    /// The digest of `preview`. This and nothing else defines the binding.
-    fn of(preview: &TxPreview) -> Self {
+    /// The digest of `preview` as the user sees it, with `fee_warning` after its own
+    /// warnings. This and nothing else defines the binding.
+    fn of(preview: &TxPreview, fee_warning: Option<&TxWarning>) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(PREVIEW_DOMAIN);
         field(&mut hasher, preview.chain.as_str().as_bytes());
@@ -53,8 +54,11 @@ impl PreviewDigest {
             field(&mut hasher, detail.label.as_bytes());
             field(&mut hasher, detail.value.as_bytes());
         }
-        count(&mut hasher, preview.warnings.len());
-        for warning in &preview.warnings {
+        count(
+            &mut hasher,
+            preview.warnings.len().saturating_add(usize::from(fee_warning.is_some())),
+        );
+        for warning in preview.warnings.iter().chain(fee_warning) {
             field(&mut hasher, warning.kind.as_str().as_bytes());
             field(&mut hasher, warning.message.as_bytes());
         }
@@ -129,6 +133,10 @@ pub struct PreparedTx {
 /// what the digest covers and what the user approved. A second copy could disagree with
 /// what was signed.
 ///
+/// `unsigned` stays exactly as the adapter built it, because a signer may rebuild the
+/// preview from the payload and refuse one that differs. The engine's own fee warning is
+/// held beside it and joins the preview only in what the user sees and the digest covers.
+///
 /// `adapter` is the adapter that built it and holds its outpoint locks or nonce slot.
 /// Another adapter for the same chain, such as the one a rebuild puts in its place,
 /// never saw those reservations, so the transaction is only spendable while `adapter`
@@ -141,6 +149,7 @@ pub(crate) struct PendingTx {
     /// The first of them, whose address the transaction's sent record is filed under.
     pub(crate) record_address_id: i64,
     pub(crate) unsigned: UnsignedTx,
+    fee_warning: Option<TxWarning>,
     pub(crate) digest: PreviewDigest,
     pub(crate) adapter: Weak<dyn ChainAdapter>,
     created_elapsed_millis: u64,
@@ -150,6 +159,7 @@ impl PendingTx {
     pub(crate) fn new(
         signers: Vec<AddressRow>,
         unsigned: UnsignedTx,
+        fee_warning: Option<TxWarning>,
         adapter: &Arc<dyn ChainAdapter>,
         created_elapsed_millis: u64,
     ) -> Result<Self, CoreError> {
@@ -157,11 +167,12 @@ impl PendingTx {
             .first()
             .map(|row| row.id)
             .ok_or(CoreError::internal_without_source("a transaction has no source to sign it"))?;
-        let digest = PreviewDigest::of(&unsigned.preview);
+        let digest = PreviewDigest::of(&unsigned.preview, fee_warning.as_ref());
         Ok(Self {
             signers,
             record_address_id,
             unsigned,
+            fee_warning,
             digest,
             adapter: Arc::downgrade(adapter),
             created_elapsed_millis,
@@ -181,7 +192,9 @@ impl PendingTx {
     }
 
     pub(crate) fn view(&self, id: PendingTxId) -> PreparedTx {
-        PreparedTx { id, preview: self.unsigned.preview.clone(), preview_digest: self.digest }
+        let mut preview = self.unsigned.preview.clone();
+        preview.warnings.extend(self.fee_warning.clone());
+        PreparedTx { id, preview, preview_digest: self.digest }
     }
 
     fn is_expired(&self, now_millis: u64) -> bool {
@@ -286,7 +299,7 @@ mod tests {
     use jelly_core::{
         Amount, AssetId, ChainError, ChainOutcome, ChainSyncProgress, Deadline, DerivationPath,
         EventSink, FeeQuote, KeyMaterial, KeySource, SignedTx, TxDetail, TxId, TxPayload,
-        TxRequest, TxWarning, TxWarningKind, WatchedAddress,
+        TxRequest, TxWarningKind, WatchedAddress,
     };
     use serde::de::value::{Error as ValueError, StrDeserializer};
 
@@ -309,7 +322,7 @@ mod tests {
     /// A change to the framing has to fail here first.
     #[test]
     fn the_digest_is_frozen() {
-        let digest = PreviewDigest::of(&preview());
+        let digest = PreviewDigest::of(&preview(), None);
         assert_eq!(
             digest.to_string(),
             "b90d2746b3961cd04fe803bb3f99282e7082a223f67366aff29c1f8446055440"
@@ -318,7 +331,7 @@ mod tests {
 
     #[test]
     fn a_digest_round_trips_through_its_text() {
-        let digest = PreviewDigest::of(&preview());
+        let digest = PreviewDigest::of(&preview(), None);
         assert_eq!(PreviewDigest::parse(&digest.to_string()), Some(digest));
         assert_eq!(PreviewDigest::parse("not-a-digest"), None);
         assert_eq!(PreviewDigest::parse(""), None);
@@ -326,7 +339,7 @@ mod tests {
 
     #[test]
     fn only_the_lowercase_spelling_is_a_digest() {
-        let text = PreviewDigest::of(&preview()).to_string();
+        let text = PreviewDigest::of(&preview(), None).to_string();
         assert!(PreviewDigest::parse(&text).is_some());
         assert_eq!(PreviewDigest::parse(&text.to_uppercase()), None);
         let mixed = text.replacen('a', "A", 1);
@@ -344,42 +357,42 @@ mod tests {
 
     #[test]
     fn every_field_of_a_preview_changes_its_digest() {
-        let base = PreviewDigest::of(&preview());
+        let base = PreviewDigest::of(&preview(), None);
 
         let mut amount = preview();
         amount.amount = Amount::from_base_units(10_001);
-        assert_ne!(PreviewDigest::of(&amount), base);
+        assert_ne!(PreviewDigest::of(&amount, None), base);
 
         let mut fee = preview();
         fee.fee = Amount::from_base_units(251);
-        assert_ne!(PreviewDigest::of(&fee), base);
+        assert_ne!(PreviewDigest::of(&fee, None), base);
 
         let mut to = preview();
         to.to = String::from("bc1qelse");
-        assert_ne!(PreviewDigest::of(&to), base);
+        assert_ne!(PreviewDigest::of(&to, None), base);
 
         let mut source = preview();
         source.from.push(String::from("bc1qsecond"));
-        assert_ne!(PreviewDigest::of(&source), base);
+        assert_ne!(PreviewDigest::of(&source, None), base);
 
         let mut order = source.clone();
         order.from.reverse();
-        assert_ne!(PreviewDigest::of(&order), PreviewDigest::of(&source));
+        assert_ne!(PreviewDigest::of(&order, None), PreviewDigest::of(&source, None));
 
         let mut detail = preview();
         detail.details.push(TxDetail::new("Fee rate", "1 sat/vB"));
-        assert_ne!(PreviewDigest::of(&detail), base);
+        assert_ne!(PreviewDigest::of(&detail, None), base);
 
         let mut warning = preview();
         warning.warnings.push(TxWarning::new(TxWarningKind::DustOutput, "dust"));
-        assert_ne!(PreviewDigest::of(&warning), base);
+        assert_ne!(PreviewDigest::of(&warning, None), base);
 
         let mut tagged = preview();
         tagged.destination_tag = Some(0);
-        assert_ne!(PreviewDigest::of(&tagged), base);
+        assert_ne!(PreviewDigest::of(&tagged, None), base);
         let mut retagged = preview();
         retagged.destination_tag = Some(1);
-        assert_ne!(PreviewDigest::of(&retagged), PreviewDigest::of(&tagged));
+        assert_ne!(PreviewDigest::of(&retagged, None), PreviewDigest::of(&tagged, None));
     }
 
     /// Without length prefixing these previews would frame to the same bytes.
@@ -391,13 +404,13 @@ mod tests {
         let mut second = preview();
         second.from = vec![String::from("aabb")];
         second.to = String::new();
-        assert_ne!(PreviewDigest::of(&first), PreviewDigest::of(&second));
+        assert_ne!(PreviewDigest::of(&first, None), PreviewDigest::of(&second, None));
 
         let mut split = preview();
         split.from = vec![String::from("aa"), String::from("bb")];
         let mut joined = preview();
         joined.from = vec![String::from("aabb")];
-        assert_ne!(PreviewDigest::of(&split), PreviewDigest::of(&joined));
+        assert_ne!(PreviewDigest::of(&split, None), PreviewDigest::of(&joined, None));
     }
 
     /// Stands in for the adapter that built a transaction. Only its identity is read.
@@ -447,14 +460,26 @@ mod tests {
         once((ChainId::Bitcoin, ChainOutcome::Built(Arc::clone(adapter)))).collect()
     }
 
+    fn unsigned() -> UnsignedTx {
+        UnsignedTx { preview: preview(), payload: TxPayload::from_bytes(vec![1]) }
+    }
+
     fn built(adapter: &Arc<dyn ChainAdapter>, created_elapsed_millis: u64) -> PendingTx {
-        PendingTx::new(
-            vec![row()],
-            UnsignedTx { preview: preview(), payload: TxPayload::from_bytes(vec![1]) },
-            adapter,
-            created_elapsed_millis,
-        )
-        .unwrap()
+        PendingTx::new(vec![row()], unsigned(), None, adapter, created_elapsed_millis).unwrap()
+    }
+
+    /// A signer that rebuilds the preview from the payload refuses any other preview.
+    #[test]
+    fn the_engines_fee_warning_is_approved_but_never_handed_to_the_signer() {
+        let warning = TxWarning::new(TxWarningKind::HighFee, "The fee is high.");
+        let held =
+            PendingTx::new(vec![row()], unsigned(), Some(warning.clone()), &adapter(), 0).unwrap();
+        assert_eq!(held.unsigned, unsigned());
+
+        let view = held.view(PendingTxId::from_bytes([1u8; PendingTxId::LEN]));
+        assert_eq!(view.preview.warnings, [warning]);
+        assert_eq!(view.preview_digest, PreviewDigest::of(&view.preview, None));
+        assert_ne!(view.preview_digest, PreviewDigest::of(&preview(), None));
     }
 
     #[test]

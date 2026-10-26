@@ -1,8 +1,9 @@
+use crate::amount::Amount;
 use crate::chain::{ChainId, ScriptKind};
 use crate::error::KeyError;
 use crate::secret::KeyKind;
 use crate::transport::Transport;
-use crate::tx::{CustomFee, FeeLevel};
+use crate::tx::{CustomFee, FeeLevel, TxWarning, TxWarningKind};
 
 /// Templates use `{index}`, `{txid}`, and `{address}` placeholders.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +38,11 @@ pub struct ChainSpec {
     pub fee_levels: &'static [FeeLevel],
     /// What a custom fee names, or `None` when the chain takes only its levels.
     pub custom_fee: Option<CustomFee>,
+    /// The fee in the chain's coin above which a preview warns that it is more than an
+    /// everyday user would pay. It is about $2 at the coin's price when it was set, or more
+    /// on a chain where an ordinary send costs that much. It is a fixed amount because a
+    /// fiat price can be switched off or stale, and a warning rather than a refusal.
+    pub high_fee: Amount,
     /// Whether a send can replace the account's next nonce.
     pub can_pin_nonce: bool,
     /// Whether a send can carry calldata in place of the generated transfer.
@@ -120,6 +126,23 @@ impl ChainSpec {
         });
         if is_websocket { Transport::WsJsonrpc } else { self.primary_transport }
     }
+
+    /// The warning a preview needs when its `fee` is above [`ChainSpec::high_fee`].
+    ///
+    /// It is given even when the adapter warns about the fee, because an adapter judges the
+    /// fee against its market and this judges its size.
+    pub fn high_fee_warning(&self, fee: Amount) -> Option<TxWarning> {
+        (fee > self.high_fee).then(|| {
+            TxWarning::new(
+                TxWarningKind::HighFee,
+                format!(
+                    "The {} fee is more than {}. Make sure you mean to pay this much.",
+                    self.chain.format_amount(fee),
+                    self.chain.format_amount(self.high_fee)
+                ),
+            )
+        })
+    }
 }
 
 #[cfg(test)]
@@ -143,6 +166,7 @@ mod tests {
         fee_rate_unit: Some("sat/vB"),
         fee_levels: &FeeLevel::ALL,
         custom_fee: Some(CustomFee::Rate),
+        high_fee: Amount::from_base_units(1_000_000),
         can_pin_nonce: false,
         can_carry_data: false,
         uri_scheme: "bitcoin",
@@ -183,5 +207,16 @@ mod tests {
         assert_eq!(UTXO.transport_for("ws://127.0.0.1:8546"), Transport::WsJsonrpc);
         assert_eq!(UTXO.transport_for("https://node.example.org"), Transport::ElectrumSsl);
         assert_eq!(UTXO.transport_for("node.example.org:50002"), Transport::ElectrumSsl);
+    }
+
+    #[test]
+    fn a_fee_above_the_chains_limit_is_flagged_with_both_amounts() {
+        assert_eq!(UTXO.high_fee_warning(Amount::from_base_units(1_000_000)), None);
+        let expected =
+            "The 0.01000001 BTC fee is more than 0.01 BTC. Make sure you mean to pay this much.";
+        assert_eq!(
+            UTXO.high_fee_warning(Amount::from_base_units(1_000_001)),
+            Some(TxWarning::new(TxWarningKind::HighFee, expected))
+        );
     }
 }

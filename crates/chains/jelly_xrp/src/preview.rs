@@ -4,7 +4,7 @@ use crate::config::CHAIN;
 use crate::payload::{Payment, SendKind};
 
 pub(crate) fn xrp(drops: u64) -> String {
-    format!("{} {}", Amount::from(drops).format(CHAIN.native_decimals()), CHAIN.ticker())
+    CHAIN.format_amount(Amount::from(drops))
 }
 
 pub(crate) fn of(payment: &Payment) -> TxPreview {

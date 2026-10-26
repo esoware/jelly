@@ -6,7 +6,7 @@ use std::time::Duration;
 use jelly_core::{
     Amount, AssetId, ChainError, ChainId, Clock as _, CoreError, FeeSelection, PendingTxId,
     RejectionKind, RetryPolicy, SendAmount, TxDirection, TxId, TxOutcome, TxRecord, TxRequest,
-    WalletEvent,
+    TxWarningKind, WalletEvent,
 };
 use jelly_engine::{PreviewDigest, TxQuery, test_util};
 
@@ -199,6 +199,20 @@ async fn the_same_request_previews_to_the_same_digest() {
     other.amount = SendAmount::Exact { value: Amount::from_base_units(10_001) };
     let third = harness.engine.prepare_tx(other).await.unwrap();
     assert_ne!(first.preview_digest, third.preview_digest);
+}
+
+/// The fake's signer refuses any preview but the one it built, so the warning the engine
+/// adds cannot reach it.
+#[tokio::test]
+async fn a_fee_above_the_chains_limit_is_warned_about_and_still_signs() {
+    let (harness, from) = ready().await.unwrap();
+    let limit = jelly_chains::chains().spec(CHAIN).high_fee;
+    harness.builder.state(CHAIN).charge(limit.checked_add(Amount::from_base_units(1)).unwrap());
+    let prepared = harness.engine.prepare_tx(request(from)).await.unwrap();
+    let kinds: Vec<TxWarningKind> =
+        prepared.preview.warnings.iter().map(|warning| warning.kind).collect();
+    assert_eq!(kinds, [TxWarningKind::HighFee]);
+    harness.engine.submit_tx(prepared.id, secret(PASSWORD), prepared.preview_digest).await.unwrap();
 }
 
 #[tokio::test]

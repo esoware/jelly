@@ -194,7 +194,7 @@ fn warnings(
     }
     if plan.should_send_max && plan.token.is_none() {
         warnings.push(TxWarning::new(
-            TxWarningKind::HighFee,
+            TxWarningKind::Other,
             format!(
                 "At the maximum gas fee, this leaves {} and costs {} in fees.",
                 coins(left_wei, params),
@@ -203,7 +203,7 @@ fn warnings(
         ));
     } else if left_wei < worst_case_fee_wei {
         warnings.push(TxWarning::new(
-            TxWarningKind::HighFee,
+            TxWarningKind::Other,
             format!(
                 "This leaves {}, less than the {} fee. You may need more funds to send again.",
                 coins(left_wei, params),
@@ -225,8 +225,7 @@ fn gwei(wei: u128) -> String {
 }
 
 fn coins(wei: u128, params: &EvmParams) -> String {
-    let amount = Amount::from_base_units(wei).format(params.chain.native_decimals());
-    format!("{amount} {}", params.symbol())
+    params.chain.format_amount(Amount::from_base_units(wei))
 }
 
 #[cfg(test)]

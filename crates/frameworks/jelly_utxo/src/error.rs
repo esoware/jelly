@@ -20,19 +20,15 @@ pub enum UtxoError {
     #[error("{context} overflowed")]
     Overflow { context: &'static str },
     #[error(
-        "The amount of {} {} exceeds the network's limit of {} {} in one transaction.",
-        value.format(chain.native_decimals()),
-        chain.ticker(),
-        maximum.format(chain.native_decimals()),
-        chain.ticker()
+        "The amount of {} exceeds the network's limit of {} in one transaction.",
+        chain.format_amount(*value),
+        chain.format_amount(*maximum)
     )]
     AboveMaxMoney { value: Amount, maximum: Amount, chain: ChainId },
     #[error(
-        "The output of {} {} is below the network minimum of {} {}.",
-        value.format(chain.native_decimals()),
-        chain.ticker(),
-        threshold.format(chain.native_decimals()),
-        chain.ticker()
+        "The output of {} is below the network minimum of {}.",
+        chain.format_amount(*value),
+        chain.format_amount(*threshold)
     )]
     Dust { value: Amount, threshold: Amount, chain: ChainId },
     #[error(
@@ -42,11 +38,9 @@ pub enum UtxoError {
     )]
     BelowRelayFloor { rate: FeeRate, floor: FeeRate, unit: &'static str },
     #[error(
-        "The fee of {} {} exceeds Jelly's limit of {} {}. Choose a lower fee rate.",
-        fee.format(chain.native_decimals()),
-        chain.ticker(),
-        ceiling.format(chain.native_decimals()),
-        chain.ticker()
+        "The fee of {} exceeds Jelly's limit of {}. Choose a lower fee rate.",
+        chain.format_amount(*fee),
+        chain.format_amount(*ceiling)
     )]
     FeeCeiling { fee: Amount, ceiling: Amount, chain: ChainId },
     #[error(

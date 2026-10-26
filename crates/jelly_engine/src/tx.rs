@@ -248,9 +248,10 @@ impl WalletEngine {
                 "the adapter built a transaction for another chain",
             ));
         }
+        let fee_warning = self.inner.table.spec(chain).high_fee_warning(unsigned.preview.fee);
         let now_millis = self.inner.clock.elapsed_millis();
         let id = PendingTxId::from_bytes(*random_bytes::<{ PendingTxId::LEN }>()?);
-        let pending = PendingTx::new(signers, unsigned, adapter, now_millis)?;
+        let pending = PendingTx::new(signers, unsigned, fee_warning, adapter, now_millis)?;
         let view = pending.view(id);
         self.inner.pending.insert(id, pending);
         Ok(view)

@@ -7,6 +7,10 @@ use crate::config::CHAIN;
 use crate::fee::conventional_fee;
 use crate::payload::Payment;
 
+pub(crate) fn zec(zat: u64) -> String {
+    CHAIN.format_amount(Amount::from(zat))
+}
+
 pub(crate) fn of(payment: &Payment) -> TxPreview {
     let mut warnings = vec![TxWarning::new(
         TxWarningKind::Other,
@@ -18,9 +22,6 @@ pub(crate) fn of(payment: &Payment) -> TxPreview {
             "Change below the minimum output amount is added to the network fee.",
         ));
     }
-    let zec = |zat: u64| {
-        format!("{} {}", Amount::from(zat).format(CHAIN.native_decimals()), CHAIN.ticker())
-    };
     let mut details = vec![
         TxDetail::new("Payment type", "Transparent"),
         TxDetail::new("Inputs", payment.inputs.len().to_string()),

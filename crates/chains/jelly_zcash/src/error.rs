@@ -2,10 +2,7 @@ use jelly_core::{Amount, AssetId, ChainError, ClockError, CoreError, KeyError};
 use jelly_net::NetError;
 
 use crate::config::{CHAIN, DUST_ZAT};
-
-fn zec(zat: u64) -> String {
-    format!("{} {}", Amount::from(zat).format(CHAIN.native_decimals()), CHAIN.ticker())
-}
+use crate::preview::zec;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ZcashError {
@@ -55,10 +52,9 @@ impl From<ZcashError> for ChainError {
             },
             error @ ZcashError::Dust { amount_zat } => Self::InvalidInput(
                 format!(
-                    "The amount of {} {ticker} is below the minimum output amount of {} {ticker}.",
-                    Amount::from(amount_zat).format(CHAIN.native_decimals()),
-                    Amount::from(DUST_ZAT).format(CHAIN.native_decimals()),
-                    ticker = CHAIN.ticker(),
+                    "The amount of {} is below the minimum output amount of {}.",
+                    zec(amount_zat),
+                    zec(DUST_ZAT)
                 ),
                 Box::new(error),
             ),

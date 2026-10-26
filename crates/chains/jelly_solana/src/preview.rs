@@ -15,9 +15,6 @@ use crate::route::Leg;
 use crate::send::Plan;
 use crate::sign;
 
-/// A priority fee above 0.05 SOL gets a warning, the point at which Phantom warns.
-const HIGH_PRIORITY_FEE_LAMPORTS: u64 = 50_000_000;
-
 pub(crate) fn of(plan: &Plan, payload: &SolanaPayload) -> Result<TxPreview, SolanaError> {
     Ok(TxPreview {
         chain: CHAIN,
@@ -114,20 +111,9 @@ fn warnings(plan: &Plan) -> Vec<TxWarning> {
             "Simulation failed. A fallback compute limit determines the priority fee.",
         ));
     }
-    if let Ok(lamports) = plan.priority_fee()
-        && lamports > HIGH_PRIORITY_FEE_LAMPORTS
-    {
-        warnings.push(TxWarning::new(
-            TxWarningKind::HighFee,
-            format!(
-                "The {} priority fee is unusually high. Check it before signing.",
-                lamports_text(lamports)
-            ),
-        ));
-    }
     if plan.pricing.is_capped {
         warnings.push(TxWarning::new(
-            TxWarningKind::HighFee,
+            TxWarningKind::Estimated,
             "The quoted priority fee exceeds Jelly's limit. This estimate uses the limit.",
         ));
     }

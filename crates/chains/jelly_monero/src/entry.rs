@@ -1,6 +1,6 @@
 use jelly_core::{
-    Address, AddressCodec, AddressError, ChainEntry, ChainSpec, CustomFee, FeeLevel, KeyError,
-    KeyKind, KeyMaterial, ScriptKind, Transport, payment_uri,
+    Address, AddressCodec, AddressError, Amount, ChainEntry, ChainSpec, CustomFee, FeeLevel,
+    KeyError, KeyKind, KeyMaterial, ScriptKind, Transport, payment_uri,
 };
 use zeroize::Zeroizing;
 
@@ -20,6 +20,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::Rate),
+    // About $2.01 at the October 2026 price of $591. A payment spending one output costs
+    // about 0.00003 XMR at the unimportant tier, 0.00012 at normal and 0.0005 at elevated.
+    high_fee: Amount::from_base_units(3_400_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "monero",
