@@ -200,8 +200,6 @@ impl PendingTx {
     }
 }
 
-/// The adapter's preview with the engine's fee warning after its own, which is what the
-/// user approves.
 fn shown(preview: &TxPreview, fee_warning: Option<&TxWarning>) -> TxPreview {
     let mut shown = preview.clone();
     shown.warnings.extend(fee_warning.cloned());

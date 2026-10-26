@@ -236,9 +236,6 @@ impl WalletEngine {
     /// The preview's chain is what the digest covers and what picks the adapter that
     /// signs and broadcasts, so a transaction whose preview names another chain than the
     /// sources' is refused rather than held.
-    ///
-    /// The chain's high-fee warning is part of what the user approves, but the adapter
-    /// signs only what it built.
     fn hold(
         &self,
         chain: ChainId,

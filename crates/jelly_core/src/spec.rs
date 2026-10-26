@@ -144,31 +144,27 @@ impl ChainSpec {
         let coin = |amount: Amount| {
             format!("{} {}", amount.format(self.chain.native_decimals()), self.chain.ticker())
         };
-        if preview.fee > self.high_fee {
-            return Some(TxWarning::new(
-                TxWarningKind::HighFee,
-                format!(
-                    "The {} fee is more than {}. Make sure you mean to pay this much.",
-                    coin(preview.fee),
-                    coin(self.high_fee)
-                ),
-            ));
-        }
-        let is_large_share = preview.asset == AssetId::Native(self.chain)
+        let message = if preview.fee > self.high_fee {
+            format!(
+                "The {} fee is more than {}. Make sure you mean to pay this much.",
+                coin(preview.fee),
+                coin(self.high_fee)
+            )
+        } else if preview.asset == AssetId::Native(self.chain)
             && !preview.amount.is_zero()
             && !preview.warnings.iter().any(|warning| warning.kind.is_fixed_cost())
             && preview.fee.base_units().saturating_mul(100)
-                > preview.amount.base_units().saturating_mul(HIGH_FEE_PERCENT);
-        is_large_share.then(|| {
-            TxWarning::new(
-                TxWarningKind::HighFee,
-                format!(
-                    "The {} fee exceeds {HIGH_FEE_PERCENT}% of the {} payment.",
-                    coin(preview.fee),
-                    coin(preview.amount)
-                ),
+                > preview.amount.base_units().saturating_mul(HIGH_FEE_PERCENT)
+        {
+            format!(
+                "The {} fee exceeds {HIGH_FEE_PERCENT}% of the {} payment.",
+                coin(preview.fee),
+                coin(preview.amount)
             )
-        })
+        } else {
+            return None;
+        };
+        Some(TxWarning::new(TxWarningKind::HighFee, message))
     }
 }
 
@@ -305,8 +301,7 @@ mod tests {
 
     #[test]
     fn an_adapters_fee_warning_does_not_stand_in_for_the_chains() {
-        let rate = TxWarning::new(
-            TxWarningKind::HighFee,
+        let rate = fee_warning(
             "The 500 sat/vB fee rate is far above the fast rate of 10 sat/vB. Check the fee before signing.",
         );
         let mut small = preview(BITCOIN, 1_000, 500);
