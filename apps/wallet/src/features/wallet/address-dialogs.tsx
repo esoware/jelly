@@ -10,7 +10,6 @@ import {
   chainMeta,
   chainName,
   examplePath,
-  formatAddressList,
   hasScriptChoice,
   keyHolders,
 } from "@/lib/chain.ts"
@@ -36,6 +35,7 @@ import {
 import type { DialogStateProps } from "@/ui/dialog.tsx"
 import { Field } from "@/ui/field.tsx"
 import { Input } from "@/ui/input.tsx"
+import { MiddleTruncate } from "@/ui/middle-truncate.tsx"
 import { Mono } from "@/ui/mono.tsx"
 import { PasswordInput } from "@/ui/password-input.tsx"
 import { Select, SelectPopup, SelectItem, SelectTrigger } from "@/ui/select.tsx"
@@ -556,10 +556,21 @@ export function DeleteKeyDialog({
         <>
           Delete the private key for <Mono value={row?.address ?? ""} isFull />. The seed phrase
           cannot restore it, so export it first unless you no longer need it.
-          {others.length > 0
-            ? ` Its other addresses go with it: ${formatAddressList(others.map((entry) => entry.address))}.`
-            : null}
           {hasFunds ? " Funds are still held under this key." : null}
+          {others.length > 0 ? (
+            <>
+              {" Its other addresses go with it:"}
+              <span className="mt-1 flex flex-col gap-1">
+                {others.map((entry) => (
+                  <MiddleTruncate
+                    key={entry.id}
+                    value={entry.address}
+                    className="font-mono select-text"
+                  />
+                ))}
+              </span>
+            </>
+          ) : null}
         </>
       }
       confirmationText={DELETE_PHRASE}

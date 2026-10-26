@@ -124,6 +124,21 @@ function SourceFields({
 }: SourceFieldsProps) {
   const assets = assetsForChain(chain)
   const first = sources.at(0) ?? null
+  const soleSource = sources.length === 1 ? sources[0] : undefined
+  const sourceLabel =
+    soleSource === undefined ? (
+      <span className="truncate font-mono text-caption">
+        {sources.length === 0
+          ? CHOOSE_ADDRESS
+          : formatAddressList(sources.map((row) => row.address))}
+      </span>
+    ) : (
+      <MiddleTruncate
+        value={soleSource.address}
+        hasTooltip={false}
+        className="font-mono text-caption"
+      />
+    )
 
   return (
     <div className="flex gap-3">
@@ -135,13 +150,7 @@ function SourceFields({
               onSourcesChange(next.map(Number))
             }}
           >
-            <SelectTrigger className="w-full">
-              <span className="truncate font-mono text-caption">
-                {sources.length === 0
-                  ? CHOOSE_ADDRESS
-                  : formatAddressList(sources.map((row) => row.address))}
-              </span>
-            </SelectTrigger>
+            <SelectTrigger className="w-full">{sourceLabel}</SelectTrigger>
             <SourceOptions chain={chain} addresses={addresses} balanceFor={balanceFor} />
           </MultiSelect>
         ) : (
@@ -151,17 +160,7 @@ function SourceFields({
               onSourcesChange([Number(value)])
             }}
           >
-            <SelectTrigger className="w-full">
-              {first === null ? (
-                <span className="truncate font-mono text-caption">{CHOOSE_ADDRESS}</span>
-              ) : (
-                <MiddleTruncate
-                  value={first.address}
-                  hasTooltip={false}
-                  className="font-mono text-caption"
-                />
-              )}
-            </SelectTrigger>
+            <SelectTrigger className="w-full">{sourceLabel}</SelectTrigger>
             <SourceOptions chain={chain} addresses={addresses} balanceFor={balanceFor} />
           </Select>
         )}
