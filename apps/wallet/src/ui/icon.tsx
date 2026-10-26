@@ -84,7 +84,7 @@ const GLYPHS = {
 
 export type IconName = keyof typeof GLYPHS
 
-interface IconProps extends ComponentPropsWithoutRef<"svg"> {
+interface IconProps extends Omit<ComponentPropsWithoutRef<"svg">, "fill" | "stroke"> {
   name: IconName
 }
 
