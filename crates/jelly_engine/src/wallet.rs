@@ -10,6 +10,7 @@ use jelly_store::{NewWallet, WalletRow};
 use jelly_vault::{BlobKind, Vault, VaultPassword};
 use secrecy::{ExposeSecret as _, SecretString};
 use serde::{Deserialize, Serialize};
+use tokio::sync::MutexGuard;
 use zeroize::Zeroizing;
 
 use crate::chains::{enabled_chains, restore_heights};
@@ -141,10 +142,7 @@ impl WalletEngine {
         password: SecretString,
         passphrase: Option<SecretText>,
     ) -> Result<WalletRecord, CoreError> {
-        let _transition = self.inner.session.transition.lock().await;
-        if self.inner.cancel.is_cancelled() {
-            return Err(CoreError::Locked);
-        }
+        let _transition = self.begin_transition().await?;
         let row = self.inner.store.get_wallet(wallet_id).await?;
         let settings = self.inner.store.get_wallet_settings(wallet_id).await?;
         self.lock_inner(LockReason::Requested).await;
@@ -159,13 +157,13 @@ impl WalletEngine {
         .await?;
 
         let session =
-            Session::new(row.clone(), vault, keys, self.inner.clock.as_ref(), self.inner.table);
+            Session::new(row.id, vault, keys, self.inner.clock.as_ref(), self.inner.table);
         // Checked before the session is installed, so a wrong passphrase never
         // opens anything.
         self.verify_passphrase(&session).await?;
 
-        let record = self.wallet_record(row).await?;
-        self.install_session(session);
+        let record = self.wallet_record(row.clone()).await?;
+        self.install_session(session, &row);
         self.publish_adapters().await;
         Ok(record)
     }
@@ -183,17 +181,19 @@ impl WalletEngine {
         session.vault_write(move |vault| vault.change_password(&current, &new)).await
     }
 
-    pub async fn rename_wallet(
+    pub async fn update_wallet(
         &self,
         wallet_id: i64,
         name: &str,
-    ) -> Result<WalletRecord, CoreError> {
-        let _transition = self.inner.session.transition.lock().await;
-        let row = self.inner.store.rename_wallet(wallet_id, name.to_owned()).await?;
+        color: WalletColor,
+    ) -> Result<(), CoreError> {
+        let name = wallet_name(name)?;
+        let _transition = self.begin_transition().await?;
+        let row = self.inner.store.update_wallet(wallet_id, name, color).await?;
         if self.inner.session.state().wallet_id() == Some(wallet_id) {
             self.inner.session.publish(LockState::unlocked(&row));
         }
-        self.wallet_record(row).await
+        Ok(())
     }
 
     /// Erases a wallet's vault file, keychain master key, and every row. The
@@ -204,10 +204,7 @@ impl WalletEngine {
         password: SecretString,
         confirmation: &str,
     ) -> Result<(), CoreError> {
-        let _transition = self.inner.session.transition.lock().await;
-        if self.inner.cancel.is_cancelled() {
-            return Err(CoreError::Locked);
-        }
+        let _transition = self.begin_transition().await?;
         let row = self.inner.store.get_wallet(wallet_id).await?;
         if confirmation != row.name {
             return Err(CoreError::ConfirmationRequired { expected: row.name });
@@ -228,6 +225,15 @@ impl WalletEngine {
         self.inner.store.delete_wallet(wallet_id).await?;
         tracing::warn!(target: "jelly::engine::wallet", wallet_id, "wallet deleted");
         Ok(())
+    }
+
+    /// The transition lock, refusing once the engine has begun shutting down.
+    async fn begin_transition(&self) -> Result<MutexGuard<'_, ()>, CoreError> {
+        let transition = self.inner.session.transition.lock().await;
+        if self.inner.cancel.is_cancelled() {
+            return Err(CoreError::Locked);
+        }
+        Ok(transition)
     }
 
     fn vault_handle(&self, wallet_id: i64) -> Vault {
@@ -292,7 +298,7 @@ impl WalletEngine {
     ) -> Result<CreatedWallet, CoreError> {
         require_new_password(&password)?;
         let new = NewWallet {
-            name: name.to_owned(),
+            name: wallet_name(name)?,
             color,
             passphrase_policy: passphrase.policy(),
             account_index: ACCOUNT_INDEX,
@@ -311,10 +317,7 @@ impl WalletEngine {
         password: VaultPassword,
         seed: NewSeed,
     ) -> Result<WalletRecord, CoreError> {
-        let _transition = self.inner.session.transition.lock().await;
-        if self.inner.cancel.is_cancelled() {
-            return Err(CoreError::Locked);
-        }
+        let _transition = self.begin_transition().await?;
         self.lock_inner(LockReason::Requested).await;
         let row = self.allocate_wallet(new).await?;
         let handle = self.vault_handle(row.id);
@@ -335,8 +338,9 @@ impl WalletEngine {
                 return Err(error);
             }
         };
-        let session = Session::new(row, vault, keys, self.inner.clock.as_ref(), self.inner.table);
-        self.install_session(session);
+        let session =
+            Session::new(row.id, vault, keys, self.inner.clock.as_ref(), self.inner.table);
+        self.install_session(session, &row);
         self.publish_adapters().await;
         Ok(record)
     }
@@ -420,6 +424,14 @@ fn require_new_password(password: &SecretString) -> Result<(), CoreError> {
     Ok(())
 }
 
+fn wallet_name(name: &str) -> Result<String, CoreError> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err(CoreError::invalid_input("name", "Name the wallet."));
+    }
+    Ok(trimmed.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::mpsc;
@@ -436,19 +448,20 @@ mod tests {
     use crate::test_util::config;
 
     #[tokio::test]
-    async fn renaming_waits_for_a_lock_transition_and_keeps_the_wallet_locked() {
+    async fn editing_waits_for_a_lock_transition_and_keeps_the_wallet_locked() {
         let harness = harness().await;
         let engine = &harness.engine;
         let wallet = seed_wallet(engine, "original").await;
         let transition = engine.inner.session.transition.lock().await;
-        let mut renaming = Box::pin(engine.rename_wallet(wallet.id, "renamed"));
-        timeout(Duration::from_millis(100), &mut renaming)
+        let mut editing = Box::pin(engine.update_wallet(wallet.id, "renamed", wallet.color));
+        timeout(Duration::from_millis(100), &mut editing)
             .await
-            .expect_err("renaming waits for the transition");
+            .expect_err("editing waits for the transition");
 
         engine.lock_inner(LockReason::Requested).await;
         drop(transition);
-        assert_eq!(renaming.await.unwrap().name, "renamed");
+        editing.await.unwrap();
+        assert_eq!(engine.inner.store.get_wallet(wallet.id).await.unwrap().name, "renamed");
         assert!(!engine.lock_state_now().is_unlocked());
         assert!(engine.inner.session.current().is_none());
     }

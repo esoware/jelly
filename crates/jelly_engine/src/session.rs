@@ -80,7 +80,7 @@ impl LockState {
 /// neither background work nor the interface refreshing after it can hold the session
 /// open.
 pub(crate) struct Session {
-    wallet: WalletRow,
+    wallet_id: i64,
     table: &'static ChainTable,
     /// Vault writes and Argon2id reauthentication run on the blocking pool. Reads of the
     /// decrypted payload run inline.
@@ -98,20 +98,20 @@ pub(crate) struct Session {
 
 impl fmt::Debug for Session {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Session").field("wallet_id", &self.wallet.id).finish_non_exhaustive()
+        f.debug_struct("Session").field("wallet_id", &self.wallet_id).finish_non_exhaustive()
     }
 }
 
 impl Session {
     pub(crate) fn new(
-        wallet: WalletRow,
+        wallet_id: i64,
         vault: UnlockedVault,
         keys: SeedKeys,
         clock: &dyn Clock,
         table: &'static ChainTable,
     ) -> Self {
         Self {
-            wallet,
+            wallet_id,
             table,
             vault: Arc::new(RwLock::new(vault)),
             keys,
@@ -121,12 +121,8 @@ impl Session {
         }
     }
 
-    pub(crate) const fn wallet(&self) -> &WalletRow {
-        &self.wallet
-    }
-
     pub(crate) const fn wallet_id(&self) -> i64 {
-        self.wallet.id
+        self.wallet_id
     }
 
     pub(crate) fn touch(&self, clock: &dyn Clock) {
@@ -211,8 +207,9 @@ impl Session {
 #[derive(Debug)]
 pub(crate) struct SessionSlot {
     current: RwLock<Option<Arc<Session>>>,
-    /// Held through retirement and through creation or unlock. Publication outside those
-    /// relies on the slot's read guard (see `rebuild_adapters`).
+    /// Held through retirement and through creating, unlocking, editing, or deleting a
+    /// wallet. Publication outside those relies on the slot's read guard (see
+    /// `rebuild_adapters`).
     pub(crate) transition: Mutex<()>,
     state: watch::Sender<LockState>,
     timeout: watch::Sender<Duration>,
@@ -247,8 +244,16 @@ impl SessionSlot {
         self.state.borrow().clone()
     }
 
+    /// Sends nothing when the state is unchanged, because subscribers treat every
+    /// notification as a lock or unlock.
     pub(crate) fn publish(&self, state: LockState) {
-        self.state.send_replace(state);
+        self.state.send_if_modified(|current| {
+            if *current == state {
+                return false;
+            }
+            *current = state;
+            true
+        });
     }
 
     fn subscribe(&self) -> watch::Receiver<LockState> {
@@ -336,14 +341,12 @@ impl WalletEngine {
             .ok_or(CoreError::Locked)
     }
 
-    pub(crate) fn install_session(&self, session: Session) {
-        let state = LockState::unlocked(session.wallet());
+    pub(crate) fn install_session(&self, session: Session, wallet: &WalletRow) {
         let cancel = session.cancel.clone();
-        let wallet_id = session.wallet_id();
         self.inner.session.install(Arc::new(session));
-        self.inner.session.publish(state);
+        self.inner.session.publish(LockState::unlocked(wallet));
         self.spawn_idle_watch(cancel);
-        tracing::info!(target: "jelly::engine::session", wallet_id, "wallet unlocked");
+        tracing::info!(target: "jelly::engine::session", wallet_id = wallet.id, "wallet unlocked");
     }
 
     /// The caller holds the transition lock. Retirement owns the send guard even if its

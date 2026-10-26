@@ -22,7 +22,7 @@
     "allow-unlock-wallet",
     "allow-lock-wallet",
     "allow-change-password",
-    "allow-rename-wallet",
+    "allow-update-wallet",
     "allow-delete-wallet",
     "allow-get-lock-state",
     "allow-touch-session",

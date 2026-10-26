@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use jelly_core::{
     ChainId, Clock, CursorBytes, CursorScope, EndpointHealthRecord, EndpointOverride,
-    HeldReservation, ReservationSlot, ScanAdvance, ScanStream,
+    HeldReservation, ReservationSlot, ScanAdvance, ScanStream, WalletColor,
 };
 use rusqlite::Connection;
 use tokio::sync::Mutex;
@@ -114,8 +114,8 @@ forward! { read =>
 
 forward! { transact =>
     fn create_wallet(new: NewWallet) -> WalletRow = |writer| writer.create_wallet(&new);
-    fn rename_wallet(wallet_id: i64, name: String) -> WalletRow =
-        |writer| writer.rename_wallet(wallet_id, &name);
+    fn update_wallet(wallet_id: i64, name: String, color: WalletColor) -> WalletRow =
+        |writer| writer.update_wallet(wallet_id, &name, &color);
     fn delete_wallet(wallet_id: i64) -> () = |writer| writer.delete_wallet(wallet_id);
     fn set_chain_state(wallet_id: i64, chain: ChainId, patch: ChainStatePatch) -> () =
         |writer| writer.set_chain_state(wallet_id, chain, patch);

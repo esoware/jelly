@@ -3,76 +3,43 @@ import { useNavigate } from "@tanstack/react-router"
 import { useState } from "react"
 
 import type { WalletRecord } from "@/ipc/bindings.gen.ts"
+import { describeFailure } from "@/lib/failure.ts"
 import { formatTimestamp } from "@/lib/format.ts"
 import { useIpcMutation } from "@/query/mutation.ts"
 import { useActiveWallet, walletCommands, walletKeys, walletQueries } from "@/query/wallet.ts"
 import { Badge } from "@/ui/badge.tsx"
 import { Button } from "@/ui/button.tsx"
+import { ColorPicker } from "@/ui/color-picker.tsx"
 import { useDialogPayload } from "@/ui/dialog.tsx"
+import type { DialogStateProps } from "@/ui/dialog.tsx"
+import { Field } from "@/ui/field.tsx"
 import { Icon } from "@/ui/icon.tsx"
 import { Input } from "@/ui/input.tsx"
 import { Row } from "@/ui/row.tsx"
 import { SectionHeader } from "@/ui/section-header.tsx"
-import { DeleteWalletDialog } from "@/widgets/dialogs.tsx"
+import { DeleteWalletDialog, FormDialog } from "@/widgets/dialogs.tsx"
 import { ListStatus } from "@/widgets/list-status.tsx"
+import { WalletAvatar } from "@/widgets/logos.tsx"
 
 interface WalletRowProps {
   wallet: WalletRecord
   isActive: boolean
-  isRenamePending: boolean
-  draft: string | null
   onEdit: () => void
-  onDraftChange: (value: string) => void
-  onCommit: () => void
-  onCancel: () => void
   onDelete: () => void
 }
 
-function WalletRow({
-  wallet,
-  isActive,
-  isRenamePending,
-  draft,
-  onEdit,
-  onDraftChange,
-  onCommit,
-  onCancel,
-  onDelete,
-}: WalletRowProps) {
+function WalletRow({ wallet, isActive, onEdit, onDelete }: WalletRowProps) {
   const chainCount = wallet.enabledChains.length
 
   return (
     <Row size="sm">
-      <div className="min-w-0 flex-1">
-        {draft === null ? (
-          <span className="inline-flex max-w-full items-center gap-2">
-            <span className="truncate">{wallet.name}</span>
-            {isActive ? <Badge>Open</Badge> : null}
-            <Button variant="ghost" size="icon-xs" onClick={onEdit} disabled={isRenamePending}>
-              <Icon name="rename" />
-            </Button>
-          </span>
-        ) : (
-          <Input
-            size="sm"
-            autoFocus
-            className="max-w-56"
-            value={draft}
-            disabled={isRenamePending}
-            onChange={(e) => {
-              onDraftChange(e.target.value)
-            }}
-            onBlur={onCommit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.currentTarget.blur()
-              }
-              if (e.key === "Escape") {
-                onCancel()
-              }
-            }}
-          />
-        )}
+      <WalletAvatar color={wallet.color} />
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="truncate">{wallet.name}</span>
+        {isActive ? <Badge>Open</Badge> : null}
+        <Button variant="ghost" size="icon-xs" onClick={onEdit}>
+          <Icon name="rename" />
+        </Button>
       </div>
 
       <span className="w-28 shrink-0 text-caption text-fg-faint tabular-nums">
@@ -89,29 +56,79 @@ function WalletRow({
   )
 }
 
-const SKELETON_ROWS = 2
-
-interface RenameWallet {
-  id: number
-  name: string
+interface EditWalletDialogProps extends DialogStateProps {
+  wallet: WalletRecord
 }
+
+function EditWalletDialog({
+  open,
+  onOpenChange,
+  onOpenChangeComplete,
+  wallet,
+}: EditWalletDialogProps) {
+  const [name, setName] = useState(wallet.name)
+  const [color, setColor] = useState(wallet.color)
+
+  const trimmedName = name.trim()
+  const isUnchanged = trimmedName === wallet.name && color === wallet.color
+  const canSave = trimmedName !== "" && !isUnchanged
+
+  const save = useIpcMutation<null>({
+    mutationFn: () => walletCommands.update(wallet.id, trimmedName, color),
+    invalidates: [walletKeys.root],
+    successToast: "Wallet updated",
+    errorTitle: "Could not update the wallet",
+    onDone: () => {
+      onOpenChange(false)
+    },
+  })
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onOpenChangeComplete={onOpenChangeComplete}
+      title="Edit wallet"
+      size="sm"
+      submitLabel="Save"
+      isSubmitDisabled={!canSave}
+      isBusy={save.isPending}
+      error={save.error === null ? null : describeFailure(save.error)}
+      onSubmit={() => {
+        save.mutate()
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <Field label="Name" className="min-w-0 flex-1">
+          <Input
+            autoFocus
+            autoComplete="off"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value)
+            }}
+          />
+        </Field>
+        <Field label="Color">
+          <ColorPicker
+            value={color}
+            attachment={<WalletAvatar color={color} />}
+            onValueChange={setColor}
+          />
+        </Field>
+      </div>
+    </FormDialog>
+  )
+}
+
+const SKELETON_ROWS = 2
 
 export function WalletsView() {
   const navigate = useNavigate()
   const wallets = useQuery(walletQueries.all())
   const { walletId } = useActiveWallet()
-  const [edit, setEdit] = useState<{ id: number; draft: string } | null>(null)
+  const editDialog = useDialogPayload<WalletRecord>()
   const deleteDialog = useDialogPayload<WalletRecord>()
-
-  const rename = useIpcMutation<null, RenameWallet>({
-    mutationFn: (variables) => walletCommands.rename(variables.id, variables.name),
-    invalidates: [walletKeys.root],
-    successToast: "Wallet renamed",
-    errorTitle: "Could not rename the wallet",
-    onDone: () => {
-      setEdit(null)
-    },
-  })
 
   const rows = wallets.data ?? []
 
@@ -139,27 +156,8 @@ export function WalletsView() {
                 key={wallet.id}
                 wallet={wallet}
                 isActive={wallet.id === walletId}
-                isRenamePending={rename.isPending}
-                draft={edit?.id === wallet.id ? edit.draft : null}
                 onEdit={() => {
-                  setEdit({ id: wallet.id, draft: wallet.name })
-                }}
-                onDraftChange={(value) => {
-                  setEdit({ id: wallet.id, draft: value })
-                }}
-                onCommit={() => {
-                  if (rename.isPending) {
-                    return
-                  }
-                  const name = edit?.id === wallet.id ? edit.draft.trim() : ""
-                  if (name === "" || name === wallet.name) {
-                    setEdit(null)
-                  } else {
-                    rename.mutate({ id: wallet.id, name })
-                  }
-                }}
-                onCancel={() => {
-                  setEdit(null)
+                  editDialog.show(wallet)
                 }}
                 onDelete={() => {
                   deleteDialog.show(wallet)
@@ -169,8 +167,17 @@ export function WalletsView() {
           </ListStatus>
         </div>
 
+        {editDialog.payload === null ? null : (
+          <EditWalletDialog
+            key={editDialog.key}
+            {...editDialog.props}
+            wallet={editDialog.payload}
+          />
+        )}
+
         {deleteDialog.payload === null ? null : (
           <DeleteWalletDialog
+            key={deleteDialog.key}
             {...deleteDialog.props}
             wallet={deleteDialog.payload}
             onDeleted={(deletedId) => {

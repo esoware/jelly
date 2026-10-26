@@ -294,7 +294,7 @@ function RecentActivity() {
           }}
         />
       </ListStatus>
-      <TxDetailDialog {...detail.props} row={detail.payload} shouldNameNative />
+      <TxDetailDialog key={detail.key} {...detail.props} row={detail.payload} shouldNameNative />
     </PanelBody>
   )
 }

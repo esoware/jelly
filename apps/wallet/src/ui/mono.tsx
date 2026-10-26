@@ -2,18 +2,12 @@ import { appendClassName } from "@/lib/class-name.ts"
 
 interface MonoProps {
   value: string
-  isFull?: boolean | undefined
   className?: string | undefined
 }
 
-export function Mono({ value, isFull, className }: MonoProps) {
+export function Mono({ value, className }: MonoProps) {
   return (
-    <span
-      className={appendClassName(
-        `font-mono text-body select-text ${isFull === true ? "break-all" : ""}`,
-        className,
-      )}
-    >
+    <span className={appendClassName("font-mono text-body break-all select-text", className)}>
       {value}
     </span>
   )

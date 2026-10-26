@@ -21,6 +21,32 @@ export function AddressOption({ row, className }: AddressOptionProps) {
   )
 }
 
+const LISTED_ADDRESSES = 3
+
+interface AddressListProps {
+  addresses: readonly string[]
+  hasTooltip?: boolean | undefined
+  className?: string | undefined
+}
+
+export function AddressList({ addresses, hasTooltip, className }: AddressListProps) {
+  const shown = addresses.slice(0, LISTED_ADDRESSES)
+  const hiddenCount = addresses.length - shown.length
+  return (
+    <span className={appendClassName("flex min-w-0 gap-1", className)}>
+      {shown.map((address, i) => (
+        <span key={address} className="flex min-w-0">
+          <MiddleTruncate value={address} hasTooltip={hasTooltip} />
+          {i < shown.length - 1 ? <span className="shrink-0">,</span> : null}
+        </span>
+      ))}
+      {hiddenCount > 0 ? (
+        <span className="shrink-0">{`and ${String(hiddenCount)} more`}</span>
+      ) : null}
+    </span>
+  )
+}
+
 interface ExplorerActionsProps {
   url: string
   onOpen: () => Promise<null>

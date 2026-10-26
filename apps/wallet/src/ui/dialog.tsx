@@ -15,6 +15,7 @@ export interface DialogStateProps {
 
 export interface DialogPayload<T> {
   payload: T | null
+  key: number
   show: (payload: T) => void
   props: DialogStateProps
 }
@@ -22,12 +23,15 @@ export interface DialogPayload<T> {
 export function useDialogPayload<T>(): DialogPayload<T> {
   const [payload, setPayload] = useState<T | null>(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [openCount, setOpenCount] = useState(0)
 
   return {
     payload,
+    key: openCount,
     show: (next) => {
       setPayload(next)
       setIsOpen(true)
+      setOpenCount((count) => count + 1)
     },
     props: {
       open: isOpen,

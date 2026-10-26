@@ -74,8 +74,8 @@ export const walletCommands = {
   changePassword: (currentPassword: string, newPassword: string): Promise<null> =>
     unwrap(commands.changePassword(currentPassword, newPassword)),
 
-  rename: (walletId: number, name: string): Promise<null> =>
-    unwrap(commands.renameWallet(walletId, name)),
+  update: (walletId: number, name: string, color: WalletColor): Promise<null> =>
+    unwrap(commands.updateWallet(walletId, name, color)),
 
   destroy: (walletId: number, password: string, confirmation: string): Promise<null> =>
     unwrap(commands.deleteWallet(walletId, password, confirmation)),

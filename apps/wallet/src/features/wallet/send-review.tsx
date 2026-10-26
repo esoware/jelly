@@ -5,7 +5,7 @@ import { isSubmitting, preparedOf } from "@/features/wallet/send-state.ts"
 import type { SendState } from "@/features/wallet/send-state.ts"
 import type { PendingTxId, TxPreview, TxWarningKind } from "@/ipc/bindings.gen.ts"
 import { addAmounts } from "@/lib/amount.ts"
-import { chainMeta, formatAddressList, nativeAsset } from "@/lib/chain.ts"
+import { chainMeta, nativeAsset } from "@/lib/chain.ts"
 import { useFiatCurrency, useFiatValue, useIsFiatStale } from "@/store.ts"
 import { Button } from "@/ui/button.tsx"
 import { Callout } from "@/ui/callout.tsx"
@@ -22,8 +22,8 @@ import {
   DialogTitle,
 } from "@/ui/dialog.tsx"
 import { Field } from "@/ui/field.tsx"
-import { Mono } from "@/ui/mono.tsx"
 import { PasswordInput } from "@/ui/password-input.tsx"
+import { AddressList } from "@/widgets/address.tsx"
 import { CryptoAmount, FiatAmount, FiatValue } from "@/widgets/amounts.tsx"
 import { CopyButton, DetailList, MonoWithCopy } from "@/widgets/copyable.tsx"
 import type { DetailRow } from "@/widgets/copyable.tsx"
@@ -182,7 +182,7 @@ export function ReviewStep({ state, onBack, onConfirm }: ReviewStepProps) {
               </p>
               <div className="flex min-w-0 items-center gap-2">
                 <span className="text-caption text-fg-faint">From</span>
-                <Mono value={formatAddressList(preview.from)} />
+                <AddressList addresses={preview.from} className="font-mono select-text" />
               </div>
               <div className="flex min-w-0 items-center gap-2">
                 <span className="text-caption text-fg-faint">To</span>

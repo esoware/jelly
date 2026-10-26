@@ -20,8 +20,8 @@ statements! {
 
     LIST = "SELECT id, name, color, created_at FROM wallets ORDER BY id ASC";
 
-    RENAME =
-        "UPDATE wallets SET name = ?2, updated_at = ?3 WHERE id = ?1 \
+    UPDATE =
+        "UPDATE wallets SET name = ?2, color = ?3, updated_at = ?4 WHERE id = ?1 \
          RETURNING id, name, color, created_at";
 
     DELETE = "DELETE FROM wallets WHERE id = ?1";
@@ -181,15 +181,16 @@ impl Writer<'_> {
         Ok(wallet)
     }
 
-    pub(crate) fn rename_wallet(
+    pub(crate) fn update_wallet(
         &self,
         wallet_id: i64,
         name: &str,
+        color: &WalletColor,
     ) -> Result<WalletRow, StoreError> {
         sql::optional(
             self.connection(),
-            RENAME,
-            params![wallet_id, name, self.now_unix_secs()],
+            UPDATE,
+            params![wallet_id, name, color.as_str(), self.now_unix_secs()],
             map,
         )?
         .ok_or_else(|| StoreError::not_found(WALLET, wallet_id))
