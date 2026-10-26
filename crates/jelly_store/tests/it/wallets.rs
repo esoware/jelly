@@ -48,15 +48,18 @@ async fn wallets_list_in_creation_order() {
 }
 
 #[tokio::test]
-async fn renaming_moves_the_updated_stamp_and_leaves_creation_alone() {
+async fn editing_moves_the_updated_stamp_and_leaves_creation_alone() {
     let harness = common::harness().await.unwrap();
     let created = common::wallet(&harness.store, "old").await.unwrap();
     harness.clock.advance(Duration::from_secs(60));
 
-    let renamed = harness.store.rename_wallet(created.id, String::from("new")).await.unwrap();
-    assert_eq!(renamed.name, "new");
-    assert_eq!(renamed.color, created.color);
-    assert_eq!(renamed.created_at_unix_secs, created.created_at_unix_secs);
+    let color = WalletColor::parse("#a855f7").unwrap();
+    let edited =
+        harness.store.update_wallet(created.id, String::from("new"), color.clone()).await.unwrap();
+    assert_eq!(edited.name, "new");
+    assert_eq!(edited.color, color);
+    assert_eq!(edited.created_at_unix_secs, created.created_at_unix_secs);
+    assert_eq!(harness.store.get_wallet(created.id).await.unwrap(), edited);
 
     let closed = harness.close().await.unwrap();
     let connection = Connection::open(common::db_path(&closed.directory)).unwrap();
@@ -75,8 +78,11 @@ async fn a_missing_wallet_is_not_found_rather_than_a_database_failure() {
     let error = harness.store.delete_wallet(404).await.expect_err("no such wallet");
     assert!(matches!(error, StoreError::NotFound { entity: "wallet", .. }), "{error:?}");
 
-    let error =
-        harness.store.rename_wallet(404, String::from("x")).await.expect_err("no such wallet");
+    let error = harness
+        .store
+        .update_wallet(404, String::from("x"), WalletColor::default())
+        .await
+        .expect_err("no such wallet");
     assert!(matches!(error, StoreError::NotFound { entity: "wallet", .. }), "{error:?}");
 }
 

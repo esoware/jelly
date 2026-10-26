@@ -183,13 +183,14 @@ impl WalletEngine {
         session.vault_write(move |vault| vault.change_password(&current, &new)).await
     }
 
-    pub async fn rename_wallet(
+    pub async fn update_wallet(
         &self,
         wallet_id: i64,
         name: &str,
+        color: WalletColor,
     ) -> Result<WalletRecord, CoreError> {
         let _transition = self.inner.session.transition.lock().await;
-        let row = self.inner.store.rename_wallet(wallet_id, name.to_owned()).await?;
+        let row = self.inner.store.update_wallet(wallet_id, name.to_owned(), color).await?;
         if self.inner.session.state().wallet_id() == Some(wallet_id) {
             self.inner.session.publish(LockState::unlocked(&row));
         }
@@ -436,19 +437,19 @@ mod tests {
     use crate::test_util::config;
 
     #[tokio::test]
-    async fn renaming_waits_for_a_lock_transition_and_keeps_the_wallet_locked() {
+    async fn editing_waits_for_a_lock_transition_and_keeps_the_wallet_locked() {
         let harness = harness().await;
         let engine = &harness.engine;
         let wallet = seed_wallet(engine, "original").await;
         let transition = engine.inner.session.transition.lock().await;
-        let mut renaming = Box::pin(engine.rename_wallet(wallet.id, "renamed"));
-        timeout(Duration::from_millis(100), &mut renaming)
+        let mut editing = Box::pin(engine.update_wallet(wallet.id, "renamed", wallet.color));
+        timeout(Duration::from_millis(100), &mut editing)
             .await
-            .expect_err("renaming waits for the transition");
+            .expect_err("editing waits for the transition");
 
         engine.lock_inner(LockReason::Requested).await;
         drop(transition);
-        assert_eq!(renaming.await.unwrap().name, "renamed");
+        assert_eq!(editing.await.unwrap().name, "renamed");
         assert!(!engine.lock_state_now().is_unlocked());
         assert!(engine.inner.session.current().is_none());
     }

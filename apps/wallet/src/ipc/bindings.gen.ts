@@ -16,7 +16,7 @@ export const commands = {
 	unlockWallet: (walletId: number, password: string, passphrase: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("unlock_wallet", { walletId, password, passphrase })),
 	lockWallet: () => typedError<null, IpcError>(__TAURI_INVOKE("lock_wallet")),
 	changePassword: (currentPassword: string, newPassword: string) => typedError<null, IpcError>(__TAURI_INVOKE("change_password", { currentPassword, newPassword })),
-	renameWallet: (walletId: number, name: string) => typedError<null, IpcError>(__TAURI_INVOKE("rename_wallet", { walletId, name })),
+	updateWallet: (walletId: number, name: string, color: WalletColor) => typedError<null, IpcError>(__TAURI_INVOKE("update_wallet", { walletId, name, color })),
 	/**  Irreversible. `confirmation` is the wallet's own name. */
 	deleteWallet: (walletId: number, password: string, confirmation: string) => typedError<null, IpcError>(__TAURI_INVOKE("delete_wallet", { walletId, password, confirmation })),
 	/**

@@ -118,13 +118,14 @@ pub(crate) async fn change_password(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn rename_wallet(
+pub(crate) async fn update_wallet(
     state: State<'_, AppState>,
     wallet_id: i64,
     name: String,
+    color: WalletColor,
 ) -> Result<(), IpcError> {
     with_engine(&state, async move |engine| {
-        engine.rename_wallet(wallet_id, &name).await.map(|_| ())
+        engine.update_wallet(wallet_id, &name, color).await.map(|_| ())
     })
     .await
 }

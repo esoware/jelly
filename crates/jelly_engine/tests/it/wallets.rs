@@ -37,10 +37,11 @@ async fn a_new_seed_wallet_opens_and_reopens() {
 }
 
 #[tokio::test]
-async fn wallet_colors_survive_every_creation_flow_rename_and_restart() {
+async fn wallet_colors_survive_every_creation_flow_an_edit_and_restart() {
     let harness = harness().await.unwrap();
     let seed_color = WalletColor::parse("#a855f7").unwrap();
     let restored_color = WalletColor::parse("#ff0000").unwrap();
+    let edited_color = WalletColor::parse("#22c55e").unwrap();
     let seed = harness
         .engine
         .create_seed_wallet(
@@ -65,15 +66,17 @@ async fn wallet_colors_survive_every_creation_flow_rename_and_restart() {
         .unwrap();
     assert_eq!(seed.wallet.color, seed_color);
     assert_eq!(restored.color, restored_color);
-    let renamed = harness.engine.rename_wallet(restored.id, "renamed").await.unwrap();
-    assert_eq!(renamed.color, restored_color);
+    let edited =
+        harness.engine.update_wallet(restored.id, "edited", edited_color.clone()).await.unwrap();
+    assert_eq!(edited.name, "edited");
+    assert_eq!(edited.color, edited_color);
 
     let keystore = Arc::clone(&harness.keystore);
     let scratch = harness.shut_down().await.unwrap();
     let harness = harness_in(test_util::config(), scratch, keystore).await.unwrap();
-    assert_eq!(harness.engine.list_wallets().await.unwrap(), vec![seed.wallet, renamed.clone()]);
-    let reopened = harness.engine.unlock_wallet(renamed.id, secret(PASSWORD), None).await.unwrap();
-    assert_eq!(reopened.color, restored_color);
+    assert_eq!(harness.engine.list_wallets().await.unwrap(), vec![seed.wallet, edited.clone()]);
+    let reopened = harness.engine.unlock_wallet(edited.id, secret(PASSWORD), None).await.unwrap();
+    assert_eq!(reopened.color, edited_color);
 }
 
 #[tokio::test]
@@ -141,11 +144,15 @@ async fn an_imported_phrase_reproduces_the_same_wallet() {
 }
 
 #[tokio::test]
-async fn renaming_keeps_the_session_and_the_row_in_step() {
+async fn editing_keeps_the_session_and_the_row_in_step() {
     let harness = harness().await.unwrap();
     let created = harness.seed_wallet("before").await.unwrap();
-    let renamed = harness.engine.rename_wallet(created.wallet.id, "after").await.unwrap();
-    assert_eq!(renamed.name, "after");
+    let edited = harness
+        .engine
+        .update_wallet(created.wallet.id, "after", created.wallet.color.clone())
+        .await
+        .unwrap();
+    assert_eq!(edited.name, "after");
     assert_eq!(
         harness.engine.lock_state_now(),
         LockState::Unlocked { wallet_id: created.wallet.id, wallet_name: "after".to_owned() }
@@ -153,13 +160,13 @@ async fn renaming_keeps_the_session_and_the_row_in_step() {
 }
 
 #[tokio::test]
-async fn renaming_another_wallet_leaves_the_open_one_alone() {
+async fn editing_another_wallet_leaves_the_open_one_alone() {
     let harness = harness().await.unwrap();
     let other = harness.seed_wallet("other").await.unwrap();
     harness.engine.lock_wallet().await;
     let open = harness.seed_wallet("open").await.unwrap();
 
-    harness.engine.rename_wallet(other.wallet.id, "renamed").await.unwrap();
+    harness.engine.update_wallet(other.wallet.id, "renamed", other.wallet.color).await.unwrap();
     assert_eq!(
         harness.engine.lock_state_now(),
         LockState::Unlocked { wallet_id: open.wallet.id, wallet_name: "open".to_owned() }

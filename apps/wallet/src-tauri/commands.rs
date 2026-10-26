@@ -11,7 +11,7 @@ jelly_commands! {
         unlock_wallet,
         lock_wallet,
         change_password,
-        rename_wallet,
+        update_wallet,
         delete_wallet,
         get_lock_state,
         touch_session,
