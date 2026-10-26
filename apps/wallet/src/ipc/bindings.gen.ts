@@ -1057,8 +1057,8 @@ export type TxWarning = {
 /**  Why a preview carries a warning. */
 export type TxWarningKind = "dust_output" | 
 /**
- *  The fee looks wrong: far above the market's rate, above anything the chain
- *  normally costs, or a large share of the payment. A preview carries one at most.
+ *  The fee looks wrong: far above the market's rate, above the chain's high-fee
+ *  limit, or a large share of the payment. A preview carries one at most.
  */
 "high_fee" | "dropped_change" | "ambiguous_address" | "remote_decoys" | "account_activation" | "account_deletion" | "rent_exemption" | "replacement" | 
 /**  A second transaction that pays the fee of an unconfirmed one. */

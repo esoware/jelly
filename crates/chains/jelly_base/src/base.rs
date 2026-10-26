@@ -23,9 +23,10 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::FeeCap),
-    // A tenth of Ethereum's. A rollup transaction costs ten to a hundred times less than
-    // the same one on Ethereum, its L1 data included.
-    high_fee: Amount::from_base_units(10_000_000_000_000_000),
+    // About $0.93 at the October 2026 price of $2328. Gas costs about 0.006 gwei now, so
+    // 100000 gas costs 0.0000006 ETH before the L1 data fee. Update it when the price moves
+    // a lot.
+    high_fee: Amount::from_base_units(400_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,
     uri_scheme: "ethereum",

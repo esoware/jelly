@@ -30,8 +30,8 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &[FeeLevel::Normal],
     custom_fee: Some(CustomFee::Rate),
-    // What the largest standard transaction, 100000 bytes, pays at the recommended
-    // 0.01 DOGE/kB.
+    // Under $1 at 2026 prices. A 226-byte payment costs about 0.0023 DOGE at the recommended
+    // 0.01 DOGE/kB. Update it when the price moves a lot.
     high_fee: Amount::from_base_units(100_000_000),
     can_pin_nonce: false,
     can_carry_data: false,

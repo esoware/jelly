@@ -21,9 +21,11 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::PriorityFee),
-    // A fee level pays at most 0.01 SOL of priority fee, so only a custom fee or a broken
-    // estimate comes to five times that.
-    high_fee: Amount::from_base_units(50_000_000),
+    // About $1 at the October 2026 price of $101. A transfer costs about 0.0000052 SOL, the
+    // 5000-lamport base fee and a priority fee of a few hundred lamports. A fee level pays at
+    // most 0.01 SOL of priority fee, and a quote held at that limit carries its own
+    // warning. Update it when the price moves a lot.
+    high_fee: Amount::from_base_units(10_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "solana",

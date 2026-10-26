@@ -43,9 +43,10 @@ pub struct ChainSpec {
     pub fee_levels: &'static [FeeLevel],
     /// What a custom fee names, or `None` when the chain takes only its levels.
     pub custom_fee: Option<CustomFee>,
-    /// The fee in the chain's coin above which a preview warns that it is unusually high.
-    /// It sits well above what the chain's costliest ordinary send paid at its worst
-    /// congestion, so it flags a mistake or a broken estimate and not a busy network.
+    /// The fee in the chain's coin above which a preview warns that it is high. It is about
+    /// one US dollar at the coin's price when it was set, or just above what an ordinary
+    /// send always costs where that is more, so it needs updating when the price moves a
+    /// lot.
     pub high_fee: Amount,
     /// Whether a send can replace the account's next nonce.
     pub can_pin_nonce: bool,
@@ -149,9 +150,8 @@ impl ChainSpec {
             return Some(TxWarning::new(
                 TxWarningKind::HighFee,
                 format!(
-                    "The {} fee is unusually high. {} transactions almost never cost more than {}.",
+                    "The {} fee is more than {}. Make sure you mean to pay this much.",
                     coin(preview.fee),
-                    self.chain.display_name(),
                     coin(self.high_fee)
                 ),
             ));
@@ -259,12 +259,12 @@ mod tests {
     }
 
     #[test]
-    fn a_fee_above_the_chains_ceiling_is_called_unusually_high() {
+    fn a_fee_above_the_chains_ceiling_is_flagged_with_both_amounts() {
         assert_eq!(UTXO.high_fee_warning(&preview(BITCOIN, 100_000_000, 1_000_000)), None);
         assert_eq!(
             UTXO.high_fee_warning(&preview(BITCOIN, 100_000_000, 1_000_001)),
             Some(fee_warning(
-                "The 0.01000001 BTC fee is unusually high. Bitcoin transactions almost never cost more than 0.01 BTC."
+                "The 0.01000001 BTC fee is more than 0.01 BTC. Make sure you mean to pay this much."
             ))
         );
     }
@@ -287,7 +287,7 @@ mod tests {
         assert_eq!(
             UTXO.high_fee_warning(&preview(BITCOIN, 2_000_000, 1_500_000)),
             Some(fee_warning(
-                "The 0.015 BTC fee is unusually high. Bitcoin transactions almost never cost more than 0.01 BTC."
+                "The 0.015 BTC fee is more than 0.01 BTC. Make sure you mean to pay this much."
             ))
         );
     }

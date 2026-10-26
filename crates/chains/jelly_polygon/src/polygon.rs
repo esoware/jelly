@@ -23,8 +23,8 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::FeeCap),
-    // A token transfer to a new holder, about 65000 gas, at about 15000 gwei, twice the
-    // 7000 gwei average of the November 2023 POLS inscription mint.
+    // Under $1 at 2026 prices. At the 259 gwei gas costs now, a plain transfer costs about
+    // 0.0054 POL and a token transfer about 0.017 POL. Update it when the price moves a lot.
     high_fee: Amount::from_base_units(1_000_000_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,

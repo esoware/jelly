@@ -23,10 +23,10 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[],
     custom_fee: None,
-    // A USDT transfer to an address that holds none burns about 131000 energy, which is
-    // 13 TRX at the 100 sun energy price of August 2025 and was 55 TRX at 420 sun, before
-    // two governance cuts.
-    high_fee: Amount::from_base_units(100_000_000),
+    // About $6.60 at the October 2026 price of $0.33. It is above $1 because a USDT transfer
+    // that no staked energy covers always burns about 6.5 to 13.4 TRX, while a TRX transfer
+    // costs nothing or about 0.27 TRX of bandwidth. Update it when the price moves a lot.
+    high_fee: Amount::from_base_units(20_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "tron",

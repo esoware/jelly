@@ -25,9 +25,10 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::FeeCap),
-    // A token transfer to a new holder, about 65000 gas, at about 15000 nAVAX, three times
-    // the 5000 nAVAX of the December 2023 inscription surge.
-    high_fee: Amount::from_base_units(1_000_000_000_000_000_000),
+    // About $0.90 at the October 2026 price of $8.93. At the 2.5 nAVAX gas costs now, a
+    // plain transfer costs about 0.00005 AVAX and a token transfer about 0.00016 AVAX.
+    // Update it when the price moves a lot.
+    high_fee: Amount::from_base_units(100_000_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,
     uri_scheme: "ethereum",

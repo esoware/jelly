@@ -126,13 +126,13 @@ const WARNING_CALLOUTS = {
 const FIAT_UNIT = pow10(PRICE_DECIMALS)
 
 const HIGH_FEE_FIAT = {
-  usd: 500n * FIAT_UNIT,
-  eur: 450n * FIAT_UNIT,
-  gbp: 400n * FIAT_UNIT,
-  aud: 750n * FIAT_UNIT,
-  cad: 700n * FIAT_UNIT,
-  jpy: 75_000n * FIAT_UNIT,
-  chf: 400n * FIAT_UNIT,
+  usd: 5n * FIAT_UNIT,
+  eur: 5n * FIAT_UNIT,
+  gbp: 4n * FIAT_UNIT,
+  aud: 8n * FIAT_UNIT,
+  cad: 7n * FIAT_UNIT,
+  jpy: 750n * FIAT_UNIT,
+  chf: 4n * FIAT_UNIT,
 } satisfies Record<FiatCurrency, bigint>
 
 const HIGH_FEE_PERCENT = 10n
@@ -153,7 +153,7 @@ function FiatFeeWarning({ preview }: FiatFeeWarningProps) {
   const ceiling = HIGH_FEE_FIAT[currency]
   let message: string | null = null
   if (feeValue > ceiling) {
-    message = `The ${formatFiat(feeValue, currency)} fee is unusually high. Transactions almost never cost more than ${formatFiat(ceiling, currency)}.`
+    message = `The ${formatFiat(feeValue, currency)} fee is more than ${formatFiat(ceiling, currency)}. Make sure you mean to pay this much.`
   } else if (
     preview.asset.kind === "token" &&
     amountValue !== null &&

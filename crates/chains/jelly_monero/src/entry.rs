@@ -20,9 +20,10 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::Rate),
-    // monero-gui marks a fee above 0.01 XMR as a high fee, and Feather as an unrealistic
-    // one that may come from a malicious node.
-    high_fee: Amount::from_base_units(10_000_000_000),
+    // About $1.20 at the October 2026 price of $591. A payment spending one output costs
+    // about 0.00003 XMR at the unimportant tier, 0.00012 at normal and 0.0005 at elevated,
+    // and the elevated tier passes this from 8 inputs. Update it when the price moves a lot.
+    high_fee: Amount::from_base_units(2_000_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "monero",

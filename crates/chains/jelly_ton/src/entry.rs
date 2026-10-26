@@ -26,8 +26,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[],
     custom_fee: None,
-    // The most a network fee estimate may be. A jetton transfer adds the gas it attaches,
-    // so only an estimate far above the usual one passes this.
+    // Under $1 at 2026 prices. A payment costs a few thousandths of a Gram, and a jetton
+    // transfer adds the gas it attaches, 0.018 for USDT and 0.05 for XAUT, most of which
+    // comes back. Update it when the price moves a lot.
     high_fee: Amount::from_base_units(100_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
