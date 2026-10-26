@@ -559,7 +559,7 @@ export function DeleteKeyDialog({
           {hasFunds ? " Funds are still held under this key." : null}
           {others.length > 0 ? (
             <>
-              {" Its other addresses go with it:"}
+              {" Its other addresses go with it."}
               <span className="mt-1 flex flex-col gap-1">
                 {others.map((entry) => (
                   <MiddleTruncate

@@ -19,14 +19,7 @@ import type {
 } from "@/ipc/bindings.gen.ts"
 import { ZERO_AMOUNT, addAmounts, formatAmount, toBaseUnits } from "@/lib/amount.ts"
 import type { Parsed } from "@/lib/amount.ts"
-import {
-  assetDecimals,
-  assetSymbol,
-  assetsForChain,
-  chainMeta,
-  formatAddressList,
-  nativeAsset,
-} from "@/lib/chain.ts"
+import { assetDecimals, assetSymbol, assetsForChain, chainMeta, nativeAsset } from "@/lib/chain.ts"
 import { describeFailure } from "@/lib/failure.ts"
 import { CURRENCIES, PRICE_DECIMALS, fiatToBaseUnits } from "@/lib/fiat.ts"
 import { NONE } from "@/lib/format.ts"
@@ -56,12 +49,11 @@ import { EmptyState } from "@/ui/empty-state.tsx"
 import { Field } from "@/ui/field.tsx"
 import { Icon } from "@/ui/icon.tsx"
 import { Input } from "@/ui/input.tsx"
-import { MiddleTruncate } from "@/ui/middle-truncate.tsx"
 import { Segmented } from "@/ui/segmented.tsx"
 import { MultiSelect, Select, SelectItem, SelectPopup, SelectTrigger } from "@/ui/select.tsx"
 import { Skeleton } from "@/ui/skeleton.tsx"
 import { Switch } from "@/ui/switch.tsx"
-import { AddressOption } from "@/widgets/address.tsx"
+import { AddressList, AddressOption } from "@/widgets/address.tsx"
 import { CryptoAmount, FiatAmount } from "@/widgets/amounts.tsx"
 import { AssetMenu } from "@/widgets/asset-menu.tsx"
 import type { ListState } from "@/widgets/list-status.tsx"
@@ -124,17 +116,12 @@ function SourceFields({
 }: SourceFieldsProps) {
   const assets = assetsForChain(chain)
   const first = sources.at(0) ?? null
-  const soleSource = sources.length === 1 ? sources[0] : undefined
   const sourceLabel =
-    soleSource === undefined ? (
-      <span className="truncate font-mono text-caption">
-        {sources.length === 0
-          ? CHOOSE_ADDRESS
-          : formatAddressList(sources.map((row) => row.address))}
-      </span>
+    first === null ? (
+      <span className="truncate font-mono text-caption">{CHOOSE_ADDRESS}</span>
     ) : (
-      <MiddleTruncate
-        value={soleSource.address}
+      <AddressList
+        addresses={sources.map((row) => row.address)}
         hasTooltip={false}
         className="font-mono text-caption"
       />

@@ -14,7 +14,6 @@ import type {
   Transport,
 } from "@/ipc/bindings.gen.ts"
 import { formatAmount } from "@/lib/amount.ts"
-import { truncateMiddle } from "@/lib/format.ts"
 
 let chainsById: ReadonlyMap<ChainId, ChainMeta> = new Map()
 
@@ -180,10 +179,6 @@ export function groupAssets(assets: readonly AssetId[]): AssetGroup[] {
   return groups.filter((group) => group.assets.length > 0)
 }
 
-const LISTED_ADDRESSES = 3
-const LISTED_HEAD_CHARS = 6
-const LISTED_TAIL_CHARS = 4
-
 export const SCRIPT_LABELS: Record<ScriptKind, string> = {
   p2tr: "Taproot",
   p2wpkh: "Native SegWit",
@@ -223,15 +218,6 @@ export function keyHolders(
   return rows.filter(
     (other) => other.source.kind === "imported" && other.source.vaultEntry === source.vaultEntry,
   )
-}
-
-export function formatAddressList(addresses: readonly string[]): string {
-  const shown = addresses
-    .slice(0, LISTED_ADDRESSES)
-    .map((address) => truncateMiddle(address, LISTED_HEAD_CHARS, LISTED_TAIL_CHARS))
-    .join(", ")
-  const hidden = addresses.length - LISTED_ADDRESSES
-  return hidden > 0 ? `${shown} and ${String(hidden)} more` : shown
 }
 
 export const ORIGIN_LABELS: Record<EndpointOrigin, string> = {
