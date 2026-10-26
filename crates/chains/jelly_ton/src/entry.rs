@@ -26,10 +26,11 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[],
     custom_fee: None,
-    // About $0.19 at the October 2026 price of $1.25. A payment costs a few thousandths of a
+    // About $0.13 at the October 2026 price of $1.25. A payment costs a few thousandths of a
     // Gram, and a jetton transfer adds the gas it attaches, 0.018 for USDT and 0.05 for
-    // XAUT, most of which comes back.
-    high_fee: Amount::from_base_units(150_000_000),
+    // XAUT, most of which comes back. A fee estimate above 0.1 is refused, so only a jetton
+    // transfer can pass it.
+    high_fee: Amount::from_base_units(100_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "ton",

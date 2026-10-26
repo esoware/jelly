@@ -113,7 +113,7 @@ fn warnings(plan: &Plan) -> Vec<TxWarning> {
     }
     if plan.pricing.is_capped {
         warnings.push(TxWarning::new(
-            TxWarningKind::HighFee,
+            TxWarningKind::Estimated,
             "The quoted priority fee exceeds Jelly's limit. This estimate uses the limit.",
         ));
     }

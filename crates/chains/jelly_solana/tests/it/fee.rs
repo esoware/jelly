@@ -133,7 +133,10 @@ async fn a_sample_above_the_ceiling_is_capped_and_the_preview_says_so() {
     );
 
     let unsigned = harness.adapter.build_tx(&request(PEER, native(), 1_000)).await.unwrap();
-    assert!(common::warns(&unsigned.preview.warnings, TxWarningKind::HighFee));
+    assert!(
+        unsigned.preview.warnings.iter().any(|warning| warning.kind == TxWarningKind::Estimated
+            && warning.message.starts_with("The quoted priority fee exceeds Jelly's limit"))
+    );
 }
 
 #[tokio::test]
