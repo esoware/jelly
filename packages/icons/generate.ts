@@ -5,29 +5,19 @@ const SVG_OPEN_TAG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24
 const SVG_CLOSE_TAG = "</svg>"
 const SVG_EXTENSION = ".svg"
 const ICON_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u
-const SHAPE_PATTERN = /<(?<tag>path|circle|rect)(?<attributes>(?: [a-z-]+="[^"]*")+)\/>/guy
+const PATH_PATTERN = /<path(?<attributes>(?: [a-z-]+="[^"]*")+)\/>/guy
 const ATTRIBUTE_PATTERN = / (?<name>[a-z-]+)="(?<value>[^"]*)"/guy
 const KEBAB_LETTER_PATTERN = /-[a-z]/gu
 const PAINTED_ATTRIBUTES = new Set(["fill", "stroke"])
 const PAINTS = new Set(["currentColor", "none"])
 const SUPPORTED_ATTRIBUTES = new Set([
   "d",
-  "cx",
-  "cy",
-  "r",
-  "x",
-  "y",
-  "width",
-  "height",
-  "rx",
   "fill",
   "fill-rule",
   "clip-rule",
-  "opacity",
   "stroke",
   "stroke-width",
   "stroke-linecap",
-  "stroke-linejoin",
   "stroke-opacity",
 ])
 
@@ -44,10 +34,6 @@ const iconNames = readdirSync(svgFolder)
   .map((fileName) => fileName.slice(0, -SVG_EXTENSION.length))
   .toSorted()
 
-if (new Set(iconNames.map((iconName) => componentName(iconName))).size !== iconNames.length) {
-  throw new Error("Two icon names map to the same component name.")
-}
-
 const header = 'import type { ComponentProps } from "react"'
 const components = iconNames.map((iconName) => {
   const fileName = `${iconName}${SVG_EXTENSION}`
@@ -60,10 +46,10 @@ const components = iconNames.map((iconName) => {
   }
   const body = svg.slice(SVG_OPEN_TAG.length, -SVG_CLOSE_TAG.length)
   let consumed = 0
-  const shapes: string[] = []
-  for (const shape of body.matchAll(SHAPE_PATTERN)) {
-    const { tag = "", attributes = "" } = shape.groups ?? {}
-    consumed += shape[0].length
+  const paths: string[] = []
+  for (const path of body.matchAll(PATH_PATTERN)) {
+    const { attributes = "" } = path.groups ?? {}
+    consumed += path[0].length
     let jsxAttributes = ""
     for (const attribute of attributes.matchAll(ATTRIBUTE_PATTERN)) {
       const { name = "", value = "" } = attribute.groups ?? {}
@@ -80,16 +66,16 @@ const components = iconNames.map((iconName) => {
       )
       jsxAttributes += ` ${jsxName}="${value}"`
     }
-    shapes.push(`      <${tag}${jsxAttributes} />`)
+    paths.push(`      <path${jsxAttributes} />`)
   }
-  if (consumed !== body.length || shapes.length === 0) {
-    throw new Error(`${fileName} holds something other than path, circle, and rect elements.`)
+  if (consumed !== body.length || paths.length === 0) {
+    throw new Error(`${fileName} holds something other than path elements.`)
   }
   return [
     `export function ${componentName(iconName)}(props: ComponentProps<"svg">) {`,
     "  return (",
     '    <svg width={24} height={24} viewBox="0 0 24 24" fill="none" {...props}>',
-    ...shapes,
+    ...paths,
     "    </svg>",
     "  )",
     "}",
