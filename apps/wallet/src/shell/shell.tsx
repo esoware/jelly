@@ -1,9 +1,9 @@
+import logoUrl from "@jelly/branding/logo-colored.svg"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Outlet, useMatches, useNavigate } from "@tanstack/react-router"
 import { useEffect, useRef, useState } from "react"
 import type { ComponentPropsWithoutRef, ReactNode } from "react"
 
-import logoUrl from "@/assets/logo-colored.svg"
 import type { ChainId, LockState } from "@/ipc/bindings.gen.ts"
 import {
   closeWindow,

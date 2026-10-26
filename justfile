@@ -25,12 +25,14 @@ build *args:
 
 # CI runs this on every OS and fails if it leaves any file changed.
 
-# Run fmt, clippy, oxlint, knip, the frontend build, the tests, and cargo-deny
+# Regenerate the icons, then run fmt, clippy, oxlint, knip, the type checks, the frontend build, the tests, and cargo-deny
 ready:
+  just icons
   just fmt
   just lint
   pnpm lint
   pnpm knip
+  pnpm --filter @jelly/icons typecheck
   pnpm --filter jelly-wallet build
   just test
   just deny
@@ -63,3 +65,7 @@ deny:
 # Regenerate apps/wallet/src/ipc/bindings.gen.ts after an IPC change
 bindings:
   cargo test -p jelly --test it regenerate_bindings -- --ignored
+
+# Regenerate packages/icons/src/icons.gen.tsx after adding or removing an SVG in packages/icons/svg
+icons:
+  pnpm --filter @jelly/icons generate

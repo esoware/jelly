@@ -312,6 +312,12 @@
       }
     },
     {
+      "files": ["packages/icons/generate.ts"],
+      "rules": {
+        "import/no-nodejs-modules": "off"
+      }
+    },
+    {
       "files": ["apps/wallet/src/ui/**"],
       "rules": {
         "eslint/no-restricted-imports": [
@@ -331,5 +337,12 @@
       }
     }
   ],
-  "ignorePatterns": ["dist", "node_modules", "target", "apps/wallet/src-tauri/gen", "**/*.gen.ts"]
+  "ignorePatterns": [
+    "dist",
+    "node_modules",
+    "target",
+    "apps/wallet/src-tauri/gen",
+    "**/*.gen.ts",
+    "**/*.gen.tsx"
+  ]
 }

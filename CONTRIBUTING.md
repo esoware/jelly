@@ -35,6 +35,8 @@ The scope is required. It's a crate's directory name without `jelly_`, such as `
 
 - `wallet` for `apps/wallet/src`
 - `app` for `apps/wallet/src-tauri`
+- `icons` for `packages/icons`
+- `branding` for `packages/branding`
 - `deps` for dependency bumps
 - `repo` for root files and `.github`
 
