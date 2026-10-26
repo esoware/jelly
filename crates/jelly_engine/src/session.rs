@@ -341,13 +341,11 @@ impl WalletEngine {
     }
 
     pub(crate) fn install_session(&self, session: Session, wallet: &WalletRow) {
-        let state = LockState::unlocked(wallet);
         let cancel = session.cancel.clone();
-        let wallet_id = session.wallet_id();
         self.inner.session.install(Arc::new(session));
-        self.inner.session.publish(state);
+        self.inner.session.publish(LockState::unlocked(wallet));
         self.spawn_idle_watch(cancel);
-        tracing::info!(target: "jelly::engine::session", wallet_id, "wallet unlocked");
+        tracing::info!(target: "jelly::engine::session", wallet_id = wallet.id, "wallet unlocked");
     }
 
     /// The caller holds the transition lock. Retirement owns the send guard even if its

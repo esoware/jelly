@@ -554,8 +554,8 @@ export function DeleteKeyDialog({
       title="Delete key"
       description={
         <>
-          Delete the private key for <Mono value={row?.address ?? ""} isFull />. The seed phrase
-          cannot restore it, so export it first unless you no longer need it.
+          Delete the private key for <Mono value={row?.address ?? ""} />. The seed phrase cannot
+          restore it, so export it first unless you no longer need it.
           {hasFunds ? " Funds are still held under this key." : null}
           {others.length > 0 ? (
             <>

@@ -28,7 +28,7 @@ export function ErrorScreen({ error }: ErrorComponentProps) {
       </div>
 
       <Card className="flex w-full max-w-sm items-start gap-1 p-3">
-        <Mono value={message} isFull className="min-w-0 flex-1" />
+        <Mono value={message} className="min-w-0 flex-1" />
         <CopyButton value={message} />
       </Card>
 

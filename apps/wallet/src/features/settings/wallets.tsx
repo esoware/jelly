@@ -34,14 +34,12 @@ function WalletRow({ wallet, isActive, onEdit, onDelete }: WalletRowProps) {
   return (
     <Row size="sm">
       <WalletAvatar color={wallet.color} />
-      <div className="min-w-0 flex-1">
-        <span className="inline-flex max-w-full items-center gap-2">
-          <span className="truncate">{wallet.name}</span>
-          {isActive ? <Badge>Open</Badge> : null}
-          <Button variant="ghost" size="icon-xs" onClick={onEdit}>
-            <Icon name="rename" />
-          </Button>
-        </span>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="truncate">{wallet.name}</span>
+        {isActive ? <Badge>Open</Badge> : null}
+        <Button variant="ghost" size="icon-xs" onClick={onEdit}>
+          <Icon name="rename" />
+        </Button>
       </div>
 
       <span className="w-28 shrink-0 text-caption text-fg-faint tabular-nums">

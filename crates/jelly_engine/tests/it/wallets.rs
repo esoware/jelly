@@ -68,15 +68,14 @@ async fn wallet_colors_survive_every_creation_flow_an_edit_and_restart() {
     assert_eq!(seed.wallet.color, seed_color);
     assert_eq!(restored.color, restored_color);
     harness.engine.update_wallet(restored.id, "edited", edited_color.clone()).await.unwrap();
-    let edited =
-        WalletRecord { name: "edited".to_owned(), color: edited_color.clone(), ..restored };
+    let edited = WalletRecord { name: "edited".to_owned(), color: edited_color, ..restored };
 
     let keystore = Arc::clone(&harness.keystore);
     let scratch = harness.shut_down().await.unwrap();
     let harness = harness_in(test_util::config(), scratch, keystore).await.unwrap();
     assert_eq!(harness.engine.list_wallets().await.unwrap(), vec![seed.wallet, edited.clone()]);
     let reopened = harness.engine.unlock_wallet(edited.id, secret(PASSWORD), None).await.unwrap();
-    assert_eq!(reopened.color, edited_color);
+    assert_eq!(reopened, edited);
 }
 
 #[tokio::test]

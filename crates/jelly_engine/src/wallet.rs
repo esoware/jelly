@@ -10,6 +10,7 @@ use jelly_store::{NewWallet, WalletRow};
 use jelly_vault::{BlobKind, Vault, VaultPassword};
 use secrecy::{ExposeSecret as _, SecretString};
 use serde::{Deserialize, Serialize};
+use tokio::sync::MutexGuard;
 use zeroize::Zeroizing;
 
 use crate::chains::{enabled_chains, restore_heights};
@@ -141,10 +142,7 @@ impl WalletEngine {
         password: SecretString,
         passphrase: Option<SecretText>,
     ) -> Result<WalletRecord, CoreError> {
-        let _transition = self.inner.session.transition.lock().await;
-        if self.inner.cancel.is_cancelled() {
-            return Err(CoreError::Locked);
-        }
+        let _transition = self.begin_transition().await?;
         let row = self.inner.store.get_wallet(wallet_id).await?;
         let settings = self.inner.store.get_wallet_settings(wallet_id).await?;
         self.lock_inner(LockReason::Requested).await;
@@ -190,10 +188,7 @@ impl WalletEngine {
         color: WalletColor,
     ) -> Result<(), CoreError> {
         let name = wallet_name(name)?;
-        let _transition = self.inner.session.transition.lock().await;
-        if self.inner.cancel.is_cancelled() {
-            return Err(CoreError::Locked);
-        }
+        let _transition = self.begin_transition().await?;
         let row = self.inner.store.update_wallet(wallet_id, name, color).await?;
         if self.inner.session.state().wallet_id() == Some(wallet_id) {
             self.inner.session.publish(LockState::unlocked(&row));
@@ -209,10 +204,7 @@ impl WalletEngine {
         password: SecretString,
         confirmation: &str,
     ) -> Result<(), CoreError> {
-        let _transition = self.inner.session.transition.lock().await;
-        if self.inner.cancel.is_cancelled() {
-            return Err(CoreError::Locked);
-        }
+        let _transition = self.begin_transition().await?;
         let row = self.inner.store.get_wallet(wallet_id).await?;
         if confirmation != row.name {
             return Err(CoreError::ConfirmationRequired { expected: row.name });
@@ -233,6 +225,15 @@ impl WalletEngine {
         self.inner.store.delete_wallet(wallet_id).await?;
         tracing::warn!(target: "jelly::engine::wallet", wallet_id, "wallet deleted");
         Ok(())
+    }
+
+    /// The transition lock, refusing once the engine has begun shutting down.
+    async fn begin_transition(&self) -> Result<MutexGuard<'_, ()>, CoreError> {
+        let transition = self.inner.session.transition.lock().await;
+        if self.inner.cancel.is_cancelled() {
+            return Err(CoreError::Locked);
+        }
+        Ok(transition)
     }
 
     fn vault_handle(&self, wallet_id: i64) -> Vault {
@@ -316,10 +317,7 @@ impl WalletEngine {
         password: VaultPassword,
         seed: NewSeed,
     ) -> Result<WalletRecord, CoreError> {
-        let _transition = self.inner.session.transition.lock().await;
-        if self.inner.cancel.is_cancelled() {
-            return Err(CoreError::Locked);
-        }
+        let _transition = self.begin_transition().await?;
         self.lock_inner(LockReason::Requested).await;
         let row = self.allocate_wallet(new).await?;
         let handle = self.vault_handle(row.id);

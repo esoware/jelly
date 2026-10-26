@@ -77,7 +77,7 @@ interface MonoWithCopyProps {
 export function MonoWithCopy({ value, className }: MonoWithCopyProps) {
   return (
     <span className="inline-flex min-w-0 items-center gap-1">
-      <Mono value={value} isFull className={className} />
+      <Mono value={value} className={className} />
       <CopyButton value={value} />
     </span>
   )

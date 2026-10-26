@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use jelly_core::{ChainId, PassphrasePolicy, WalletColor};
-use jelly_store::{ChainStatePatch, ChainStateRow, NewWallet, Patch, Store, StoreError};
+use jelly_store::{ChainStatePatch, ChainStateRow, NewWallet, Patch, Store, StoreError, WalletRow};
 use rusqlite::Connection;
 
 use crate::common::{self, Fallible};
@@ -56,9 +56,7 @@ async fn editing_moves_the_updated_stamp_and_leaves_creation_alone() {
     let color = WalletColor::parse("#a855f7").unwrap();
     let edited =
         harness.store.update_wallet(created.id, String::from("new"), color.clone()).await.unwrap();
-    assert_eq!(edited.name, "new");
-    assert_eq!(edited.color, color);
-    assert_eq!(edited.created_at_unix_secs, created.created_at_unix_secs);
+    assert_eq!(edited, WalletRow { name: String::from("new"), color, ..created });
     assert_eq!(harness.store.get_wallet(created.id).await.unwrap(), edited);
 
     let closed = harness.close().await.unwrap();
