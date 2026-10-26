@@ -1,0 +1,21 @@
+{
+  "name": "@jelly/icons",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/icons.gen.tsx"
+  },
+  "scripts": {
+    "generate": "node generate.ts",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:"
+  }
+}

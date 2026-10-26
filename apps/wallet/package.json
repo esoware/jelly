@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",
-    "@tabler/icons-react": "3.49.0",
+    "@jelly/branding": "workspace:*",
+    "@jelly/icons": "workspace:*",
     "@tanstack/react-query": "5.104.3",
     "@tanstack/react-router": "1.170.44",
     "@tanstack/react-virtual": "3.14.21",
@@ -18,21 +19,21 @@
     "@tauri-apps/plugin-clipboard-manager": "2.5.0",
     "country-flag-icons": "1.6.20",
     "qrcode.react": "4.2.0",
-    "react": "19.3.1",
+    "react": "catalog:",
     "react-aria-components": "1.22.1",
-    "react-dom": "19.3.1",
+    "react-dom": "catalog:",
     "tailwind-merge": "3.7.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
     "@tauri-apps/cli": "2.12.3",
-    "@types/node": "26.6.5",
-    "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "6.1.2",
     "oxc-transform-react": "0.154.0",
     "tailwindcss": "4.3.3",
-    "typescript": "7.0.2",
+    "typescript": "catalog:",
     "vite": "8.3.4"
   }
 }

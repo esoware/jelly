@@ -1,0 +1,8 @@
+{
+  "name": "@jelly/branding",
+  "private": true,
+  "exports": {
+    "./logo.svg": "./logo.svg",
+    "./logo-colored.svg": "./logo-colored.svg"
+  }
+}

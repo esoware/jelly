@@ -8,3 +8,4 @@
 Cargo.lock linguist-generated
 pnpm-lock.yaml linguist-generated
 *.gen.ts linguist-generated
+*.gen.tsx linguist-generated

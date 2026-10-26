@@ -1,4 +1,13 @@
 packages:
   - "apps/*"
+  - "packages/*"
+
+catalog:
+  "@types/node": 26.6.5
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
+  react: 19.3.1
+  react-dom: 19.3.1
+  typescript: 7.0.2
 
 minimumReleaseAge: 0

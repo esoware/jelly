@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [
     react({
       compiler: true,
-      exclude: [/\/node_modules\//u, "**/*.gen.ts"],
+      exclude: [/\/node_modules\//u, "**/*.gen.ts", "**/*.gen.tsx"],
     }),
     tailwindcss({ optimize: false }),
   ],

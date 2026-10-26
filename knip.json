@@ -6,6 +6,9 @@
       "ignoreIssues": {
         "src/**/*.gen.ts": ["exports", "types"]
       }
+    },
+    "packages/icons": {
+      "includeEntryExports": true
     }
   }
 }
