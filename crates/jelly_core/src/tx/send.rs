@@ -29,8 +29,8 @@ wire_enum! {
     /// Why a preview carries a warning.
     pub enum TxWarningKind {
         DustOutput => "dust_output",
-        /// The fee looks wrong: far above the market's rate, above the chain's high-fee
-        /// limit, or a large share of the payment. A preview carries one at most.
+        /// The fee is unusually high: far above the market's rate, above the chain's
+        /// high-fee limit, or a large share of the payment.
         HighFee => "high_fee",
         DroppedChange => "dropped_change",
         AmbiguousAddress => "ambiguous_address",
@@ -43,6 +43,26 @@ wire_enum! {
         ChildPays => "child_pays",
         Estimated => "estimated",
         Other => "other",
+    }
+}
+
+impl TxWarningKind {
+    /// Whether a warning of this kind explains a cost the protocol sets, such as
+    /// activating or deleting an account, which no fee choice changes.
+    pub(crate) const fn is_fixed_cost(self) -> bool {
+        match self {
+            Self::AccountActivation | Self::AccountDeletion => true,
+            Self::DustOutput
+            | Self::HighFee
+            | Self::DroppedChange
+            | Self::AmbiguousAddress
+            | Self::RemoteDecoys
+            | Self::RentExemption
+            | Self::Replacement
+            | Self::ChildPays
+            | Self::Estimated
+            | Self::Other => false,
+        }
     }
 }
 

@@ -237,26 +237,24 @@ impl WalletEngine {
     /// signs and broadcasts, so a transaction whose preview names another chain than the
     /// sources' is refused rather than held.
     ///
-    /// The chain's high-fee warning joins the preview before the digest is taken, so it is
-    /// part of what the user approves.
+    /// The chain's high-fee warning is part of what the user approves, but the adapter
+    /// signs only what it built.
     fn hold(
         &self,
         chain: ChainId,
         signers: Vec<AddressRow>,
         adapter: &Arc<dyn ChainAdapter>,
-        mut unsigned: UnsignedTx,
+        unsigned: UnsignedTx,
     ) -> Result<PreparedTx, CoreError> {
         if unsigned.chain() != chain || signers.iter().any(|row| row.chain != chain) {
             return Err(CoreError::internal_without_source(
                 "the adapter built a transaction for another chain",
             ));
         }
-        if let Some(warning) = self.inner.table.spec(chain).high_fee_warning(&unsigned.preview) {
-            unsigned.preview.warnings.push(warning);
-        }
+        let fee_warning = self.inner.table.spec(chain).high_fee_warning(&unsigned.preview);
         let now_millis = self.inner.clock.elapsed_millis();
         let id = PendingTxId::from_bytes(*random_bytes::<{ PendingTxId::LEN }>()?);
-        let pending = PendingTx::new(signers, unsigned, adapter, now_millis)?;
+        let pending = PendingTx::new(signers, unsigned, fee_warning, adapter, now_millis)?;
         let view = pending.view(id);
         self.inner.pending.insert(id, pending);
         Ok(view)

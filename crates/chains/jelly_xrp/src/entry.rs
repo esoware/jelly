@@ -22,10 +22,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[FeeLevel::Normal],
     custom_fee: Some(CustomFee::Total),
-    // About $0.97 at the October 2026 price of $1.29. A payment costs about 0.00001 XRP, and
-    // an account deletion pays the 0.2 XRP owner reserve. Update it when the price moves a
-    // lot.
-    high_fee: Amount::from_base_units(750_000),
+    // About $0.32 at the October 2026 price of $1.29. A payment costs about 0.00001 XRP, and
+    // it sits just above the 0.2 XRP owner reserve an account deletion pays.
+    high_fee: Amount::from_base_units(250_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "xrpl",

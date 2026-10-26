@@ -30,8 +30,8 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &[FeeLevel::Normal],
     custom_fee: Some(CustomFee::Rate),
-    // Under $1 at 2026 prices. A 226-byte payment costs 226 sat at the 1 sat/B every wallet
-    // pays. Update it when the price moves a lot.
+    // About $0.28 at the October 2026 price of $275. A 226-byte payment costs 226 sat at the
+    // 1 sat/B every wallet pays.
     high_fee: Amount::from_base_units(100_000),
     can_pin_nonce: false,
     can_carry_data: false,

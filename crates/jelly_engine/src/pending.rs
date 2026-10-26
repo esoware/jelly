@@ -5,7 +5,7 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 use jelly_core::{
-    AdapterSet, ChainAdapter, ChainId, CoreError, PendingTxId, TxPreview, UnsignedTx,
+    AdapterSet, ChainAdapter, ChainId, CoreError, PendingTxId, TxPreview, TxWarning, UnsignedTx,
     duration_millis,
 };
 use jelly_store::AddressRow;
@@ -129,6 +129,10 @@ pub struct PreparedTx {
 /// what the digest covers and what the user approved. A second copy could disagree with
 /// what was signed.
 ///
+/// `unsigned` stays exactly as the adapter built it, because a signer may rebuild the
+/// preview from the payload and refuse one that differs. The engine's own fee warning is
+/// held beside it and joins the preview only in what the user sees and the digest covers.
+///
 /// `adapter` is the adapter that built it and holds its outpoint locks or nonce slot.
 /// Another adapter for the same chain, such as the one a rebuild puts in its place,
 /// never saw those reservations, so the transaction is only spendable while `adapter`
@@ -141,6 +145,7 @@ pub(crate) struct PendingTx {
     /// The first of them, whose address the transaction's sent record is filed under.
     pub(crate) record_address_id: i64,
     pub(crate) unsigned: UnsignedTx,
+    fee_warning: Option<TxWarning>,
     pub(crate) digest: PreviewDigest,
     pub(crate) adapter: Weak<dyn ChainAdapter>,
     created_elapsed_millis: u64,
@@ -150,6 +155,7 @@ impl PendingTx {
     pub(crate) fn new(
         signers: Vec<AddressRow>,
         unsigned: UnsignedTx,
+        fee_warning: Option<TxWarning>,
         adapter: &Arc<dyn ChainAdapter>,
         created_elapsed_millis: u64,
     ) -> Result<Self, CoreError> {
@@ -157,11 +163,12 @@ impl PendingTx {
             .first()
             .map(|row| row.id)
             .ok_or(CoreError::internal_without_source("a transaction has no source to sign it"))?;
-        let digest = PreviewDigest::of(&unsigned.preview);
+        let digest = PreviewDigest::of(&shown(&unsigned.preview, fee_warning.as_ref()));
         Ok(Self {
             signers,
             record_address_id,
             unsigned,
+            fee_warning,
             digest,
             adapter: Arc::downgrade(adapter),
             created_elapsed_millis,
@@ -181,12 +188,24 @@ impl PendingTx {
     }
 
     pub(crate) fn view(&self, id: PendingTxId) -> PreparedTx {
-        PreparedTx { id, preview: self.unsigned.preview.clone(), preview_digest: self.digest }
+        PreparedTx {
+            id,
+            preview: shown(&self.unsigned.preview, self.fee_warning.as_ref()),
+            preview_digest: self.digest,
+        }
     }
 
     fn is_expired(&self, now_millis: u64) -> bool {
         now_millis.saturating_sub(self.created_elapsed_millis) >= duration_millis(PENDING_TTL)
     }
+}
+
+/// The adapter's preview with the engine's fee warning after its own, which is what the
+/// user approves.
+fn shown(preview: &TxPreview, fee_warning: Option<&TxWarning>) -> TxPreview {
+    let mut shown = preview.clone();
+    shown.warnings.extend(fee_warning.cloned());
+    shown
 }
 
 /// The authorised-but-unsent transactions of the open session.
@@ -286,7 +305,7 @@ mod tests {
     use jelly_core::{
         Amount, AssetId, ChainError, ChainOutcome, ChainSyncProgress, Deadline, DerivationPath,
         EventSink, FeeQuote, KeyMaterial, KeySource, SignedTx, TxDetail, TxId, TxPayload,
-        TxRequest, TxWarning, TxWarningKind, WatchedAddress,
+        TxRequest, TxWarningKind, WatchedAddress,
     };
     use serde::de::value::{Error as ValueError, StrDeserializer};
 
@@ -447,14 +466,26 @@ mod tests {
         once((ChainId::Bitcoin, ChainOutcome::Built(Arc::clone(adapter)))).collect()
     }
 
+    fn unsigned() -> UnsignedTx {
+        UnsignedTx { preview: preview(), payload: TxPayload::from_bytes(vec![1]) }
+    }
+
     fn built(adapter: &Arc<dyn ChainAdapter>, created_elapsed_millis: u64) -> PendingTx {
-        PendingTx::new(
-            vec![row()],
-            UnsignedTx { preview: preview(), payload: TxPayload::from_bytes(vec![1]) },
-            adapter,
-            created_elapsed_millis,
-        )
-        .unwrap()
+        PendingTx::new(vec![row()], unsigned(), None, adapter, created_elapsed_millis).unwrap()
+    }
+
+    /// A signer that rebuilds the preview from the payload refuses any other preview.
+    #[test]
+    fn the_engines_fee_warning_is_approved_but_never_handed_to_the_signer() {
+        let warning = TxWarning::new(TxWarningKind::HighFee, "The fee is high.");
+        let held =
+            PendingTx::new(vec![row()], unsigned(), Some(warning.clone()), &adapter(), 0).unwrap();
+        assert_eq!(held.unsigned, unsigned());
+
+        let view = held.view(PendingTxId::from_bytes([1u8; PendingTxId::LEN]));
+        assert_eq!(view.preview.warnings, [warning]);
+        assert_eq!(view.preview_digest, PreviewDigest::of(&view.preview));
+        assert_ne!(view.preview_digest, PreviewDigest::of(&preview()));
     }
 
     #[test]

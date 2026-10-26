@@ -20,10 +20,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::FeeCap),
-    // About $1.15 at the October 2026 price of $2328. At the 0.078 gwei gas costs now, a
+    // About $0.23 at the October 2026 price of $2328. At the 0.078 gwei gas costs now, a
     // plain transfer costs about 0.0000016 ETH and a token transfer about 0.000005 ETH.
-    // Update it when the price moves a lot.
-    high_fee: Amount::from_base_units(500_000_000_000_000),
+    high_fee: Amount::from_base_units(100_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,
     uri_scheme: "ethereum",

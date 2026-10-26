@@ -30,9 +30,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &[FeeLevel::Normal],
     custom_fee: Some(CustomFee::Rate),
-    // Under $1 at 2026 prices. A 226-byte payment costs about 0.0023 DOGE at the recommended
-    // 0.01 DOGE/kB. Update it when the price moves a lot.
-    high_fee: Amount::from_base_units(100_000_000),
+    // About $0.15 at the October 2026 price of $0.077. A 226-byte payment costs about
+    // 0.0023 DOGE at the recommended 0.01 DOGE/kB.
+    high_fee: Amount::from_base_units(200_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "dogecoin",

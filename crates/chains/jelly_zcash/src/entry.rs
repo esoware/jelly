@@ -30,10 +30,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[FeeLevel::Normal],
     custom_fee: Some(CustomFee::Total),
-    // About $1.20 at the October 2026 price of $1221. A payment of up to two inputs and two
-    // outputs costs the ZIP 317 minimum of 0.0001 ZEC, and the ZIP 317 fee passes this from
-    // 21 inputs. Update it when the price moves a lot.
-    high_fee: Amount::from_base_units(100_000),
+    // About $0.37 at the October 2026 price of $1221. A payment of up to two inputs and two
+    // outputs costs the ZIP 317 minimum of 0.0001 ZEC.
+    high_fee: Amount::from_base_units(30_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "zcash",

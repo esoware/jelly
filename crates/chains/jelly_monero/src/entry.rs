@@ -20,10 +20,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::Rate),
-    // About $1.20 at the October 2026 price of $591. A payment spending one output costs
-    // about 0.00003 XMR at the unimportant tier, 0.00012 at normal and 0.0005 at elevated,
-    // and the elevated tier passes this from 8 inputs. Update it when the price moves a lot.
-    high_fee: Amount::from_base_units(2_000_000_000),
+    // About $0.35 at the October 2026 price of $591. A payment spending one output costs
+    // about 0.00003 XMR at the unimportant tier, 0.00012 at normal and 0.0005 at elevated.
+    high_fee: Amount::from_base_units(600_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "monero",

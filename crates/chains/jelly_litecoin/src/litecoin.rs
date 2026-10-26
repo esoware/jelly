@@ -28,9 +28,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::Rate),
-    // Under $1 at 2026 prices. A 141 vB payment costs 1410 lit at the wallet's minimum of
-    // 10 lit/vB. Update it when the price moves a lot.
-    high_fee: Amount::from_base_units(1_000_000),
+    // About $0.17 at the October 2026 price of $57. A 141 vB payment costs 1410 lit at the
+    // wallet's minimum of 10 lit/vB.
+    high_fee: Amount::from_base_units(300_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "litecoin",

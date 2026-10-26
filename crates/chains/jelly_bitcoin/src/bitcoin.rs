@@ -30,10 +30,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::Rate),
-    // About $1.20 at the October 2026 price of $80260. A 141 vB payment costs 141 to 282
-    // sat at the 1 to 2 sat/vB blocks take now, and passes this above about 10 sat/vB.
-    // Update it when the price moves a lot.
-    high_fee: Amount::from_base_units(1_500),
+    // About $0.40 at the October 2026 price of $80260. A 141 vB payment costs 141 to 282
+    // sat at the 1 to 2 sat/vB blocks take now.
+    high_fee: Amount::from_base_units(500),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "bitcoin",

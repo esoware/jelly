@@ -143,6 +143,9 @@ pub(crate) struct FakeState {
     pub(crate) last_watch_set: Mutex<Vec<WatchedAddress>>,
     /// The sources the last build named, which a replacement keeps spending from.
     last_from: Mutex<Vec<String>>,
+    /// Every preview a build handed out. Like a real signer that rebuilds the preview from
+    /// the payload, `sign_tx` refuses any other.
+    built_previews: Mutex<Vec<TxPreview>>,
     discarded: Mutex<Vec<Vec<u8>>>,
     pub(crate) should_fail_watch_set: AtomicBool,
     pub(crate) should_fail_sync: AtomicBool,
@@ -256,7 +259,7 @@ impl FakeAdapter {
     }
 
     fn preview(&self, to: &str, from: Vec<String>, amount: Amount) -> TxPreview {
-        TxPreview {
+        let preview = TxPreview {
             chain: self.state.previewed_chain.lock().unwrap_or(self.chain),
             asset: self.asset(),
             from,
@@ -266,7 +269,9 @@ impl FakeAdapter {
             fee: Amount::from_base_units(1_000),
             details: Vec::new(),
             warnings: Vec::new(),
-        }
+        };
+        self.state.built_previews.lock().push(preview.clone());
+        preview
     }
 
     fn watched_address(&self, address_id: i64) -> String {
@@ -360,6 +365,9 @@ impl ChainAdapter for FakeAdapter {
     fn sign_tx(&self, tx: &UnsignedTx, keys: &[KeyMaterial]) -> Result<SignedTx, ChainError> {
         if keys.len() != tx.preview.from.len() || keys.iter().any(KeyMaterial::is_empty) {
             return Err(ChainError::signing("the signer was not handed a key per source"));
+        }
+        if !self.state.built_previews.lock().contains(&tx.preview) {
+            return Err(ChainError::signing("the preview is not one this adapter built"));
         }
         self.state.signed_key_counts.lock().push(keys.len());
         if let Some((clock, by)) = self.state.sign_delay.lock().as_ref() {

@@ -23,10 +23,10 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[],
     custom_fee: None,
-    // About $6.60 at the October 2026 price of $0.33. It is above $1 because a USDT transfer
-    // that no staked energy covers always burns about 6.5 to 13.4 TRX, while a TRX transfer
-    // costs nothing or about 0.27 TRX of bandwidth. Update it when the price moves a lot.
-    high_fee: Amount::from_base_units(20_000_000),
+    // About $4.95 at the October 2026 price of $0.33. It sits above the 6.5 to 13.4 TRX a
+    // USDT transfer that no staked energy covers always burns, so such a transfer does not
+    // warn. A TRX transfer costs nothing or about 0.27 TRX of bandwidth.
+    high_fee: Amount::from_base_units(15_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
     uri_scheme: "tron",
