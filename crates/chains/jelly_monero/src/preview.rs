@@ -32,14 +32,16 @@ fn details(plan: &Plan, built: &Built, ring_height: u64) -> Vec<TxDetail> {
         TxDetail::new("Ring size", RING_LEN.to_string()),
         TxDetail::new("Inputs", built.input_count.to_string()),
         TxDetail::new("Outputs", format!("{PAYMENT_AND_CHANGE} (payment and change)")),
-        TxDetail::new("Change", xmr(piconero(built.change_piconero))),
+        TxDetail::new("Change", CHAIN.format_amount(piconero(built.change_piconero))),
         TxDetail::new(
             "Change goes to",
             format!("Account {} primary address", plan.subaddress.major),
         ),
         TxDetail::new(
             "Total debited",
-            xmr(piconero(built.input_sum_piconero.saturating_sub(built.change_piconero))),
+            CHAIN.format_amount(piconero(
+                built.input_sum_piconero.saturating_sub(built.change_piconero),
+            )),
         ),
         TxDetail::new("Fee rate", format!("{} {FEE_RATE_UNIT}", plan.rate.per_weight())),
         TxDetail::new("Decoys chosen at height", ring_height.to_string()),
@@ -60,14 +62,14 @@ fn warnings(config: &MoneroConfig, plan: &Plan, built: &Built) -> Vec<TxWarning>
     if locked > Amount::ZERO {
         warnings.push(TxWarning::new(
             TxWarningKind::Other,
-            format!("{} is still locked and cannot be spent yet.", xmr(locked)),
+            format!("{} is still locked and cannot be spent yet.", CHAIN.format_amount(locked)),
         ));
     }
     let reserved = plan.balance.reserved();
     if reserved > Amount::ZERO {
         warnings.push(TxWarning::new(
             TxWarningKind::Other,
-            format!("Pending sends have reserved {}.", xmr(reserved)),
+            format!("Pending sends have reserved {}.", CHAIN.format_amount(reserved)),
         ));
     }
     if plan.scan_gap > STALE_SCAN_WARN_BLOCKS {
@@ -101,9 +103,4 @@ fn warnings(config: &MoneroConfig, plan: &Plan, built: &Built) -> Vec<TxWarning>
         ));
     }
     warnings
-}
-
-/// An amount as the preview writes it, with its ticker.
-fn xmr(amount: Amount) -> String {
-    format!("{} {}", amount.format(CHAIN.native_decimals()), CHAIN.ticker())
 }

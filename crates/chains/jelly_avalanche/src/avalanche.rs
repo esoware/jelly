@@ -25,9 +25,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::FeeCap),
-    // About $0.18 at the October 2026 price of $8.93. At the 2.5 nAVAX gas costs now, a
+    // About $1.96 at the October 2026 price of $8.93. At the 2.5 nAVAX gas costs now, a
     // plain transfer costs about 0.00005 AVAX and a token transfer about 0.00016 AVAX.
-    high_fee: Amount::from_base_units(20_000_000_000_000_000),
+    high_fee: Amount::from_base_units(220_000_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,
     uri_scheme: "ethereum",

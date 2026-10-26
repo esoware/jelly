@@ -144,8 +144,8 @@ fn warnings(
                 TxWarningKind::DustOutput,
                 format!(
                     "The output of {} to {to} is below the {} network minimum. Nodes will reject it.",
-                    params.format_amount(output.value),
-                    params.format_amount(threshold)
+                    params.chain.format_amount(output.value),
+                    params.chain.format_amount(threshold)
                 ),
             ));
         }
@@ -156,7 +156,7 @@ fn warnings(
             TxWarningKind::DroppedChange,
             format!(
                 "The remaining {} would cost more to return as change. It is added to the fee.",
-                params.format_amount(intent.donated)
+                params.chain.format_amount(intent.donated)
             ),
         ));
     }
@@ -203,8 +203,8 @@ fn warnings(
                 TxWarningKind::Replacement,
                 format!(
                     "The higher fee reduces the payment to {} instead of {}.",
-                    params.format_amount(reduction.to),
-                    params.format_amount(reduction.from)
+                    params.chain.format_amount(reduction.to),
+                    params.chain.format_amount(reduction.from)
                 ),
             ));
         }
@@ -280,7 +280,7 @@ fn flatten(
             input.address.as_deref().map_or_else(String::new, |address| format!(" from {address}"));
         details.push(TxDetail::new(
             format!("Input {index}"),
-            format!("{} - {}{from}", input.outpoint, params.format_amount(input.value)),
+            format!("{} - {}{from}", input.outpoint, params.chain.format_amount(input.value)),
         ));
     }
     details.push(TxDetail::new("Outputs", decoded.outputs.len().to_string()));
@@ -289,10 +289,10 @@ fn flatten(
         let to = output.address.as_deref().unwrap_or("a non-standard script");
         details.push(TxDetail::new(
             format!("Output {index}"),
-            format!("{} to {to}{note}", params.format_amount(output.value)),
+            format!("{} to {to}{note}", params.chain.format_amount(output.value)),
         ));
     }
-    details.push(TxDetail::new("Fee", params.format_amount(decoded.fee)));
+    details.push(TxDetail::new("Fee", params.chain.format_amount(decoded.fee)));
     details.push(TxDetail::new("Fee rate", params.format_rate(decoded.rate)));
     if params.has_segwit {
         details.push(TxDetail::new("Virtual size", format!("{} vB", decoded.vsize)));
@@ -300,7 +300,7 @@ fn flatten(
         details.push(TxDetail::new("Size", format!("{} bytes", decoded.vsize)));
     }
     if !intent.donated.is_zero() {
-        details.push(TxDetail::new("To the miner", params.format_amount(intent.donated)));
+        details.push(TxDetail::new("To the miner", params.chain.format_amount(intent.donated)));
     }
 
     TxPreview {

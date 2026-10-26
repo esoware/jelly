@@ -1,14 +1,9 @@
 use crate::amount::Amount;
-use crate::asset::AssetId;
 use crate::chain::{ChainId, ScriptKind};
 use crate::error::KeyError;
 use crate::secret::KeyKind;
 use crate::transport::Transport;
 use crate::tx::{CustomFee, FeeLevel, TxPreview, TxWarning, TxWarningKind};
-
-/// The share of a payment above which its fee is a large part of what it moves. Electrum
-/// warns from 5% of the amount sent, and Sparrow above 10% of every output, change included.
-const HIGH_FEE_PERCENT: u128 = 10;
 
 /// Templates use `{index}`, `{txid}`, and `{address}` placeholders.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,10 +38,10 @@ pub struct ChainSpec {
     pub fee_levels: &'static [FeeLevel],
     /// What a custom fee names, or `None` when the chain takes only its levels.
     pub custom_fee: Option<CustomFee>,
-    /// The fee in the chain's coin above which a preview warns that it is high. It sits just
-    /// above what a normal send on the chain costs, a few tens of US cents at the coin's
-    /// price when it was set. It is a fixed amount because a fiat price can be switched off
-    /// or stale, and a warning rather than a refusal.
+    /// The fee in the chain's coin above which a preview warns that it is more than an
+    /// everyday user would pay. It is about $2 at the coin's price when it was set, or more
+    /// on a chain where an ordinary send costs that much. It is a fixed amount because a
+    /// fiat price can be switched off or stale, and a warning rather than a refusal.
     pub high_fee: Amount,
     /// Whether a send can replace the account's next nonce.
     pub can_pin_nonce: bool,
@@ -132,46 +127,28 @@ impl ChainSpec {
         if is_websocket { Transport::WsJsonrpc } else { self.primary_transport }
     }
 
-    /// The warning `preview` needs when its fee is above [`ChainSpec::high_fee`], or else a
-    /// large share of a payment in the chain's own coin.
+    /// The warning `preview` needs when its fee is above [`ChainSpec::high_fee`].
     ///
     /// It is given even when the adapter warns about the fee, because an adapter judges the
-    /// fee against its market and this judges its size. A token payment is counted in another
-    /// unit than its fee, a payment of nothing, such as a cancel, has no share to take, and
-    /// a fee the preview already explains as a cost the protocol sets cannot be lowered, so
-    /// none of them is measured against its payment.
+    /// fee against its market and this judges its size.
     pub fn high_fee_warning(&self, preview: &TxPreview) -> Option<TxWarning> {
-        let coin = |amount: Amount| {
-            format!("{} {}", amount.format(self.chain.native_decimals()), self.chain.ticker())
-        };
-        let message = if preview.fee > self.high_fee {
-            format!(
-                "The {} fee is more than {}. Make sure you mean to pay this much.",
-                coin(preview.fee),
-                coin(self.high_fee)
+        (preview.fee > self.high_fee).then(|| {
+            TxWarning::new(
+                TxWarningKind::HighFee,
+                format!(
+                    "The {} fee is more than {}. Make sure you mean to pay this much.",
+                    self.chain.format_amount(preview.fee),
+                    self.chain.format_amount(self.high_fee)
+                ),
             )
-        } else if preview.asset == AssetId::Native(self.chain)
-            && !preview.amount.is_zero()
-            && !preview.warnings.iter().any(|warning| warning.kind.is_fixed_cost())
-            && preview.fee.base_units().saturating_mul(100)
-                > preview.amount.base_units().saturating_mul(HIGH_FEE_PERCENT)
-        {
-            format!(
-                "The {} fee exceeds {HIGH_FEE_PERCENT}% of the {} payment.",
-                coin(preview.fee),
-                coin(preview.amount)
-            )
-        } else {
-            return None;
-        };
-        Some(TxWarning::new(TxWarningKind::HighFee, message))
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::asset::TokenId;
+    use crate::asset::AssetId;
 
     const UTXO: ChainSpec = ChainSpec {
         chain: ChainId::Bitcoin,
@@ -233,10 +210,10 @@ mod tests {
         assert_eq!(UTXO.transport_for("node.example.org:50002"), Transport::ElectrumSsl);
     }
 
-    fn preview(asset: AssetId, amount: u128, fee: u128) -> TxPreview {
+    fn preview(amount: u128, fee: u128) -> TxPreview {
         TxPreview {
-            chain: asset.chain(),
-            asset,
+            chain: ChainId::Bitcoin,
+            asset: AssetId::Native(ChainId::Bitcoin),
             from: vec![String::from("bc1qsender")],
             to: String::from("bc1qrecipient"),
             destination_tag: None,
@@ -247,17 +224,15 @@ mod tests {
         }
     }
 
-    const BITCOIN: AssetId = AssetId::Native(ChainId::Bitcoin);
-
     fn fee_warning(message: &str) -> TxWarning {
         TxWarning::new(TxWarningKind::HighFee, message)
     }
 
     #[test]
-    fn a_fee_above_the_chains_ceiling_is_flagged_with_both_amounts() {
-        assert_eq!(UTXO.high_fee_warning(&preview(BITCOIN, 100_000_000, 1_000_000)), None);
+    fn a_fee_above_the_chains_limit_is_flagged_with_both_amounts() {
+        assert_eq!(UTXO.high_fee_warning(&preview(100_000_000, 1_000_000)), None);
         assert_eq!(
-            UTXO.high_fee_warning(&preview(BITCOIN, 100_000_000, 1_000_001)),
+            UTXO.high_fee_warning(&preview(100_000_000, 1_000_001)),
             Some(fee_warning(
                 "The 0.01000001 BTC fee is more than 0.01 BTC. Make sure you mean to pay this much."
             ))
@@ -265,74 +240,22 @@ mod tests {
     }
 
     #[test]
-    fn a_fee_above_a_tenth_of_the_payment_is_called_a_large_share() {
-        assert_eq!(UTXO.high_fee_warning(&preview(BITCOIN, 1_000, 100)), None, "exactly a tenth");
-        assert_eq!(
-            UTXO.high_fee_warning(&preview(BITCOIN, 1_000, 101)),
-            Some(fee_warning("The 0.00000101 BTC fee exceeds 10% of the 0.00001 BTC payment."))
-        );
-        assert!(
-            UTXO.high_fee_warning(&preview(BITCOIN, 294, 141)).is_some(),
-            "a fee can be most of a payment"
-        );
-    }
-
-    #[test]
-    fn a_fee_above_the_ceiling_is_named_once_even_when_it_is_also_a_large_share() {
-        assert_eq!(
-            UTXO.high_fee_warning(&preview(BITCOIN, 2_000_000, 1_500_000)),
-            Some(fee_warning(
-                "The 0.015 BTC fee is more than 0.01 BTC. Make sure you mean to pay this much."
-            ))
-        );
-    }
-
-    #[test]
-    fn a_token_payment_or_a_payment_of_nothing_is_not_measured_against_its_fee() {
-        let ethereum = ChainSpec { chain: ChainId::Ethereum, ..UTXO };
-        let token = AssetId::Token(TokenId::UsdtErc20);
-        assert_eq!(ethereum.high_fee_warning(&preview(token, 1, 900_000)), None);
-        assert!(
-            ethereum.high_fee_warning(&preview(token, 1, 1_000_001)).is_some(),
-            "the ceiling still holds, because the fee is always in the chain's coin"
-        );
-        assert_eq!(UTXO.high_fee_warning(&preview(BITCOIN, 0, 5_000)), None, "a cancel");
+    fn a_fee_under_the_limit_is_not_flagged_however_little_it_pays_for() {
+        assert_eq!(UTXO.high_fee_warning(&preview(294, 141)), None, "most of a payment");
+        assert_eq!(UTXO.high_fee_warning(&preview(0, 5_000)), None, "a cancel");
     }
 
     #[test]
     fn an_adapters_fee_warning_does_not_stand_in_for_the_chains() {
-        let rate = fee_warning(
+        let mut warned = preview(100_000_000, 2_000_000);
+        warned.warnings.push(fee_warning(
             "The 500 sat/vB fee rate is far above the fast rate of 10 sat/vB. Check the fee before signing.",
-        );
-        let mut small = preview(BITCOIN, 1_000, 500);
-        small.warnings.push(rate.clone());
+        ));
         assert_eq!(
-            UTXO.high_fee_warning(&small),
-            Some(fee_warning("The 0.000005 BTC fee exceeds 10% of the 0.00001 BTC payment."))
-        );
-
-        let mut large = preview(BITCOIN, 100_000_000, 2_000_000);
-        large.warnings.push(rate);
-        assert_eq!(
-            UTXO.high_fee_warning(&large),
+            UTXO.high_fee_warning(&warned),
             Some(fee_warning(
                 "The 0.02 BTC fee is more than 0.01 BTC. Make sure you mean to pay this much."
             ))
         );
-    }
-
-    #[test]
-    fn a_cost_the_protocol_sets_is_not_measured_against_its_payment() {
-        for kind in [TxWarningKind::AccountActivation, TxWarningKind::AccountDeletion] {
-            let mut explained = preview(BITCOIN, 1_000, 500);
-            explained.warnings.push(TxWarning::new(kind, "The protocol charges for this."));
-            assert_eq!(UTXO.high_fee_warning(&explained), None, "{kind:?}");
-
-            explained.fee = Amount::from_base_units(1_000_001);
-            assert!(
-                UTXO.high_fee_warning(&explained).is_some(),
-                "{kind:?}: the ceiling still holds"
-            );
-        }
     }
 }

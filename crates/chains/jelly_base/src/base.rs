@@ -23,9 +23,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::FeeCap),
-    // About $0.12 at the October 2026 price of $2328. Gas costs about 0.006 gwei now, so
+    // About $2.10 at the October 2026 price of $2328. Gas costs about 0.006 gwei now, so
     // 100000 gas costs 0.0000006 ETH before the L1 data fee.
-    high_fee: Amount::from_base_units(50_000_000_000_000),
+    high_fee: Amount::from_base_units(900_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,
     uri_scheme: "ethereum",

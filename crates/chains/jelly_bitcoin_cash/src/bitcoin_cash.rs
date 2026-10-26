@@ -30,9 +30,9 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &[FeeLevel::Normal],
     custom_fee: Some(CustomFee::Rate),
-    // About $0.28 at the October 2026 price of $275. A 226-byte payment costs 226 sat at the
+    // About $1.93 at the October 2026 price of $275. A 226-byte payment costs 226 sat at the
     // 1 sat/B every wallet pays.
-    high_fee: Amount::from_base_units(100_000),
+    high_fee: Amount::from_base_units(700_000),
     can_pin_nonce: false,
     can_carry_data: false,
     // The scheme is also the `CashAddr` prefix, which is part of the address checksum.

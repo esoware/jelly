@@ -34,18 +34,14 @@ pub(crate) fn of(payment: &Payment) -> Result<TxPreview, TonError> {
             }
         }
         Transfer::Jetton { attached_nanogram, .. } => {
-            let attached = Amount::from(attached_nanogram).format(CHAIN.native_decimals());
-            details.push(TxDetail::new(
-                "Gas for the token wallets",
-                format!("{attached} {}", CHAIN.ticker()),
-            ));
+            let attached = CHAIN.format_amount(Amount::from(attached_nanogram));
             warnings.push(TxWarning::new(
                 TxWarningKind::Estimated,
                 format!(
-                    "The fee includes {attached} {} for the token wallets. What they do not spend comes back to you.",
-                    CHAIN.ticker()
+                    "The fee includes {attached} for the token wallets. What they do not spend comes back to you."
                 ),
             ));
+            details.push(TxDetail::new("Gas for the token wallets", attached));
         }
     }
     let comment = payment.comment();

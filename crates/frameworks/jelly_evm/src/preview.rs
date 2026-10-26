@@ -225,8 +225,7 @@ fn gwei(wei: u128) -> String {
 }
 
 fn coins(wei: u128, params: &EvmParams) -> String {
-    let amount = Amount::from_base_units(wei).format(params.chain.native_decimals());
-    format!("{amount} {}", params.symbol())
+    params.chain.format_amount(Amount::from_base_units(wei))
 }
 
 #[cfg(test)]

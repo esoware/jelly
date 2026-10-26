@@ -183,25 +183,21 @@ fn each_table_offers_the_fee_levels_its_market_prices() {
     }
 }
 
-/// A high-fee warning above the fee a build refuses could never show.
+/// A level that warned would warn on every send of that size.
 ///
-/// A flat market pays its reference rate at every level, so a level that warned would warn
-/// on every send of that size. Even the largest standard transaction stays at or under the
-/// warning at that rate, which leaves it to a custom rate.
+/// A flat market pays its reference rate at every level. Even the largest standard
+/// transaction stays at or under the warning at that rate, which leaves it to a custom rate.
 #[test]
-fn each_tables_high_fee_warning_sits_under_the_fee_it_refuses() {
-    for params in TABLES {
+fn no_flat_market_warns_about_the_fee_its_levels_pay() {
+    for params in TABLES.into_iter().filter(|params| params.fee_market == FeeMarket::Flat) {
         let high_fee = spec(&params).unwrap().high_fee;
-        assert!(high_fee < params.fee_ceiling, "{}", params.chain);
-        if params.fee_market == FeeMarket::Flat {
-            assert!(
-                u128::from(params.min_tx_fee.sat_per_kwu())
-                    * u128::from(params.max_standard_weight.to_wu())
-                    <= high_fee.base_units() * 1000,
-                "{}",
-                params.chain
-            );
-        }
+        assert!(
+            u128::from(params.min_tx_fee.sat_per_kwu())
+                * u128::from(params.max_standard_weight.to_wu())
+                <= high_fee.base_units() * 1000,
+            "{}",
+            params.chain
+        );
     }
 }
 

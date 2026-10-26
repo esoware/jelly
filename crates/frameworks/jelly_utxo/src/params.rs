@@ -320,11 +320,6 @@ impl UtxoParams {
         format!("{} {}", rate.format_sat_per_vb(), self.fee_rate_unit)
     }
 
-    /// An amount in the chain's coin, the unit every refusal states money in.
-    pub(crate) fn format_amount(&self, amount: Amount) -> String {
-        format!("{} {}", amount.format(self.chain.native_decimals()), self.chain.ticker())
-    }
-
     pub(crate) fn txid(&self, txid: Txid) -> TxId {
         TxId::new(self.chain, txid.to_string())
     }

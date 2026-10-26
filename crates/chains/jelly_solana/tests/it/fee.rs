@@ -150,7 +150,16 @@ async fn a_chosen_fee_is_never_capped() {
     assert_eq!(quote.fee, Amount::from(common::BASE_FEE_LAMPORTS + 1_000));
     let chosen =
         harness.adapter.build_tx(&with_chosen_fee(PEER, native(), 1_000, 1_000)).await.unwrap();
-    assert!(!common::warns(&chosen.preview.warnings, TxWarningKind::HighFee));
+    assert_eq!(chosen.preview.fee, quote.fee);
+    assert!(
+        !chosen
+            .preview
+            .warnings
+            .iter()
+            .any(|warning| warning.message.starts_with("The quoted priority fee exceeds")),
+        "{:?}",
+        chosen.preview.warnings
+    );
 }
 
 #[tokio::test]

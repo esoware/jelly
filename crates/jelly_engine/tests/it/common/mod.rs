@@ -153,6 +153,8 @@ pub(crate) struct FakeState {
     /// The address each pass reports a new balance and transaction for.
     emits_for: Mutex<Option<i64>>,
     pub(crate) tip: AtomicU64,
+    /// Set to make every build charge this fee instead of 1000 base units.
+    fee: Mutex<Option<Amount>>,
     pub(crate) bump_floor_sat_per_kwu: AtomicU64,
     /// Set to make `broadcast` refuse with this rejection.
     refusal: Mutex<Option<Rejection>>,
@@ -204,6 +206,10 @@ impl FakeState {
 
     pub(crate) fn preview_chain(&self, chain: ChainId) {
         *self.previewed_chain.lock() = Some(chain);
+    }
+
+    pub(crate) fn charge(&self, fee: Amount) {
+        *self.fee.lock() = Some(fee);
     }
 
     pub(crate) fn sync_count(&self) -> u64 {
@@ -266,7 +272,7 @@ impl FakeAdapter {
             to: to.to_owned(),
             destination_tag: None,
             amount,
-            fee: Amount::from_base_units(1_000),
+            fee: self.state.fee.lock().unwrap_or(Amount::from_base_units(1_000)),
             details: Vec::new(),
             warnings: Vec::new(),
         };
