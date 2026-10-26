@@ -30,7 +30,7 @@ pub const SPEC: ChainSpec = ChainSpec {
     custom_fee: Some(CustomFee::Rate),
     // About $2.00 at the October 2026 price of $57. A 141 vB payment costs 1410 lit at the
     // wallet's minimum of 10 lit/vB. A build refuses a fee above the 0.02 LTC fee ceiling,
-    // so no fee reaches it at today's price.
+    // so no fee reaches it.
     high_fee: Amount::from_base_units(3_500_000),
     can_pin_nonce: false,
     can_carry_data: false,

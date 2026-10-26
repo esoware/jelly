@@ -8,7 +8,7 @@
 
 use jelly_core::Amount;
 
-use crate::config::TRX;
+use crate::config::CHAIN;
 use crate::error::TronError;
 use crate::params::ChainParams;
 use crate::raw;
@@ -243,7 +243,7 @@ fn with_margin(value: u128) -> Result<u128, TronError> {
 }
 
 pub(crate) fn trx_text(sun: u64) -> String {
-    format!("{} {}", Amount::from(sun).format(TRX.decimals()), TRX.symbol())
+    CHAIN.format_amount(Amount::from(sun))
 }
 
 #[cfg(test)]
