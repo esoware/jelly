@@ -207,8 +207,9 @@ impl Session {
 #[derive(Debug)]
 pub(crate) struct SessionSlot {
     current: RwLock<Option<Arc<Session>>>,
-    /// Held through retirement and through creation or unlock. Publication outside those
-    /// relies on the slot's read guard (see `rebuild_adapters`).
+    /// Held through retirement and through creating, unlocking, editing, or deleting a
+    /// wallet. Publication outside those relies on the slot's read guard (see
+    /// `rebuild_adapters`).
     pub(crate) transition: Mutex<()>,
     state: watch::Sender<LockState>,
     timeout: watch::Sender<Duration>,

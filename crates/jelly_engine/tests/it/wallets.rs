@@ -143,7 +143,7 @@ async fn an_imported_phrase_reproduces_the_same_wallet() {
 }
 
 #[tokio::test]
-async fn editing_keeps_the_session_and_the_row_in_step() {
+async fn editing_the_open_wallet_updates_the_lock_state() {
     let harness = harness().await.unwrap();
     let created = harness.seed_wallet("before").await.unwrap();
     harness.engine.update_wallet(created.wallet.id, "after", created.wallet.color).await.unwrap();
