@@ -5,6 +5,7 @@ import { assetKey } from "@/lib/chain.ts"
 import { appendClassName } from "@/lib/class-name.ts"
 import { sliceWeights } from "@/lib/portfolio.ts"
 import type { Allocation } from "@/lib/portfolio.ts"
+import { lerp, mixColors, useMorph } from "@/ui/use-morph.ts"
 import { assetBrand } from "@/widgets/logos.tsx"
 
 const VIEW = 100
@@ -39,9 +40,23 @@ interface Ring {
 }
 
 interface Sector {
+  key: string
   slice: DonutSlice
   start: number
   end: number
+}
+
+interface SectorPair {
+  key: string
+  slice: DonutSlice
+  fromColor: string
+  fromSweep: number
+  toSweep: number
+}
+
+interface Run {
+  at: number
+  keys: readonly string[]
 }
 
 function polar(radius: number, angle: number): string {
@@ -80,6 +95,116 @@ function sectorPath(start: number, end: number, ring: Ring, inset: number): stri
   return apex < ring.outer ? `${head}L${polar(apex, start + half)}Z` : null
 }
 
+function drawSectors(slices: readonly DonutSlice[], geometry: Geometry): Sector[] {
+  const inner = CENTER - geometry.thickness
+  const visibleSlices = slices.filter((slice) => slice.weight > 0)
+  const minSweep =
+    inner > 0
+      ? Math.min(2 * Math.asin(Math.min(1, geometry.gap / inner)), FULL_TURN / visibleSlices.length)
+      : 0
+  const raisedSlices = new Set<DonutSlice>()
+  let freeTurn = FULL_TURN
+  let freeWeight = visibleSlices.reduce((total, slice) => total + slice.weight, 0)
+  for (const slice of visibleSlices.toSorted((a, b) => a.weight - b.weight)) {
+    if (slice.weight * (freeTurn / freeWeight) >= minSweep) {
+      break
+    }
+    raisedSlices.add(slice)
+    freeTurn -= minSweep
+    freeWeight -= slice.weight
+  }
+  const scale = freeTurn / freeWeight
+  const sectors: Sector[] = []
+  let angle = 0
+  for (const [i, slice] of visibleSlices.entries()) {
+    const sweep = raisedSlices.has(slice) ? minSweep : slice.weight * scale
+    const end = i === visibleSlices.length - 1 ? FULL_TURN : angle + sweep
+    sectors.push({ key: slice.id, slice, start: angle, end })
+    angle = end
+  }
+  return sectors
+}
+
+function blendSectors(
+  from: readonly Sector[],
+  to: readonly Sector[],
+): (progress: number) => Sector[] {
+  const shownFrom = from.filter((sector) => sector.end > sector.start)
+  const fromIndex = new Map(shownFrom.map((sector, i) => [sector.key, i]))
+  const runs: Run[] = []
+  let matched: readonly string[] = []
+  for (const sector of to) {
+    const at = fromIndex.get(sector.key)
+    if (at !== undefined) {
+      const longest = runs
+        .filter((run) => run.at < at)
+        .reduce<readonly string[]>(
+          (best, run) => (run.keys.length > best.length ? run.keys : best),
+          [],
+        )
+      const keys = [...longest, sector.key]
+      runs.push({ at, keys })
+      if (keys.length > matched.length) {
+        matched = keys
+      }
+    }
+  }
+
+  const matchedKeys = new Set(matched)
+  const takenKeys = new Set(to.map((sector) => sector.key))
+  const pairs: SectorPair[] = []
+  function leave(sectors: readonly Sector[]): void {
+    for (const sector of sectors) {
+      let { key } = sector
+      while (takenKeys.has(key)) {
+        key = `${key}~`
+      }
+      takenKeys.add(key)
+      pairs.push({
+        key,
+        slice: sector.slice,
+        fromColor: sector.slice.color,
+        fromSweep: sector.end - sector.start,
+        toSweep: 0,
+      })
+    }
+  }
+  let passed = 0
+  for (const sector of to) {
+    const at = matchedKeys.has(sector.key) ? fromIndex.get(sector.key) : undefined
+    const match = at === undefined ? undefined : shownFrom[at]
+    if (at !== undefined) {
+      leave(shownFrom.slice(passed, at))
+      passed = at + 1
+    }
+    pairs.push({
+      key: sector.key,
+      slice: sector.slice,
+      fromColor: match?.slice.color ?? sector.slice.color,
+      fromSweep: match === undefined ? 0 : match.end - match.start,
+      toSweep: sector.end - sector.start,
+    })
+  }
+  leave(shownFrom.slice(passed))
+
+  function frame(progress: number): Sector[] {
+    const sectors: Sector[] = []
+    let angle = 0
+    for (const pair of pairs) {
+      const end = angle + lerp(pair.fromSweep, pair.toSweep, progress)
+      sectors.push({
+        key: pair.key,
+        slice: { ...pair.slice, color: mixColors(pair.fromColor, pair.slice.color, progress) },
+        start: angle,
+        end,
+      })
+      angle = end
+    }
+    return sectors
+  }
+  return frame
+}
+
 interface DonutProps {
   slices: readonly DonutSlice[]
   size?: keyof typeof GEOMETRIES | undefined
@@ -103,30 +228,13 @@ export function Donut({
   const geometry: Geometry = GEOMETRIES[size]
   const inner = CENTER - geometry.thickness
   const middle = CENTER - geometry.thickness / 2
-  const visibleSlices = slices.filter((slice) => slice.weight > 0)
-  const minSweep =
-    inner > 0
-      ? Math.min(2 * Math.asin(Math.min(1, geometry.gap / inner)), FULL_TURN / visibleSlices.length)
-      : 0
-  const raisedSlices = new Set<DonutSlice>()
-  let freeTurn = FULL_TURN
-  let freeWeight = visibleSlices.reduce((total, slice) => total + slice.weight, 0)
-  for (const slice of visibleSlices.toSorted((a, b) => a.weight - b.weight)) {
-    if (slice.weight * (freeTurn / freeWeight) >= minSweep) {
-      break
-    }
-    raisedSlices.add(slice)
-    freeTurn -= minSweep
-    freeWeight -= slice.weight
-  }
-  const scale = freeTurn / freeWeight
-  const sectors: Sector[] = []
-  let angle = 0
-  for (const slice of visibleSlices) {
-    const end = angle + (raisedSlices.has(slice) ? minSweep : slice.weight * scale)
-    sectors.push({ slice, start: angle, end })
-    angle = end
-  }
+  const { target: sectors, shown } = useMorph(
+    slices,
+    (source) => drawSectors(source, geometry),
+    blendSectors,
+  )
+  const shownSectors = shown.filter((sector) => sector.end > sector.start)
+  const paintedSlices = new Map(shownSectors.map(({ slice }) => [slice.id, slice]))
   const isWhole = sectors.length === 1
   const reach = { inner: inner - HIT_SLOP, outer: CENTER }
 
@@ -144,7 +252,7 @@ export function Donut({
         }}
       >
         <defs>
-          {sectors.map(({ slice }) =>
+          {[...paintedSlices.values()].map((slice) =>
             slice.gradient === undefined ? null : (
               <linearGradient key={slice.id} id={gradientId(slice)} x1="0" y1="1" x2="1" y2="0">
                 <stop offset="0%" stopColor={slice.gradient[0]} />
@@ -164,13 +272,13 @@ export function Donut({
           />
         ) : null}
 
-        {sectors.map(({ slice, start, end }) => {
+        {shownSectors.map(({ key, slice, start, end }) => {
           const paint = slice.gradient === undefined ? slice.color : `url(#${gradientId(slice)})`
           const isDimmed = activeId !== null && activeId !== slice.id
-          if (isWhole) {
+          if (end - start >= FULL_TURN) {
             return (
               <circle
-                key={slice.id}
+                key={key}
                 cx={CENTER}
                 cy={CENTER}
                 r={middle}
@@ -192,7 +300,7 @@ export function Donut({
           const d = sectorPath(start, end, shrunk, gap / 2 + corner)
           return d === null ? null : (
             <path
-              key={slice.id}
+              key={key}
               d={d}
               fill={paint}
               stroke={paint}
