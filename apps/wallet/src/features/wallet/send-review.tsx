@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/ui/dialog.tsx"
 import { Field } from "@/ui/field.tsx"
+import { MiddleTruncate } from "@/ui/middle-truncate.tsx"
 import { Mono } from "@/ui/mono.tsx"
 import { PasswordInput } from "@/ui/password-input.tsx"
 import { CryptoAmount, FiatAmount, FiatValue } from "@/widgets/amounts.tsx"
@@ -141,6 +142,7 @@ export function ReviewStep({ state, onBack, onConfirm }: ReviewStepProps) {
   if (state.status === "rebuilding") {
     preview = state.approved
   }
+  const soleSource = preview?.from.length === 1 ? preview.from[0] : undefined
   const passwordError = state.status === "preview" ? state.passwordError : null
   const isSending = isSubmitting(state)
   const canConfirm = preview !== null && password !== "" && !isSending
@@ -182,7 +184,11 @@ export function ReviewStep({ state, onBack, onConfirm }: ReviewStepProps) {
               </p>
               <div className="flex min-w-0 items-center gap-2">
                 <span className="text-caption text-fg-faint">From</span>
-                <Mono value={formatAddressList(preview.from)} />
+                {soleSource === undefined ? (
+                  <Mono value={formatAddressList(preview.from)} />
+                ) : (
+                  <MiddleTruncate value={soleSource} className="font-mono select-text" />
+                )}
               </div>
               <div className="flex min-w-0 items-center gap-2">
                 <span className="text-caption text-fg-faint">To</span>
