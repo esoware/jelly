@@ -279,7 +279,7 @@ function ExportSecrets() {
 
       {exportDialog.payload === null ? null : (
         <SecretRevealDialog
-          key={exportDialog.payload.id}
+          key={exportDialog.key}
           {...exportDialog.props}
           title={exportDialog.payload.title}
           warning={exportDialog.payload.warning}

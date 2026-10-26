@@ -480,7 +480,7 @@ export function ContactsView() {
 
       {dialog.payload === null || defaultChain === undefined ? null : (
         <ContactDialog
-          key={dialog.payload.contact?.id ?? "new"}
+          key={dialog.key}
           {...dialog.props}
           contact={dialog.payload.contact}
           chains={chains}

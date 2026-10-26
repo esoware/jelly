@@ -628,7 +628,7 @@ export function AddressesPanel({ chain, asset }: AddressesPanelProps) {
         </ListStatus>
       </PanelBody>
 
-      <AddressDialogs chain={chain} rows={list.rows} dialog={dialog} />
+      <AddressDialogs key={dialog.key} chain={chain} rows={list.rows} dialog={dialog} />
     </Panel>
   )
 }

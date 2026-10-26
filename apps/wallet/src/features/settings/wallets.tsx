@@ -171,7 +171,7 @@ export function WalletsView() {
 
         {editDialog.payload === null ? null : (
           <EditWalletDialog
-            key={editDialog.payload.id}
+            key={editDialog.key}
             {...editDialog.props}
             wallet={editDialog.payload}
           />
@@ -179,6 +179,7 @@ export function WalletsView() {
 
         {deleteDialog.payload === null ? null : (
           <DeleteWalletDialog
+            key={deleteDialog.key}
             {...deleteDialog.props}
             wallet={deleteDialog.payload}
             onDeleted={(deletedId) => {

@@ -480,7 +480,7 @@ export function ActivityPanel({ chain, onReceive }: ActivityPanelProps) {
         </ListStatus>
       </PanelBody>
 
-      <TxDetailDialog {...detail.props} row={detail.payload} />
+      <TxDetailDialog key={detail.key} {...detail.props} row={detail.payload} />
     </Panel>
   )
 }

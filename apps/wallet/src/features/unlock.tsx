@@ -189,6 +189,7 @@ export function UnlockView() {
       </form>
       {deleteDialog.payload === null ? null : (
         <DeleteWalletDialog
+          key={deleteDialog.key}
           {...deleteDialog.props}
           wallet={deleteDialog.payload}
           onDeleted={() => {
