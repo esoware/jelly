@@ -124,10 +124,8 @@ pub(crate) async fn update_wallet(
     name: String,
     color: WalletColor,
 ) -> Result<(), IpcError> {
-    with_engine(&state, async move |engine| {
-        engine.update_wallet(wallet_id, &name, color).await.map(|_| ())
-    })
-    .await
+    with_engine(&state, async move |engine| engine.update_wallet(wallet_id, &name, color).await)
+        .await
 }
 
 /// Irreversible. `confirmation` is the wallet's own name.

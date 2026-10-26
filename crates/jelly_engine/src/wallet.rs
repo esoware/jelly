@@ -159,13 +159,13 @@ impl WalletEngine {
         .await?;
 
         let session =
-            Session::new(row.clone(), vault, keys, self.inner.clock.as_ref(), self.inner.table);
+            Session::new(row.id, vault, keys, self.inner.clock.as_ref(), self.inner.table);
         // Checked before the session is installed, so a wrong passphrase never
         // opens anything.
         self.verify_passphrase(&session).await?;
 
-        let record = self.wallet_record(row).await?;
-        self.install_session(session);
+        let record = self.wallet_record(row.clone()).await?;
+        self.install_session(session, &row);
         self.publish_adapters().await;
         Ok(record)
     }
@@ -188,13 +188,17 @@ impl WalletEngine {
         wallet_id: i64,
         name: &str,
         color: WalletColor,
-    ) -> Result<WalletRecord, CoreError> {
+    ) -> Result<(), CoreError> {
+        let name = wallet_name(name)?;
         let _transition = self.inner.session.transition.lock().await;
-        let row = self.inner.store.update_wallet(wallet_id, name.to_owned(), color).await?;
+        if self.inner.cancel.is_cancelled() {
+            return Err(CoreError::Locked);
+        }
+        let row = self.inner.store.update_wallet(wallet_id, name, color).await?;
         if self.inner.session.state().wallet_id() == Some(wallet_id) {
             self.inner.session.publish(LockState::unlocked(&row));
         }
-        self.wallet_record(row).await
+        Ok(())
     }
 
     /// Erases a wallet's vault file, keychain master key, and every row. The
@@ -293,7 +297,7 @@ impl WalletEngine {
     ) -> Result<CreatedWallet, CoreError> {
         require_new_password(&password)?;
         let new = NewWallet {
-            name: name.to_owned(),
+            name: wallet_name(name)?,
             color,
             passphrase_policy: passphrase.policy(),
             account_index: ACCOUNT_INDEX,
@@ -336,8 +340,9 @@ impl WalletEngine {
                 return Err(error);
             }
         };
-        let session = Session::new(row, vault, keys, self.inner.clock.as_ref(), self.inner.table);
-        self.install_session(session);
+        let session =
+            Session::new(row.id, vault, keys, self.inner.clock.as_ref(), self.inner.table);
+        self.install_session(session, &row);
         self.publish_adapters().await;
         Ok(record)
     }
@@ -421,6 +426,14 @@ fn require_new_password(password: &SecretString) -> Result<(), CoreError> {
     Ok(())
 }
 
+fn wallet_name(name: &str) -> Result<String, CoreError> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err(CoreError::invalid_input("name", "Name the wallet."));
+    }
+    Ok(trimmed.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::mpsc;
@@ -449,7 +462,8 @@ mod tests {
 
         engine.lock_inner(LockReason::Requested).await;
         drop(transition);
-        assert_eq!(editing.await.unwrap().name, "renamed");
+        editing.await.unwrap();
+        assert_eq!(engine.inner.store.get_wallet(wallet.id).await.unwrap().name, "renamed");
         assert!(!engine.lock_state_now().is_unlocked());
         assert!(engine.inner.session.current().is_none());
     }

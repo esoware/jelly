@@ -5,7 +5,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use jelly_core::{ChainId, CoreError, PhraseWords, SecretText, WalletColor};
 use jelly_engine::{
-    EngineDeps, LockReason, LockState, PassphraseInput, StartupError, WalletEngine, test_util,
+    EngineDeps, LockReason, LockState, PassphraseInput, StartupError, WalletEngine, WalletRecord,
+    test_util,
 };
 use jelly_vault::{
     Argon2Params, MasterKey, MasterKeyStore, Vault, VaultError,
@@ -66,10 +67,9 @@ async fn wallet_colors_survive_every_creation_flow_an_edit_and_restart() {
         .unwrap();
     assert_eq!(seed.wallet.color, seed_color);
     assert_eq!(restored.color, restored_color);
+    harness.engine.update_wallet(restored.id, "edited", edited_color.clone()).await.unwrap();
     let edited =
-        harness.engine.update_wallet(restored.id, "edited", edited_color.clone()).await.unwrap();
-    assert_eq!(edited.name, "edited");
-    assert_eq!(edited.color, edited_color);
+        WalletRecord { name: "edited".to_owned(), color: edited_color.clone(), ..restored };
 
     let keystore = Arc::clone(&harness.keystore);
     let scratch = harness.shut_down().await.unwrap();
@@ -147,16 +147,21 @@ async fn an_imported_phrase_reproduces_the_same_wallet() {
 async fn editing_keeps_the_session_and_the_row_in_step() {
     let harness = harness().await.unwrap();
     let created = harness.seed_wallet("before").await.unwrap();
-    let edited = harness
-        .engine
-        .update_wallet(created.wallet.id, "after", created.wallet.color.clone())
-        .await
-        .unwrap();
-    assert_eq!(edited.name, "after");
+    harness.engine.update_wallet(created.wallet.id, "after", created.wallet.color).await.unwrap();
     assert_eq!(
         harness.engine.lock_state_now(),
         LockState::Unlocked { wallet_id: created.wallet.id, wallet_name: "after".to_owned() }
     );
+}
+
+#[tokio::test]
+async fn editing_only_the_color_announces_no_lock_change() {
+    let harness = harness().await.unwrap();
+    let created = harness.seed_wallet("open").await.unwrap();
+    let states = harness.engine.lock_state();
+    let color = WalletColor::parse("#22c55e").unwrap();
+    harness.engine.update_wallet(created.wallet.id, "open", color).await.unwrap();
+    assert!(!states.has_changed().unwrap());
 }
 
 #[tokio::test]
@@ -171,6 +176,29 @@ async fn editing_another_wallet_leaves_the_open_one_alone() {
         harness.engine.lock_state_now(),
         LockState::Unlocked { wallet_id: open.wallet.id, wallet_name: "open".to_owned() }
     );
+}
+
+#[tokio::test]
+async fn a_wallet_name_is_trimmed_and_never_blank() {
+    let harness = harness().await.unwrap();
+    let refused = harness
+        .engine
+        .create_seed_wallet(
+            "  ",
+            WalletColor::default(),
+            secret(PASSWORD),
+            PhraseWords::Twelve,
+            PassphraseInput::None,
+        )
+        .await;
+    assert!(matches!(refused, Err(CoreError::InvalidInput { field: "name", .. })), "{refused:?}");
+
+    let created = harness.seed_wallet(" padded ").await.unwrap();
+    assert_eq!(created.wallet.name, "padded");
+    let refused =
+        harness.engine.update_wallet(created.wallet.id, " ", WalletColor::default()).await;
+    assert!(matches!(refused, Err(CoreError::InvalidInput { field: "name", .. })), "{refused:?}");
+    assert_eq!(harness.engine.list_wallets().await.unwrap(), vec![created.wallet]);
 }
 
 #[tokio::test]
