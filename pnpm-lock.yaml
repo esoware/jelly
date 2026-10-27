@@ -247,6 +247,9 @@ importers:
       tailwind-merge:
         specifier: 3.7.0
         version: 3.7.0
+      tailwindcss:
+        specifier: 4.3.3
+        version: 4.3.3
     devDependencies:
       '@tailwindcss/vite':
         specifier: 4.3.3
@@ -269,9 +272,6 @@ importers:
       oxc-transform-react:
         specifier: 0.154.0
         version: 0.154.0
-      tailwindcss:
-        specifier: 4.3.3
-        version: 4.3.3
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

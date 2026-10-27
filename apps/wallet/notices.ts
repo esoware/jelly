@@ -30,25 +30,6 @@ interface PnpmPackage {
   paths: string[]
 }
 
-const BUNDLED_DEV_PACKAGES = new Set(["tailwindcss"])
-const BUNDLED_WORKS = [
-  {
-    title: "OFL-1.1",
-    component: "Clarity City font",
-    licensePath: "apps/wallet/src/assets/fonts/clarity-city-license.txt",
-  },
-  {
-    title: "OFL-1.1",
-    component: "Cascadia Mono font",
-    licensePath: "apps/wallet/src/assets/fonts/cascadia-mono-license.txt",
-  },
-  {
-    title: "LGPL-3.0-only",
-    component: "TRON protocol definitions from java-tron GreatVoyage-v4.8.2",
-    licensePath: "crates/chains/jelly_tron/proto/COPYING.LESSER",
-  },
-]
-const GPL_PATH = "crates/chains/jelly_tron/proto/COPYING"
 const ACCEPTED_PATTERN = /^accepted = \[(?<list>[^\]]*)\]/mu
 const QUOTED_PATTERN = /"(?<value>[^"]*)"/gu
 const LICENSE_TOKEN_PATTERN = /[()]|[^\s()]+/gu
@@ -189,33 +170,6 @@ function sortSections(sections: Map<string, Section>): Section[] {
     .map(({ section }) => section)
 }
 
-function listPackages(command: string): PnpmPackage[] {
-  const groups: unknown = JSON.parse(execSync(command, { cwd: walletFolder, encoding: "utf8" }))
-  if (typeof groups !== "object" || groups === null) {
-    throw new Error(`${command} printed JSON in a shape this script doesn't know.`)
-  }
-  const packages: unknown[] = Object.values(groups).flat()
-  if (
-    !packages.every(
-      (entry): entry is PnpmPackage =>
-        typeof entry === "object" &&
-        entry !== null &&
-        "name" in entry &&
-        typeof entry.name === "string" &&
-        "license" in entry &&
-        typeof entry.license === "string" &&
-        "versions" in entry &&
-        isStringArray(entry.versions) &&
-        "paths" in entry &&
-        isStringArray(entry.paths) &&
-        entry.paths.length === entry.versions.length,
-    )
-  ) {
-    throw new Error(`${command} printed JSON in a shape this script doesn't know.`)
-  }
-  return packages
-}
-
 function renderPart(title: string, sections: Section[]): string {
   return [
     [PART_RULE, title, PART_RULE].join("\n"),
@@ -289,36 +243,57 @@ if (
 ) {
   throw new Error("cargo about wrote JSON in a shape this script doesn't know.")
 }
-const licenses: AboutLicense[] = about.licenses
 
 const standardTexts = new Map<string, string>()
 const crateSections = new Map<string, Section>()
-for (const entry of licenses) {
+for (const entry of about.licenses) {
+  const text = normalize(entry.text)
   if (entry.source_path === null) {
-    standardTexts.set(entry.id, normalize(entry.text))
+    standardTexts.set(entry.id, text)
   }
   for (const { crate } of entry.used_by) {
     const component = `${crate.name} ${crate.version}`
     const fileText =
       entry.source_path === null
         ? findLicenseText(dirname(crate.manifest_path), crate.license ?? "", entry.id, component)
-        : normalize(entry.text)
+        : text
     addComponent(
       crateSections,
       {
         title: entry.id,
         intro: fileText === null ? STANDARD_TEXT_INTRO : USED_BY,
-        text: fileText ?? normalize(entry.text),
+        text: fileText ?? text,
       },
       component,
     )
   }
 }
 
-const packages = [
-  ...listPackages("pnpm licenses list --prod --json"),
-  ...listPackages("pnpm licenses list --json").filter(({ name }) => BUNDLED_DEV_PACKAGES.has(name)),
-]
+const packagesByLicense: unknown = JSON.parse(
+  execSync("pnpm licenses list --prod --json", { cwd: walletFolder, encoding: "utf8" }),
+)
+if (typeof packagesByLicense !== "object" || packagesByLicense === null) {
+  throw new Error("pnpm licenses list printed JSON that isn't an object.")
+}
+const packages: unknown[] = Object.values(packagesByLicense).flat()
+if (
+  !packages.every(
+    (entry): entry is PnpmPackage =>
+      typeof entry === "object" &&
+      entry !== null &&
+      "name" in entry &&
+      typeof entry.name === "string" &&
+      "license" in entry &&
+      typeof entry.license === "string" &&
+      "versions" in entry &&
+      isStringArray(entry.versions) &&
+      "paths" in entry &&
+      isStringArray(entry.paths) &&
+      entry.paths.length === entry.versions.length,
+  )
+) {
+  throw new Error("pnpm licenses list printed a package in a shape this script doesn't know.")
+}
 const packageSections = new Map<string, Section>()
 for (const { name, license: expression, versions, paths } of packages) {
   const chosen = chooseLicenses(expression.match(LICENSE_TOKEN_PATTERN) ?? [])
@@ -345,13 +320,30 @@ for (const { name, license: expression, versions, paths } of packages) {
 }
 
 const otherSections: Section[] = [
-  ...BUNDLED_WORKS.map(({ title, component, licensePath }) => ({
-    title,
+  {
+    title: "OFL-1.1",
     intro: USED_BY,
-    components: [component],
-    text: readRepoFile(licensePath),
-  })),
-  { title: "GPL-3.0-only", intro: GPL_INTRO, components: [], text: readRepoFile(GPL_PATH) },
+    components: ["Clarity City font"],
+    text: readRepoFile("apps/wallet/src/assets/fonts/clarity-city-license.txt"),
+  },
+  {
+    title: "OFL-1.1",
+    intro: USED_BY,
+    components: ["Cascadia Mono font"],
+    text: readRepoFile("apps/wallet/src/assets/fonts/cascadia-mono-license.txt"),
+  },
+  {
+    title: "LGPL-3.0-only",
+    intro: USED_BY,
+    components: ["TRON protocol definitions from java-tron GreatVoyage-v4.8.2"],
+    text: readRepoFile("crates/chains/jelly_tron/proto/COPYING.LESSER"),
+  },
+  {
+    title: "GPL-3.0-only",
+    intro: GPL_INTRO,
+    components: [],
+    text: readRepoFile("crates/chains/jelly_tron/proto/COPYING"),
+  },
   { title: "Chain and token logos", intro: LOGOS_INTRO, components: [], text: null },
 ]
 
