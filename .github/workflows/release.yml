@@ -8,18 +8,28 @@ on:
 permissions:
   contents: read
 
+# Code that runs in any workflow on main can write a cache entry, and apt installs a cached .deb
+# whose size matches without checking its hash, so a release restores no cache.
+cache-mode: none
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  version:
-    name: Check the version
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+  prepare:
+    name: Prepare the release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
-      actions: read
+      actions: read # Lists the CI runs on the tagged commit.
       contents: read
+    outputs:
+      notes: ${{ steps.notes.outputs.notes }}
     steps:
+      # git-cliff reads the commits since the previous tag, so the checkout needs the full history.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -55,9 +65,29 @@ jobs:
             exit 1
           fi
 
+      - uses: $/.github/actions/setup
+
+      - name: Fail if an advisory affects a locked dependency
+        run: just advisories
+
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: git-cliff@2.14.2
+
+      # A run without a tag writes the notes for the unreleased commits, so a dry run checks them too.
+      - name: Write the release notes
+        id: notes
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then range=--current; else range=--unreleased; fi
+          {
+            echo "notes<<EOF"
+            git cliff "$range"
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
   build:
     name: Build for ${{ matrix.platform }}
-    needs: version
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -79,7 +109,7 @@ jobs:
             target: aarch64-apple-darwin
             artifact: target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
           - platform: linux-x64
-            runner: ubuntu-22.04
+            runner: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             artifact: |
               target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
@@ -90,7 +120,7 @@ jobs:
             appimage-plugin-url: https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-appimage-x86_64.AppImage
             appimage-plugin-sha256: 992d502a248e14ab185448ddf6f6e7d25558cb84d4623c354c3af350c25fccb3
           - platform: linux-arm64
-            runner: ubuntu-22.04-arm
+            runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             artifact: |
               target/aarch64-unknown-linux-gnu/release/bundle/deb/*.deb
@@ -107,9 +137,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
-        with:
-          rust-cache: false
+      - uses: $/.github/actions/setup
 
       # Tauri downloads any AppImage tool missing from its cache without checking a hash, and takes
       # the AppImage plugin from a release tag that upstream overwrites. Verified copies placed there
@@ -170,30 +198,22 @@ jobs:
           path: target/THIRD-PARTY-NOTICES.txt
           if-no-files-found: error
 
+  # The job that holds the write token and signs the attestation runs only GitHub's own actions
+  # and gh, so no third-party code can swap a file before it is attested or released.
   release:
     name: Draft the release
-    needs: build
+    needs: [prepare, build]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      attestations: write
-      contents: write
-      id-token: write
+      attestations: write # Stores the provenance attestation.
+      contents: write # Creates the draft release.
+      id-token: write # Gets the Sigstore certificate that signs the attestation.
     steps:
-      # git-cliff reads the commits since the previous tag, so the checkout needs the full history.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
-
-      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
-        with:
-          tool: git-cliff@2.14.2
 
       # Both Windows builds are named jelly.exe, so they get the names Tauri gives the other bundles.
       - name: Collect the release files
@@ -206,7 +226,7 @@ jobs:
           cd release
           sha256sum * > SHA256SUMS
 
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-checksums: release/SHA256SUMS
 
@@ -214,7 +234,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: |
-          git cliff --current --output notes.md
-          cd release
-          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --notes-file ../notes.md *
+          NOTES: ${{ needs.prepare.outputs.notes }}
+        run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --notes "$NOTES" release/*

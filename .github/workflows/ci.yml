@@ -25,12 +25,16 @@ jobs:
         include:
           - os: Windows
             runner: windows-2025-vs2026
+          - os: Windows arm64
+            runner: windows-11-vs2026-arm
           - os: macOS
             runner: macos-26
+          - os: macOS x64
+            runner: macos-26-intel
           - os: Linux
-            runner: ubuntu-22.04
+            runner: ubuntu-24.04
           - os: Linux arm64
-            runner: ubuntu-22.04-arm
+            runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
@@ -38,7 +42,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
 
       # The vault's keychain test needs a Secret Service, and a runner has no desktop
       # session to provide one.

@@ -12,11 +12,12 @@
     commitMessageAction: "Refresh lock files",
   },
   prBodyTemplate: "{{{table}}}{{{warnings}}}{{{notes}}}{{{controls}}}",
-  // Dependabot security updates open the fix PRs, so Renovate doesn't open its own.
-  vulnerabilityAlerts: {
-    enabled: false,
-  },
   packageRules: [
+    // The bare name keeps a PR title within the 72 characters the PR title check allows.
+    {
+      matchPackageNames: ["*"],
+      commitMessageTopic: "{{depName}}",
+    },
     // A runner image sets the system libraries a build links against, so it moves only by hand.
     {
       matchDatasources: ["github-runners"],

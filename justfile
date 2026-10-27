@@ -10,10 +10,10 @@ alias r := ready
 alias t := test
 alias f := fmt
 
-# Install the frontend packages, cargo-nextest, cargo-deny, cargo-shear, and cargo-about
+# Install the frontend packages, cargo-nextest, cargo-deny, cargo-shear, zizmor, and cargo-about
 init:
   pnpm install
-  cargo install --locked cargo-nextest@0.9.148 cargo-deny@0.20.2 cargo-shear@1.14.0
+  cargo install --locked cargo-nextest@0.9.148 cargo-deny@0.20.2 cargo-shear@1.14.0 zizmor@1.31.1
   cargo install --locked --features cli cargo-about@0.9.2
 
 # Run the app with the frontend served by Vite
@@ -26,7 +26,7 @@ build *args: notices
 
 # CI runs this on every OS and fails if it leaves any file changed.
 
-# Regenerate the icons, then run fmt, clippy, rustdoc, cargo-shear, oxlint, knip, the type checks, the frontend build, the tests, cargo-deny, the third-party notices, and pnpm audit
+# Regenerate the icons, then run fmt, clippy, rustdoc, cargo-shear, oxlint, knip, zizmor, the type checks, the frontend build, the tests, cargo-deny, and the third-party notices
 ready:
   just icons
   just fmt
@@ -35,12 +35,12 @@ ready:
   cargo shear
   pnpm lint
   pnpm knip
+  zizmor --offline --pedantic .github
   pnpm --filter @jelly/icons typecheck
   pnpm --filter jelly-wallet build
   just test
   just deny
   just notices
-  pnpm audit --prod
   git status
 
 # Run all tests, or narrow them with nextest args like -p jelly_core amount
@@ -63,9 +63,16 @@ lint *args:
 lint-fix:
   pnpm lint:fix
 
-# Check advisories, bans, licenses, and sources
+# Check bans, licenses, and sources
 deny:
-  cargo deny check advisories bans licenses sources
+  cargo deny check bans licenses sources
+
+# A new advisory can land at any time, so this runs on a schedule and before a release rather than in ready.
+
+# Check the locked crates and the npm packages the app ships against published advisories
+advisories:
+  cargo deny check advisories
+  pnpm audit --prod
 
 # Write target/THIRD-PARTY-NOTICES.txt, which fails if a crate or npm package the app ships has a license deny.toml doesn't allow
 notices:
