@@ -5,10 +5,14 @@ use jelly_core::{Amount, AssetId, ChainId};
 
 use crate::fee::FeePair;
 use crate::ledger::{Envelope, Ledger, State, Tracked};
+use crate::params::EvmParams;
 use crate::payload::Intent;
-use crate::test_util::ETHEREUM;
+use crate::test_util::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, OPTIMISM, POLYGON};
 use crate::token::TokenTable;
 use crate::watched::Watched;
+
+pub(crate) const NETWORKS: [EvmParams; 7] =
+    [ETHEREUM, ARBITRUM, BASE, OPTIMISM, BSC, POLYGON, AVALANCHE];
 
 pub(crate) fn address(byte: u8) -> Address {
     Address::repeat_byte(byte)

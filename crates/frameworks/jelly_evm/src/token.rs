@@ -94,7 +94,8 @@ impl TryFrom<TokenId> for TokenMeta {
 mod tests {
     use super::*;
     use crate::abi::MULTICALL3;
-    use crate::test_util::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, OPTIMISM, POLYGON};
+    use crate::fixtures::NETWORKS;
+    use crate::test_util::ETHEREUM;
 
     #[test]
     fn the_table_resolves_every_network_and_answers_by_address_and_by_id() {
@@ -103,7 +104,7 @@ mod tests {
             "0xcA11bde05977b3631167028862bE2a173976CA11",
             "the checksummed spelling"
         );
-        for params in [ETHEREUM, ARBITRUM, BASE, OPTIMISM, BSC, POLYGON, AVALANCHE] {
+        for params in NETWORKS {
             let table = TokenTable::for_params(&params).expect("the registry parses");
             for &token in table.all() {
                 assert_eq!(token.address().to_string(), token.id().contract());
@@ -191,7 +192,7 @@ mod tests {
             (TokenId::UsdsAvalanche, "0x86Ff09db814ac346a7C6FE2Cd648F27706D1D470", 18),
             (TokenId::XautAvalanche, "0x2775d5105276781B4b85bA6eA6a6653bEeD1dd32", 6),
         ];
-        for params in [ETHEREUM, ARBITRUM, BASE, OPTIMISM, BSC, POLYGON, AVALANCHE] {
+        for params in NETWORKS {
             let table = TokenTable::for_params(&params).unwrap();
             for &token in table.all() {
                 let row = expected

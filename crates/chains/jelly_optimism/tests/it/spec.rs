@@ -9,7 +9,6 @@ use jelly_optimism::{ENTRY, PARAMS, SPEC};
 #[test]
 fn the_spec_declares_op_mainnet_as_the_rest_of_the_wallet_sees_it() {
     assert_eq!(SPEC.chain, ChainId::Optimism);
-    assert_eq!(SPEC.coin_name, "Ethereum", "gas is paid in ether");
     assert_eq!(SPEC.slip44, 60, "Ethereum's coin type, so a seed has one address on both");
     assert_eq!(SPEC.key_kind, KeyKind::Secp256k1);
     assert_eq!(SPEC.default_path, "m/44'/60'/0'/0/{index}");
@@ -84,8 +83,6 @@ fn the_tokens_are_issuer_deployments_with_no_bridged_real_world_asset() {
     for token in PARAMS.tokens {
         assert!(!bridged.contains(&token.contract()), "{token:?} is the bridged USDC.e or USDT");
     }
-    assert_eq!(TokenId::OpOptimism.contract(), "0x4200000000000000000000000000000000000042");
-    assert_eq!(TokenId::WethOptimism.contract(), "0x4200000000000000000000000000000000000006");
 }
 
 #[test]

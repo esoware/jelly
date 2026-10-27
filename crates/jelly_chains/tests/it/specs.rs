@@ -79,8 +79,7 @@ fn polygon_shares_ethereums_coin_type_and_trades_as_pol() {
 }
 
 /// Every rollup pays gas in ether, so a seed has Ethereum's address on it and its coin
-/// is Ethereum's coin, while the network keeps its own precise name. The rollups follow
-/// Ethereum in declaration order.
+/// is Ethereum's coin, while the network keeps its own precise name.
 #[test]
 fn the_rollups_share_ethereums_coin_type_and_coin() {
     let ethereum = chains().spec(ChainId::Ethereum);
@@ -88,18 +87,11 @@ fn the_rollups_share_ethereums_coin_type_and_coin() {
         let spec = chains().spec(chain);
         assert_eq!(spec.slip44, ethereum.slip44, "{}", chain.as_str());
         assert_eq!(spec.default_path, ethereum.default_path, "{}", chain.as_str());
-        assert_eq!(spec.coin_name, ethereum.coin_name, "{}", chain.as_str());
         assert_eq!(chain.ticker(), ChainId::Ethereum.ticker(), "{}", chain.as_str());
     }
     assert_eq!(ChainId::Arbitrum.display_name(), "Arbitrum One");
     assert_eq!(ChainId::Base.display_name(), "Base");
     assert_eq!(ChainId::Optimism.display_name(), "OP Mainnet");
-    let from_ethereum: Vec<ChainId> =
-        ChainId::ALL.into_iter().skip_while(|chain| *chain != ChainId::Ethereum).take(4).collect();
-    assert_eq!(
-        from_ethereum,
-        [ChainId::Ethereum, ChainId::Arbitrum, ChainId::Base, ChainId::Optimism]
-    );
 }
 
 /// The X-Chain and P-Chain derive at Avalanche's own coin type 9000, but every

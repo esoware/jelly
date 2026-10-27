@@ -1,7 +1,7 @@
 //! Scripted EVM services, network figures, and the chain crates' address vectors for
 //! tests. Only `[dev-dependencies]` enable the `test-util` feature.
 //!
-//! The six networks' params here are copies of the chain crates' own, for this crate's
+//! The networks' params here are copies of the chain crates' own, for this crate's
 //! unit tests. Those cannot take them from a chain crate, whose copy of this crate is a
 //! separate build with its own types. Each chain crate's tests assert that its params
 //! match its copy.
