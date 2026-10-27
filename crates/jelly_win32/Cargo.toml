@@ -3,6 +3,7 @@ name         = "jelly_win32"
 version.workspace      = true
 edition.workspace      = true
 rust-version.workspace = true
+license.workspace      = true
 publish      = false
 
 # The workspace forbids unsafe code, and no attribute can lift a forbid. This crate holds

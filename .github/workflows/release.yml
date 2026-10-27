@@ -8,17 +8,31 @@ on:
 permissions:
   contents: read
 
+# Code that runs in any workflow on main can write a cache entry, and apt installs a cached .deb
+# whose size matches without checking its hash, so a release restores no cache.
+cache-mode: none
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  version:
-    name: Check the version
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+  prepare:
+    name: Prepare the release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read # Lists the CI runs on the tagged commit.
+      contents: read
+    outputs:
+      notes: ${{ steps.notes.outputs.notes }}
     steps:
+      # git-cliff reads the commits since the previous tag, so the checkout needs the full history.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Fail if the tag doesn't match the workspace version
@@ -30,9 +44,57 @@ jobs:
             exit 1
           fi
 
+      - name: Fail if the tagged commit isn't on main
+        if: github.ref_type == 'tag'
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::Tag $GITHUB_REF_NAME points to a commit that isn't on main."
+            exit 1
+          fi
+
+      - name: Fail if CI hasn't passed on the tagged commit
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          commit=$(git rev-parse HEAD)
+          passed=$(gh run list --workflow ci.yml --commit "$commit" --event push --status success --json databaseId --jq length)
+          if [ "$passed" = 0 ]; then
+            echo "::error::CI hasn't passed on $commit. Wait for it to pass, then rerun this workflow."
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install the Rust toolchain
+        run: rustup toolchain install
+
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: just@1.59.0,cargo-deny@0.20.2,git-cliff@2.14.2
+
+      - name: Fail if an advisory affects a locked dependency
+        run: just advisories
+
+      # A run without a tag writes the notes for the unreleased commits, so a dry run checks them too.
+      - name: Write the release notes
+        id: notes
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then range=--current; else range=--unreleased; fi
+          {
+            echo "notes<<EOF"
+            git cliff "$range"
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
   build:
     name: Build for ${{ matrix.platform }}
-    needs: version
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -54,7 +116,7 @@ jobs:
             target: aarch64-apple-darwin
             artifact: target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
           - platform: linux-x64
-            runner: ubuntu-22.04
+            runner: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             artifact: |
               target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
@@ -62,9 +124,10 @@ jobs:
               target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
             apprun-sha256: f30140a43a0a59e46db21bdefdf749b9e9f2c6946e92afabbacf98b8ae73fb4f
             linuxdeploy-sha256: 36a2d7e274d12e1050d0e9ecfe11d339ed54720b2bec464c286d53f8b07f5c62
+            appimage-plugin-url: https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-appimage-x86_64.AppImage
             appimage-plugin-sha256: 992d502a248e14ab185448ddf6f6e7d25558cb84d4623c354c3af350c25fccb3
           - platform: linux-arm64
-            runner: ubuntu-22.04-arm
+            runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             artifact: |
               target/aarch64-unknown-linux-gnu/release/bundle/deb/*.deb
@@ -72,6 +135,7 @@ jobs:
               target/aarch64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
             apprun-sha256: 072f17c0895a85c490282fe5395c5007e5fc75da727e553b3b8fb680feb11578
             linuxdeploy-sha256: 556ab80baa98e600aa80f0dcedfb70bca0e1ce7e9f147fb345be3fcc3e91b2b1
+            appimage-plugin-url: https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-appimage-aarch64.AppImage
             appimage-plugin-sha256: 83c292149274965a865dcd44c135cfca8ba28c6b7de3eb628d4b8b5f248af17c
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
@@ -80,9 +144,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
-        with:
-          rust-cache: false
+      - uses: $/.github/actions/setup
 
       # Tauri downloads any AppImage tool missing from its cache without checking a hash, and takes
       # the AppImage plugin from a release tag that upstream overwrites. Verified copies placed there
@@ -92,6 +154,7 @@ jobs:
         env:
           APPRUN_SHA256: ${{ matrix.apprun-sha256 }}
           LINUXDEPLOY_SHA256: ${{ matrix.linuxdeploy-sha256 }}
+          APPIMAGE_PLUGIN_URL: ${{ matrix.appimage-plugin-url }}
           APPIMAGE_PLUGIN_SHA256: ${{ matrix.appimage-plugin-sha256 }}
         run: |
           arch=$(uname -m)
@@ -100,7 +163,7 @@ jobs:
           cd "$tools"
           curl -fsSL -o "AppRun-$arch" "https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-$arch"
           curl -fsSL -o "linuxdeploy-07333c6-$arch.AppImage" "https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy-07333c6/linuxdeploy-$arch.AppImage"
-          curl -fsSL -o linuxdeploy-plugin-appimage.AppImage "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-appimage-$arch.AppImage"
+          curl -fsSL -o linuxdeploy-plugin-appimage.AppImage "$APPIMAGE_PLUGIN_URL"
           sha256sum --check --strict <<EOF
           $APPRUN_SHA256  AppRun-$arch
           $LINUXDEPLOY_SHA256  linuxdeploy-07333c6-$arch.AppImage
@@ -133,24 +196,34 @@ jobs:
           path: ${{ matrix.artifact }}
           if-no-files-found: error
 
+      # The macOS and Linux bundles carry the third-party notices inside them. A Windows build is a
+      # bare exe, so the release carries the notices beside it.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.platform == 'windows-x64'
+        with:
+          name: notices
+          path: target/THIRD-PARTY-NOTICES.txt
+          if-no-files-found: error
+
+  # The job that holds the write token and signs the attestation runs only GitHub's own actions
+  # and gh, so no third-party code can swap a file before it is attested or released.
   release:
     name: Draft the release
-    needs: build
+    needs: [prepare, build]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write
+      attestations: write # Stores the provenance attestation.
+      contents: write # Creates the draft release.
+      id-token: write # Gets the Sigstore certificate that signs the attestation.
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
 
       # Both Windows builds are named jelly.exe, so they get the names Tauri gives the other bundles.
-      - name: Draft the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+      - name: Collect the release files
         run: |
           version=${GITHUB_REF_NAME#v}
           mkdir release
@@ -159,4 +232,14 @@ jobs:
           find artifacts -type f -exec mv -t release {} +
           cd release
           sha256sum * > SHA256SUMS
-          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes *
+
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: release/SHA256SUMS
+
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NOTES: ${{ needs.prepare.outputs.notes }}
+        run: gh release create "$GITHUB_REF_NAME" --draft --verify-tag --notes "$NOTES" release/*

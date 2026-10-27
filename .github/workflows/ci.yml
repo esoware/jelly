@@ -8,9 +8,11 @@ on:
 permissions:
   contents: read
 
-# Runs on main save the Rust cache that PR runs read, so only PR runs cancel each other.
+# Runs on main save the Rust cache that PR runs read, so only PR runs cancel each other. Each
+# commit on main gets its own group too, because GitHub drops a queued run when a newer one joins
+# its group, and a release needs CI to have passed on the tagged commit.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -28,7 +30,7 @@ jobs:
           - os: macOS
             runner: macos-26
           - os: Linux
-            runner: ubuntu-22.04
+            runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
@@ -36,7 +38,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: $/.github/actions/setup
 
       # The vault's keychain test needs a Secret Service, and a runner has no desktop
       # session to provide one.
@@ -52,3 +54,8 @@ jobs:
 
       - name: Fail if just ready changed or added a file
         run: git add --all && git diff --cached --exit-code
+
+      # just test skips this test because it writes to the developer's own credential store.
+      - name: Run the keychain test
+        timeout-minutes: 5
+        run: just test --run-ignored only the_platform_store_round_trips_the_master_key

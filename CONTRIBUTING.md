@@ -1,5 +1,13 @@
 # Contributing
 
+## License
+
+Jelly is under the [MIT license](LICENSE), and by opening a pull request you license your contribution under it too.
+
+A crate or npm package the app ships needs a license that `about.toml` accepts. `just notices` checks them while it writes the third-party notices that every release carries.
+
+A third-party file committed to the repository keeps its license text beside it, as the fonts and the TRON protocol definitions do. The chain and token logos are trademarks of their owners.
+
 ## Commits and pull requests
 
 PRs are squash merged, so the PR title becomes the commit subject and the PR description becomes the commit body.

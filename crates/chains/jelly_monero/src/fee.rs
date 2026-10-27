@@ -55,7 +55,7 @@ impl FeeLadder {
     /// quantisation mask monerod rounds fees up to. `None` when the node quoted a zero
     /// rate or a zero mask, neither of which is a usable fee.
     ///
-    /// The normal level pays the normal priority until [`FeeLadder::with_normal`]
+    /// The normal level pays the normal priority until `FeeLadder::with_normal`
     /// says how full the chain is.
     pub fn new(piconero_per_weight: [u64; 3], mask: u64) -> Option<Self> {
         let [unimportant, normal, elevated] = piconero_per_weight;

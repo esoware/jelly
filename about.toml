@@ -1,0 +1,21 @@
+# The licenses a crate or npm package the app ships may be under, in the order cargo-about
+# prefers them for a crate that offers a choice, and the targets deny.toml checks.
+# apps/wallet/notices.ts reads the same list for the npm packages, so keep comments out of it.
+accepted = [
+  "MIT", "Apache-2.0", "0BSD", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause",
+  "BSL-1.0", "CC0-1.0", "CDLA-Permissive-2.0", "ISC", "MITNFA", "MPL-2.0", "Unicode-3.0",
+  "Unlicense", "Zlib",
+]
+targets = [
+  "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc",
+  "x86_64-apple-darwin", "aarch64-apple-darwin",
+  "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu",
+]
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+private = { ignore = true }
+
+# Anyone can rebuild the app from its source against a modified copy of nacl, which is what
+# the LGPL asks of a binary that links it.
+[nacl]
+accepted = ["LGPL-3.0-or-later"]

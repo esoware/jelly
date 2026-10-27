@@ -1,0 +1,27 @@
+[changelog]
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+- {{ commit.message | upper_first }}
+{%- endfor %}
+{% endfor %}
+"""
+footer = """
+
+Each file is attested to the workflow that built it. Verify a download with `gh attestation verify <file> --repo esoware/jelly`.
+"""
+
+[git]
+# A breaking commit of any type is one that existing installs migrate for, so it leads the notes.
+# Renovate ends the title of a PR that fixes a vulnerability with [SECURITY].
+commit_parsers = [
+  { message = "^[a-z]+(\\([^)]*\\))?!:", group = "<!-- 0 -->Breaking changes" },
+  { message = "^[^\\n]*\\[SECURITY\\]", group = "<!-- 1 -->Security fixes" },
+  { message = "^feat", group = "<!-- 2 -->Features" },
+  { message = "^fix", group = "<!-- 3 -->Fixes" },
+  { message = "^perf", group = "<!-- 4 -->Performance" },
+  { message = "^revert", group = "<!-- 5 -->Reverts" },
+]
+filter_commits = true
+tag_pattern = "v[0-9].*"
