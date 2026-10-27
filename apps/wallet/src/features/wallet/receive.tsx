@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/ui/dialog.tsx"
 import { Field } from "@/ui/field.tsx"
+import { Identifier } from "@/ui/identifier.tsx"
 import { Select, SelectItem, SelectPopup, SelectTrigger } from "@/ui/select.tsx"
 import { AddressOption } from "@/widgets/address.tsx"
 import { CopyButton } from "@/widgets/copyable.tsx"
@@ -84,7 +85,7 @@ function ReceiveBody({ chain }: ReceiveBodyProps) {
 
             <div className="flex items-start gap-2 rounded-lg bg-surface p-2">
               <p className="min-w-0 flex-1 py-1 font-mono text-body break-all select-text">
-                {selected.address}
+                <Identifier value={selected.address} />
               </p>
               <CopyButton value={selected.address} size="icon-sm" />
             </div>

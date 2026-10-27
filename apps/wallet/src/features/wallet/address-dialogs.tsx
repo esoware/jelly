@@ -34,13 +34,12 @@ import {
 } from "@/ui/dialog.tsx"
 import type { DialogStateProps } from "@/ui/dialog.tsx"
 import { Field } from "@/ui/field.tsx"
+import { Identifier } from "@/ui/identifier.tsx"
 import { Input } from "@/ui/input.tsx"
-import { MiddleTruncate } from "@/ui/middle-truncate.tsx"
-import { Mono } from "@/ui/mono.tsx"
 import { PasswordInput } from "@/ui/password-input.tsx"
 import { Select, SelectPopup, SelectItem, SelectTrigger } from "@/ui/select.tsx"
 import { Textarea } from "@/ui/textarea.tsx"
-import { DetailList, MonoWithCopy } from "@/widgets/copyable.tsx"
+import { DetailList, IdentifierWithCopy } from "@/widgets/copyable.tsx"
 import type { DetailRow } from "@/widgets/copyable.tsx"
 import { FormDialog, TypedConfirmDialog } from "@/widgets/dialogs.tsx"
 
@@ -472,7 +471,7 @@ export function RemoveAddressDialog({
         <DialogHeader>
           <DialogTitle>Remove address</DialogTitle>
           <DialogDescription render={<div />}>
-            <MonoWithCopy value={row.address} />
+            <IdentifierWithCopy value={row.address} />
           </DialogDescription>
         </DialogHeader>
 
@@ -554,17 +553,22 @@ export function DeleteKeyDialog({
       title="Delete key"
       description={
         <>
-          Delete the private key for <Mono value={row?.address ?? ""} />. The seed phrase cannot
-          restore it, so export it first unless you no longer need it.
+          Delete the private key for{" "}
+          <Identifier
+            value={row?.address ?? ""}
+            className="font-mono text-body break-all select-text"
+          />
+          . The seed phrase cannot restore it, so export it first unless you no longer need it.
           {hasFunds ? " Funds are still held under this key." : null}
           {others.length > 0 ? (
             <>
               {" Its other addresses go with it."}
               <span className="mt-1 flex flex-col gap-1">
                 {others.map((entry) => (
-                  <MiddleTruncate
+                  <Identifier
                     key={entry.id}
                     value={entry.address}
+                    isTruncated
                     className="font-mono select-text"
                   />
                 ))}

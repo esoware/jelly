@@ -6,6 +6,7 @@ import { Button } from "@/ui/button.tsx"
 import { Card } from "@/ui/card.tsx"
 import { Icon } from "@/ui/icon.tsx"
 import type { IconName } from "@/ui/icon.tsx"
+import { Identifier } from "@/ui/identifier.tsx"
 import { Mono } from "@/ui/mono.tsx"
 import { Row } from "@/ui/row.tsx"
 
@@ -78,6 +79,19 @@ export function MonoWithCopy({ value, className }: MonoWithCopyProps) {
   return (
     <span className="inline-flex min-w-0 items-center gap-1">
       <Mono value={value} className={className} />
+      <CopyButton value={value} />
+    </span>
+  )
+}
+
+interface IdentifierWithCopyProps {
+  value: string
+}
+
+export function IdentifierWithCopy({ value }: IdentifierWithCopyProps) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1">
+      <Identifier value={value} className="font-mono text-body break-all select-text" />
       <CopyButton value={value} />
     </span>
   )

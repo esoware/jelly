@@ -18,9 +18,9 @@ import type { DialogStateProps } from "@/ui/dialog.tsx"
 import { EmptyState } from "@/ui/empty-state.tsx"
 import { Field } from "@/ui/field.tsx"
 import { Icon } from "@/ui/icon.tsx"
+import { Identifier } from "@/ui/identifier.tsx"
 import { Input, InputButton } from "@/ui/input.tsx"
 import { Menu, MenuGroup, MenuItem, MenuPopup, MenuTrigger } from "@/ui/menu.tsx"
-import { MiddleTruncate } from "@/ui/middle-truncate.tsx"
 import { Panel, PanelBody, PanelHeader } from "@/ui/panel.tsx"
 import { Row, RowActions } from "@/ui/row.tsx"
 import { Select, SelectItem, SelectPopup, SelectTrigger } from "@/ui/select.tsx"
@@ -120,8 +120,9 @@ export function ContactPicker({ chain, value, anchor, onPick }: ContactPickerPro
                         </span>
                       )}
                     </span>
-                    <MiddleTruncate
+                    <Identifier
                       value={row.address}
+                      isTruncated
                       hasTooltip={false}
                       className="font-mono text-caption text-fg-muted"
                     />
@@ -220,7 +221,11 @@ function ContactTile({ contact, onEdit, onRemove }: ContactTileProps) {
             </Menu>
           </RowActions>
         </span>
-        <MiddleTruncate value={contact.address} className="font-mono text-caption text-fg-muted" />
+        <Identifier
+          value={contact.address}
+          isTruncated
+          className="font-mono text-caption text-fg-muted"
+        />
       </span>
     </Row>
   )

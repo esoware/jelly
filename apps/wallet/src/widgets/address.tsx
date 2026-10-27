@@ -5,7 +5,7 @@ import { useIpcMutation } from "@/query/mutation.ts"
 import { notify } from "@/store.ts"
 import { Button } from "@/ui/button.tsx"
 import { Icon } from "@/ui/icon.tsx"
-import { MiddleTruncate } from "@/ui/middle-truncate.tsx"
+import { Identifier } from "@/ui/identifier.tsx"
 
 interface AddressOptionProps {
   row: AddressRecord
@@ -16,7 +16,7 @@ export function AddressOption({ row, className }: AddressOptionProps) {
   return (
     <span className={appendClassName("flex min-w-0 gap-1", className)}>
       {row.label === null ? null : <span className="max-w-1/2 shrink-0 truncate">{row.label}</span>}
-      <MiddleTruncate value={row.address} hasTooltip={false} />
+      <Identifier value={row.address} isTruncated hasTooltip={false} />
     </span>
   )
 }
@@ -36,7 +36,7 @@ export function AddressList({ addresses, hasTooltip, className }: AddressListPro
     <span className={appendClassName("flex min-w-0 gap-1", className)}>
       {shown.map((address, i) => (
         <span key={address} className="flex min-w-0">
-          <MiddleTruncate value={address} hasTooltip={hasTooltip} />
+          <Identifier value={address} isTruncated hasTooltip={hasTooltip} />
           {i < shown.length - 1 ? <span className="shrink-0">,</span> : null}
         </span>
       ))}

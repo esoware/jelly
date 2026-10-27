@@ -47,15 +47,15 @@ import {
 import type { DialogPayload, DialogStateProps } from "@/ui/dialog.tsx"
 import { EmptyState } from "@/ui/empty-state.tsx"
 import { Icon } from "@/ui/icon.tsx"
+import { Identifier } from "@/ui/identifier.tsx"
 import { Input } from "@/ui/input.tsx"
 import { Menu, MenuGroup, MenuItem, MenuPopup, MenuTrigger } from "@/ui/menu.tsx"
-import { MiddleTruncate } from "@/ui/middle-truncate.tsx"
 import { Panel, PanelBody, PanelHeader } from "@/ui/panel.tsx"
 import { Row, RowActions } from "@/ui/row.tsx"
 import { SectionHeader } from "@/ui/section-header.tsx"
 import { ExplorerActions } from "@/widgets/address.tsx"
 import { CryptoAmount } from "@/widgets/amounts.tsx"
-import { CopyButton, DetailList, MonoWithCopy } from "@/widgets/copyable.tsx"
+import { CopyButton, DetailList, IdentifierWithCopy, MonoWithCopy } from "@/widgets/copyable.tsx"
 import type { DetailRow } from "@/widgets/copyable.tsx"
 import { ListStatus } from "@/widgets/list-status.tsx"
 import type { ListState } from "@/widgets/list-status.tsx"
@@ -264,7 +264,11 @@ function AddressRow({ list, row, asset, onOpen }: AddressRowProps) {
             />
           </RowActions>
         </span>
-        <MiddleTruncate value={row.address} className="font-mono text-caption text-fg-muted" />
+        <Identifier
+          value={row.address}
+          isTruncated
+          className="font-mono text-caption text-fg-muted"
+        />
       </div>
       <div className="shrink-0 text-caption text-fg-muted">
         {balance === undefined ? null : (
@@ -496,7 +500,7 @@ function AddressDetailsDialog({
           <DialogTitle>Address details</DialogTitle>
           {address === null ? null : (
             <DialogDescription render={<div />}>
-              <MonoWithCopy value={address.address} />
+              <IdentifierWithCopy value={address.address} />
             </DialogDescription>
           )}
         </DialogHeader>

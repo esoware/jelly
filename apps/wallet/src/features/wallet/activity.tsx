@@ -34,8 +34,8 @@ import { Button } from "@/ui/button.tsx"
 import { useDialogPayload } from "@/ui/dialog.tsx"
 import { Icon } from "@/ui/icon.tsx"
 import type { IconName } from "@/ui/icon.tsx"
+import { Identifier } from "@/ui/identifier.tsx"
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@/ui/menu.tsx"
-import { MiddleTruncate } from "@/ui/middle-truncate.tsx"
 import { Panel, PanelBody, PanelHeader } from "@/ui/panel.tsx"
 import { Row } from "@/ui/row.tsx"
 import { Spinner } from "@/ui/spinner.tsx"
@@ -328,7 +328,7 @@ function TxRow({ row, shouldShowChain, onOpen }: TxRowProps) {
           {row.counterparty === null ? null : (
             <span className="flex min-w-0 items-center gap-1">
               {DIRECTION_PARTIES[row.direction]}
-              <MiddleTruncate value={row.counterparty} />
+              <Identifier value={row.counterparty} isTruncated />
             </span>
           )}
         </span>

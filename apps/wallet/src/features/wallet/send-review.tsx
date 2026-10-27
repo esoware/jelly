@@ -22,10 +22,11 @@ import {
   DialogTitle,
 } from "@/ui/dialog.tsx"
 import { Field } from "@/ui/field.tsx"
+import { Identifier } from "@/ui/identifier.tsx"
 import { PasswordInput } from "@/ui/password-input.tsx"
 import { AddressList } from "@/widgets/address.tsx"
 import { CryptoAmount, FiatAmount, FiatValue } from "@/widgets/amounts.tsx"
-import { CopyButton, DetailList, MonoWithCopy } from "@/widgets/copyable.tsx"
+import { CopyButton, DetailList, IdentifierWithCopy } from "@/widgets/copyable.tsx"
 import type { DetailRow } from "@/widgets/copyable.tsx"
 
 interface SourceListProps {
@@ -37,7 +38,7 @@ function SourceList({ sources }: SourceListProps) {
     <span className="flex flex-col gap-1">
       {sources.map((source) => (
         <span key={source} className="flex items-baseline gap-2">
-          <span className="min-w-0 flex-1 break-all">{source}</span>
+          <Identifier value={source} className="min-w-0 flex-1 break-all" />
           <CopyButton value={source} />
         </span>
       ))}
@@ -186,7 +187,7 @@ export function ReviewStep({ state, onBack, onConfirm }: ReviewStepProps) {
               </div>
               <div className="flex min-w-0 items-center gap-2">
                 <span className="text-caption text-fg-faint">To</span>
-                <MonoWithCopy value={preview.to} />
+                <IdentifierWithCopy value={preview.to} />
               </div>
               {chainMeta(preview.chain).hasDestinationTags ? (
                 <div className="flex min-w-0 items-center gap-2">

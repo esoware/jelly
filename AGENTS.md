@@ -122,6 +122,7 @@ Copy is any text a user reads. That means every string the frontend renders, plu
 ## Frontend
 
 - Name class-string constants and variant maps with a `_CLASSES` suffix so Tailwind linting checks their contents.
+- Render an address or txid with `Identifier` in `ui/identifier.tsx`, which highlights its start and end, and pass `isTruncated` when it has to fit on one line.
 - Split a file only past roughly 700 lines, and only along a real seam.
 - Accessibility is not a focus. Use ARIA attributes only when ordinary functionality (like keyboard navigation and more) or a component needs them, never just to make something accessible.
 - oxc's React Compiler turns a BigInt literal inside a component or hook into undefined, so put it elsewhere or do it elsehow.

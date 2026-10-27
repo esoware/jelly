@@ -52,6 +52,7 @@ import {
 } from "@/ui/dialog.tsx"
 import type { DialogStateProps } from "@/ui/dialog.tsx"
 import { Icon } from "@/ui/icon.tsx"
+import { Identifier } from "@/ui/identifier.tsx"
 import { TooltipText } from "@/ui/tooltip.tsx"
 import { ExplorerActions } from "@/widgets/address.tsx"
 import { CryptoAmount, FiatValue } from "@/widgets/amounts.tsx"
@@ -196,7 +197,7 @@ function TxAddressesFact({ label, addresses }: TxAddressesFactProps) {
   if (rest.length === 0) {
     return (
       <TxFact label={label} copy={first}>
-        {first}
+        <Identifier value={first} />
       </TxFact>
     )
   }
@@ -205,7 +206,7 @@ function TxAddressesFact({ label, addresses }: TxAddressesFactProps) {
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         {addresses.map((address) => (
           <span key={address} className="flex min-w-0 items-start gap-1">
-            <span className="min-w-0 font-mono break-all select-text">{address}</span>
+            <Identifier value={address} className="min-w-0 font-mono break-all select-text" />
             <CopyButton value={address} />
           </span>
         ))}
@@ -261,11 +262,11 @@ function TxFacts({ row, onBumpFee, onCancel }: TxFactsProps) {
   return (
     <div className="space-y-1 text-caption">
       <TxFact label="Transaction" copy={row.txid}>
-        {row.txid}
+        <Identifier value={row.txid} />
       </TxFact>
       {row.paysFor === null ? null : (
         <TxFact label="Speeds up" copy={row.paysFor}>
-          {row.paysFor}
+          <Identifier value={row.paysFor} />
         </TxFact>
       )}
       <TxAddressesFact label="From" addresses={fromAddresses} />
