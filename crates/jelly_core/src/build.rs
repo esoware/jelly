@@ -103,6 +103,7 @@ impl BuildError {
 }
 
 wire_enum! {
+    #[cfg_attr(feature = "ipc", derive(specta::Type))]
     /// Why a chain has no adapter after a rebuild. The engine already knows which chains
     /// the wallet switched off, so a builder never reports that.
     ///

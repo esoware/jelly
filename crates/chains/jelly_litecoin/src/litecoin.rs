@@ -18,6 +18,7 @@ const FEE_RATE_UNIT: &str = "lit/vB";
 /// no Litecoin wallet derives a taproot key, so it is no flavour to derive under.
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Litecoin,
+    coin_name: "Litecoin",
     slip44: 2,
     key_kind: KeyKind::Secp256k1,
     default_path: "m/84'/2'/0'/0/{index}",

@@ -35,7 +35,10 @@ async fn a_chain_nothing_was_installed_for_has_no_adapter() {
     harness.seed_wallet("chains").await.unwrap();
 
     let missing = test_util::adapter(&harness.engine, ChainId::Solana);
-    assert!(matches!(missing, Err(CoreError::NoAdapter(ChainId::Solana))), "{missing:?}");
+    assert!(
+        matches!(missing, Err(CoreError::NoAdapter { chain: ChainId::Solana, reason: None })),
+        "{missing:?}"
+    );
 }
 
 #[tokio::test]
@@ -48,6 +51,18 @@ async fn only_the_chains_the_builder_built_are_synced() {
 
     test_util::rebuild_adapters(&harness.engine).await.unwrap();
     assert_eq!(harness.engine.sync_now(None).await.unwrap(), vec![CHAIN]);
+
+    let refused = harness.engine.sync_now(Some(ChainId::Solana)).await;
+    assert!(
+        matches!(
+            refused,
+            Err(CoreError::NoAdapter {
+                chain: ChainId::Solana,
+                reason: Some(SkipReason::NoEndpoints)
+            })
+        ),
+        "{refused:?}"
+    );
 }
 
 #[tokio::test]
@@ -61,7 +76,10 @@ async fn disabling_a_chain_takes_its_adapter_out_of_the_set() {
     assert!(!harness.engine.list_enabled_chains().await.unwrap().contains(&CHAIN));
 
     let refused = harness.engine.sync_now(Some(CHAIN)).await;
-    assert!(matches!(refused, Err(CoreError::NoAdapter(_))), "{refused:?}");
+    assert!(
+        matches!(refused, Err(CoreError::NoAdapter { chain: CHAIN, reason: None })),
+        "{refused:?}"
+    );
 
     harness.engine.set_chain_enabled(CHAIN, true).await.unwrap();
     assert_eq!(harness.engine.sync_now(Some(CHAIN)).await.unwrap(), vec![CHAIN]);
@@ -88,7 +106,10 @@ async fn locking_retires_the_generation() {
 
     harness.engine.lock_wallet().await;
     assert!(weak.upgrade().is_none(), "a key-bearing adapter outlived its session");
-    assert!(matches!(test_util::adapter(&harness.engine, CHAIN), Err(CoreError::NoAdapter(_))));
+    assert!(matches!(
+        test_util::adapter(&harness.engine, CHAIN),
+        Err(CoreError::NoAdapter { reason: None, .. })
+    ));
 }
 
 #[tokio::test]
@@ -106,7 +127,10 @@ async fn a_rebuild_that_outlives_its_session_publishes_nothing() {
 
     let outcome = rebuilding.await.unwrap();
     assert!(matches!(outcome, Err(CoreError::Locked)), "{outcome:?}");
-    assert!(matches!(test_util::adapter(&harness.engine, CHAIN), Err(CoreError::NoAdapter(_))));
+    assert!(matches!(
+        test_util::adapter(&harness.engine, CHAIN),
+        Err(CoreError::NoAdapter { reason: None, .. })
+    ));
     assert!(
         harness.builder.weak(CHAIN).upgrade().is_none(),
         "a key-bearing adapter outlived the session it was built for"

@@ -30,6 +30,34 @@ fn every_chain_derives_under_its_expected_coin_type() {
     }
 }
 
+/// A coin takes its network's name unless it trades under its own, so the rollups'
+/// ether is named for each rollup. The table lists every chain in declaration order.
+#[test]
+fn every_chain_names_its_own_coin() {
+    let expected = [
+        (ChainId::Bitcoin, "Bitcoin"),
+        (ChainId::Litecoin, "Litecoin"),
+        (ChainId::Dogecoin, "Dogecoin"),
+        (ChainId::BitcoinCash, "Bitcoin Cash"),
+        (ChainId::Zcash, "Zcash"),
+        (ChainId::Ethereum, "Ethereum"),
+        (ChainId::Bsc, "BNB"),
+        (ChainId::Polygon, "Polygon"),
+        (ChainId::Arbitrum, "Arbitrum"),
+        (ChainId::Base, "Base"),
+        (ChainId::Avalanche, "Avalanche"),
+        (ChainId::Solana, "Solana"),
+        (ChainId::Tron, "TRON"),
+        (ChainId::Xrp, "XRP"),
+        (ChainId::Ton, "Gram"),
+        (ChainId::Monero, "Monero"),
+    ];
+    assert_eq!(expected.map(|(chain, _)| chain), ChainId::ALL);
+    for (chain, name) in expected {
+        assert_eq!(chains().spec(chain).coin_name, name, "{}", chain.as_str());
+    }
+}
+
 /// A seed has one address on Ethereum and BNB Smart Chain.
 #[test]
 fn bsc_shares_ethereums_coin_type_and_trades_as_bnb() {

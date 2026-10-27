@@ -4,7 +4,7 @@ import { Outlet, useMatches, useNavigate } from "@tanstack/react-router"
 import { useEffect, useRef, useState } from "react"
 import type { ComponentPropsWithoutRef, ReactNode } from "react"
 
-import type { ChainId, LockState } from "@/ipc/bindings.gen.ts"
+import type { LockState } from "@/ipc/bindings.gen.ts"
 import {
   closeWindow,
   minimizeWindow,
@@ -13,7 +13,6 @@ import {
   toggleMaximizeWindow,
   watchWindowState,
 } from "@/ipc/client.ts"
-import { chainCommands } from "@/query/chain.ts"
 import { useIpcMutation } from "@/query/mutation.ts"
 import { useActiveWallet, walletCommands, walletQueries } from "@/query/wallet.ts"
 import { StartupFailed, StartupGate } from "@/shell/startup.tsx"
@@ -262,33 +261,6 @@ function Titlebar({ title, center, right }: TitlebarProps) {
   )
 }
 
-function SyncNowAction() {
-  const sync = useIpcMutation<ChainId[]>({
-    mutationFn: chainCommands.syncNow,
-    errorTitle: "Could not start a sync",
-    successToast: (chains) => (chains.length === 0 ? "No chain to sync" : "Syncing now"),
-  })
-
-  return (
-    <TooltipText
-      content="Sync now"
-      side="bottom"
-      render={
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          isLoading={sync.isPending}
-          onClick={() => {
-            sync.mutate()
-          }}
-        />
-      }
-    >
-      <Icon name="sync" />
-    </TooltipText>
-  )
-}
-
 interface TitlebarActionsProps {
   isSettings: boolean
 }
@@ -297,25 +269,21 @@ function TitlebarActions({ isSettings }: TitlebarActionsProps) {
   const navigate = useNavigate()
 
   return (
-    <>
-      <SyncNowAction />
-
-      <TooltipText
-        content={isSettings ? "Back to the wallet" : "Settings"}
-        side="bottom"
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => {
-              void navigate({ to: isSettings ? "/wallet/portfolio" : "/settings" })
-            }}
-          />
-        }
-      >
-        <Icon name={isSettings ? "back" : "settings"} />
-      </TooltipText>
-    </>
+    <TooltipText
+      content={isSettings ? "Back to the wallet" : "Settings"}
+      side="bottom"
+      render={
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => {
+            void navigate({ to: isSettings ? "/wallet/portfolio" : "/settings" })
+          }}
+        />
+      }
+    >
+      <Icon name={isSettings ? "back" : "settings"} />
+    </TooltipText>
   )
 }
 

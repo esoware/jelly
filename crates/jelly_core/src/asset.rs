@@ -199,7 +199,7 @@ impl TokenId {
     }
 
     /// User-facing token name. It is the same on every chain.
-    pub(crate) const fn display_name(self) -> &'static str {
+    pub const fn display_name(self) -> &'static str {
         match self {
             Self::LinkErc20
             | Self::LinkBep20
@@ -500,15 +500,6 @@ impl AssetId {
         }
     }
 
-    pub const fn display_name(self) -> &'static str {
-        match self {
-            Self::Native(ChainId::Ton) => "Gram",
-            Self::Native(ChainId::Avalanche) => "Avalanche",
-            Self::Native(chain) => chain.display_name(),
-            Self::Token(token) => token.display_name(),
-        }
-    }
-
     pub const fn is_real_world_asset(self) -> bool {
         match self {
             Self::Native(_) => false,
@@ -557,27 +548,18 @@ mod tests {
     }
 
     #[test]
-    fn an_asset_takes_its_chain_scale_symbol_and_name_from_its_coin_or_token() {
+    fn an_asset_takes_its_chain_scale_and_symbol_from_its_coin_or_token() {
         for asset in AssetId::all() {
             match asset {
                 AssetId::Native(chain) => {
                     assert_eq!(asset.chain(), chain);
                     assert_eq!(asset.decimals(), chain.native_decimals());
                     assert_eq!(asset.symbol(), chain.ticker());
-                    let name = if chain == ChainId::Ton {
-                        "Gram"
-                    } else if chain == ChainId::Avalanche {
-                        "Avalanche"
-                    } else {
-                        chain.display_name()
-                    };
-                    assert_eq!(asset.display_name(), name);
                 }
                 AssetId::Token(token) => {
                     assert_eq!(asset.chain(), token.chain());
                     assert_eq!(asset.decimals(), token.decimals());
                     assert_eq!(asset.symbol(), token.symbol());
-                    assert_eq!(asset.display_name(), token.display_name());
                 }
             }
         }
@@ -704,14 +686,12 @@ mod tests {
         }
     }
 
-    /// Both rollups pay gas in ether, so their coin trades as ETH under the
-    /// network's own name.
+    /// Both rollups pay gas in ether, so their coin trades as ETH.
     #[test]
-    fn rollup_coins_are_ether_named_for_their_network() {
-        for (chain, name) in [(ChainId::Arbitrum, "Arbitrum"), (ChainId::Base, "Base")] {
+    fn rollup_coins_are_ether() {
+        for chain in [ChainId::Arbitrum, ChainId::Base] {
             let coin = AssetId::Native(chain);
             assert_eq!(coin.symbol(), "ETH", "{}", chain.as_str());
-            assert_eq!(coin.display_name(), name, "{}", chain.as_str());
             assert_eq!(coin.decimals(), 18, "{}", chain.as_str());
         }
         for (token, chain, symbol, decimals) in [
@@ -730,13 +710,11 @@ mod tests {
         }
     }
 
-    /// The coin is Avalanche and the network it is held on is the C-Chain, one of
-    /// three chains the coin lives on.
+    /// The network the coin is held on is the C-Chain, one of three chains AVAX lives on.
     #[test]
-    fn the_c_chain_coin_is_avax_named_avalanche() {
+    fn the_c_chain_coin_is_avax() {
         let coin = AssetId::Native(ChainId::Avalanche);
         assert_eq!(coin.symbol(), "AVAX");
-        assert_eq!(coin.display_name(), "Avalanche");
         assert_eq!(ChainId::Avalanche.display_name(), "Avalanche C-Chain");
         assert_eq!(coin.decimals(), 18);
         for (token, symbol, name, decimals) in [

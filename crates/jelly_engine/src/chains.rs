@@ -7,7 +7,8 @@ use std::time::Duration;
 
 use arc_swap::ArcSwap;
 use jelly_core::{
-    AdapterSet, BuildRequest, ChainAdapter, ChainId, CoreError, KeyService, SecretText,
+    AdapterSet, BuildRequest, ChainAdapter, ChainId, ChainOutcome, CoreError, KeyService,
+    SecretText,
 };
 use jelly_store::{ChainStatePatch, ChainStateRow, Patch};
 use parking_lot::Mutex;
@@ -186,7 +187,13 @@ fn poll_overrides(states: &[ChainStateRow]) -> BTreeMap<ChainId, u32> {
 
 impl WalletEngine {
     pub(crate) fn adapter(&self, chain: ChainId) -> Result<Arc<dyn ChainAdapter>, CoreError> {
-        self.inner.chains.adapters().adapter(chain).cloned().ok_or(CoreError::NoAdapter(chain))
+        match self.inner.chains.adapters().outcome(chain) {
+            Some(ChainOutcome::Built(adapter)) => Ok(Arc::clone(adapter)),
+            Some(&ChainOutcome::Skipped(reason)) => {
+                Err(CoreError::NoAdapter { chain, reason: Some(reason) })
+            }
+            None => Err(CoreError::NoAdapter { chain, reason: None }),
+        }
     }
 
     pub async fn list_enabled_chains(&self) -> Result<Vec<ChainId>, CoreError> {
@@ -256,15 +263,12 @@ impl WalletEngine {
     /// Never spawns a pass of its own, so passes cannot stack.
     pub async fn sync_now(&self, chain: Option<ChainId>) -> Result<Vec<ChainId>, CoreError> {
         self.require_session().await?;
-        let set = self.inner.chains.adapters();
         let chains = match chain {
             Some(one) => {
-                if set.adapter(one).is_none() {
-                    return Err(CoreError::NoAdapter(one));
-                }
+                self.adapter(one)?;
                 vec![one]
             }
-            None => set.built(),
+            None => self.inner.chains.adapters().built(),
         };
         for &chain in &chains {
             self.inner.chains.slot(chain).kick();

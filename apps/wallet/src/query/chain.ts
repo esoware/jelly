@@ -17,7 +17,7 @@ export const chainQueries = {
 }
 
 export const chainCommands = {
-  syncNow: (): Promise<ChainId[]> => unwrap(commands.syncNow()),
+  syncNow: (chain: ChainId | null): Promise<ChainId[]> => unwrap(commands.syncNow(chain)),
 
   setEnabled: (chain: ChainId, isEnabled: boolean): Promise<null> =>
     unwrap(commands.setChainEnabled(chain, isEnabled)),

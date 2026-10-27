@@ -170,7 +170,10 @@ pub(crate) async fn list_asset_metadata() -> Result<Vec<AssetMeta>, IpcError> {
         asset,
         chain: asset.chain(),
         symbol: asset.symbol(),
-        name: asset.display_name(),
+        name: match asset {
+            AssetId::Native(chain) => jelly_chains::chains().spec(chain).coin_name,
+            AssetId::Token(token) => token.display_name(),
+        },
         decimals: asset.decimals(),
         is_real_world_asset: asset.is_real_world_asset(),
     });
@@ -228,7 +231,6 @@ mod tests {
             assert_eq!(metadata.chain, metadata.asset.chain());
             assert_eq!(metadata.decimals, metadata.asset.decimals());
             assert_eq!(metadata.symbol, metadata.asset.symbol());
-            assert_eq!(metadata.name, metadata.asset.display_name());
             assert_eq!(metadata.is_real_world_asset, metadata.asset.is_real_world_asset());
             assert!(!metadata.name.is_empty(), "{}", metadata.asset.key());
         }
@@ -238,5 +240,11 @@ mod tests {
             .expect("the asset has metadata");
         assert_eq!(bep.decimals, 18);
         assert_eq!(bep.chain, ChainId::Bsc);
+        assert_eq!(bep.name, "Tether USD");
+        let bnb = all
+            .iter()
+            .find(|metadata| metadata.asset == AssetId::Native(ChainId::Bsc))
+            .expect("the asset has metadata");
+        assert_eq!(bnb.name, "BNB");
     }
 }

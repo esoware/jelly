@@ -4,6 +4,7 @@ use std::fmt;
 use crate::address::AddressError;
 use crate::amount::Amount;
 use crate::asset::AssetId;
+use crate::build::SkipReason;
 use crate::chain::{ChainId, ScriptKind};
 use crate::endpoint::EndpointAttempt;
 use crate::random::EntropyError;
@@ -182,8 +183,10 @@ pub enum CoreError {
     /// sentence case, ASCII only, with no URL, file path, secret, or library error text.
     #[error("{detail}")]
     InvalidInput { field: &'static str, detail: String },
-    #[error("no adapter for {}", .0.display_name())]
-    NoAdapter(ChainId),
+    /// `reason` is `None` when the chain is switched off or the wallet's adapters are not
+    /// built yet.
+    #[error("no adapter for {}", chain.display_name())]
+    NoAdapter { chain: ChainId, reason: Option<SkipReason> },
     #[error("unsupported: {0}")]
     Unsupported(&'static str),
     #[error("this action needs the typed confirmation \"{expected}\"")]
@@ -250,7 +253,7 @@ impl CoreError {
             Self::NotFound { .. } => ErrorCode::NotFound,
             Self::AlreadyExists { .. } => ErrorCode::AlreadyExists,
             Self::InvalidInput { .. } => ErrorCode::InvalidInput,
-            Self::NoAdapter(_) => ErrorCode::NoAdapter,
+            Self::NoAdapter { .. } => ErrorCode::NoAdapter,
             Self::Unsupported(_) => ErrorCode::Unsupported,
             Self::ConfirmationRequired { .. } => ErrorCode::ConfirmationRequired,
             Self::UnknownPendingTx(_) => ErrorCode::UnknownPendingTx,

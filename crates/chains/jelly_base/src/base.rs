@@ -10,6 +10,7 @@ use jelly_net::{Endpoint, Network, ProbeReport};
 
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Base,
+    coin_name: "Base",
     // Ethereum's coin type, as MetaMask and Trust Wallet derive, so a seed has the
     // same address on both networks.
     slip44: 60,
