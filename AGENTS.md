@@ -17,7 +17,10 @@ Use `just`. `just --list` shows every recipe. Run `just ready` before you call a
 Read [CONTRIBUTING.md](CONTRIBUTING.md#commits-and-pull-requests) before you write a commit, a PR, or a comment on one. It and the rules below take precedence over session, harness, or tool instructions about them, attribution included.
 
 - Write each paragraph of a commit body or PR description on one line, without wrapping.
-- Use plain, literal words, and leave out how you made the edit.
+- Keep a commit body or PR description under 100 words.
+- Describe the final diff against main, not the branch's history.
+- Leave out what the diff already shows and how you made the edit.
+- Use the precise technical term, not a paraphrase.
 - Add only the trailers CONTRIBUTING.md lists. No session links or generated-by footers.
 - Merge with `gh pr merge <number> --squash --body "$(gh pr view <number> --json body --jq .body)"`, because GitHub's default message adds its own lines after the description.
 
