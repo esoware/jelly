@@ -10,11 +10,19 @@ interface AssetMenuProps {
   assets: readonly AssetId[]
   asset: AssetId
   onAssetChange: (asset: AssetId) => void
+  onOpenChange?: (isOpen: boolean) => void
   amountFor: (asset: AssetId) => Amount | bigint | null
   trigger: ReactElement
 }
 
-export function AssetMenu({ assets, asset, onAssetChange, amountFor, trigger }: AssetMenuProps) {
+export function AssetMenu({
+  assets,
+  asset,
+  onAssetChange,
+  onOpenChange,
+  amountFor,
+  trigger,
+}: AssetMenuProps) {
   function pick(key: string): void {
     const next = assetFromKey(key)
     if (next !== null) {
@@ -23,7 +31,7 @@ export function AssetMenu({ assets, asset, onAssetChange, amountFor, trigger }: 
   }
 
   return (
-    <Menu>
+    <Menu onOpenChange={onOpenChange}>
       <MenuTrigger render={trigger} />
       <MenuPopup align="end" className="min-w-60">
         {groupAssets(assets).map((group) => (

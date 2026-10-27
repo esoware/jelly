@@ -2,13 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Fragment, useId, useLayoutEffect, useRef, useState } from "react"
 import type { PointerEvent, ReactNode } from "react"
 
-import {
-  AXIS_GAP,
-  blendPlots,
-  drawPlot,
-  placePrice,
-  placeTime,
-} from "@/features/wallet/price-plot.ts"
+import { AXIS_GAP, blendPlots, drawPlot, placeTime } from "@/features/wallet/price-plot.ts"
 import type { CandleMark, LineMark, Plot } from "@/features/wallet/price-plot.ts"
 import {
   CHART_RANGES,
@@ -30,7 +24,7 @@ import type {
   Spot,
 } from "@/features/wallet/price-scale.ts"
 import type { AssetId, CandleInterval } from "@/ipc/bindings.gen.ts"
-import { assetKey } from "@/lib/chain.ts"
+import { assetFromKey, assetKey } from "@/lib/chain.ts"
 import { formatFiat } from "@/lib/fiat.ts"
 import { NONE, unixSecondsOf } from "@/lib/format.ts"
 import { moneyQueries } from "@/query/money.ts"
@@ -78,20 +72,17 @@ function ChartAxes({ plot, clipPath }: ChartAxesProps) {
   return (
     <g className="text-caption tabular-nums">
       <g clipPath={clipPath}>
-        {plot.priceTicks.map(({ key, tick, opacity }) => {
-          const y = placePrice(plot.price, tick.price)
-          return (
-            <line
-              key={key}
-              x1={bounds.left}
-              x2={bounds.right}
-              y1={y}
-              y2={y}
-              opacity={opacity}
-              className="stroke-edge/50"
-            />
-          )
-        })}
+        {plot.priceTicks.map(({ key, at, opacity }) => (
+          <line
+            key={key}
+            x1={bounds.left}
+            x2={bounds.right}
+            y1={at}
+            y2={at}
+            opacity={opacity}
+            className="stroke-edge/50"
+          />
+        ))}
       </g>
       <line
         x1={bounds.left}
@@ -101,14 +92,13 @@ function ChartAxes({ plot, clipPath }: ChartAxesProps) {
         className="stroke-edge"
       />
       <g textAnchor="end" className="fill-fg-faint">
-        {plot.priceTicks.map(({ key, tick, opacity }) => {
-          const y = placePrice(plot.price, tick.price)
-          const overshoot = Math.max(0, bounds.top - y, y - bounds.bottom)
+        {plot.priceTicks.map(({ key, tick, at, opacity }) => {
+          const overshoot = Math.max(0, bounds.top - at, at - bounds.bottom)
           return (
             <text
               key={key}
               x={bounds.left - AXIS_GAP}
-              y={y}
+              y={at}
               opacity={opacity * Math.max(0, 1 - overshoot / AXIS_GAP)}
               dominantBaseline="central"
             >
@@ -118,10 +108,10 @@ function ChartAxes({ plot, clipPath }: ChartAxesProps) {
         })}
       </g>
       <g textAnchor="middle" className="fill-fg-faint">
-        {plot.timeTicks.map(({ key, tick, opacity }) => (
+        {plot.timeTicks.map(({ key, tick, at, opacity }) => (
           <text
             key={key}
-            x={placeTime(plot.time, tick.unixSecs)}
+            x={at}
             y={bounds.bottom + AXIS_GAP}
             opacity={opacity}
             dominantBaseline="hanging"
@@ -274,13 +264,14 @@ function pointerX(event: PointerEvent<SVGSVGElement>): number {
 }
 
 interface ChartPlotProps {
+  asset: string
   series: ChartSeries
   interval: CandleInterval
   width: number
   height: number
 }
 
-function ChartPlot({ series, interval, width, height }: ChartPlotProps) {
+function ChartPlot({ asset, series, interval, width, height }: ChartPlotProps) {
   const labelsRef = useRef<SVGGElement>(null)
   const clipId = useId()
   const [labelWidth, setLabelWidth] = useState(0)
@@ -288,8 +279,8 @@ function ChartPlot({ series, interval, width, height }: ChartPlotProps) {
 
   const plotSize = { width, height, labelWidth }
   const { target, shown: plot } = useMorph(
-    series,
-    (source) => drawPlot(source, plotSize),
+    { asset, series },
+    (source) => drawPlot(source.asset, source.series, plotSize),
     blendPlots,
   )
   const labels = target.priceTicks.map((mark) => mark.tick.label)
@@ -404,11 +395,12 @@ function ChartPlot({ series, interval, width, height }: ChartPlotProps) {
 }
 
 interface PriceChartProps {
+  asset: string
   series: ChartSeries
   interval: CandleInterval
 }
 
-function PriceChart({ series, interval }: PriceChartProps) {
+function PriceChart({ asset, series, interval }: PriceChartProps) {
   const frameRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<Size | null>(null)
 
@@ -433,7 +425,13 @@ function PriceChart({ series, interval }: PriceChartProps) {
   return (
     <div ref={frameRef} className="relative size-full">
       {size === null ? null : (
-        <ChartPlot series={series} interval={interval} width={size.width} height={size.height} />
+        <ChartPlot
+          asset={asset}
+          series={series}
+          interval={interval}
+          width={size.width}
+          height={size.height}
+        />
       )}
     </div>
   )
@@ -456,13 +454,14 @@ const RANGES = [
 
 interface PricePanelProps {
   asset: AssetId
+  range: ChartRange
+  onRangeChange: (range: ChartRange) => void
 }
 
-export function PricePanel({ asset }: PricePanelProps) {
+export function PricePanel({ asset, range, onRangeChange }: PricePanelProps) {
   const currency = useFiatCurrency()
   const livePrice = usePrice(asset)
   const isStale = useIsFiatStale(asset)
-  const [range, setRange] = useState<ChartRange>("1d")
   const [mode, setMode] = useState<ChartMode>("line")
   const ranged = useQuery({
     ...moneyQueries.priceChart(asset, CHART_RANGES[range].interval, currency),
@@ -490,14 +489,13 @@ export function PricePanel({ asset }: PricePanelProps) {
     setKept(loaded)
   }
   const shown =
-    kept?.asset !== assetKey(asset) ||
-    kept.currency !== currency ||
-    (ranged.isError && ranged.data === undefined)
-      ? null
-      : kept
-  const isPending = shown !== null && shown.range !== range
+    kept?.currency !== currency || (ranged.isError && ranged.data === undefined) ? null : kept
+  const isPending = shown !== null && (shown.asset !== assetKey(asset) || shown.range !== range)
+  const chartAsset = (shown === null ? null : assetFromKey(shown.asset)) ?? asset
+  const chartPrice = usePrice(chartAsset)
+  const isChartPriceStale = useIsFiatStale(chartAsset)
 
-  const live = livePrice === null || isStale ? null : { price: livePrice, currency }
+  const live = chartPrice === null || isChartPriceStale ? null : { price: chartPrice, currency }
   const points =
     shown === null ? [] : chartPoints(shown.chart, shown.range, live, shown.nowUnixSecs)
   const rangeChange = seriesChange(points)
@@ -518,6 +516,7 @@ export function PricePanel({ asset }: PricePanelProps) {
     }
     return (
       <PriceChart
+        asset={shown.asset}
         series={
           mode === "line"
             ? { mode, currency: shown.chart.currency, points }
@@ -554,7 +553,7 @@ export function PricePanel({ asset }: PricePanelProps) {
       </div>
 
       <div className="flex shrink-0 items-center gap-2 p-2">
-        <Segmented value={range} onValueChange={setRange} items={RANGES} />
+        <Segmented value={range} onValueChange={onRangeChange} items={RANGES} />
         {isPending ? <Spinner size="sm" className="mr-2 ml-auto text-fg-faint" /> : null}
         {isPending || rangeChange === null ? null : (
           <span

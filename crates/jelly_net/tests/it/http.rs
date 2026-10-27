@@ -144,3 +144,69 @@ async fn a_response_body_that_streams_past_the_cap_is_refused() {
         fitting.expect("a body exactly at the cap is read").into_bytes().expect("a success status");
     assert_eq!(body.len(), whole);
 }
+
+const DECODED_BYTES: usize = 16_384;
+
+/// `DECODED_BYTES` of `a`, gzipped.
+const GZIPPED: [u8; 52] = [
+    0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x0a, 0xed, 0xc1, 0x31, 0x01, 0x00, 0x00,
+    0x00, 0xc2, 0xa0, 0xac, 0xeb, 0x5f, 0xc2, 0x18, 0x3e, 0x40, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6f, 0x03, 0xfb, 0x44, 0xee, 0xeb,
+    0x00, 0x40, 0x00, 0x00,
+];
+
+/// A loopback HTTP server that gzips its answer only when the request accepts gzip, as a
+/// real server does.
+async fn gzip_server() -> io::Result<(String, JoinHandle<()>)> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let url = format!("http://{}", listener.local_addr()?);
+    let server = tokio::spawn(async move {
+        let mut connections = JoinSet::new();
+        while let Ok((stream, _)) = listener.accept().await {
+            connections.spawn(gzip_body(stream));
+        }
+    });
+    Ok((url, server))
+}
+
+async fn gzip_body(mut stream: TcpStream) -> io::Result<()> {
+    let head = read_head(&mut stream).await?.to_ascii_lowercase();
+    if !head.contains("accept-encoding: gzip") {
+        return stream
+            .write_all(
+                b"HTTP/1.1 406 Not Acceptable\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+            )
+            .await;
+    }
+    let reply = format!(
+        "HTTP/1.1 200 OK\r\ncontent-encoding: gzip\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+        GZIPPED.len()
+    );
+    stream.write_all(reply.as_bytes()).await?;
+    stream.write_all(&GZIPPED).await
+}
+
+/// The cap counts the decoded body, so a small compressed answer cannot unpack past it.
+#[tokio::test]
+async fn a_gzip_body_is_decoded_and_capped_at_its_decoded_size() {
+    let (url, server) = gzip_server().await.expect("a loopback server");
+    let endpoint = Endpoint::parse(ChainId::Bitcoin, Transport::FeeApi, &url).expect("loopback");
+    let http = HttpClient::new(None).expect("the client builds");
+    let budget = Duration::from_secs(5);
+
+    let refused = http
+        .send(
+            &endpoint,
+            "",
+            HttpRequest::get(budget).with_max_bytes(DECODED_BYTES.saturating_sub(1)),
+        )
+        .await;
+    let fitting =
+        http.send(&endpoint, "", HttpRequest::get(budget).with_max_bytes(DECODED_BYTES)).await;
+    server.abort();
+
+    assert!(matches!(refused, Err(NetError::Protocol { .. })), "{refused:?}");
+    let body =
+        fitting.expect("a body exactly at the cap is read").into_bytes().expect("a success status");
+    assert_eq!(body, vec![b'a'; DECODED_BYTES]);
+}

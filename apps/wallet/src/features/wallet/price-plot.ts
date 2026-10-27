@@ -44,6 +44,7 @@ interface Pace {
 interface TickMark<T> {
   key: string
   tick: T
+  at: number
   opacity: number
 }
 
@@ -85,6 +86,7 @@ export interface CandleMark {
 }
 
 export interface Plot {
+  asset: string
   bounds: Bounds
   time: Scale<number>
   price: Scale<bigint>
@@ -110,7 +112,7 @@ export function placeTime(scale: Scale<number>, unixSecs: number): number {
   return scale.at + scale.perUnit * (unixSecs - scale.origin)
 }
 
-export function placePrice(scale: Scale<bigint>, price: bigint): number {
+function placePrice(scale: Scale<bigint>, price: bigint): number {
   return scale.at + scale.perUnit * Number(price - scale.origin)
 }
 
@@ -118,7 +120,7 @@ function bodyWidth(spanSecs: number, time: Scale<number>): number {
   return Math.min(MAX_BODY_WIDTH, Math.max(1, spanSecs * time.perUnit * BODY_SHARE))
 }
 
-export function drawPlot(series: ChartSeries, size: PlotSize): Plot {
+export function drawPlot(asset: string, series: ChartSeries, size: PlotSize): Plot {
   const bounds: Bounds = {
     left: size.labelWidth + AXIS_GAP,
     right: size.width - INSET_RIGHT,
@@ -144,6 +146,7 @@ export function drawPlot(series: ChartSeries, size: PlotSize): Plot {
   }
 
   return {
+    asset,
     bounds,
     time,
     price,
@@ -152,17 +155,24 @@ export function drawPlot(series: ChartSeries, size: PlotSize): Plot {
       extent.high,
       Math.floor(plotHeight / MIN_PRICE_TICK_GAP),
       series.currency,
-    ).map((tick) => ({ key: `${tick.price.toString()} ${tick.label}`, tick, opacity: 1 })),
+    ).map((tick) => ({
+      key: `${tick.price.toString()} ${tick.label}`,
+      tick,
+      at: placePrice(price, tick.price),
+      opacity: 1,
+    })),
     timeTicks: timeTicks(
       domain.startUnixSecs,
       domain.endUnixSecs,
       Math.floor(plotWidth / MIN_TIME_TICK_GAP),
     )
-      .filter((tick) => {
-        const x = placeTime(time, tick.unixSecs)
-        return x >= bounds.left + EDGE_ROOM && x <= bounds.right - EDGE_ROOM
-      })
-      .map((tick) => ({ key: `${String(tick.unixSecs)} ${tick.label}`, tick, opacity: 1 })),
+      .map((tick) => ({
+        key: `${String(tick.unixSecs)} ${tick.label}`,
+        tick,
+        at: placeTime(time, tick.unixSecs),
+        opacity: 1,
+      }))
+      .filter((mark) => mark.at >= bounds.left + EDGE_ROOM && mark.at <= bounds.right - EDGE_ROOM),
     line:
       series.mode === "line"
         ? {
@@ -356,6 +366,7 @@ function blendTicks<T>(
   from: readonly TickMark<T>[],
   to: readonly TickMark<T>[],
   reach: number,
+  place: ((tick: T) => number) | null,
 ): TickMark<T>[] {
   const toKeys = new Set(to.map((mark) => mark.key))
   const fromByKey = new Map(from.map((mark) => [mark.key, mark]))
@@ -364,12 +375,18 @@ function blendTicks<T>(
   return [
     ...from
       .filter((mark) => !toKeys.has(mark.key))
-      .map((mark) => ({ key: mark.key, tick: mark.tick, opacity: lerp(mark.opacity, 0, fadeOut) })),
+      .map((mark) => ({
+        key: mark.key,
+        tick: mark.tick,
+        at: place === null ? mark.at : place(mark.tick),
+        opacity: lerp(mark.opacity, 0, fadeOut),
+      })),
     ...to.map((mark) => {
       const shown = fromByKey.get(mark.key)
       return {
         key: mark.key,
         tick: mark.tick,
+        at: place === null ? lerp(shown?.at ?? mark.at, mark.at, reach) : place(mark.tick),
         opacity:
           shown === undefined
             ? lerp(0, mark.opacity, fadeIn)
@@ -379,12 +396,15 @@ function blendTicks<T>(
   ]
 }
 
+const IN_PLACE: Affine = { offset: 0, factor: 1 }
+
 export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
+  const isSwitch = from.asset !== to.asset
   const timeShiftSecs = from.time.origin - to.time.origin
   const priceShiftBaseUnits = Number(from.price.origin - to.price.origin)
   const forward = {
     x: relate(from.time, to.time, timeShiftSecs),
-    y: relate(from.price, to.price, priceShiftBaseUnits),
+    y: isSwitch ? IN_PLACE : relate(from.price, to.price, priceShiftBaseUnits),
   }
   const backward = { x: invert(forward.x), y: invert(forward.y) }
   const fromLine = from.line ?? (to.line === null ? null : absentLine(to.line, backward))
@@ -396,19 +416,31 @@ export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
     const pace = {
       progress,
       x: zoomReach(from.time, to.time, progress),
-      y: zoomReach(from.price, to.price, progress),
+      y: isSwitch ? progress : zoomReach(from.price, to.price, progress),
     }
+    const time = blendScale(from.time, to.time, timeShiftSecs, pace.x)
+    const price = isSwitch
+      ? to.price
+      : blendScale(from.price, to.price, priceShiftBaseUnits, pace.y)
     return {
+      asset: to.asset,
       bounds: {
         left: lerp(from.bounds.left, to.bounds.left, progress),
         right: lerp(from.bounds.right, to.bounds.right, progress),
         top: lerp(from.bounds.top, to.bounds.top, progress),
         bottom: lerp(from.bounds.bottom, to.bounds.bottom, progress),
       },
-      time: blendScale(from.time, to.time, timeShiftSecs, pace.x),
-      price: blendScale(from.price, to.price, priceShiftBaseUnits, pace.y),
-      priceTicks: blendTicks(from.priceTicks, to.priceTicks, pace.y),
-      timeTicks: blendTicks(from.timeTicks, to.timeTicks, pace.x),
+      time,
+      price,
+      priceTicks: blendTicks(
+        from.priceTicks,
+        to.priceTicks,
+        pace.y,
+        isSwitch ? null : (tick) => placePrice(price, tick.price),
+      ),
+      timeTicks: blendTicks(from.timeTicks, to.timeTicks, pace.x, (tick) =>
+        placeTime(time, tick.unixSecs),
+      ),
       line: line === null ? null : blendLines(line, pace),
       candles: candles.map((pair) => blendCandles(pair, pace)),
     }
