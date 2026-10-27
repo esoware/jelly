@@ -39,6 +39,7 @@ import { FiatValue } from "@/widgets/amounts.tsx"
 
 const RISING_COLOR = "var(--color-ok)"
 const FALLING_COLOR = "var(--color-danger)"
+const SHOWN_CHART_STALE_MS = 60_000
 
 function riseColor(rise: number): string {
   return mixColors(FALLING_COLOR, RISING_COLOR, rise)
@@ -264,7 +265,7 @@ function pointerX(event: PointerEvent<SVGSVGElement>): number {
 }
 
 interface ChartPlotProps {
-  asset: string
+  asset: AssetId
   series: ChartSeries
   interval: CandleInterval
   width: number
@@ -276,12 +277,12 @@ function ChartPlot({ asset, series, interval, width, height, isInteractive }: Ch
   const labelsRef = useRef<SVGGElement>(null)
   const clipId = useId()
   const [labelWidth, setLabelWidth] = useState(0)
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const [hoveredX, setHoveredX] = useState<number | null>(null)
 
   const plotSize = { width, height, labelWidth }
   const { target, shown: plot } = useMorph(
     { asset, series },
-    (source) => drawPlot(source.asset, source.series, plotSize),
+    (source) => drawPlot(assetKey(source.asset), source.series, plotSize),
     blendPlots,
   )
   const labels = target.priceTicks.map((mark) => mark.tick.label)
@@ -303,9 +304,12 @@ function ChartPlot({ asset, series, interval, width, height, isInteractive }: Ch
           x: placeTime(plot.time, vertex.unixSecs),
           y: shownYs.get(vertex.unixSecs) ?? vertex.y,
         }))
-  const readIndex = isInteractive ? hoveredIndex : null
-  const hoveredSpot = readIndex === null ? undefined : spots[readIndex]
-  const hoveredKey = readIndex === null ? null : (target.candles[readIndex]?.key ?? null)
+  const hoveredIndex =
+    !isInteractive || hoveredX === null || hoveredX < plot.bounds.left
+      ? null
+      : nearestIndex(spots, hoveredX)
+  const hoveredSpot = hoveredIndex === null ? undefined : spots[hoveredIndex]
+  const hoveredKey = hoveredIndex === null ? null : (target.candles[hoveredIndex]?.key ?? null)
   const clipPath = `url(#${clipId})`
 
   function readout(spot: Spot, i: number): ReactNode {
@@ -345,11 +349,10 @@ function ChartPlot({ asset, series, interval, width, height, isInteractive }: Ch
         height={height}
         className="block"
         onPointerMove={(event) => {
-          const x = pointerX(event)
-          setHoveredIndex(x < plot.bounds.left ? null : nearestIndex(spots, x))
+          setHoveredX(pointerX(event))
         }}
         onPointerLeave={() => {
-          setHoveredIndex(null)
+          setHoveredX(null)
         }}
       >
         <defs>
@@ -389,7 +392,9 @@ function ChartPlot({ asset, series, interval, width, height, isInteractive }: Ch
         </g>
       </svg>
 
-      {readIndex === null || hoveredSpot === undefined ? null : readout(hoveredSpot, readIndex)}
+      {hoveredIndex === null || hoveredSpot === undefined
+        ? null
+        : readout(hoveredSpot, hoveredIndex)}
     </>
   )
 }
@@ -453,6 +458,7 @@ export function PricePanel({ asset, range, onRangeChange }: PricePanelProps) {
   const [mode, setMode] = useState<ChartMode>("line")
   const ranged = useQuery({
     ...moneyQueries.priceChart(asset, CHART_RANGES[range].interval, currency),
+    staleTime: SHOWN_CHART_STALE_MS,
     select: readChart,
   })
   const loaded =
@@ -460,7 +466,6 @@ export function PricePanel({ asset, range, onRangeChange }: PricePanelProps) {
       ? null
       : {
           asset,
-          key: assetKey(asset),
           currency,
           chart: ranged.data,
           range,
@@ -472,7 +477,8 @@ export function PricePanel({ asset, range, onRangeChange }: PricePanelProps) {
   }
   if (
     loaded !== null &&
-    (kept?.key !== loaded.key ||
+    (kept === null ||
+      assetKey(kept.asset) !== assetKey(loaded.asset) ||
       kept.currency !== loaded.currency ||
       kept.chart !== loaded.chart ||
       kept.range !== loaded.range ||
@@ -481,7 +487,7 @@ export function PricePanel({ asset, range, onRangeChange }: PricePanelProps) {
     setKept(loaded)
   }
   const shown = kept?.currency === currency ? kept : null
-  const isOtherAsset = shown !== null && shown.key !== assetKey(asset)
+  const isOtherAsset = shown !== null && assetKey(shown.asset) !== assetKey(asset)
   const isPending = shown !== null && (isOtherAsset || shown.range !== range)
   const chartAsset = shown?.asset ?? asset
   const chartPrice = usePrice(chartAsset)
@@ -493,7 +499,7 @@ export function PricePanel({ asset, range, onRangeChange }: PricePanelProps) {
   const rangeChange = seriesChange(points)
 
   function chartArea(): ReactNode {
-    if (shown === null && !ranged.isError) {
+    if ((shown === null && !ranged.isError) || (isPending && rangeChange === null)) {
       return <Skeleton className="size-full" />
     }
     if (shown === null || rangeChange === null) {
@@ -508,7 +514,7 @@ export function PricePanel({ asset, range, onRangeChange }: PricePanelProps) {
     }
     return (
       <PriceChart
-        asset={shown.key}
+        asset={shown.asset}
         series={
           mode === "line"
             ? { mode, currency: shown.chart.currency, points }

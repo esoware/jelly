@@ -50,6 +50,18 @@ interface TickMark<T> {
   opacity: number
 }
 
+type TickFade = "leaving" | "arriving" | "staying"
+
+interface TickPair<T> {
+  key: string
+  tick: T
+  fromAt: number
+  toAt: number
+  fromOpacity: number
+  toOpacity: number
+  fade: TickFade
+}
+
 interface Vertex {
   unixSecs: number
   y: number
@@ -88,7 +100,7 @@ export interface CandleMark {
 }
 
 export interface Plot {
-  asset: string
+  assetKey: string | null
   bounds: Bounds
   time: Scale<number>
   price: Scale<bigint>
@@ -122,7 +134,7 @@ function bodyWidth(spanSecs: number, time: Scale<number>): number {
   return Math.min(MAX_BODY_WIDTH, Math.max(1, spanSecs * time.perUnit * BODY_SHARE))
 }
 
-export function drawPlot(asset: string, series: ChartSeries, size: PlotSize): Plot {
+export function drawPlot(assetKey: string, series: ChartSeries, size: PlotSize): Plot {
   const bounds: Bounds = {
     left: size.labelWidth + AXIS_GAP,
     right: size.width - INSET_RIGHT,
@@ -148,7 +160,7 @@ export function drawPlot(asset: string, series: ChartSeries, size: PlotSize): Pl
   }
 
   return {
-    asset,
+    assetKey,
     bounds,
     time,
     price,
@@ -367,43 +379,57 @@ function pairCandles(from: Plot, to: Plot, forward: Relation, backward: Relation
   return [...leaving, ...arriving]
 }
 
-function blendTicks<T>(
+function pairTicks<T>(
   from: readonly TickMark<T>[],
   to: readonly TickMark<T>[],
-  reach: number,
   forward: Affine,
   backward: Affine,
-): TickMark<T>[] {
+): TickPair<T>[] {
   const toKeys = new Set(to.map((mark) => mark.key))
   const fromByKey = new Map(from.map((mark) => [mark.key, mark]))
-  const fadeOut = Math.min(1, reach * 2)
-  const fadeIn = Math.max(0, reach * 2 - 1)
-  return [
-    ...from
-      .filter((mark) => !toKeys.has(mark.key))
-      .map((mark) => ({
-        key: mark.key,
-        tick: mark.tick,
-        at: lerp(mark.at, apply(forward, mark.at), reach),
-        opacity: lerp(mark.opacity, 0, fadeOut),
-      })),
-    ...to.map((mark) => {
-      const shown = fromByKey.get(mark.key)
-      return {
-        key: mark.key,
-        tick: mark.tick,
-        at: lerp(shown?.at ?? apply(backward, mark.at), mark.at, reach),
-        opacity:
-          shown === undefined
-            ? lerp(0, mark.opacity, fadeIn)
-            : lerp(shown.opacity, mark.opacity, reach),
-      }
-    }),
-  ]
+  const leaving = from
+    .filter((mark) => !toKeys.has(mark.key))
+    .map((mark) => ({
+      key: mark.key,
+      tick: mark.tick,
+      fromAt: mark.at,
+      toAt: apply(forward, mark.at),
+      fromOpacity: mark.opacity,
+      toOpacity: 0,
+      fade: "leaving" as const,
+    }))
+  const arriving = to.map((mark) => {
+    const shown = fromByKey.get(mark.key)
+    return {
+      key: mark.key,
+      tick: mark.tick,
+      fromAt: shown?.at ?? apply(backward, mark.at),
+      toAt: mark.at,
+      fromOpacity: shown?.opacity ?? 0,
+      toOpacity: mark.opacity,
+      fade: shown === undefined ? ("arriving" as const) : ("staying" as const),
+    }
+  })
+  return [...leaving, ...arriving]
+}
+
+function blendTicks<T>(pairs: readonly TickPair<T>[], reach: number): TickMark<T>[] {
+  const shares: Record<TickFade, number> = {
+    leaving: Math.min(1, reach * 2),
+    arriving: Math.max(0, reach * 2 - 1),
+    staying: reach,
+  }
+  return pairs.map((pair) => ({
+    key: pair.key,
+    tick: pair.tick,
+    at: lerp(pair.fromAt, pair.toAt, reach),
+    opacity: lerp(pair.fromOpacity, pair.toOpacity, shares[pair.fade]),
+  }))
 }
 
 export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
-  const fromPrice = from.asset === to.asset ? from.price : to.price
+  const isSameAsset = from.assetKey === to.assetKey
+  const fromPrice = isSameAsset ? from.price : to.price
   const timeShiftSecs = from.time.origin - to.time.origin
   const priceShiftBaseUnits = Number(fromPrice.origin - to.price.origin)
   const forward = {
@@ -415,6 +441,8 @@ export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
   const toLine = to.line ?? (from.line === null ? null : absentLine(from.line, forward))
   const line = fromLine === null || toLine === null ? null : pairLines(fromLine, toLine)
   const candles = pairCandles(from, to, forward, backward)
+  const priceTickPairs = pairTicks(from.priceTicks, to.priceTicks, forward.y, backward.y)
+  const timeTickPairs = pairTicks(from.timeTicks, to.timeTicks, forward.x, backward.x)
 
   function frame(progress: number): Plot {
     const pace = {
@@ -423,7 +451,7 @@ export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
       y: zoomReach(fromPrice, to.price, progress),
     }
     return {
-      asset: to.asset,
+      assetKey: isSameAsset || progress >= 1 ? to.assetKey : null,
       bounds: {
         left: lerp(from.bounds.left, to.bounds.left, progress),
         right: lerp(from.bounds.right, to.bounds.right, progress),
@@ -432,8 +460,8 @@ export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
       },
       time: blendScale(from.time, to.time, timeShiftSecs, pace.x),
       price: blendScale(fromPrice, to.price, priceShiftBaseUnits, pace.y),
-      priceTicks: blendTicks(from.priceTicks, to.priceTicks, pace.y, forward.y, backward.y),
-      timeTicks: blendTicks(from.timeTicks, to.timeTicks, pace.x, forward.x, backward.x),
+      priceTicks: blendTicks(priceTickPairs, pace.y),
+      timeTicks: blendTicks(timeTickPairs, pace.x),
       line: line === null ? null : blendLines(line, pace),
       candles: candles.map((pair) => blendCandles(pair, pace)),
     }

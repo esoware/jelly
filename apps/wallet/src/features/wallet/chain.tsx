@@ -1,6 +1,6 @@
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query"
 import { useParams } from "@tanstack/react-router"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { ActivityPanel } from "@/features/wallet/activity.tsx"
 import { AddressesPanel } from "@/features/wallet/addresses.tsx"
@@ -120,6 +120,15 @@ export function ChainView() {
   const currency = useFiatCurrency()
   const [action, setAction] = useState<Action>(null)
   const [range, setRange] = useState<ChartRange>("1d")
+  const prefetchQueue = useRef<(() => Promise<unknown>)[]>([])
+  const prefetchWorkers = useRef(0)
+
+  useEffect(
+    () => () => {
+      prefetchQueue.current = []
+    },
+    [chain],
+  )
 
   const saveShownAsset = useSetShownAsset()
 
@@ -130,27 +139,34 @@ export function ChainView() {
   const asset = shownAsset(chain, settings.data.shownTokens)
   const isChartShown = settings.data.isPriceFeedEnabled && settings.data.isPriceChartEnabled
 
+  async function drainPrefetch(): Promise<void> {
+    const next = prefetchQueue.current.shift()
+    if (next === undefined) {
+      prefetchWorkers.current -= 1
+      return
+    }
+    try {
+      await next()
+    } catch {}
+    await drainPrefetch()
+  }
+
   function prefetchCharts(isMenuOpen: boolean): void {
     if (!isMenuOpen || !isChartShown) {
       return
     }
     const { interval } = CHART_RANGES[range]
-    const queue = assetsForChain(chain)
-    async function prefetchNext(): Promise<void> {
-      const next = queue.shift()
-      if (next === undefined) {
-        return
-      }
-      try {
-        await client.query({
-          ...moneyQueries.priceChart(next, interval, currency),
+    prefetchQueue.current = assetsForChain(chain).map(
+      (option) => () =>
+        client.query({
+          ...moneyQueries.priceChart(option, interval, currency),
           gcTime: PRICE_CHART_REFRESH_MS,
-        })
-      } catch {}
-      await prefetchNext()
-    }
-    for (let i = 0; i < CHART_PREFETCH_CONCURRENCY; i += 1) {
-      void prefetchNext()
+          retry: false,
+        }),
+    )
+    while (prefetchWorkers.current < CHART_PREFETCH_CONCURRENCY) {
+      prefetchWorkers.current += 1
+      void drainPrefetch()
     }
   }
 
