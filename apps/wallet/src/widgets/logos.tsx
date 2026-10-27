@@ -184,7 +184,7 @@ interface AssetLogoProps {
 export function AssetLogo({ asset, shouldShowChain = false, className }: AssetLogoProps) {
   const brand = assetBrand(asset)
   const chain = assetChain(asset)
-  if (!shouldShowChain || brand === CHAIN_BRANDS[chain]) {
+  if (!shouldShowChain || (asset.kind === "native" && chainMeta(chain).coinChain === chain)) {
     return <BrandLogo brand={brand} className={className} />
   }
 
