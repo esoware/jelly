@@ -60,6 +60,21 @@ fn every_chain_names_its_own_coin() {
     }
 }
 
+/// A coin is the same coin on every chain that pays in it, and only a rollup's coin is
+/// native to another chain.
+#[test]
+fn every_coin_chain_pays_in_the_same_coin() {
+    for chain in ChainId::ALL {
+        let spec = chains().spec(chain);
+        let coin_spec = chains().spec(spec.coin_chain);
+        assert_eq!(coin_spec.coin_chain, spec.coin_chain, "{}", chain.as_str());
+        assert_eq!(coin_spec.coin_name, spec.coin_name, "{}", chain.as_str());
+        assert_eq!(spec.coin_chain.ticker(), chain.ticker(), "{}", chain.as_str());
+        let is_rollup = matches!(chain, ChainId::Arbitrum | ChainId::Base | ChainId::Optimism);
+        assert_eq!(spec.coin_chain == chain, !is_rollup, "{}", chain.as_str());
+    }
+}
+
 /// A seed has one address on Ethereum and BNB Smart Chain.
 #[test]
 fn bsc_shares_ethereums_coin_type_and_trades_as_bnb() {
@@ -88,6 +103,7 @@ fn the_rollups_share_ethereums_coin_type_and_coin() {
         assert_eq!(spec.slip44, ethereum.slip44, "{}", chain.as_str());
         assert_eq!(spec.default_path, ethereum.default_path, "{}", chain.as_str());
         assert_eq!(chain.ticker(), ChainId::Ethereum.ticker(), "{}", chain.as_str());
+        assert_eq!(spec.coin_chain, ChainId::Ethereum, "{}", chain.as_str());
     }
     assert_eq!(ChainId::Arbitrum.display_name(), "Arbitrum One");
     assert_eq!(ChainId::Base.display_name(), "Base");

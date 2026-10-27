@@ -400,6 +400,11 @@ export type ChainId = "bitcoin" | "litecoin" | "dogecoin" | "bitcoin_cash" | "zc
 export type ChainMeta = {
 	chain: ChainId,
 	name: string,
+	/**
+	 *  The chain the coin is native to, such as Ethereum on a rollup that pays fees in
+	 *  ether.
+	 */
+	coinChain: ChainId,
 	feeRateUnit: string | null,
 	/**
 	 *  The fee levels a send can pick from, slowest first. Empty on a chain whose

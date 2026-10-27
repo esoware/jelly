@@ -92,8 +92,8 @@ impl ChainId {
 
     /// User-facing chain name. Do not display the wire string.
     ///
-    /// It names the network precisely where its brand covers more than one, such as
-    /// Arbitrum One beside Arbitrum Nova and OP Mainnet beside the rest of the Superchain.
+    /// Arbitrum One and OP Mainnet take their network's full name, because Arbitrum Nova
+    /// and the rest of the Superchain share their brands.
     pub const fn display_name(self) -> &'static str {
         match self {
             Self::Bitcoin => "Bitcoin",

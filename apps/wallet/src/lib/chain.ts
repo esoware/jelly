@@ -70,11 +70,6 @@ export function chainTicker(chain: ChainId): string {
   return assetMeta({ kind: "native", value: chain }).symbol
 }
 
-export function coinChain(chain: ChainId): ChainId {
-  const ticker = chainTicker(chain)
-  return allChains().find((entry) => chainTicker(entry) === ticker) ?? chain
-}
-
 export function hasScriptChoice(chain: ChainId): boolean {
   return chainMeta(chain).scriptKinds.length > 1
 }

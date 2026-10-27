@@ -11,6 +11,7 @@ use jelly_net::{Endpoint, Network, ProbeReport};
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Polygon,
     coin_name: "Polygon",
+    coin_chain: ChainId::Polygon,
     // Ethereum's coin type rather than Polygon's own 966, as MetaMask and Trust
     // Wallet derive, so a seed has the same address on both networks.
     slip44: 60,

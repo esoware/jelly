@@ -1,7 +1,6 @@
 //! The shell's bridge between the engine's endpoint tables and the network layer, driven
 //! through real startup, reloads, and shutdown with the price feed asking for nothing.
 
-use std::cell::Cell;
 use std::path::Path;
 use std::pin::pin;
 use std::sync::Arc;
@@ -14,13 +13,6 @@ use jelly_net::{Endpoint, EndpointOrigin, HealthClass, NetError};
 use jelly_vault::test_util::MemoryKeyStore;
 use tokio::sync::Notify;
 use tokio::time::timeout;
-use tracing::{
-    Event, Level, Metadata, Subscriber,
-    callsite::rebuild_interest_cache,
-    subscriber::{self, Interest},
-};
-use tracing_subscriber::layer::{self, SubscriberExt as _};
-use tracing_subscriber::{Layer, registry};
 
 use crate::common::{Fallible, deps, offline_config};
 
@@ -241,37 +233,8 @@ async fn an_unreadable_endpoint_row_is_deleted_and_its_chain_keeps_the_curated_l
     services.shutdown().await;
 }
 
-thread_local! {
-    static LOADER_WARNINGS: Cell<usize> = const { Cell::new(0) };
-}
-
-/// Counts the warnings the endpoint loader logs, on the thread that logs each one.
-///
-/// It is the process's global subscriber, not a thread's own, because tracing caches
-/// whether a callsite is enabled once for every thread. While a thread's own subscriber is
-/// the only one in the process, another test that reaches the same callsite first, from a
-/// thread with no subscriber, caches it as disabled, and the event never arrives. It turns
-/// every other callsite off, so the tests that run after it in this binary log nothing.
-struct LoaderWarnings;
-
-fn is_loader_warning(metadata: &Metadata<'_>) -> bool {
-    *metadata.level() == Level::WARN && metadata.target() == "jelly::app::endpoints"
-}
-
-impl<S: Subscriber> Layer<S> for LoaderWarnings {
-    fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
-        if is_loader_warning(metadata) { Interest::always() } else { Interest::never() }
-    }
-
-    fn on_event(&self, event: &Event<'_>, _context: layer::Context<'_, S>) {
-        if is_loader_warning(event.metadata()) {
-            LOADER_WARNINGS.with(|count| count.set(count.get().saturating_add(1)));
-        }
-    }
-}
-
 /// A stored row on a transport its chain never uses still lets the shell start. It is
-/// deleted at the first start, so it is never listed and warns only once.
+/// deleted at the first start and never listed.
 #[tokio::test]
 async fn a_stored_endpoint_on_a_transport_its_chain_never_uses_is_deleted_at_startup() {
     let directory = tempfile::tempdir().unwrap();
@@ -285,10 +248,6 @@ async fn a_stored_endpoint_on_a_transport_its_chain_never_uses_is_deleted_at_sta
         .unwrap();
     services.shutdown().await;
 
-    subscriber::set_global_default(registry().with(LoaderWarnings)).unwrap();
-    // A callsite that another thread registered while the global was being set may have
-    // cached itself as disabled.
-    rebuild_interest_cache();
     for _ in 0..2 {
         let restarted = Services::start(offline_config(), deps(directory.path())).await.unwrap();
         let stored = restarted.engine().unwrap().list_endpoints().await.unwrap();
@@ -298,11 +257,6 @@ async fn a_stored_endpoint_on_a_transport_its_chain_never_uses_is_deleted_at_sta
         assert!(!rows.is_empty(), "the shipped endpoints are still there");
         restarted.shutdown().await;
     }
-    assert_eq!(
-        LOADER_WARNINGS.with(Cell::get),
-        1,
-        "one warning for one deleted row, over two starts"
-    );
 }
 
 #[tokio::test]

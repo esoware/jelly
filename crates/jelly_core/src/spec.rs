@@ -17,6 +17,9 @@ pub struct ChainSpec {
     /// the coin on BNB Smart Chain is BNB, and a rollup's coin is ether, named Ethereum
     /// as it is on Ethereum.
     pub coin_name: &'static str,
+    /// The chain the coin is native to: the chain itself, or Ethereum on a rollup that
+    /// pays fees in ether.
+    pub coin_chain: ChainId,
     /// SLIP-44 coin type of the chain's default derivation path.
     pub slip44: u32,
     pub key_kind: KeyKind,
@@ -156,6 +159,7 @@ mod tests {
     const UTXO: ChainSpec = ChainSpec {
         chain: ChainId::Bitcoin,
         coin_name: "Bitcoin",
+        coin_chain: ChainId::Bitcoin,
         slip44: 0,
         key_kind: KeyKind::Secp256k1,
         default_path: "m/84'/0'/0'/0/{index}",

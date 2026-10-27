@@ -13,6 +13,7 @@ use crate::config::CHAIN;
 pub const SPEC: ChainSpec = ChainSpec {
     chain: CHAIN,
     coin_name: "XRP",
+    coin_chain: CHAIN,
     slip44: 144,
     key_kind: KeyKind::Secp256k1,
     default_path: "m/44'/144'/0'/0/{index}",
