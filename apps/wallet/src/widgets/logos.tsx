@@ -49,7 +49,7 @@ interface Brand {
 
 const ETHER: Brand = { color: "#627eea", logo: ethereumLogo }
 const ARBITRUM: Brand = { color: "#1b4add", logo: arbitrumLogo }
-const OPTIMISM: Brand = { color: "#ff0420", logo: optimismLogo }
+const OPTIMISM: Brand = { color: "#ff0421", logo: optimismLogo }
 
 export const CHAIN_BRANDS: Record<ChainId, Brand> = {
   bitcoin: { color: "#f7931a", logo: bitcoinLogo },
