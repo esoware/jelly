@@ -1,7 +1,6 @@
 {
   "name": "@jelly/branding",
   "private": true,
-  "license": "MIT",
   "exports": {
     "./logo.svg": "./logo.svg",
     "./logo-colored.svg": "./logo-colored.svg"

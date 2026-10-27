@@ -63,9 +63,9 @@ lint *args:
 lint-fix:
   pnpm lint:fix
 
-# Check bans, licenses, and sources
+# Check bans and sources
 deny:
-  cargo deny check bans licenses sources
+  cargo deny check bans sources
 
 # A new advisory can land at any time, so this runs on a schedule, on a PR that changes a lockfile, and before a release rather than in ready.
 
@@ -74,7 +74,7 @@ advisories:
   cargo deny check advisories
   pnpm audit --prod
 
-# Write target/THIRD-PARTY-NOTICES.txt, which fails if a crate or npm package the app ships has a license deny.toml doesn't allow
+# Write target/THIRD-PARTY-NOTICES.txt, which fails if a crate or npm package the app ships has a license about.toml doesn't accept
 notices:
   pnpm --filter jelly-wallet notices
 

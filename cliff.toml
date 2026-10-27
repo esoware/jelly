@@ -11,11 +11,8 @@ footer = """
 
 Each file is attested to the workflow that built it. Verify a download with `gh attestation verify <file> --repo esoware/jelly`.
 """
-trim = true
 
 [git]
-conventional_commits = true
-filter_unconventional = true
 # A breaking commit of any type is one that existing installs migrate for, so it leads the notes.
 # Renovate ends the title of a PR that fixes a vulnerability with [SECURITY].
 commit_parsers = [
@@ -28,4 +25,3 @@ commit_parsers = [
 ]
 filter_commits = true
 tag_pattern = "v[0-9].*"
-sort_commits = "oldest"

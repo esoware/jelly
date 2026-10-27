@@ -58,4 +58,4 @@ jobs:
       # just test skips this test because it writes to the developer's own credential store.
       - name: Run the keychain test
         timeout-minutes: 5
-        run: cargo nextest run --workspace --run-ignored only -E 'test(the_platform_store_round_trips_the_master_key)'
+        run: just test --run-ignored only the_platform_store_round_trips_the_master_key

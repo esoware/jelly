@@ -4,7 +4,7 @@
 
 Jelly is under the [MIT license](LICENSE), and by opening a pull request you license your contribution under it too.
 
-A new crate or npm package needs a license that `deny.toml` allows. `just deny` checks the crates, and `just notices` checks the npm packages the app ships while it writes the third-party notices that every release carries.
+A crate or npm package the app ships needs a license that `about.toml` accepts. `just notices` checks them while it writes the third-party notices that every release carries.
 
 A third-party file committed to the repository keeps its license text beside it, as the fonts and the TRON protocol definitions do. The chain and token logos are trademarks of their owners.
 
