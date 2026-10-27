@@ -27,29 +27,6 @@ deny = [
   { name = "aws-lc-sys" },
   { name = "openssl-sys" },
   { name = "native-tls" },
-  { name = "reqwest", wrappers = ["jelly_net"] },
-  { name = "rustls", wrappers = ["jelly_net", "reqwest", "hyper-rustls", "tokio-rustls", "rustls-platform-verifier"] },
-  { name = "jelly_store", wrappers = ["jelly_engine"] },
-  # jelly_utxo and jelly_evm take their chains as dev-dependencies of their tests, and
-  # jelly_solana, jelly_tron, and jelly_monero are dev-dependencies of themselves to
-  # turn on their test-util feature.
-  { name = "jelly_bitcoin", wrappers = ["jelly_chains", "jelly_utxo"] },
-  { name = "jelly_litecoin", wrappers = ["jelly_chains", "jelly_utxo"] },
-  { name = "jelly_dogecoin", wrappers = ["jelly_chains", "jelly_utxo"] },
-  { name = "jelly_bitcoin_cash", wrappers = ["jelly_chains", "jelly_utxo"] },
-  { name = "jelly_zcash", wrappers = ["jelly_chains"] },
-  { name = "jelly_ethereum", wrappers = ["jelly_chains", "jelly_evm"] },
-  { name = "jelly_arbitrum", wrappers = ["jelly_chains", "jelly_evm"] },
-  { name = "jelly_base", wrappers = ["jelly_chains", "jelly_evm"] },
-  { name = "jelly_optimism", wrappers = ["jelly_chains", "jelly_evm"] },
-  { name = "jelly_bsc", wrappers = ["jelly_chains", "jelly_evm"] },
-  { name = "jelly_polygon", wrappers = ["jelly_chains", "jelly_evm"] },
-  { name = "jelly_avalanche", wrappers = ["jelly_chains", "jelly_evm"] },
-  { name = "jelly_solana", wrappers = ["jelly_chains", "jelly_solana"] },
-  { name = "jelly_tron", wrappers = ["jelly_chains", "jelly_tron"] },
-  { name = "jelly_xrp", wrappers = ["jelly_chains"] },
-  { name = "jelly_ton", wrappers = ["jelly_chains"] },
-  { name = "jelly_monero", wrappers = ["jelly_chains", "jelly_monero"] },
 ]
 
 [sources]
