@@ -16,8 +16,8 @@ ignore = [
 ]
 
 [licenses]
-# about.toml accepts the same licenses, and apps/wallet/notices.ts allows them for npm
-# packages, so keep the three lists in step.
+# about.toml accepts the same licenses for the crates and npm packages the app ships, so
+# keep the two lists in step.
 allow = [
   "0BSD", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause",
   "BSL-1.0", "CC0-1.0", "CDLA-Permissive-2.0", "ISC", "MIT", "MITNFA", "MPL-2.0",

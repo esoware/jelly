@@ -17,11 +17,14 @@ trim = true
 conventional_commits = true
 filter_unconventional = true
 # A breaking commit of any type is one that existing installs migrate for, so it leads the notes.
+# Renovate ends the title of a PR that fixes a vulnerability with [SECURITY].
 commit_parsers = [
   { message = "^[a-z]+(\\([^)]*\\))?!:", group = "<!-- 0 -->Breaking changes" },
-  { message = "^feat", group = "<!-- 1 -->Features" },
-  { message = "^fix", group = "<!-- 2 -->Fixes" },
-  { message = "^perf", group = "<!-- 3 -->Performance" },
+  { message = "^[^\\n]*\\[SECURITY\\]", group = "<!-- 1 -->Security fixes" },
+  { message = "^feat", group = "<!-- 2 -->Features" },
+  { message = "^fix", group = "<!-- 3 -->Fixes" },
+  { message = "^perf", group = "<!-- 4 -->Performance" },
+  { message = "^revert", group = "<!-- 5 -->Reverts" },
 ]
 filter_commits = true
 tag_pattern = "v[0-9].*"

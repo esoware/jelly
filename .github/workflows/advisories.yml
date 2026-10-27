@@ -1,6 +1,10 @@
 name: Advisories
 
+# A PR that changes what is locked runs this too, so it can't add a dependency that an advisory
+# already affects.
 on:
+  pull_request:
+    paths: [Cargo.lock, pnpm-lock.yaml, deny.toml]
   schedule:
     - cron: "23 5 * * *"
   workflow_dispatch:
@@ -9,7 +13,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,29 +24,45 @@ jobs:
     name: Scan the lockfiles
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    permissions:
-      contents: read
-      issues: write # Opens an issue when the scan fails.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: $/.github/actions/setup
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install the Rust toolchain
+        run: rustup toolchain install
+
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: just@1.59.0,cargo-deny@0.20.2
 
       - name: Check the advisories
-        id: scan
         run: just advisories
 
+  # The job that holds the write token runs only gh, so no third-party code gets it.
+  report:
+    name: Open an issue
+    needs: scan
+    if: failure() && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write # Opens an issue when the scan fails.
+    steps:
       - name: Open an issue
-        if: failure() && steps.scan.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          title="An advisory affects a locked dependency"
+          title="The advisory scan failed"
           open=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq length)
           if [ "$open" = 0 ]; then
-            gh issue create --title "$title" --body "The scheduled advisory scan failed in $RUN_URL."
+            gh issue create --title "$title" --body "The advisory scan failed in $RUN_URL."
           fi

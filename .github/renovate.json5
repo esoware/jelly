@@ -23,6 +23,13 @@
       matchDatasources: ["github-runners"],
       enabled: false,
     },
+    // Cargo has no release-age check, so refreshing Cargo.lock would move every indirect crate to
+    // its newest release. An indirect crate moves only when a direct crate's update needs it.
+    {
+      matchManagers: ["cargo"],
+      matchUpdateTypes: ["lockFileMaintenance"],
+      enabled: false,
+    },
     {
       matchDepNames: ["rand_core_06"],
       allowedVersions: "<0.7",

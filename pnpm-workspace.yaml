@@ -11,4 +11,7 @@ catalog:
   typescript: 7.0.2
 
 minimumReleaseAge: 10080
+# pnpm installs a younger version only when no older one satisfies the range asked for, such
+# as the fixed version in a Renovate security PR.
+minimumReleaseAgeStrict: false
 trustPolicy: no-downgrade

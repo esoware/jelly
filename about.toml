@@ -1,5 +1,6 @@
 # The licenses deny.toml allows, in the order cargo-about prefers them for a crate that offers
-# a choice, and the targets it checks.
+# a choice, and the targets it checks. apps/wallet/notices.ts reads the same list for the npm
+# packages, so keep comments out of it.
 accepted = [
   "MIT", "Apache-2.0", "0BSD", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause",
   "BSL-1.0", "CC0-1.0", "CDLA-Permissive-2.0", "ISC", "MITNFA", "MPL-2.0", "Unicode-3.0",

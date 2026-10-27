@@ -12,6 +12,7 @@ interface Section {
 interface AboutCrate {
   name: string
   version: string
+  license: string | null
   manifest_path: string
 }
 
@@ -29,23 +30,6 @@ interface PnpmPackage {
   paths: string[]
 }
 
-const ALLOWED_LICENSES = [
-  "MIT",
-  "Apache-2.0",
-  "0BSD",
-  "Apache-2.0 WITH LLVM-exception",
-  "BSD-2-Clause",
-  "BSD-3-Clause",
-  "BSL-1.0",
-  "CC0-1.0",
-  "CDLA-Permissive-2.0",
-  "ISC",
-  "MITNFA",
-  "MPL-2.0",
-  "Unicode-3.0",
-  "Unlicense",
-  "Zlib",
-]
 const BUNDLED_DEV_PACKAGES = new Set(["tailwindcss"])
 const BUNDLED_WORKS = [
   {
@@ -65,6 +49,10 @@ const BUNDLED_WORKS = [
   },
 ]
 const GPL_PATH = "crates/chains/jelly_tron/proto/COPYING"
+const ACCEPTED_PATTERN = /^accepted = \[(?<list>[^\]]*)\]/mu
+const QUOTED_PATTERN = /"(?<value>[^"]*)"/gu
+const LICENSE_TOKEN_PATTERN = /[()]|[^\s()]+/gu
+const SEVERAL_LICENSES_PATTERN = /\s(?:AND|OR)\s/u
 const LICENSE_FILE_PATTERN = /^(?:licen[cs]e|copying)/iu
 const LEADING_BLANK_LINES_PATTERN = /^\s*\n/u
 const RULE_WIDTH = 80
@@ -73,8 +61,7 @@ const SECTION_RULE = "=".repeat(RULE_WIDTH)
 const TEXT_RULE = "-".repeat(RULE_WIDTH)
 const USED_BY = "Used by:"
 const STANDARD_TEXT_INTRO =
-  "These crates ship no license file, so the standard text of their license follows."
-const NO_TEXT_INTRO = "These packages ship no license text."
+  "These packages ship no copy of this license, so its standard text follows."
 const GPL_INTRO =
   "The GNU Lesser General Public License version 3 incorporates the GNU General Public License version 3, which follows."
 const LOGOS_INTRO =
@@ -97,54 +84,6 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item: unknown) => typeof item === "string")
 }
 
-function isAboutCrate(value: unknown): value is AboutCrate {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "name" in value &&
-    typeof value.name === "string" &&
-    "version" in value &&
-    typeof value.version === "string" &&
-    "manifest_path" in value &&
-    typeof value.manifest_path === "string"
-  )
-}
-
-function isAboutLicense(value: unknown): value is AboutLicense {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "id" in value &&
-    typeof value.id === "string" &&
-    "text" in value &&
-    typeof value.text === "string" &&
-    "source_path" in value &&
-    (value.source_path === null || typeof value.source_path === "string") &&
-    "used_by" in value &&
-    Array.isArray(value.used_by) &&
-    value.used_by.every(
-      (user: unknown) =>
-        typeof user === "object" && user !== null && "crate" in user && isAboutCrate(user.crate),
-    )
-  )
-}
-
-function isPnpmPackage(value: unknown): value is PnpmPackage {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "name" in value &&
-    typeof value.name === "string" &&
-    "license" in value &&
-    typeof value.license === "string" &&
-    "versions" in value &&
-    isStringArray(value.versions) &&
-    "paths" in value &&
-    isStringArray(value.paths) &&
-    value.paths.length === value.versions.length
-  )
-}
-
 function normalize(text: string): string {
   return text.replaceAll("\r\n", "\n").replace(LEADING_BLANK_LINES_PATTERN, "").trimEnd()
 }
@@ -153,34 +92,77 @@ function readRepoFile(path: string): string {
   return normalize(readFileSync(join(repoRoot, path), "utf8"))
 }
 
-function findLicenseText(packageFolder: string, license: string, component: string) {
-  const candidates = readdirSync(packageFolder, { withFileTypes: true })
+const { list: acceptedList } = ACCEPTED_PATTERN.exec(readRepoFile("about.toml"))?.groups ?? {}
+if (acceptedList === undefined) {
+  throw new Error("about.toml has no accepted list.")
+}
+const acceptedLicenses = [...acceptedList.matchAll(QUOTED_PATTERN)].map((match) => {
+  const { value = "" } = match.groups ?? {}
+  return value
+})
+
+function findLicenseText(
+  packageFolder: string,
+  expression: string,
+  license: string,
+  component: string,
+) {
+  const files = readdirSync(packageFolder, { withFileTypes: true })
     .filter(
       (entry) =>
         entry.isFile() && LICENSE_FILE_PATTERN.test(entry.name) && !entry.name.endsWith(".spdx"),
     )
-    .map((entry) => entry.name)
-  if (candidates.length === 0) {
-    return null
-  }
+    .map((entry) => ({
+      name: entry.name,
+      text: normalize(readFileSync(join(packageFolder, entry.name), "utf8")),
+    }))
+    .filter(({ text }) => text !== "")
   const nameHint = license.split("-")[0]?.toLowerCase() ?? license
-  const fileName =
-    candidates.length === 1
-      ? candidates[0]
-      : candidates.find((candidate) => candidate.toLowerCase().includes(nameHint))
-  if (fileName === undefined) {
+  const named = files.find(({ name }) => name.toLowerCase().includes(nameHint))
+  if (named !== undefined) {
+    return named.text
+  }
+  if (files.length > 1) {
     throw new Error(`${component} ships several license files, and none of them is for ${license}.`)
   }
-  return normalize(readFileSync(join(packageFolder, fileName), "utf8"))
+  return SEVERAL_LICENSES_PATTERN.test(expression) ? null : (files[0]?.text ?? null)
 }
 
-function chooseLicense(expression: string, component: string): string {
-  const alternatives = new Set(expression.replaceAll(/[()]/gu, "").split(" OR "))
-  const license = ALLOWED_LICENSES.find((candidate) => alternatives.has(candidate))
-  if (license === undefined) {
-    throw new Error(`${component} is under ${expression}, which deny.toml doesn't allow.`)
+function chooseLicenses(tokens: string[]): string[] | null {
+  for (const operator of ["OR", "AND"]) {
+    const operands: string[][] = [[]]
+    let depth = 0
+    for (const token of tokens) {
+      if (token === "(") {
+        depth += 1
+      } else if (token === ")") {
+        depth -= 1
+      }
+      if (depth === 0 && token === operator) {
+        operands.push([])
+      } else {
+        operands.at(-1)?.push(token)
+      }
+    }
+    if (operands.length > 1) {
+      const choices = operands.map((operand) => chooseLicenses(operand))
+      if (operator === "AND") {
+        return choices.every((choice) => choice !== null) ? choices.flat() : null
+      }
+      const ranked = choices
+        .filter((choice) => choice !== null)
+        .map((choice) => ({
+          choice,
+          rank: Math.max(...choice.map((license) => acceptedLicenses.indexOf(license))),
+        }))
+      return ranked.toSorted((left, right) => left.rank - right.rank)[0]?.choice ?? null
+    }
   }
-  return license
+  if (tokens[0] === "(") {
+    return chooseLicenses(tokens.slice(1, -1))
+  }
+  const license = tokens.join(" ")
+  return acceptedLicenses.includes(license) ? [license] : null
 }
 
 function addComponent(
@@ -197,62 +179,14 @@ function addComponent(
   }
 }
 
-function sortKey({ title, components, text }: Section): string {
-  return [title, components.toSorted()[0] ?? "", text ?? ""].join("\0")
-}
-
 function sortSections(sections: Map<string, Section>): Section[] {
-  return [...sections.values()].toSorted((left, right) => (sortKey(left) < sortKey(right) ? -1 : 1))
-}
-
-function crateSections(): Section[] {
-  mkdirSync(targetFolder, { recursive: true })
-  execFileSync(
-    "cargo",
-    [
-      "about",
-      "generate",
-      "--format",
-      "json",
-      "--workspace",
-      "--locked",
-      "--fail",
-      "--output-file",
-      aboutPath,
-    ],
-    { cwd: repoRoot, stdio: "inherit" },
-  )
-  const about: unknown = JSON.parse(readFileSync(aboutPath, "utf8"))
-  if (
-    typeof about !== "object" ||
-    about === null ||
-    !("licenses" in about) ||
-    !Array.isArray(about.licenses) ||
-    !about.licenses.every((entry: unknown) => isAboutLicense(entry))
-  ) {
-    throw new Error("cargo about wrote JSON in a shape this script doesn't know.")
-  }
-  const licenses: AboutLicense[] = about.licenses
-  const sections = new Map<string, Section>()
-  for (const entry of licenses) {
-    for (const { crate } of entry.used_by) {
-      const component = `${crate.name} ${crate.version}`
-      const text =
-        entry.source_path === null
-          ? findLicenseText(dirname(crate.manifest_path), entry.id, component)
-          : normalize(entry.text)
-      addComponent(
-        sections,
-        {
-          title: entry.id,
-          intro: text === null ? STANDARD_TEXT_INTRO : USED_BY,
-          text: text ?? normalize(entry.text),
-        },
-        component,
-      )
-    }
-  }
-  return sortSections(sections)
+  return [...sections.values()]
+    .map((section) => ({
+      section,
+      key: [section.title, section.components.toSorted()[0] ?? "", section.text ?? ""].join("\0"),
+    }))
+    .toSorted((left, right) => (left.key < right.key ? -1 : 1))
+    .map(({ section }) => section)
 }
 
 function listPackages(command: string): PnpmPackage[] {
@@ -261,71 +195,170 @@ function listPackages(command: string): PnpmPackage[] {
     throw new Error(`${command} printed JSON in a shape this script doesn't know.`)
   }
   const packages: unknown[] = Object.values(groups).flat()
-  if (!packages.every((entry) => isPnpmPackage(entry))) {
+  if (
+    !packages.every(
+      (entry): entry is PnpmPackage =>
+        typeof entry === "object" &&
+        entry !== null &&
+        "name" in entry &&
+        typeof entry.name === "string" &&
+        "license" in entry &&
+        typeof entry.license === "string" &&
+        "versions" in entry &&
+        isStringArray(entry.versions) &&
+        "paths" in entry &&
+        isStringArray(entry.paths) &&
+        entry.paths.length === entry.versions.length,
+    )
+  ) {
     throw new Error(`${command} printed JSON in a shape this script doesn't know.`)
   }
   return packages
 }
 
-function packageSections(): Section[] {
-  const packages = [
-    ...listPackages("pnpm licenses list --prod --json"),
-    ...listPackages("pnpm licenses list --json").filter(({ name }) =>
-      BUNDLED_DEV_PACKAGES.has(name),
-    ),
-  ]
-  const sections = new Map<string, Section>()
-  for (const { name, license, versions, paths } of packages) {
-    for (const [index, path] of paths.entries()) {
-      const component = `${name} ${versions[index] ?? ""}`
-      const chosen = chooseLicense(license, component)
-      const text = findLicenseText(path, chosen, component)
+function renderPart(title: string, sections: Section[]): string {
+  return [
+    [PART_RULE, title, PART_RULE].join("\n"),
+    ...sections.map((section) => {
+      const listing = [
+        SECTION_RULE,
+        "",
+        section.title,
+        "",
+        section.intro,
+        ...section.components.toSorted().map((component) => `    ${component}`),
+      ]
+      return (section.text === null ? listing : [...listing, "", TEXT_RULE, "", section.text]).join(
+        "\n",
+      )
+    }),
+  ].join("\n\n")
+}
+
+mkdirSync(targetFolder, { recursive: true })
+execFileSync(
+  "cargo",
+  [
+    "about",
+    "generate",
+    "--format",
+    "json",
+    "--workspace",
+    "--locked",
+    "--fail",
+    "--output-file",
+    aboutPath,
+  ],
+  { cwd: repoRoot, stdio: "inherit" },
+)
+const about: unknown = JSON.parse(readFileSync(aboutPath, "utf8"))
+if (
+  typeof about !== "object" ||
+  about === null ||
+  !("licenses" in about) ||
+  !Array.isArray(about.licenses) ||
+  !about.licenses.every(
+    (entry: unknown): entry is AboutLicense =>
+      typeof entry === "object" &&
+      entry !== null &&
+      "id" in entry &&
+      typeof entry.id === "string" &&
+      "text" in entry &&
+      typeof entry.text === "string" &&
+      "source_path" in entry &&
+      (entry.source_path === null || typeof entry.source_path === "string") &&
+      "used_by" in entry &&
+      Array.isArray(entry.used_by) &&
+      entry.used_by.every(
+        (user: unknown) =>
+          typeof user === "object" &&
+          user !== null &&
+          "crate" in user &&
+          typeof user.crate === "object" &&
+          user.crate !== null &&
+          "name" in user.crate &&
+          typeof user.crate.name === "string" &&
+          "version" in user.crate &&
+          typeof user.crate.version === "string" &&
+          "license" in user.crate &&
+          (user.crate.license === null || typeof user.crate.license === "string") &&
+          "manifest_path" in user.crate &&
+          typeof user.crate.manifest_path === "string",
+      ),
+  )
+) {
+  throw new Error("cargo about wrote JSON in a shape this script doesn't know.")
+}
+const licenses: AboutLicense[] = about.licenses
+
+const standardTexts = new Map<string, string>()
+const crateSections = new Map<string, Section>()
+for (const entry of licenses) {
+  if (entry.source_path === null) {
+    standardTexts.set(entry.id, normalize(entry.text))
+  }
+  for (const { crate } of entry.used_by) {
+    const component = `${crate.name} ${crate.version}`
+    const fileText =
+      entry.source_path === null
+        ? findLicenseText(dirname(crate.manifest_path), crate.license ?? "", entry.id, component)
+        : normalize(entry.text)
+    addComponent(
+      crateSections,
+      {
+        title: entry.id,
+        intro: fileText === null ? STANDARD_TEXT_INTRO : USED_BY,
+        text: fileText ?? normalize(entry.text),
+      },
+      component,
+    )
+  }
+}
+
+const packages = [
+  ...listPackages("pnpm licenses list --prod --json"),
+  ...listPackages("pnpm licenses list --json").filter(({ name }) => BUNDLED_DEV_PACKAGES.has(name)),
+]
+const packageSections = new Map<string, Section>()
+for (const { name, license: expression, versions, paths } of packages) {
+  const chosen = chooseLicenses(expression.match(LICENSE_TOKEN_PATTERN) ?? [])
+  if (chosen === null) {
+    throw new Error(`${name} is under ${expression}, which about.toml doesn't accept.`)
+  }
+  for (const [index, path] of paths.entries()) {
+    const component = `${name} ${versions[index] ?? ""}`
+    for (const license of chosen) {
+      const fileText = findLicenseText(path, expression, license, component)
+      const text = fileText ?? standardTexts.get(license)
+      if (text === undefined) {
+        throw new Error(
+          `${component} ships no copy of ${license}, and no crate needs its standard text.`,
+        )
+      }
       addComponent(
-        sections,
-        { title: chosen, intro: text === null ? NO_TEXT_INTRO : USED_BY, text },
+        packageSections,
+        { title: license, intro: fileText === null ? STANDARD_TEXT_INTRO : USED_BY, text },
         component,
       )
     }
   }
-  return sortSections(sections)
 }
 
-function otherSections(): Section[] {
-  return [
-    ...BUNDLED_WORKS.map(({ title, component, licensePath }) => ({
-      title,
-      intro: USED_BY,
-      components: [component],
-      text: readRepoFile(licensePath),
-    })),
-    { title: "GPL-3.0-only", intro: GPL_INTRO, components: [], text: readRepoFile(GPL_PATH) },
-    { title: "Chain and token logos", intro: LOGOS_INTRO, components: [], text: null },
-  ]
-}
-
-function renderSection({ title, intro, components, text }: Section): string {
-  const listing = [
-    SECTION_RULE,
-    "",
+const otherSections: Section[] = [
+  ...BUNDLED_WORKS.map(({ title, component, licensePath }) => ({
     title,
-    "",
-    intro,
-    ...components.toSorted().map((component) => `    ${component}`),
-  ]
-  return (text === null ? listing : [...listing, "", TEXT_RULE, "", text]).join("\n")
-}
-
-function renderPart(title: string, sections: Section[]): string {
-  return [
-    [PART_RULE, title, PART_RULE].join("\n"),
-    ...sections.map((section) => renderSection(section)),
-  ].join("\n\n")
-}
+    intro: USED_BY,
+    components: [component],
+    text: readRepoFile(licensePath),
+  })),
+  { title: "GPL-3.0-only", intro: GPL_INTRO, components: [], text: readRepoFile(GPL_PATH) },
+  { title: "Chain and token logos", intro: LOGOS_INTRO, components: [], text: null },
+]
 
 const notices = [
   PREAMBLE,
-  renderPart("Rust crates", crateSections()),
-  renderPart("npm packages", packageSections()),
-  renderPart("Other components", otherSections()),
+  renderPart("Rust crates", sortSections(crateSections)),
+  renderPart("npm packages", sortSections(packageSections)),
+  renderPart("Other components", otherSections),
 ]
 writeFileSync(outputPath, `${notices.join("\n\n")}\n`)
