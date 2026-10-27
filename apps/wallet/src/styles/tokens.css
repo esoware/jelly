@@ -61,6 +61,8 @@
   --color-avatar-glyph: oklch(100% 0 0);
   --color-avatar-shade: oklch(0% 0 0 / 8%);
 
+  --color-logo-cover: oklch(0% 0 0 / 60%);
+
   --font-sans: "Clarity City";
   --font-mono: "Cascadia Mono";
   --default-font-family: var(--font-sans);

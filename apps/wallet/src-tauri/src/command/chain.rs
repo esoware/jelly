@@ -5,12 +5,15 @@ use crate::command::with_engine;
 use crate::error::IpcError;
 use crate::state::AppState;
 
-/// Wakes the sync loop of every chain with an adapter and returns their IDs. It does not
-/// start overlapping passes.
+/// Wakes the sync loop of `chain`, or of every chain with an adapter when it is `None`,
+/// and returns the IDs it woke. It does not start overlapping passes.
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn sync_now(state: State<'_, AppState>) -> Result<Vec<ChainId>, IpcError> {
-    with_engine(&state, async move |engine| engine.sync_now(None).await).await
+pub(crate) async fn sync_now(
+    state: State<'_, AppState>,
+    chain: Option<ChainId>,
+) -> Result<Vec<ChainId>, IpcError> {
+    with_engine(&state, async move |engine| engine.sync_now(chain).await).await
 }
 
 #[tauri::command]

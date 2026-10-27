@@ -6,6 +6,7 @@ import { ActivityPanel } from "@/features/wallet/activity.tsx"
 import { AddressesPanel } from "@/features/wallet/addresses.tsx"
 import {
   HeroFigure,
+  HeroLogo,
   HeroPanel,
   HeroPanelFigures,
   HeroPanelTop,
@@ -47,15 +48,16 @@ function BalancePanel({ holdings, asset, onAssetChange, onSend, onReceive }: Bal
   return (
     <HeroPanel ref={accentRef} className="transition-colors">
       <HeroPanelTop>
-        <AssetLogo asset={asset} className="size-8" />
+        <HeroLogo chain={holdings.chain}>
+          <AssetLogo asset={asset} className="size-8" />
+        </HeroLogo>
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-title">{assetName(asset)}</span>
-          {asset.kind === "token" ? (
-            <span className="flex items-center gap-1 text-caption text-fg-muted">
-              <ChainLogo chain={holdings.chain} className="size-icon-sm" />
-              {chainName(holdings.chain)}
-            </span>
-          ) : null}
+          <span className="flex min-w-0 items-center gap-1 text-caption text-fg-muted">
+            On
+            <ChainLogo chain={holdings.chain} className="size-icon-sm" />
+            <span className="truncate">{chainName(holdings.chain)}</span>
+          </span>
         </div>
         {assets.length > 1 ? (
           <AssetMenu

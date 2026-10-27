@@ -1,5 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
 import { Outlet, useMatch, useNavigate, useParams } from "@tanstack/react-router"
+import { useState } from "react"
 import type { ComponentProps, ReactNode } from "react"
 
 import { AllocationMark } from "@/features/wallet/donut.tsx"
@@ -8,12 +9,13 @@ import { chainName, chainTicker, hasOwnTicker, withShownAsset } from "@/lib/chai
 import { appendClassName } from "@/lib/class-name.ts"
 import { allocate, holdingsFor } from "@/lib/portfolio.ts"
 import type { Holdings } from "@/lib/portfolio.ts"
-import { chainQueries } from "@/query/chain.ts"
+import { chainCommands, chainQueries } from "@/query/chain.ts"
 import { moneyQueries } from "@/query/money.ts"
 import { useIpcMutation } from "@/query/mutation.ts"
 import { patchSettings, settingCommands, settingKeys } from "@/query/setting.ts"
 import { usePrices } from "@/store.ts"
 import { Carousel } from "@/ui/carousel.tsx"
+import { Icon } from "@/ui/icon.tsx"
 import { Panel } from "@/ui/panel.tsx"
 import { SegmentedGroup, SegmentedList, SegmentedTab, SegmentedTabs } from "@/ui/segmented.tsx"
 import { Skeleton } from "@/ui/skeleton.tsx"
@@ -56,6 +58,48 @@ export function HeroPanel({ className, ...props }: ComponentProps<"section">) {
       className={appendClassName("shrink-0 gap-4 bg-accent-surface p-4", className)}
       {...props}
     />
+  )
+}
+
+interface HeroLogoProps {
+  chain: ChainId | null
+  children: ReactNode
+}
+
+export function HeroLogo({ chain, children }: HeroLogoProps) {
+  const [isSpent, setIsSpent] = useState(false)
+  const sync = useIpcMutation<ChainId[], ChainId | null>({
+    mutationFn: chainCommands.syncNow,
+    errorTitle: "Could not start a sync",
+    successToast: (chains) => (chains.length === 0 ? "No chain to sync" : "Syncing now"),
+  })
+
+  return (
+    <button
+      type="button"
+      data-spent={isSpent}
+      className="group relative flex shrink-0 rounded-full"
+      onClick={() => {
+        if (!isSpent) {
+          setIsSpent(true)
+          sync.mutate(chain)
+        }
+      }}
+      onPointerLeave={() => {
+        setIsSpent(false)
+      }}
+      onBlur={() => {
+        setIsSpent(false)
+      }}
+    >
+      {children}
+      <span className="absolute inset-0 flex items-center justify-center rounded-full bg-logo-cover text-fg opacity-0 transition-opacity duration-base ease-standard group-data-[spent=false]:group-hover:opacity-100">
+        <Icon
+          name="sync"
+          className="size-icon-lg transition-[rotate] duration-base ease-enter group-data-[spent=true]:rotate-180"
+        />
+      </span>
+    </button>
   )
 }
 
@@ -121,7 +165,13 @@ function WalletNav({ holdings, view }: WalletNavProps) {
               icon: <AllocationMark allocation={allocation} />,
             }}
           />
-          <SegmentedTab item={{ value: CONTACTS, label: "Address book" }} />
+          <SegmentedTab
+            item={{
+              value: CONTACTS,
+              label: "Address book",
+              icon: <Icon name="contacts" className="size-icon-lg" />,
+            }}
+          />
         </SegmentedGroup>
         <Carousel
           activeKey={view}
