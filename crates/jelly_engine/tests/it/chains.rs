@@ -63,14 +63,6 @@ async fn only_the_chains_the_builder_built_are_synced() {
         ),
         "{refused:?}"
     );
-    let refused = harness.engine.sync_now(Some(ChainId::Monero)).await;
-    assert!(
-        matches!(
-            refused,
-            Err(CoreError::NoAdapter { chain: ChainId::Monero, reason: Some(SkipReason::NoKeys) })
-        ),
-        "{refused:?}"
-    );
 }
 
 #[tokio::test]

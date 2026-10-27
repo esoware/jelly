@@ -108,7 +108,7 @@ function describeDetail(detail: IpcErrorDetail): string {
     }
     case "endpoints_down": {
       if (detail.attempts.length === 0) {
-        return SKIP_MESSAGES.no_endpoints(chainName(detail.chain))
+        return `No ${chainName(detail.chain)} endpoint is available. Check your endpoint settings.`
       }
       return `Jelly could not reach ${chainName(detail.chain)}. Endpoint failures: ${describeAttempts(detail.attempts)}.`
     }

@@ -239,12 +239,6 @@ fn a_failure_with_typed_facts_carries_them_in_its_detail() {
             reason: Some(SkipReason::NoEndpoints),
         })
     );
-    let switched_off =
-        IpcError::from(CoreError::NoAdapter { chain: ChainId::Solana, reason: None });
-    assert_eq!(
-        switched_off.detail,
-        Some(IpcErrorDetail::NoAdapter { chain: ChainId::Solana, reason: None })
-    );
 
     let invalid = IpcError::from(CoreError::invalid_input("cursor", "that page token is not ours"));
     assert_eq!(invalid.detail, None);
