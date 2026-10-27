@@ -24,7 +24,6 @@ import {
   assetSymbol,
   assetsForChain,
   chainName,
-  chainTicker,
   nativeAsset,
   shownAsset,
 } from "@/lib/chain.ts"
@@ -42,7 +41,7 @@ import {
   MenuTrigger,
 } from "@/ui/menu.tsx"
 import { useAccentColor } from "@/ui/use-accent-color.ts"
-import { FiatAmount } from "@/widgets/amounts.tsx"
+import { CryptoAmount, FiatAmount } from "@/widgets/amounts.tsx"
 import { AssetMenuItems } from "@/widgets/asset-menu.tsx"
 import { AssetLogo, ChainLogo, assetBrand } from "@/widgets/logos.tsx"
 
@@ -66,7 +65,7 @@ function CoinMenu({ allHoldings, asset, onAssetChange }: CoinMenuProps) {
           </Button>
         }
       />
-      <MenuPopup align="end" className="min-w-60">
+      <MenuPopup align="end" className="min-w-72">
         <MenuRadioGroup
           label="Chains"
           value={chain}
@@ -76,6 +75,10 @@ function CoinMenu({ allHoldings, asset, onAssetChange }: CoinMenuProps) {
         >
           {allHoldings.map((entry) => {
             const assets = assetsForChain(entry.chain)
+            const coin = nativeAsset(entry.chain)
+            const balance = (
+              <CryptoAmount amount={positionOf(entry, coin).amount} asset={coin} isCompact />
+            )
             const label = (
               <>
                 <ChainLogo chain={entry.chain} />
@@ -86,7 +89,7 @@ function CoinMenu({ allHoldings, asset, onAssetChange }: CoinMenuProps) {
               <MenuSubmenu
                 key={entry.chain}
                 label={label}
-                description={chainTicker(entry.chain)}
+                description={balance}
                 isChecked={entry.chain === chain}
                 className="min-w-60"
               >
@@ -98,11 +101,7 @@ function CoinMenu({ allHoldings, asset, onAssetChange }: CoinMenuProps) {
                 />
               </MenuSubmenu>
             ) : (
-              <MenuRadioItem
-                key={entry.chain}
-                value={entry.chain}
-                description={chainTicker(entry.chain)}
-              >
+              <MenuRadioItem key={entry.chain} value={entry.chain} description={balance}>
                 {label}
               </MenuRadioItem>
             )
