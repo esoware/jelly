@@ -29,10 +29,6 @@ mod native_transfers {
         assert_eq!(unsigned.preview.asset, native());
         assert_eq!(unsigned.preview.amount, Amount::from_base_units(1_000_000));
         assert_eq!(
-            detail(&unsigned.preview.details, "Network").as_deref(),
-            Some("Solana mainnet-beta")
-        );
-        assert_eq!(
             detail(&unsigned.preview.details, "Valid until block height"),
             Some(common::EXPIRY_HEIGHT.to_string())
         );

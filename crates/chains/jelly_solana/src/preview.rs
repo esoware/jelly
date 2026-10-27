@@ -31,7 +31,6 @@ pub(crate) fn of(plan: &Plan, payload: &SolanaPayload) -> Result<TxPreview, Sola
 
 fn details(plan: &Plan, payload: &SolanaPayload) -> Result<Vec<TxDetail>, SolanaError> {
     let mut details = vec![
-        TxDetail::new("Network", "Solana mainnet-beta"),
         TxDetail::new("Fee payer", plan.route.payer.to_string()),
         TxDetail::new("Recipient", plan.route.recipient.to_string()),
         TxDetail::new("Amount", amount_text(plan.route.leg.asset(), plan.amount)),

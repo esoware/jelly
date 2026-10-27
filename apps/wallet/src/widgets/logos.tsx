@@ -37,7 +37,7 @@ import wrappedEtherLogo from "@/assets/brands/wrapped-ether.svg"
 import xrpLogo from "@/assets/brands/xrp.svg"
 import zcashLogo from "@/assets/brands/zcash.svg"
 import type { AssetId, ChainId, FiatCurrency, TokenId, WalletRecord } from "@/ipc/bindings.gen.ts"
-import { assetChain } from "@/lib/chain.ts"
+import { assetChain, coinChain } from "@/lib/chain.ts"
 import { appendClassName } from "@/lib/class-name.ts"
 import { useAccentColor } from "@/ui/use-accent-color.ts"
 
@@ -47,7 +47,6 @@ interface Brand {
   readonly gradient?: readonly [string, string] | undefined
 }
 
-const ETHER: Brand = { color: "#627eea", logo: ethereumLogo }
 const ARBITRUM: Brand = { color: "#1b4add", logo: arbitrumLogo }
 const OPTIMISM: Brand = { color: "#ff0421", logo: optimismLogo }
 
@@ -57,7 +56,7 @@ export const CHAIN_BRANDS: Record<ChainId, Brand> = {
   dogecoin: { color: "#c2a633", logo: dogecoinLogo },
   bitcoin_cash: { color: "#0ac18e", logo: bitcoinCashLogo },
   zcash: { color: "#f4b728", logo: zcashLogo },
-  ethereum: ETHER,
+  ethereum: { color: "#627eea", logo: ethereumLogo },
   arbitrum: ARBITRUM,
   base: { color: "#0000ff", logo: baseLogo },
   optimism: OPTIMISM,
@@ -69,26 +68,6 @@ export const CHAIN_BRANDS: Record<ChainId, Brand> = {
   xrp: { color: "#141414", logo: xrpLogo },
   ton: { color: "#30a1f5", logo: gramLogo },
   monero: { color: "#f26822", logo: moneroLogo },
-}
-
-const COIN_BRANDS: Record<ChainId, Brand> = {
-  bitcoin: CHAIN_BRANDS.bitcoin,
-  litecoin: CHAIN_BRANDS.litecoin,
-  dogecoin: CHAIN_BRANDS.dogecoin,
-  bitcoin_cash: CHAIN_BRANDS.bitcoin_cash,
-  zcash: CHAIN_BRANDS.zcash,
-  ethereum: ETHER,
-  arbitrum: ETHER,
-  base: ETHER,
-  optimism: ETHER,
-  bsc: CHAIN_BRANDS.bsc,
-  polygon: CHAIN_BRANDS.polygon,
-  avalanche: CHAIN_BRANDS.avalanche,
-  solana: CHAIN_BRANDS.solana,
-  tron: CHAIN_BRANDS.tron,
-  xrp: CHAIN_BRANDS.xrp,
-  ton: CHAIN_BRANDS.ton,
-  monero: CHAIN_BRANDS.monero,
 }
 
 const CHAINLINK: Brand = { color: "#2a5ada", logo: chainlinkLogo }
@@ -171,7 +150,7 @@ const TOKEN_BRANDS: Record<TokenId, Brand> = {
 }
 
 export function assetBrand(asset: AssetId): Brand {
-  return asset.kind === "native" ? COIN_BRANDS[asset.value] : TOKEN_BRANDS[asset.value]
+  return asset.kind === "native" ? CHAIN_BRANDS[coinChain(asset.value)] : TOKEN_BRANDS[asset.value]
 }
 
 interface BrandLogoProps {
@@ -203,7 +182,7 @@ interface AssetLogoProps {
 export function AssetLogo({ asset, shouldShowChain = false, className }: AssetLogoProps) {
   const brand = assetBrand(asset)
   const chain = assetChain(asset)
-  if (!shouldShowChain || brand === CHAIN_BRANDS[chain]) {
+  if (!shouldShowChain || (asset.kind === "native" && coinChain(chain) === chain)) {
     return <BrandLogo brand={brand} className={className} />
   }
 

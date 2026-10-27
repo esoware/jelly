@@ -70,6 +70,11 @@ export function chainTicker(chain: ChainId): string {
   return assetMeta({ kind: "native", value: chain }).symbol
 }
 
+export function coinChain(chain: ChainId): ChainId {
+  const ticker = chainTicker(chain)
+  return allChains().find((entry) => chainTicker(entry) === ticker) ?? chain
+}
+
 export function hasScriptChoice(chain: ChainId): boolean {
   return chainMeta(chain).scriptKinds.length > 1
 }
@@ -131,10 +136,7 @@ export function withShownAsset(shownTokens: readonly TokenId[], asset: AssetId):
 
 export function assetLabel(asset: AssetId): string {
   const entry = assetMeta(asset)
-  const isSymbolShared = allAssets().some(
-    (other) => other.symbol === entry.symbol && assetKey(other.asset) !== assetKey(asset),
-  )
-  return isSymbolShared ? `${entry.symbol} on ${chainName(entry.chain)}` : entry.symbol
+  return `${entry.symbol} on ${chainName(entry.chain)}`
 }
 
 export function formatAssetAmount(amount: Amount, asset: AssetId): string {
