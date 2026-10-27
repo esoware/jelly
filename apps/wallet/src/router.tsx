@@ -233,7 +233,6 @@ const chainRoute = createRoute({
     parse: ({ chain }) => (isChainId(chain) ? { chain } : false),
   },
   staticData: { walletView: "wallet" },
-  remountDeps: ({ params }) => params,
   loader: async ({ context: { queryClient }, params: { chain } }) => {
     const [chains] = await Promise.all([
       queryClient.query(chainQueries.enabled()),

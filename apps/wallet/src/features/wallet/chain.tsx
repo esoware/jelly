@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
 import { useNavigate, useParams } from "@tanstack/react-router"
 import { useState } from "react"
+import type { ComponentProps, ReactElement } from "react"
 
 import { ActivityPanel } from "@/features/wallet/activity.tsx"
 import { AddressesPanel } from "@/features/wallet/addresses.tsx"
@@ -26,6 +27,7 @@ import {
   chainTicker,
   shownAsset,
 } from "@/lib/chain.ts"
+import { appendClassName } from "@/lib/class-name.ts"
 import { positionOf } from "@/lib/portfolio.ts"
 import type { Holdings } from "@/lib/portfolio.ts"
 import { settingQueries } from "@/query/setting.ts"
@@ -39,23 +41,36 @@ import { AssetLogo, ChainLogo, assetBrand } from "@/widgets/logos.tsx"
 
 const LONG_FIGURE_CHARS = 11
 
+function SwitchRow({ className, children, ...props }: ComponentProps<"button">) {
+  return (
+    <button
+      type="button"
+      {...props}
+      className={appendClassName(
+        "group/switch flex min-w-0 items-center gap-1 text-left transition-colors",
+        className,
+      )}
+    >
+      {children}
+      <span className="-my-px ml-auto flex size-4.5 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors group-hover/switch:bg-hover group-hover/switch:text-fg group-data-popup-open/switch:bg-active group-data-popup-open/switch:text-fg">
+        <Icon name="switch" className="size-icon-sm" />
+      </span>
+    </button>
+  )
+}
+
 interface ChainMenuProps {
   chains: readonly ChainId[]
   chain: ChainId
   onChainChange: (chain: ChainId) => void
+  trigger: ReactElement
 }
 
-function ChainMenu({ chains, chain, onChainChange }: ChainMenuProps) {
+function ChainMenu({ chains, chain, onChainChange, trigger }: ChainMenuProps) {
   return (
     <Menu>
-      <MenuTrigger
-        render={
-          <Button variant="ghost" size="icon-sm">
-            <Icon name="switch" />
-          </Button>
-        }
-      />
-      <MenuPopup align="end" className="min-w-60">
+      <MenuTrigger render={trigger} />
+      <MenuPopup align="start" className="min-w-60">
         <MenuRadioGroup label="Chains" value={chain} onValueChange={onChainChange}>
           {chains.map((option) => (
             <MenuRadioItem key={option} value={option} description={chainTicker(option)}>
@@ -92,6 +107,13 @@ function BalancePanel({
   const assets = assetsForChain(holdings.chain)
   const position = positionOf(holdings, asset)
   const text = formatAmount(position.amount, position.decimals)
+  const chainLine = (
+    <>
+      On
+      <ChainLogo chain={holdings.chain} className="size-icon-sm" />
+      <span className="truncate">{chainName(holdings.chain)}</span>
+    </>
+  )
 
   return (
     <HeroPanel ref={accentRef} className="transition-colors">
@@ -100,32 +122,39 @@ function BalancePanel({
           <AssetLogo asset={asset} className="size-8" />
         </HeroLogo>
         <div className="flex min-w-0 flex-1 flex-col">
-          <span className="flex min-w-0 items-center gap-1">
+          {assets.length > 1 ? (
+            <AssetMenu
+              assets={assets}
+              asset={asset}
+              onAssetChange={onAssetChange}
+              amountFor={(option) => positionOf(holdings, option).amount}
+              align="start"
+              trigger={
+                <SwitchRow className="text-title">
+                  <span className="truncate">{assetName(asset)}</span>
+                </SwitchRow>
+              }
+            />
+          ) : (
             <span className="truncate text-title">{assetName(asset)}</span>
-            {assets.length > 1 ? (
-              <AssetMenu
-                assets={assets}
-                asset={asset}
-                onAssetChange={onAssetChange}
-                amountFor={(option) => positionOf(holdings, option).amount}
-                align="start"
-                trigger={
-                  <Button variant="ghost" size="icon-xs">
-                    <Icon name="switch" />
-                  </Button>
-                }
-              />
-            ) : null}
-          </span>
-          <span className="flex min-w-0 items-center gap-1 text-caption text-fg-muted">
-            On
-            <ChainLogo chain={holdings.chain} className="size-icon-sm" />
-            <span className="truncate">{chainName(holdings.chain)}</span>
-          </span>
+          )}
+          {chains.length > 1 ? (
+            <ChainMenu
+              chains={chains}
+              chain={holdings.chain}
+              onChainChange={onChainChange}
+              trigger={
+                <SwitchRow className="text-caption text-fg-muted hover:text-fg data-popup-open:text-fg">
+                  {chainLine}
+                </SwitchRow>
+              }
+            />
+          ) : (
+            <span className="flex min-w-0 items-center gap-1 text-caption text-fg-muted">
+              {chainLine}
+            </span>
+          )}
         </div>
-        {chains.length > 1 ? (
-          <ChainMenu chains={chains} chain={holdings.chain} onChainChange={onChainChange} />
-        ) : null}
       </HeroPanelTop>
 
       <HeroPanelFigures>
@@ -197,10 +226,10 @@ export function ChainView() {
           }}
           onReceive={openReceive}
         />
-        <AddressesPanel chain={chain} asset={asset} />
+        <AddressesPanel key={chain} chain={chain} asset={asset} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <ActivityPanel chain={chain} onReceive={openReceive} />
+        <ActivityPanel key={chain} chain={chain} onReceive={openReceive} />
         {settings.data.isPriceFeedEnabled && settings.data.isPriceChartEnabled ? (
           <PricePanel asset={asset} />
         ) : null}
