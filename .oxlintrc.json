@@ -312,7 +312,7 @@
       }
     },
     {
-      "files": ["packages/icons/generate.ts"],
+      "files": ["apps/wallet/notices.ts", "packages/icons/generate.ts"],
       "rules": {
         "import/no-nodejs-modules": "off"
       }

@@ -3,6 +3,7 @@ name         = "jelly_tron"
 version.workspace      = true
 edition.workspace      = true
 rust-version.workspace = true
+license      = "MIT AND LGPL-3.0-only"
 publish      = false
 
 [lints]

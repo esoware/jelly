@@ -10,22 +10,23 @@ alias r := ready
 alias t := test
 alias f := fmt
 
-# Install the frontend packages, cargo-nextest, cargo-deny, and cargo-shear
+# Install the frontend packages, cargo-nextest, cargo-deny, cargo-shear, and cargo-about
 init:
   pnpm install
   cargo install --locked cargo-nextest@0.9.148 cargo-deny@0.20.2 cargo-shear@1.14.0
+  cargo install --locked --features cli cargo-about@0.9.2
 
 # Run the app with the frontend served by Vite
 dev:
   pnpm --filter jelly-wallet tauri dev
 
-# Build the release app, or pass tauri build args like --target aarch64-apple-darwin or --debug
-build *args:
-  pnpm --filter jelly-wallet tauri build {{args}}
+# Build the release app with the third-party notices, or pass tauri build args like --target aarch64-apple-darwin or --debug
+build *args: notices
+  pnpm --filter jelly-wallet tauri build --config src-tauri/tauri.notices.conf.json {{args}}
 
 # CI runs this on every OS and fails if it leaves any file changed.
 
-# Regenerate the icons, then run fmt, clippy, rustdoc, cargo-shear, oxlint, knip, the type checks, the frontend build, the tests, cargo-deny, and pnpm audit
+# Regenerate the icons, then run fmt, clippy, rustdoc, cargo-shear, oxlint, knip, the type checks, the frontend build, the tests, cargo-deny, the third-party notices, and pnpm audit
 ready:
   just icons
   just fmt
@@ -38,6 +39,7 @@ ready:
   pnpm --filter jelly-wallet build
   just test
   just deny
+  just notices
   pnpm audit --prod
   git status
 
@@ -61,9 +63,13 @@ lint *args:
 lint-fix:
   pnpm lint:fix
 
-# Check advisories, bans, and sources
+# Check advisories, bans, licenses, and sources
 deny:
-  cargo deny check advisories bans sources
+  cargo deny check advisories bans licenses sources
+
+# Write target/THIRD-PARTY-NOTICES.txt, which fails if a crate or npm package the app ships has a license deny.toml doesn't allow
+notices:
+  pnpm --filter jelly-wallet notices
 
 # Regenerate apps/wallet/src/ipc/bindings.gen.ts after an IPC change
 bindings:

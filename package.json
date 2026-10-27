@@ -1,6 +1,7 @@
 {
   "name": "jelly",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "fmt": "oxfmt",
     "lint": "oxlint --type-aware",

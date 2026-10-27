@@ -161,6 +161,15 @@ jobs:
           path: ${{ matrix.artifact }}
           if-no-files-found: error
 
+      # The macOS and Linux bundles carry the third-party notices inside them. A Windows build is a
+      # bare exe, so the release carries the notices beside it.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.platform == 'windows-x64'
+        with:
+          name: notices
+          path: target/THIRD-PARTY-NOTICES.txt
+          if-no-files-found: error
+
   release:
     name: Draft the release
     needs: build

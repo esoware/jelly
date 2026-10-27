@@ -42,6 +42,7 @@
   "bundle": {
     "active": false,
     "publisher": "Jelly",
+    "copyright": "Copyright (c) 2026 The Jelly authors",
     "category": "Finance",
     "shortDescription": "Self-custody multi-chain desktop wallet",
     "icon": [
