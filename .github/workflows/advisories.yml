@@ -1,0 +1,50 @@
+name: Advisories
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  scan:
+    name: Scan the lockfiles
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          rust-cache: false
+
+      - name: Check the advisories
+        id: scan
+        run: |
+          status=0
+          cargo deny check advisories || status=1
+          pnpm audit --prod || status=1
+          exit "$status"
+
+      - name: Open an issue
+        if: failure() && steps.scan.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="An advisory affects a locked dependency"
+          open=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq length)
+          if [ "$open" = 0 ]; then
+            gh issue create --title "$title" --body "The scheduled advisory scan failed in $RUN_URL."
+          fi

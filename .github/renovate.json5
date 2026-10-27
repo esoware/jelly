@@ -1,0 +1,132 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended"],
+  ignorePresets: [":semanticPrefixFixDepsChoreOthers"],
+  semanticCommits: "enabled",
+  schedule: ["* * * * 1"],
+  // minimumReleaseAge in pnpm-workspace.yaml holds pnpm to the same 7 days.
+  minimumReleaseAge: "7 days",
+  rangeStrategy: "bump",
+  lockFileMaintenance: {
+    enabled: true,
+    commitMessageAction: "Refresh lock files",
+  },
+  prBodyTemplate: "{{{table}}}{{{warnings}}}{{{notes}}}{{{controls}}}",
+  // Dependabot security updates open the fix PRs, so Renovate doesn't open its own.
+  vulnerabilityAlerts: {
+    enabled: false,
+  },
+  packageRules: [
+    // A runner image sets the system libraries a build links against, so it moves only by hand.
+    {
+      matchDatasources: ["github-runners"],
+      enabled: false,
+    },
+    {
+      matchDepNames: ["rand_core_06"],
+      allowedVersions: "<0.7",
+    },
+    // Crates that share types take a breaking release together.
+    {
+      matchPackageNames: ["zcash_*"],
+      groupName: "zcash crates",
+    },
+    {
+      matchPackageNames: ["monero-*"],
+      groupName: "monero crates",
+    },
+    {
+      matchPackageNames: ["specta", "specta-typescript", "tauri-specta"],
+      groupName: "specta crates",
+    },
+    {
+      matchPackageNames: ["alloy", "alloy-primitives", "alloy-sol-types"],
+      groupName: "alloy crates",
+    },
+    {
+      matchPackageNames: ["solana-*", "spl-*"],
+      groupName: "solana crates",
+    },
+    {
+      matchSourceUrls: ["https://github.com/RustCrypto/**"],
+      groupName: "RustCrypto crates",
+    },
+    {
+      matchPackageNames: ["windows", "windows-*"],
+      groupName: "windows crates",
+    },
+    {
+      matchManagers: ["cargo"],
+      matchUpdateTypes: ["minor", "patch"],
+      matchIsBreaking: false,
+      groupName: "Rust crates",
+    },
+    {
+      matchManagers: ["npm"],
+      matchUpdateTypes: ["minor", "patch"],
+      matchIsBreaking: false,
+      groupName: "npm packages",
+    },
+    // tauri build fails when a Tauri crate and its npm package are on different minor releases.
+    {
+      matchPackageNames: ["tauri", "tauri-build", "tauri-plugin-*", "@tauri-apps/*"],
+      groupName: "Tauri packages",
+    },
+    // A new formatter or linter release can fail just ready, so these stay out of the npm group.
+    {
+      matchPackageNames: ["oxc-transform-react", "oxfmt", "oxlint", "oxlint-tsgolint"],
+      groupName: "oxc packages",
+    },
+    {
+      matchManagers: ["github-actions"],
+      groupName: "GitHub Actions",
+    },
+    {
+      matchManagers: ["custom.regex"],
+      matchDatasources: ["crate"],
+      groupName: "cargo tools",
+    },
+    {
+      matchDatasources: ["rust-version"],
+      groupName: "Rust toolchain",
+    },
+    {
+      matchDepNames: ["linuxdeploy-plugin-appimage"],
+      commitMessageTopic: "AppImage plugin",
+    },
+  ],
+  customManagers: [
+    {
+      customType: "regex",
+      managerFilePatterns: ["/^Cargo\\.toml$/"],
+      matchStrings: ['rust-version\\s*=\\s*"(?<currentValue>[^"]+)"'],
+      depNameTemplate: "rust",
+      datasourceTemplate: "rust-version",
+    },
+    {
+      customType: "regex",
+      managerFilePatterns: ["/^justfile$/", "/^\\.github/(?:workflows|actions)/.+\\.ya?ml$/"],
+      matchStringsStrategy: "recursive",
+      matchStrings: [
+        "(?:cargo install|tool:)[^\\n]+",
+        "(?<depName>[a-z][a-z0-9-]*)@(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+      ],
+      datasourceTemplate: "crate",
+      // These pins are exact versions, which Cargo's versioning would read as caret ranges.
+      versioningTemplate: "semver",
+    },
+    // AppRun and linuxdeploy stay on the release names that Tauri's bundler hardcodes, so only the
+    // AppImage plugin is tracked. Each Linux matrix entry in release.yml puts the plugin's URL right
+    // above its hash, so one match captures both the tag and the digest.
+    {
+      customType: "regex",
+      managerFilePatterns: ["/^\\.github/workflows/release\\.yml$/"],
+      matchStrings: [
+        "https://github\\.com/(?<packageName>linuxdeploy/linuxdeploy-plugin-appimage)/releases/download/(?<currentValue>[^/]+)/\\S+\\s+appimage-plugin-sha256: (?<currentDigest>[0-9a-f]{64})",
+      ],
+      depNameTemplate: "linuxdeploy-plugin-appimage",
+      datasourceTemplate: "github-release-attachments",
+      versioningTemplate: "regex:^(?<major>\\d+)-alpha-(?<minor>\\d+)-(?<patch>\\d+)$",
+    },
+  ],
+}

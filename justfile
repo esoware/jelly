@@ -10,10 +10,10 @@ alias r := ready
 alias t := test
 alias f := fmt
 
-# Install the frontend packages, cargo-nextest, and cargo-deny
+# Install the frontend packages, cargo-nextest, cargo-deny, and cargo-shear
 init:
   pnpm install
-  cargo install --locked cargo-nextest@0.9.148 cargo-deny@0.20.2
+  cargo install --locked cargo-nextest@0.9.148 cargo-deny@0.20.2 cargo-shear@1.14.0
 
 # Run the app with the frontend served by Vite
 dev:
@@ -25,17 +25,20 @@ build *args:
 
 # CI runs this on every OS and fails if it leaves any file changed.
 
-# Regenerate the icons, then run fmt, clippy, oxlint, knip, the type checks, the frontend build, the tests, and cargo-deny
+# Regenerate the icons, then run fmt, clippy, rustdoc, cargo-shear, oxlint, knip, the type checks, the frontend build, the tests, cargo-deny, and pnpm audit
 ready:
   just icons
   just fmt
   just lint
+  cargo doc --workspace --no-deps --document-private-items --keep-going --config "build.warnings='deny'"
+  cargo shear
   pnpm lint
   pnpm knip
   pnpm --filter @jelly/icons typecheck
   pnpm --filter jelly-wallet build
   just test
   just deny
+  pnpm audit --prod
   git status
 
 # Run all tests, or narrow them with nextest args like -p jelly_core amount

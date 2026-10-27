@@ -29,6 +29,8 @@ jobs:
             runner: macos-26
           - os: Linux
             runner: ubuntu-22.04
+          - os: Linux arm64
+            runner: ubuntu-22.04-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
@@ -52,3 +54,8 @@ jobs:
 
       - name: Fail if just ready changed or added a file
         run: git add --all && git diff --cached --exit-code
+
+      # just test skips this test because it writes to the developer's own credential store.
+      - name: Run the keychain test
+        timeout-minutes: 5
+        run: cargo nextest run --workspace --run-ignored only -E 'test(the_platform_store_round_trips_the_master_key)'
