@@ -99,7 +99,7 @@ bip39     = { version = "3.0.0", default-features = false, features = ["zeroize"
 bitcoin   = { version = "0.32.102", default-features = false, features = ["std", "serde", "base64"] }
 secp256k1 = { version = "0.29.1", default-features = false, features = ["std", "recovery"] }
 
-reqwest       = { version = "0.13.5", default-features = false, features = ["http2", "rustls-no-provider", "charset", "socks"] }
+reqwest       = { version = "0.13.5", default-features = false, features = ["http2", "rustls-no-provider", "charset", "socks", "gzip"] }
 rustls        = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 tokio-rustls  = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }
 webpki-roots  = "1.0.9"

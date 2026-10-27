@@ -191,9 +191,13 @@ impl EvmError {
             NetError::Rpc { endpoint, code, message } => {
                 Self::from_rpc(method, endpoint, code, message)
             }
+            NetError::TooLarge { endpoint, .. } if method == Method::GetLogs => {
+                Self::LogWindowTooWide { endpoint }
+            }
             other @ (NetError::Endpoint { .. }
             | NetError::Timeout { .. }
             | NetError::Protocol { .. }
+            | NetError::TooLarge { .. }
             | NetError::Status { .. }
             | NetError::RateLimited { .. }
             | NetError::WrongNetwork { .. }
@@ -523,6 +527,7 @@ pub(crate) fn classify(error: &NetError) -> Outcome {
         NetError::Endpoint { .. }
         | NetError::Timeout { .. }
         | NetError::Protocol { .. }
+        | NetError::TooLarge { .. }
         | NetError::Status { .. }
         | NetError::RateLimited { .. }
         | NetError::WrongNetwork { .. }
@@ -539,14 +544,16 @@ pub(crate) fn classify(error: &NetError) -> Outcome {
 
 /// The classifier a log read is walked with.
 ///
-/// A window complaint stops the walk so the window shrinks at once, rather than
-/// spending one request per endpoint on a width that is already too wide. A host
-/// that does not serve this query is skipped without a penalty, because a backed
-/// off host would also be lost to the balance reads that follow.
+/// A window complaint or an answer past the size cap stops the walk so the window
+/// shrinks at once, rather than spending one request per endpoint on a width that is
+/// already too wide. A host that does not serve this query is skipped without a
+/// penalty, because a backed off host would also be lost to the balance reads that
+/// follow.
 pub(crate) fn classify_logs(error: &NetError) -> Outcome {
     match *error {
         NetError::Rpc { ref message, .. } if is_range_complaint(message) => Outcome::Fail,
         NetError::Rpc { ref message, .. } if is_log_refusal(message) => Outcome::Skip,
+        NetError::TooLarge { .. } => Outcome::Fail,
         NetError::Status { status: 403, .. } => Outcome::Skip,
         NetError::Endpoint { .. }
         | NetError::Timeout { .. }
@@ -580,6 +587,7 @@ pub(crate) fn classify_broadcast(error: &NetError) -> Outcome {
         NetError::Endpoint { .. }
         | NetError::Timeout { .. }
         | NetError::Protocol { .. }
+        | NetError::TooLarge { .. }
         | NetError::Status { .. }
         | NetError::RateLimited { .. }
         | NetError::WrongNetwork { .. }
@@ -711,6 +719,19 @@ mod tests {
         let error = rpc(-32005, "query returned more than 10000 results");
         assert_eq!(classify(&error), Outcome::Rotate);
         assert_eq!(classify_logs(&error), Outcome::Fail);
+    }
+
+    /// Every host would send the same oversized answer, so a log read narrows its
+    /// window rather than rotating through them all.
+    #[test]
+    fn an_answer_past_the_size_cap_narrows_a_log_window_and_rotates_any_other_read() {
+        let oversized = || NetError::TooLarge { endpoint: endpoint(), max_bytes: 1024 };
+        assert_eq!(classify_logs(&oversized()), Outcome::Fail);
+        assert!(EvmError::from_net(Method::GetLogs, oversized()).is_window_too_wide());
+
+        assert_eq!(classify(&oversized()), Outcome::Rotate);
+        let error = EvmError::from_net(Method::GetBalance, oversized());
+        assert!(matches!(error, EvmError::Net(NetError::TooLarge { .. })), "{error:?}");
     }
 
     /// The BNB Chain data seeds answer this to a one-block window too.

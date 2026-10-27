@@ -25,6 +25,12 @@ pub(crate) const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 const USER_AGENT: &str = "jelly";
 
+/// The cap on a response body when the request sets none.
+///
+/// reqwest decodes gzip, so without one a few compressed megabytes could unpack into
+/// gigabytes. A request that expects more, such as a Monero block batch, sets its own.
+const DEFAULT_MAX_BYTES: usize = 32 * 1024 * 1024;
+
 /// This is the workspace's only HTTP client.
 ///
 /// Cloning shares the connection pool, HTTP/2 sessions, and TLS session cache, so the
@@ -126,18 +132,14 @@ async fn read_body(
     label: &EndpointLabel,
     mut response: reqwest::Response,
     timeout: Duration,
-    max_bytes: Option<usize>,
+    max_bytes: usize,
 ) -> Result<Vec<u8>, NetError> {
-    let cap = max_bytes.unwrap_or(usize::MAX);
     let mut body: Vec<u8> = Vec::new();
     while let Some(chunk) =
         response.chunk().await.map_err(|source| transport_error(label, timeout, source))?
     {
-        if body.len().saturating_add(chunk.len()) > cap {
-            return Err(NetError::protocol(
-                label,
-                "the response is larger than the request allows",
-            ));
+        if body.len().saturating_add(chunk.len()) > max_bytes {
+            return Err(NetError::TooLarge { endpoint: label.clone(), max_bytes });
         }
         body.extend_from_slice(&chunk);
     }
@@ -168,7 +170,7 @@ pub struct HttpRequest<'a> {
     body: Option<HttpBody<'a>>,
     headers: &'a [(&'a str, &'a str)],
     timeout: Duration,
-    max_bytes: Option<usize>,
+    max_bytes: usize,
 }
 
 /// Header values and the body can carry an API key, so only their names and size show.
@@ -187,7 +189,13 @@ impl fmt::Debug for HttpRequest<'_> {
 
 impl<'a> HttpRequest<'a> {
     pub const fn get(timeout: Duration) -> Self {
-        Self { method: HttpMethod::Get, body: None, headers: &[], timeout, max_bytes: None }
+        Self {
+            method: HttpMethod::Get,
+            body: None,
+            headers: &[],
+            timeout,
+            max_bytes: DEFAULT_MAX_BYTES,
+        }
     }
 
     pub const fn post_json(body: &'a str, timeout: Duration) -> Self {
@@ -196,7 +204,7 @@ impl<'a> HttpRequest<'a> {
             body: Some(HttpBody { content_type: "application/json", bytes: body.as_bytes() }),
             headers: &[],
             timeout,
-            max_bytes: None,
+            max_bytes: DEFAULT_MAX_BYTES,
         }
     }
 
@@ -208,7 +216,7 @@ impl<'a> HttpRequest<'a> {
             body: Some(HttpBody { content_type, bytes: body }),
             headers: &[],
             timeout,
-            max_bytes: None,
+            max_bytes: DEFAULT_MAX_BYTES,
         }
     }
 
@@ -218,10 +226,10 @@ impl<'a> HttpRequest<'a> {
         self
     }
 
-    /// Refuses a response body larger than `max_bytes`.
+    /// Refuses a response body larger than `max_bytes` in place of the default cap.
     #[must_use]
     pub const fn with_max_bytes(mut self, max_bytes: usize) -> Self {
-        self.max_bytes = Some(max_bytes);
+        self.max_bytes = max_bytes;
         self
     }
 }

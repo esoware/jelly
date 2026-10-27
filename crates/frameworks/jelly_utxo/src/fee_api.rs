@@ -98,6 +98,7 @@ const fn classify(error: &NetError) -> Outcome {
         NetError::Endpoint { .. }
         | NetError::Timeout { .. }
         | NetError::Protocol { .. }
+        | NetError::TooLarge { .. }
         | NetError::Status { .. }
         | NetError::RateLimited { .. }
         | NetError::Rpc { .. }

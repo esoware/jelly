@@ -1,6 +1,6 @@
-import { useSuspenseQuery } from "@tanstack/react-query"
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query"
 import { useParams } from "@tanstack/react-router"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { ActivityPanel } from "@/features/wallet/activity.tsx"
 import { AddressesPanel } from "@/features/wallet/addresses.tsx"
@@ -13,6 +13,8 @@ import {
   useHoldings,
   useSetShownAsset,
 } from "@/features/wallet/layout.tsx"
+import { CHART_RANGES } from "@/features/wallet/price-scale.ts"
+import type { ChartRange } from "@/features/wallet/price-scale.ts"
 import { PricePanel } from "@/features/wallet/price.tsx"
 import { ReceiveDialog } from "@/features/wallet/receive.tsx"
 import { SendDialog } from "@/features/wallet/send.tsx"
@@ -21,7 +23,9 @@ import { formatAmount } from "@/lib/amount.ts"
 import { assetName, assetSymbol, assetsForChain, chainName, shownAsset } from "@/lib/chain.ts"
 import { positionOf } from "@/lib/portfolio.ts"
 import type { Holdings } from "@/lib/portfolio.ts"
+import { PRICE_CHART_REFRESH_MS, moneyQueries } from "@/query/money.ts"
 import { settingQueries } from "@/query/setting.ts"
+import { useFiatCurrency } from "@/store.ts"
 import { Button } from "@/ui/button.tsx"
 import { Icon } from "@/ui/icon.tsx"
 import { useAccentColor } from "@/ui/use-accent-color.ts"
@@ -30,16 +34,25 @@ import { AssetMenu } from "@/widgets/asset-menu.tsx"
 import { AssetLogo, ChainLogo, assetBrand } from "@/widgets/logos.tsx"
 
 const LONG_FIGURE_CHARS = 11
+const CHART_PREFETCH_CONCURRENCY = 4
 
 interface BalancePanelProps {
   holdings: Holdings
   asset: AssetId
   onAssetChange: (asset: AssetId) => void
+  onAssetMenuOpenChange: (isOpen: boolean) => void
   onSend: () => void
   onReceive: () => void
 }
 
-function BalancePanel({ holdings, asset, onAssetChange, onSend, onReceive }: BalancePanelProps) {
+function BalancePanel({
+  holdings,
+  asset,
+  onAssetChange,
+  onAssetMenuOpenChange,
+  onSend,
+  onReceive,
+}: BalancePanelProps) {
   const accentRef = useAccentColor<HTMLElement>(assetBrand(asset).color)
   const assets = assetsForChain(holdings.chain)
   const position = positionOf(holdings, asset)
@@ -64,6 +77,7 @@ function BalancePanel({ holdings, asset, onAssetChange, onSend, onReceive }: Bal
             assets={assets}
             asset={asset}
             onAssetChange={onAssetChange}
+            onOpenChange={onAssetMenuOpenChange}
             amountFor={(option) => positionOf(holdings, option).amount}
             trigger={
               <Button variant="ghost" size="icon-sm">
@@ -102,7 +116,19 @@ export function ChainView() {
   const { chain } = useParams({ from: "/_unlocked/wallet/$chain" })
   const holdings = useHoldings().find((entry) => entry.chain === chain)
   const settings = useSuspenseQuery(settingQueries.all())
+  const client = useQueryClient()
+  const currency = useFiatCurrency()
   const [action, setAction] = useState<Action>(null)
+  const [range, setRange] = useState<ChartRange>("1d")
+  const prefetchQueue = useRef<(() => Promise<unknown>)[]>([])
+  const prefetchWorkers = useRef(0)
+
+  useEffect(
+    () => () => {
+      prefetchQueue.current = []
+    },
+    [chain],
+  )
 
   const saveShownAsset = useSetShownAsset()
 
@@ -111,6 +137,38 @@ export function ChainView() {
   }
 
   const asset = shownAsset(chain, settings.data.shownTokens)
+  const isChartShown = settings.data.isPriceFeedEnabled && settings.data.isPriceChartEnabled
+
+  async function drainPrefetch(): Promise<void> {
+    const next = prefetchQueue.current.shift()
+    if (next === undefined) {
+      prefetchWorkers.current -= 1
+      return
+    }
+    try {
+      await next()
+    } catch {}
+    await drainPrefetch()
+  }
+
+  function prefetchCharts(isMenuOpen: boolean): void {
+    if (!isMenuOpen || !isChartShown) {
+      return
+    }
+    const { interval } = CHART_RANGES[range]
+    prefetchQueue.current = assetsForChain(chain).map(
+      (option) => () =>
+        client.query({
+          ...moneyQueries.priceChart(option, interval, currency),
+          gcTime: PRICE_CHART_REFRESH_MS,
+          retry: false,
+        }),
+    )
+    while (prefetchWorkers.current < CHART_PREFETCH_CONCURRENCY) {
+      prefetchWorkers.current += 1
+      void drainPrefetch()
+    }
+  }
 
   function openReceive(): void {
     setAction("receive")
@@ -131,6 +189,7 @@ export function ChainView() {
           onAssetChange={(next) => {
             saveShownAsset.mutate(next)
           }}
+          onAssetMenuOpenChange={prefetchCharts}
           onSend={() => {
             setAction("send")
           }}
@@ -140,9 +199,7 @@ export function ChainView() {
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <ActivityPanel chain={chain} onReceive={openReceive} />
-        {settings.data.isPriceFeedEnabled && settings.data.isPriceChartEnabled ? (
-          <PricePanel asset={asset} />
-        ) : null}
+        {isChartShown ? <PricePanel asset={asset} range={range} onRangeChange={setRange} /> : null}
       </div>
 
       <SendDialog

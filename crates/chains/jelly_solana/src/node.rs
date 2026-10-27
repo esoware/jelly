@@ -315,6 +315,7 @@ fn should_retry_singly(error: &SolanaError) -> bool {
             .iter()
             .any(|attempt| matches!(attempt.kind, FailureKind::Timeout | FailureKind::Protocol)),
         NetError::Protocol { .. }
+        | NetError::TooLarge { .. }
         | NetError::Status { .. }
         | NetError::RateLimited { .. }
         | NetError::Rpc { .. }

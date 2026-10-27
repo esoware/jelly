@@ -1,5 +1,5 @@
 import { priceTicks, seriesDomain, seriesExtent, timeTicks } from "@/features/wallet/price-scale.ts"
-import type { ChartSeries, PriceTick, TimeTick } from "@/features/wallet/price-scale.ts"
+import type { ChartSeries } from "@/features/wallet/price-scale.ts"
 import { lerp } from "@/ui/use-morph.ts"
 
 export const AXIS_GAP = 6
@@ -11,6 +11,8 @@ const MIN_PRICE_TICK_GAP = 28
 const MIN_TIME_TICK_GAP = 72
 const BODY_SHARE = 0.6
 const MAX_BODY_WIDTH = 12
+const MAX_PACED_ZOOM_RATIO = 4
+const MAX_PACED_ZOOM = Math.log(MAX_PACED_ZOOM_RATIO)
 
 interface Bounds {
   left: number
@@ -41,10 +43,23 @@ interface Pace {
   y: number
 }
 
-interface TickMark<T> {
+interface TickMark {
   key: string
-  tick: T
+  label: string
+  at: number
   opacity: number
+}
+
+type TickFade = "leaving" | "arriving" | "staying"
+
+interface TickPair {
+  key: string
+  label: string
+  fromAt: number
+  toAt: number
+  fromOpacity: number
+  toOpacity: number
+  fade: TickFade
 }
 
 interface Vertex {
@@ -85,11 +100,12 @@ export interface CandleMark {
 }
 
 export interface Plot {
+  assetKey: string | null
   bounds: Bounds
   time: Scale<number>
   price: Scale<bigint>
-  priceTicks: readonly TickMark<PriceTick>[]
-  timeTicks: readonly TickMark<TimeTick>[]
+  priceTicks: readonly TickMark[]
+  timeTicks: readonly TickMark[]
   line: LineMark | null
   candles: readonly CandleMark[]
 }
@@ -110,7 +126,7 @@ export function placeTime(scale: Scale<number>, unixSecs: number): number {
   return scale.at + scale.perUnit * (unixSecs - scale.origin)
 }
 
-export function placePrice(scale: Scale<bigint>, price: bigint): number {
+function placePrice(scale: Scale<bigint>, price: bigint): number {
   return scale.at + scale.perUnit * Number(price - scale.origin)
 }
 
@@ -118,7 +134,7 @@ function bodyWidth(spanSecs: number, time: Scale<number>): number {
   return Math.min(MAX_BODY_WIDTH, Math.max(1, spanSecs * time.perUnit * BODY_SHARE))
 }
 
-export function drawPlot(series: ChartSeries, size: PlotSize): Plot {
+export function drawPlot(assetKey: string, series: ChartSeries, size: PlotSize): Plot {
   const bounds: Bounds = {
     left: size.labelWidth + AXIS_GAP,
     right: size.width - INSET_RIGHT,
@@ -144,6 +160,7 @@ export function drawPlot(series: ChartSeries, size: PlotSize): Plot {
   }
 
   return {
+    assetKey,
     bounds,
     time,
     price,
@@ -152,17 +169,24 @@ export function drawPlot(series: ChartSeries, size: PlotSize): Plot {
       extent.high,
       Math.floor(plotHeight / MIN_PRICE_TICK_GAP),
       series.currency,
-    ).map((tick) => ({ key: `${tick.price.toString()} ${tick.label}`, tick, opacity: 1 })),
+    ).map((tick) => ({
+      key: `${tick.price.toString()} ${tick.label}`,
+      label: tick.label,
+      at: placePrice(price, tick.price),
+      opacity: 1,
+    })),
     timeTicks: timeTicks(
       domain.startUnixSecs,
       domain.endUnixSecs,
       Math.floor(plotWidth / MIN_TIME_TICK_GAP),
     )
-      .filter((tick) => {
-        const x = placeTime(time, tick.unixSecs)
-        return x >= bounds.left + EDGE_ROOM && x <= bounds.right - EDGE_ROOM
-      })
-      .map((tick) => ({ key: `${String(tick.unixSecs)} ${tick.label}`, tick, opacity: 1 })),
+      .map((tick) => ({
+        key: `${String(tick.unixSecs)} ${tick.label}`,
+        label: tick.label,
+        at: placeTime(time, tick.unixSecs),
+        opacity: 1,
+      }))
+      .filter((mark) => mark.at >= bounds.left + EDGE_ROOM && mark.at <= bounds.right - EDGE_ROOM),
     line:
       series.mode === "line"
         ? {
@@ -194,7 +218,10 @@ export function drawPlot(series: ChartSeries, size: PlotSize): Plot {
 }
 
 function zoomReach<V>(from: Scale<V>, to: Scale<V>, progress: number): number {
-  const zoom = Math.log(to.perUnit / from.perUnit)
+  const zoom = Math.min(
+    MAX_PACED_ZOOM,
+    Math.max(-MAX_PACED_ZOOM, Math.log(to.perUnit / from.perUnit)),
+  )
   return zoom === 0 ? progress : Math.expm1(zoom * progress) / Math.expm1(zoom)
 }
 
@@ -352,53 +379,79 @@ function pairCandles(from: Plot, to: Plot, forward: Relation, backward: Relation
   return [...leaving, ...arriving]
 }
 
-function blendTicks<T>(
-  from: readonly TickMark<T>[],
-  to: readonly TickMark<T>[],
-  reach: number,
-): TickMark<T>[] {
+function pairTicks(
+  from: readonly TickMark[],
+  to: readonly TickMark[],
+  forward: Affine,
+  backward: Affine,
+): TickPair[] {
   const toKeys = new Set(to.map((mark) => mark.key))
   const fromByKey = new Map(from.map((mark) => [mark.key, mark]))
-  const fadeOut = Math.min(1, reach * 2)
-  const fadeIn = Math.max(0, reach * 2 - 1)
-  return [
-    ...from
-      .filter((mark) => !toKeys.has(mark.key))
-      .map((mark) => ({ key: mark.key, tick: mark.tick, opacity: lerp(mark.opacity, 0, fadeOut) })),
-    ...to.map((mark) => {
-      const shown = fromByKey.get(mark.key)
-      return {
-        key: mark.key,
-        tick: mark.tick,
-        opacity:
-          shown === undefined
-            ? lerp(0, mark.opacity, fadeIn)
-            : lerp(shown.opacity, mark.opacity, reach),
-      }
-    }),
-  ]
+  const leaving = from
+    .filter((mark) => !toKeys.has(mark.key))
+    .map((mark) => ({
+      key: mark.key,
+      label: mark.label,
+      fromAt: mark.at,
+      toAt: apply(forward, mark.at),
+      fromOpacity: mark.opacity,
+      toOpacity: 0,
+      fade: "leaving" as const,
+    }))
+  const arriving = to.map((mark) => {
+    const shown = fromByKey.get(mark.key)
+    return {
+      key: mark.key,
+      label: mark.label,
+      fromAt: shown?.at ?? apply(backward, mark.at),
+      toAt: mark.at,
+      fromOpacity: shown?.opacity ?? 0,
+      toOpacity: mark.opacity,
+      fade: shown === undefined ? ("arriving" as const) : ("staying" as const),
+    }
+  })
+  return [...leaving, ...arriving]
+}
+
+function blendTicks(pairs: readonly TickPair[], reach: number): TickMark[] {
+  const shares: Record<TickFade, number> = {
+    leaving: Math.min(1, reach * 2),
+    arriving: Math.max(0, reach * 2 - 1),
+    staying: reach,
+  }
+  return pairs.map((pair) => ({
+    key: pair.key,
+    label: pair.label,
+    at: lerp(pair.fromAt, pair.toAt, reach),
+    opacity: lerp(pair.fromOpacity, pair.toOpacity, shares[pair.fade]),
+  }))
 }
 
 export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
+  const isSameAsset = from.assetKey === to.assetKey
+  const fromPrice = isSameAsset ? from.price : to.price
   const timeShiftSecs = from.time.origin - to.time.origin
-  const priceShiftBaseUnits = Number(from.price.origin - to.price.origin)
+  const priceShiftBaseUnits = Number(fromPrice.origin - to.price.origin)
   const forward = {
     x: relate(from.time, to.time, timeShiftSecs),
-    y: relate(from.price, to.price, priceShiftBaseUnits),
+    y: relate(fromPrice, to.price, priceShiftBaseUnits),
   }
   const backward = { x: invert(forward.x), y: invert(forward.y) }
   const fromLine = from.line ?? (to.line === null ? null : absentLine(to.line, backward))
   const toLine = to.line ?? (from.line === null ? null : absentLine(from.line, forward))
   const line = fromLine === null || toLine === null ? null : pairLines(fromLine, toLine)
   const candles = pairCandles(from, to, forward, backward)
+  const priceTickPairs = pairTicks(from.priceTicks, to.priceTicks, forward.y, backward.y)
+  const timeTickPairs = pairTicks(from.timeTicks, to.timeTicks, forward.x, backward.x)
 
   function frame(progress: number): Plot {
     const pace = {
       progress,
       x: zoomReach(from.time, to.time, progress),
-      y: zoomReach(from.price, to.price, progress),
+      y: zoomReach(fromPrice, to.price, progress),
     }
     return {
+      assetKey: isSameAsset || progress >= 1 ? to.assetKey : null,
       bounds: {
         left: lerp(from.bounds.left, to.bounds.left, progress),
         right: lerp(from.bounds.right, to.bounds.right, progress),
@@ -406,9 +459,9 @@ export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
         bottom: lerp(from.bounds.bottom, to.bounds.bottom, progress),
       },
       time: blendScale(from.time, to.time, timeShiftSecs, pace.x),
-      price: blendScale(from.price, to.price, priceShiftBaseUnits, pace.y),
-      priceTicks: blendTicks(from.priceTicks, to.priceTicks, pace.y),
-      timeTicks: blendTicks(from.timeTicks, to.timeTicks, pace.x),
+      price: blendScale(fromPrice, to.price, priceShiftBaseUnits, pace.y),
+      priceTicks: blendTicks(priceTickPairs, pace.y),
+      timeTicks: blendTicks(timeTickPairs, pace.x),
       line: line === null ? null : blendLines(line, pace),
       candles: candles.map((pair) => blendCandles(pair, pace)),
     }

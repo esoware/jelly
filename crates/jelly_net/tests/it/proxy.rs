@@ -15,7 +15,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, timeout};
 
-use crate::common::read_head;
+use crate::common::{endpoint, loopback_server, read_head};
 
 const TARGET_HOST: &str = "node.example";
 const TARGET_PORT: u16 = 50002;
@@ -238,9 +238,7 @@ async fn a_socks5h_route_spelled_socks5_leaves_name_resolution_to_the_proxy() {
 
     let proxy = ProxySetting::Socks5h { url: format!("socks5://{address}") };
     let http = HttpClient::new(Some(&proxy)).expect("the client builds");
-    let endpoint =
-        Endpoint::parse(ChainId::Ethereum, Transport::HttpJsonrpc, "https://localhost:8545")
-            .expect("a loopback endpoint");
+    let endpoint = endpoint("https://localhost:8545").expect("a loopback endpoint");
     let sent = timeout(
         Duration::from_secs(10),
         http.send(&endpoint, "", HttpRequest::get(Duration::from_secs(5))),
@@ -375,7 +373,8 @@ async fn the_raw_socket_dialler_never_sends_an_https_proxy_its_credentials_in_pl
 #[tokio::test]
 async fn an_http_proxy_with_an_unusable_scheme_is_never_bypassed_by_the_http_client() {
     let (target_address, target) = listener().await.expect("a loopback port");
-    let (proxy_address, proxy_listener) = listener().await.expect("a loopback port");
+    let (proxy_address, proxy_task) =
+        loopback_server(async |stream| drop(stream)).await.expect("a loopback proxy");
     let reached = Arc::new(AtomicBool::new(false));
     let target_task = tokio::spawn({
         let reached = Arc::clone(&reached);
@@ -387,16 +386,9 @@ async fn an_http_proxy_with_an_unusable_scheme_is_never_bypassed_by_the_http_cli
                 .await
         }
     });
-    let proxy_task = tokio::spawn(async move {
-        while let Ok((stream, _)) = proxy_listener.accept().await {
-            drop(stream);
-        }
-    });
 
     let proxy = ProxySetting::Http { url: format!("htpp://{proxy_address}") };
-    let endpoint =
-        Endpoint::parse(ChainId::Bitcoin, Transport::FeeApi, &format!("http://{target_address}"))
-            .expect("a loopback endpoint");
+    let endpoint = endpoint(&format!("http://{target_address}")).expect("a loopback endpoint");
     if let Ok(http) = HttpClient::new(Some(&proxy)) {
         let request = http.send(&endpoint, "", HttpRequest::get(Duration::from_secs(5)));
         let _ = timeout(Duration::from_secs(10), request).await;

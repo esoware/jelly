@@ -195,6 +195,7 @@ fn a_failure_is_reported_by_its_cause_and_never_by_its_text() {
             },
             ProbeFailure::BadAnswer,
         ),
+        (NetError::TooLarge { endpoint: label.clone(), max_bytes: 1024 }, ProbeFailure::BadAnswer),
         (NetError::InvalidUrl { reason: UrlRejection::UnusedTransport }, ProbeFailure::NotProbed),
     ];
     for (error, failure) in cases {
