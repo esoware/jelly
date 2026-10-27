@@ -394,14 +394,9 @@ function ChartPlot({ asset, series, interval, width, height, isInteractive }: Ch
   )
 }
 
-interface PriceChartProps {
-  asset: string
-  series: ChartSeries
-  interval: CandleInterval
-  isInteractive: boolean
-}
+type PriceChartProps = Omit<ChartPlotProps, "width" | "height">
 
-function PriceChart({ asset, series, interval, isInteractive }: PriceChartProps) {
+function PriceChart(props: PriceChartProps) {
   const frameRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<Size | null>(null)
 
@@ -425,16 +420,7 @@ function PriceChart({ asset, series, interval, isInteractive }: PriceChartProps)
 
   return (
     <div ref={frameRef} className="relative size-full">
-      {size === null ? null : (
-        <ChartPlot
-          asset={asset}
-          series={series}
-          interval={interval}
-          width={size.width}
-          height={size.height}
-          isInteractive={isInteractive}
-        />
-      )}
+      {size === null ? null : <ChartPlot {...props} width={size.width} height={size.height} />}
     </div>
   )
 }
