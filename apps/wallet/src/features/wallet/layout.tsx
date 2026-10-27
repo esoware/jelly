@@ -1,35 +1,30 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
-import { Outlet, useMatch, useNavigate, useParams } from "@tanstack/react-router"
+import { Outlet, useMatches, useNavigate, useParams } from "@tanstack/react-router"
+import { useState } from "react"
 import type { ComponentProps, ReactNode } from "react"
 
 import { AllocationMark } from "@/features/wallet/donut.tsx"
 import type { AssetId, ChainId } from "@/ipc/bindings.gen.ts"
-import { chainName, chainTicker, hasOwnTicker, withShownAsset } from "@/lib/chain.ts"
+import { assetChain, shownAsset, withShownAsset } from "@/lib/chain.ts"
 import { appendClassName } from "@/lib/class-name.ts"
 import { allocate, holdingsFor } from "@/lib/portfolio.ts"
 import type { Holdings } from "@/lib/portfolio.ts"
-import { chainQueries } from "@/query/chain.ts"
+import { chainCommands, chainQueries } from "@/query/chain.ts"
 import { moneyQueries } from "@/query/money.ts"
 import { useIpcMutation } from "@/query/mutation.ts"
-import { patchSettings, settingCommands, settingKeys } from "@/query/setting.ts"
+import { patchSettings, settingCommands, settingKeys, settingQueries } from "@/query/setting.ts"
 import { usePrices } from "@/store.ts"
-import { Carousel } from "@/ui/carousel.tsx"
+import { Icon } from "@/ui/icon.tsx"
 import { Panel } from "@/ui/panel.tsx"
-import { SegmentedGroup, SegmentedList, SegmentedTab, SegmentedTabs } from "@/ui/segmented.tsx"
+import { Segmented } from "@/ui/segmented.tsx"
 import { Skeleton } from "@/ui/skeleton.tsx"
 import { StepTransition } from "@/ui/step-transition.tsx"
 import { useAccentColor } from "@/ui/use-accent-color.ts"
-import { CHAIN_BRANDS, ChainLogo } from "@/widgets/logos.tsx"
+import { AssetLogo, CHAIN_BRANDS } from "@/widgets/logos.tsx"
 
-const PORTFOLIO = "portfolio"
+const WALLET_VIEWS = ["portfolio", "wallet", "contacts", "settings"] as const
 
-const CONTACTS = "contacts"
-
-type WalletView = ChainId | typeof PORTFOLIO | typeof CONTACTS
-
-function walletViews(holdings: readonly Holdings[]): WalletView[] {
-  return [PORTFOLIO, CONTACTS, ...holdings.map((entry) => entry.chain)]
-}
+export type WalletView = (typeof WALLET_VIEWS)[number]
 
 export function useHoldings(): readonly Holdings[] {
   const chains = useSuspenseQuery(chainQueries.enabled())
@@ -43,6 +38,7 @@ export function useSetShownAsset() {
     invalidates: [settingKeys.root],
     optimistic: (client, next) => {
       patchSettings(client, (settings) => ({
+        shownChain: assetChain(next),
         shownTokens: withShownAsset(settings.shownTokens, next),
       }))
     },
@@ -56,6 +52,48 @@ export function HeroPanel({ className, ...props }: ComponentProps<"section">) {
       className={appendClassName("shrink-0 gap-4 bg-accent-surface p-4", className)}
       {...props}
     />
+  )
+}
+
+interface HeroLogoProps {
+  chain: ChainId | null
+  children: ReactNode
+}
+
+export function HeroLogo({ chain, children }: HeroLogoProps) {
+  const [isSpent, setIsSpent] = useState(false)
+  const sync = useIpcMutation<ChainId[], ChainId | null>({
+    mutationFn: chainCommands.syncNow,
+    errorTitle: "Could not start a sync",
+    successToast: (chains) => (chains.length === 0 ? "No chain to sync" : "Syncing now"),
+  })
+
+  return (
+    <button
+      type="button"
+      data-spent={isSpent}
+      className="group relative flex shrink-0 rounded-full"
+      onClick={() => {
+        if (!isSpent) {
+          setIsSpent(true)
+          sync.mutate(chain)
+        }
+      }}
+      onPointerLeave={() => {
+        setIsSpent(false)
+      }}
+      onBlur={() => {
+        setIsSpent(false)
+      }}
+    >
+      {children}
+      <span className="absolute inset-0 flex items-center justify-center rounded-full bg-logo-cover text-fg opacity-0 transition-opacity duration-base ease-standard group-data-[spent=false]:group-hover:opacity-100">
+        <Icon
+          name="sync"
+          className="size-icon-lg transition-[rotate] duration-base ease-enter group-data-[spent=true]:rotate-180"
+        />
+      </span>
+    </button>
   )
 }
 
@@ -96,58 +134,59 @@ interface WalletNavProps {
 function WalletNav({ holdings, view }: WalletNavProps) {
   const navigate = useNavigate()
   const prices = usePrices()
+  const { shownChain, shownTokens } = useSuspenseQuery(settingQueries.all()).data
   const allocation = allocate(holdings, prices)
+  const chain =
+    holdings.find((entry) => entry.chain === shownChain)?.chain ?? holdings.at(0)?.chain ?? null
 
   return (
-    <SegmentedTabs
+    <Segmented
+      variant="accent"
       value={view}
-      values={walletViews(holdings)}
+      items={[
+        {
+          value: "portfolio",
+          label: "Portfolio",
+          icon: <AllocationMark allocation={allocation} />,
+        },
+        {
+          value: "wallet",
+          label: "Wallet",
+          icon: chain === null ? undefined : <AssetLogo asset={shownAsset(chain, shownTokens)} />,
+        },
+        { value: "contacts", label: "Address book" },
+      ]}
+      endItems={[
+        {
+          value: "settings",
+          label: "Settings",
+          icon: <Icon name="settings" className="size-icon-lg" />,
+        },
+      ]}
       onValueChange={(next) => {
-        if (next === PORTFOLIO) {
+        if (next === "portfolio") {
           void navigate({ to: "/wallet/portfolio" })
-        } else if (next === CONTACTS) {
+        } else if (next === "contacts") {
           void navigate({ to: "/wallet/contacts" })
+        } else if (next === "settings") {
+          void navigate({ to: "/wallet/settings" })
+        } else if (chain === null) {
+          void navigate({ to: "/wallet/settings/chains" })
         } else {
-          void navigate({ to: "/wallet/$chain", params: { chain: next } })
+          void navigate({ to: "/wallet/$chain", params: { chain } })
         }
       }}
-    >
-      <SegmentedList className="flex min-w-0 shrink-0 items-center gap-3">
-        <SegmentedGroup variant="accent">
-          <SegmentedTab
-            item={{
-              value: PORTFOLIO,
-              label: "Portfolio",
-              icon: <AllocationMark allocation={allocation} />,
-            }}
-          />
-          <SegmentedTab item={{ value: CONTACTS, label: "Address book" }} />
-        </SegmentedGroup>
-        <Carousel
-          activeKey={view}
-          className="flex-1 px-2"
-          frame={<SegmentedGroup variant="accent" />}
-        >
-          {holdings.map(({ chain }) => (
-            <SegmentedTab
-              key={chain}
-              item={{
-                value: chain,
-                label: hasOwnTicker(chain) ? chainTicker(chain) : chainName(chain),
-                icon: <ChainLogo chain={chain} />,
-              }}
-            />
-          ))}
-        </Carousel>
-      </SegmentedList>
-    </SegmentedTabs>
+    />
   )
 }
 
 export function WalletLayout() {
   const { chain } = useParams({ strict: false })
-  const contactsMatch = useMatch({ from: "/_unlocked/wallet/contacts", shouldThrow: false })
-  const view: WalletView = chain ?? (contactsMatch === undefined ? PORTFOLIO : CONTACTS)
+  const view = useMatches({
+    select: (matches) =>
+      matches.findLast((match) => match.staticData.walletView !== undefined)?.staticData
+        .walletView ?? "portfolio",
+  })
   const holdings = useHoldings()
   const accentRef = useAccentColor<HTMLDivElement>(
     chain === undefined ? null : CHAIN_BRANDS[chain].color,
@@ -159,10 +198,7 @@ export function WalletLayout() {
       className="flex h-full flex-col gap-3 px-3 pt-1 pb-3 [transition:--color-accent_var(--transition-duration-base)_var(--ease-enter)]"
     >
       <WalletNav holdings={holdings} view={view} />
-      <StepTransition
-        step={walletViews(holdings).indexOf(view)}
-        className="flex min-h-0 flex-1 gap-3"
-      >
+      <StepTransition step={WALLET_VIEWS.indexOf(view)} className="flex min-h-0 flex-1 gap-3">
         <Outlet />
       </StepTransition>
     </div>
@@ -172,7 +208,7 @@ export function WalletLayout() {
 export function WalletLayoutFallback() {
   return (
     <div className="flex flex-col gap-3 px-3 pt-1 pb-3">
-      <Skeleton className="h-11 w-64" />
+      <Skeleton className="h-10 w-full rounded-full" />
       <Skeleton className="h-9 w-full" />
       <Skeleton className="h-9 w-full" />
     </div>

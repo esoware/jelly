@@ -15,7 +15,9 @@ use std::io::{self, ErrorKind, Write as _};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use jelly_core::{AssetId, CoreError, FiatCurrency, ProxySetting, SecretText, TokenId, wire_enum};
+use jelly_core::{
+    AssetId, ChainId, CoreError, FiatCurrency, ProxySetting, SecretText, TokenId, wire_enum,
+};
 use serde::{Deserialize, Serialize, Serializer};
 use tokio::sync::RwLock;
 use zeroize::Zeroizing;
@@ -61,6 +63,8 @@ pub struct AppSettings {
     pub is_price_chart_enabled: bool,
     pub proxy: Option<ProxySetting>,
     pub backdrop: BackdropSetting,
+    /// The chain whose asset was shown last.
+    pub shown_chain: Option<ChainId>,
     /// The tokens shown in place of their chains' native coins, at most one per chain.
     pub shown_tokens: BTreeSet<TokenId>,
     pub fiat_currency: FiatCurrency,
@@ -87,6 +91,7 @@ impl Default for AppSettings {
             is_price_chart_enabled: true,
             proxy: None,
             backdrop: BackdropSetting::Blur,
+            shown_chain: None,
             shown_tokens: BTreeSet::new(),
             fiat_currency: FiatCurrency::Usd,
             amount_entry: AmountEntry::Fiat,
@@ -104,6 +109,7 @@ impl fmt::Debug for AppSettings {
             .field("is_price_chart_enabled", &self.is_price_chart_enabled)
             .field("proxy", &self.proxy)
             .field("backdrop", &self.backdrop)
+            .field("shown_chain", &self.shown_chain)
             .field("shown_tokens", &self.shown_tokens)
             .field("fiat_currency", &self.fiat_currency)
             .field("amount_entry", &self.amount_entry)
@@ -112,9 +118,10 @@ impl fmt::Debug for AppSettings {
 }
 
 impl AppSettings {
-    /// Shows `asset` in place of whatever its chain showed. A native asset puts its
-    /// chain back to the coin.
+    /// Shows `asset` in place of whatever its chain showed, and makes its chain the one
+    /// shown. A native asset puts its chain back to the coin.
     fn show_asset(&mut self, asset: AssetId) {
+        self.shown_chain = Some(asset.chain());
         self.shown_tokens.retain(|token| token.chain() != asset.chain());
         if let AssetId::Token(token) = asset {
             self.shown_tokens.insert(token);
@@ -262,8 +269,6 @@ pub(crate) fn auto_lock_duration(minutes: u32) -> Duration {
 
 #[cfg(test)]
 mod tests {
-    use jelly_core::ChainId;
-
     use super::*;
 
     #[test]
@@ -307,6 +312,7 @@ mod tests {
         assert!(parsed.is_price_feed_enabled);
         assert!(parsed.is_price_chart_enabled);
         assert_eq!(parsed.backdrop, BackdropSetting::Blur);
+        assert_eq!(parsed.shown_chain, None);
     }
 
     #[tokio::test]
@@ -352,6 +358,7 @@ mod tests {
         settings.show_asset(AssetId::Token(TokenId::UsdtErc20));
         settings.show_asset(AssetId::Token(TokenId::UsdcSpl));
         assert_eq!(settings.shown_tokens, BTreeSet::from([TokenId::UsdtErc20, TokenId::UsdcSpl]));
+        assert_eq!(settings.shown_chain, Some(ChainId::Solana));
 
         settings.show_asset(AssetId::Token(TokenId::UsdcErc20));
         assert_eq!(settings.shown_tokens, BTreeSet::from([TokenId::UsdcErc20, TokenId::UsdcSpl]));
@@ -361,6 +368,7 @@ mod tests {
 
         settings.show_asset(AssetId::Native(ChainId::Bitcoin));
         assert_eq!(settings.shown_tokens, BTreeSet::from([TokenId::UsdcErc20]));
+        assert_eq!(settings.shown_chain, Some(ChainId::Bitcoin));
     }
 
     #[test]

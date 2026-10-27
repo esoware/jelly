@@ -36,6 +36,7 @@ fn bsc_shares_ethereums_coin_type_and_trades_as_bnb() {
     assert_eq!(chains().spec(ChainId::Bsc).slip44, chains().spec(ChainId::Ethereum).slip44);
     assert_eq!(ChainId::Bsc.ticker(), "BNB");
     assert_eq!(ChainId::Bsc.display_name(), "BNB Smart Chain");
+    assert_eq!(ChainId::Bsc.coin_name(), "BNB");
     assert!(!ChainId::ALL.iter().any(|chain| chain.ticker() == "BSC"));
 }
 

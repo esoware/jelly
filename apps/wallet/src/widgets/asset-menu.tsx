@@ -1,4 +1,4 @@
-import type { ReactElement } from "react"
+import type { ComponentProps, ReactElement } from "react"
 
 import type { Amount, AssetId } from "@/ipc/bindings.gen.ts"
 import { assetFromKey, assetKey, assetName, groupAssets } from "@/lib/chain.ts"
@@ -12,9 +12,17 @@ interface AssetMenuProps {
   onAssetChange: (asset: AssetId) => void
   amountFor: (asset: AssetId) => Amount | bigint | null
   trigger: ReactElement
+  align: ComponentProps<typeof MenuPopup>["align"]
 }
 
-export function AssetMenu({ assets, asset, onAssetChange, amountFor, trigger }: AssetMenuProps) {
+export function AssetMenu({
+  assets,
+  asset,
+  onAssetChange,
+  amountFor,
+  trigger,
+  align,
+}: AssetMenuProps) {
   function pick(key: string): void {
     const next = assetFromKey(key)
     if (next !== null) {
@@ -25,7 +33,7 @@ export function AssetMenu({ assets, asset, onAssetChange, amountFor, trigger }: 
   return (
     <Menu>
       <MenuTrigger render={trigger} />
-      <MenuPopup align="end" className="min-w-60">
+      <MenuPopup align={align} className="min-w-60">
         {groupAssets(assets).map((group) => (
           <MenuRadioGroup
             key={group.label ?? "native"}

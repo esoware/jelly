@@ -167,10 +167,10 @@ export const commands = {
 	 */
 	getPriceChart: (asset: AssetId, interval: CandleInterval) => typedError<PriceChart, IpcError>(__TAURI_INVOKE("get_price_chart", { asset, interval })),
 	/**
-	 *  Wakes the sync loop of every chain with an adapter and returns their IDs. It does not
-	 *  start overlapping passes.
+	 *  Wakes the sync loop of `chain`, or of every chain with an adapter when it is `None`,
+	 *  and returns the IDs it woke. It does not start overlapping passes.
 	 */
-	syncNow: () => typedError<ChainId[], IpcError>(__TAURI_INVOKE("sync_now")),
+	syncNow: (chain: "bitcoin" | "litecoin" | "dogecoin" | "bitcoin_cash" | "zcash" | "ethereum" | "bsc" | "polygon" | "arbitrum" | "base" | "avalanche" | "solana" | "tron" | "xrp" | "ton" | "monero" | null) => typedError<ChainId[], IpcError>(__TAURI_INVOKE("sync_now", { chain })),
 	listEnabledChains: () => typedError<ChainId[], IpcError>(__TAURI_INVOKE("list_enabled_chains")),
 	setChainEnabled: (chain: ChainId, isEnabled: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("set_chain_enabled", { chain, isEnabled })),
 	/**  `None` restores the shipped interval for the chain. */
@@ -227,8 +227,8 @@ export const commands = {
 	 */
 	setBackdrop: (backdrop: BackdropSetting) => typedError<null, IpcError>(__TAURI_INVOKE("set_backdrop", { backdrop })),
 	/**
-	 *  Shows a token in its chain's balance panel in place of the native coin. A native asset
-	 *  puts the coin back.
+	 *  Shows a token in its chain's balance panel in place of the native coin, and makes its
+	 *  chain the one the wallet page opens on. A native asset puts the coin back.
 	 */
 	setShownAsset: (asset: AssetId) => typedError<null, IpcError>(__TAURI_INVOKE("set_shown_asset", { asset })),
 	/**  Works before the engine starts, and touches no database, vault, or network. */
@@ -299,6 +299,8 @@ export type AppSettings = {
 	isPriceChartEnabled: boolean,
 	proxy: ProxySetting | null,
 	backdrop: BackdropSetting,
+	/**  The chain the wallet page opens on. `None` until an asset is first shown. */
+	shownChain: ChainId | null,
 	/**  At most one per chain. A chain with none shows its native coin. */
 	shownTokens: TokenId[],
 	fiatCurrency: FiatCurrency,

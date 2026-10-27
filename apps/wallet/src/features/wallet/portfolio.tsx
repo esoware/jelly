@@ -6,6 +6,7 @@ import { TxDayList } from "@/features/wallet/activity.tsx"
 import { AllocationMark, Donut, allocationSlices } from "@/features/wallet/donut.tsx"
 import {
   HeroFigure,
+  HeroLogo,
   HeroPanel,
   HeroPanelFigures,
   HeroPanelTop,
@@ -63,7 +64,9 @@ function SummaryPanel({ allocation, isPriceFeedEnabled }: SummaryPanelProps) {
   return (
     <HeroPanel>
       <HeroPanelTop>
-        <AllocationMark allocation={allocation} className="size-8" />
+        <HeroLogo chain={null}>
+          <AllocationMark allocation={allocation} className="size-8" />
+        </HeroLogo>
         <span className="text-title">Portfolio</span>
       </HeroPanelTop>
       <HeroPanelFigures>

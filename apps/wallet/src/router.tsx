@@ -21,6 +21,7 @@ import { UnlockView } from "@/features/unlock.tsx"
 import { ChainView } from "@/features/wallet/chain.tsx"
 import { ContactsView } from "@/features/wallet/contacts.tsx"
 import { WalletLayout, WalletLayoutFallback } from "@/features/wallet/layout.tsx"
+import type { WalletView } from "@/features/wallet/layout.tsx"
 import { PortfolioView } from "@/features/wallet/portfolio.tsx"
 import { isChainId } from "@/lib/chain.ts"
 import { appQueries } from "@/query/app.ts"
@@ -32,8 +33,6 @@ import { ErrorScreen, NotFound } from "@/shell/error-screen.tsx"
 import { Shell } from "@/shell/shell.tsx"
 import { Splash } from "@/shell/startup.tsx"
 
-type ShellKind = "wallet" | "settings"
-
 declare module "@tanstack/react-router" {
   interface Register {
     router: ReturnType<typeof makeRouter>
@@ -41,7 +40,7 @@ declare module "@tanstack/react-router" {
 
   interface StaticDataRouteOption {
     title?: string
-    shell?: ShellKind
+    walletView?: WalletView
   }
 }
 
@@ -122,10 +121,36 @@ const unlockRoute = createRoute({
   component: UnlockView,
 })
 
-const settingsRoute = createRoute({
+const walletRoute = createRoute({
   getParentRoute: () => unlockedRoute,
+  path: "wallet",
+  loader: async ({ context: { queryClient } }) => {
+    await Promise.all([
+      queryClient.query(chainQueries.enabled()),
+      queryClient.query(moneyQueries.totals()),
+      queryClient.query(settingQueries.all()),
+    ])
+  },
+  component: WalletLayout,
+  pendingComponent: WalletLayoutFallback,
+})
+
+const walletIndexRoute = createRoute({
+  getParentRoute: () => walletRoute,
+  path: "/",
+  beforeLoad: async ({ context: { queryClient } }) => {
+    const chains = await queryClient.query(chainQueries.enabled())
+    if (chains.length === 0) {
+      throw redirect({ to: "/wallet/settings/chains", replace: true })
+    }
+    throw redirect({ to: "/wallet/portfolio", replace: true })
+  },
+})
+
+const settingsRoute = createRoute({
+  getParentRoute: () => walletRoute,
   path: "settings",
-  staticData: { title: "Settings", shell: "settings" },
+  staticData: { walletView: "settings" },
   component: SettingsLayout,
 })
 
@@ -133,7 +158,7 @@ const settingsIndexRoute = createRoute({
   getParentRoute: () => settingsRoute,
   path: "/",
   beforeLoad: () => {
-    throw redirect({ to: "/settings/chains", replace: true })
+    throw redirect({ to: "/wallet/settings/chains", replace: true })
   },
 })
 
@@ -201,39 +226,14 @@ const walletsRoute = createRoute({
   component: WalletsView,
 })
 
-const walletRoute = createRoute({
-  getParentRoute: () => unlockedRoute,
-  path: "wallet",
-  staticData: { shell: "wallet" },
-  loader: async ({ context: { queryClient } }) => {
-    await Promise.all([
-      queryClient.query(chainQueries.enabled()),
-      queryClient.query(moneyQueries.totals()),
-      queryClient.query(settingQueries.all()),
-    ])
-  },
-  component: WalletLayout,
-  pendingComponent: WalletLayoutFallback,
-})
-
-const walletIndexRoute = createRoute({
-  getParentRoute: () => walletRoute,
-  path: "/",
-  beforeLoad: async ({ context: { queryClient } }) => {
-    const chains = await queryClient.query(chainQueries.enabled())
-    if (chains.length === 0) {
-      throw redirect({ to: "/settings/chains", replace: true })
-    }
-    throw redirect({ to: "/wallet/portfolio", replace: true })
-  },
-})
-
 const chainRoute = createRoute({
   getParentRoute: () => walletRoute,
   path: "$chain",
   params: {
     parse: ({ chain }) => (isChainId(chain) ? { chain } : false),
   },
+  staticData: { walletView: "wallet" },
+  remountDeps: ({ params }) => params,
   loader: async ({ context: { queryClient }, params: { chain } }) => {
     const [chains] = await Promise.all([
       queryClient.query(chainQueries.enabled()),
@@ -249,30 +249,39 @@ const chainRoute = createRoute({
 const contactsRoute = createRoute({
   getParentRoute: () => walletRoute,
   path: "contacts",
+  staticData: { walletView: "contacts" },
   component: ContactsView,
 })
 
 const portfolioRoute = createRoute({
   getParentRoute: () => walletRoute,
   path: "portfolio",
+  staticData: { walletView: "portfolio" },
   component: PortfolioView,
 })
+
+const settingsTree = settingsRoute.addChildren([
+  aboutRoute,
+  apiKeysRoute,
+  appearanceRoute,
+  chainsRoute,
+  currencyRoute,
+  networkRoute,
+  securityRoute,
+  walletsRoute,
+  settingsIndexRoute,
+])
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
   unlockedRoute.addChildren([
-    settingsRoute.addChildren([
-      aboutRoute,
-      apiKeysRoute,
-      appearanceRoute,
-      chainsRoute,
-      currencyRoute,
-      networkRoute,
-      securityRoute,
-      walletsRoute,
-      settingsIndexRoute,
+    walletRoute.addChildren([
+      chainRoute,
+      contactsRoute,
+      portfolioRoute,
+      settingsTree,
+      walletIndexRoute,
     ]),
-    walletRoute.addChildren([chainRoute, contactsRoute, portfolioRoute, walletIndexRoute]),
   ]),
   setupRoute,
   unlockRoute,

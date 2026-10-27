@@ -10,18 +10,6 @@
   initial-value: 360deg;
 }
 
-@property --carousel-fade-before {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-
-@property --carousel-fade-after {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-
 @theme static {
   --*: initial;
 
@@ -60,6 +48,8 @@
 
   --color-avatar-glyph: oklch(100% 0 0);
   --color-avatar-shade: oklch(0% 0 0 / 8%);
+
+  --color-logo-cover: oklch(0% 0 0 / 60%);
 
   --font-sans: "Clarity City";
   --font-mono: "Cascadia Mono";

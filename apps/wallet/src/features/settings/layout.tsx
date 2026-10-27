@@ -21,14 +21,14 @@ export function parseOptionalWhole(raw: string, max: number, error: string): Par
 }
 
 const SECTIONS = [
-  { value: "/settings/chains", label: "Chains" },
-  { value: "/settings/network", label: "Network" },
-  { value: "/settings/currency", label: "Currency" },
-  { value: "/settings/api-keys", label: "API keys" },
-  { value: "/settings/security", label: "Security" },
-  { value: "/settings/wallets", label: "Wallets" },
-  { value: "/settings/appearance", label: "Appearance" },
-  { value: "/settings/about", label: "About" },
+  { value: "/wallet/settings/chains", label: "Chains" },
+  { value: "/wallet/settings/network", label: "Network" },
+  { value: "/wallet/settings/currency", label: "Currency" },
+  { value: "/wallet/settings/api-keys", label: "API keys" },
+  { value: "/wallet/settings/security", label: "Security" },
+  { value: "/wallet/settings/wallets", label: "Wallets" },
+  { value: "/wallet/settings/appearance", label: "Appearance" },
+  { value: "/wallet/settings/about", label: "About" },
 ] as const
 
 export function SettingsLayout() {
@@ -38,8 +38,8 @@ export function SettingsLayout() {
     SECTIONS.find((section) => section.value === pathname)?.value ?? SECTIONS[0].value
 
   return (
-    <div className="flex h-full flex-col">
-      <nav className="shrink-0 px-4 pt-3 pb-2">
+    <div className="flex min-w-0 flex-1 flex-col">
+      <nav className="shrink-0">
         <Segmented
           value={selected}
           items={SECTIONS}

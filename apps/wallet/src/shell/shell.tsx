@@ -1,10 +1,10 @@
 import logoUrl from "@jelly/branding/logo-colored.svg"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Outlet, useMatches, useNavigate } from "@tanstack/react-router"
+import { Outlet, useMatch, useMatches, useNavigate } from "@tanstack/react-router"
 import { useEffect, useRef, useState } from "react"
 import type { ComponentPropsWithoutRef, ReactNode } from "react"
 
-import type { ChainId, LockState } from "@/ipc/bindings.gen.ts"
+import type { LockState } from "@/ipc/bindings.gen.ts"
 import {
   closeWindow,
   minimizeWindow,
@@ -13,11 +13,9 @@ import {
   toggleMaximizeWindow,
   watchWindowState,
 } from "@/ipc/client.ts"
-import { chainCommands } from "@/query/chain.ts"
 import { useIpcMutation } from "@/query/mutation.ts"
 import { useActiveWallet, walletCommands, walletQueries } from "@/query/wallet.ts"
 import { StartupFailed, StartupGate } from "@/shell/startup.tsx"
-import { Button } from "@/ui/button.tsx"
 import { Icon } from "@/ui/icon.tsx"
 import {
   Menu,
@@ -28,7 +26,6 @@ import {
   MenuRadioItem,
   MenuTrigger,
 } from "@/ui/menu.tsx"
-import { TooltipText } from "@/ui/tooltip.tsx"
 import { WalletAvatar, walletBadges } from "@/widgets/logos.tsx"
 
 const LOCKED: LockState = { kind: "locked", reason: "requested" }
@@ -175,10 +172,9 @@ function isCoveredDragPress(bar: HTMLElement, event: MouseEvent): boolean {
 interface TitlebarProps {
   title?: string | null | undefined
   center?: ReactNode | undefined
-  right?: ReactNode | undefined
 }
 
-function Titlebar({ title, center, right }: TitlebarProps) {
+function Titlebar({ title, center }: TitlebarProps) {
   const [isMaximized, setIsMaximized] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const barRef = useRef<HTMLElement>(null)
@@ -245,77 +241,15 @@ function Titlebar({ title, center, right }: TitlebarProps) {
         </div>
       )}
 
-      <div className="ml-auto flex h-full items-center">
-        {right === null || right === undefined ? null : (
-          <div className="flex items-center gap-1 pr-2">{right}</div>
-        )}
-        <div className="flex h-full in-data-[window-controls=system]:hidden">
-          <CaptionButton glyph="minimize" onClick={minimizeWindow} />
-          <CaptionButton
-            glyph={isMaximized ? "restore" : "maximize"}
-            onClick={toggleMaximizeWindow}
-          />
-          <CaptionButton glyph="close" onClick={closeWindow} />
-        </div>
+      <div className="ml-auto flex h-full in-data-[window-controls=system]:hidden">
+        <CaptionButton glyph="minimize" onClick={minimizeWindow} />
+        <CaptionButton
+          glyph={isMaximized ? "restore" : "maximize"}
+          onClick={toggleMaximizeWindow}
+        />
+        <CaptionButton glyph="close" onClick={closeWindow} />
       </div>
     </header>
-  )
-}
-
-function SyncNowAction() {
-  const sync = useIpcMutation<ChainId[]>({
-    mutationFn: chainCommands.syncNow,
-    errorTitle: "Could not start a sync",
-    successToast: (chains) => (chains.length === 0 ? "No chain to sync" : "Syncing now"),
-  })
-
-  return (
-    <TooltipText
-      content="Sync now"
-      side="bottom"
-      render={
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          isLoading={sync.isPending}
-          onClick={() => {
-            sync.mutate()
-          }}
-        />
-      }
-    >
-      <Icon name="sync" />
-    </TooltipText>
-  )
-}
-
-interface TitlebarActionsProps {
-  isSettings: boolean
-}
-
-function TitlebarActions({ isSettings }: TitlebarActionsProps) {
-  const navigate = useNavigate()
-
-  return (
-    <>
-      <SyncNowAction />
-
-      <TooltipText
-        content={isSettings ? "Back to the wallet" : "Settings"}
-        side="bottom"
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => {
-              void navigate({ to: isSettings ? "/wallet/portfolio" : "/settings" })
-            }}
-          />
-        }
-      >
-        <Icon name={isSettings ? "back" : "settings"} />
-      </TooltipText>
-    </>
   )
 }
 
@@ -381,22 +315,16 @@ export function Shell() {
     select: (matches) =>
       matches.findLast((match) => match.staticData.title !== undefined)?.staticData.title ?? null,
   })
-  const shellKind = useMatches({
-    select: (matches) =>
-      matches.findLast((match) => match.staticData.shell !== undefined)?.staticData.shell ?? null,
-  })
+  const walletMatch = useMatch({ from: "/_unlocked/wallet", shouldThrow: false })
   const { walletName, isUnlocked } = useActiveWallet()
 
   useSessionActivity(isUnlocked)
-
-  const isInShell = isUnlocked && shellKind !== null
 
   return (
     <div className="flex h-full flex-col">
       <Titlebar
         title={title ?? walletName}
-        center={isInShell ? <WalletMenu /> : title}
-        right={isInShell ? <TitlebarActions isSettings={shellKind === "settings"} /> : null}
+        center={isUnlocked && walletMatch !== undefined ? <WalletMenu /> : title}
       />
       <div className="min-h-0 flex-1">
         <StartupGate>

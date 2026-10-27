@@ -1,4 +1,4 @@
-use jelly_core::{AssetId, FiatCurrency, ProxySetting, SecretText, TokenId};
+use jelly_core::{AssetId, ChainId, FiatCurrency, ProxySetting, SecretText, TokenId};
 use jelly_engine::{AmountEntry, BackdropSetting};
 use serde::Serialize;
 use specta::Type;
@@ -26,6 +26,8 @@ pub(crate) struct AppSettings {
     is_price_chart_enabled: bool,
     proxy: Option<ProxySetting>,
     backdrop: BackdropSetting,
+    /// The chain the wallet page opens on. `None` until an asset is first shown.
+    shown_chain: Option<ChainId>,
     /// At most one per chain. A chain with none shows its native coin.
     shown_tokens: Vec<TokenId>,
     fiat_currency: FiatCurrency,
@@ -43,6 +45,7 @@ impl From<jelly_engine::AppSettings> for AppSettings {
             is_price_chart_enabled: settings.is_price_chart_enabled,
             proxy: settings.proxy,
             backdrop: settings.backdrop,
+            shown_chain: settings.shown_chain,
             shown_tokens: settings.shown_tokens.into_iter().collect(),
             fiat_currency: settings.fiat_currency,
             amount_entry: settings.amount_entry,
@@ -152,8 +155,8 @@ pub(crate) async fn set_backdrop(
     Ok(())
 }
 
-/// Shows a token in its chain's balance panel in place of the native coin. A native asset
-/// puts the coin back.
+/// Shows a token in its chain's balance panel in place of the native coin, and makes its
+/// chain the one the wallet page opens on. A native asset puts the coin back.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn set_shown_asset(

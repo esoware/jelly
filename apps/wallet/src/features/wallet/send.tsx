@@ -160,6 +160,7 @@ function SourceFields({
             asset={asset}
             onAssetChange={onAssetChange}
             amountFor={totalFor}
+            align="end"
             trigger={
               <Button
                 variant="secondary"

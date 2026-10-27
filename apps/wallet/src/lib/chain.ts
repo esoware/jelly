@@ -70,7 +70,7 @@ export function chainTicker(chain: ChainId): string {
   return assetMeta({ kind: "native", value: chain }).symbol
 }
 
-export function hasOwnTicker(chain: ChainId): boolean {
+function hasOwnTicker(chain: ChainId): boolean {
   const ticker = chainTicker(chain)
   return allChains().find((entry) => chainTicker(entry) === ticker) === chain
 }
