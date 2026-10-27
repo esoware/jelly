@@ -502,7 +502,10 @@ impl AssetId {
 
     pub const fn display_name(self) -> &'static str {
         match self {
-            Self::Native(chain) => chain.coin_name(),
+            Self::Native(ChainId::Bsc) => "BNB",
+            Self::Native(ChainId::Ton) => "Gram",
+            Self::Native(ChainId::Avalanche) => "Avalanche",
+            Self::Native(chain) => chain.display_name(),
             Self::Token(token) => token.display_name(),
         }
     }
@@ -562,7 +565,16 @@ mod tests {
                     assert_eq!(asset.chain(), chain);
                     assert_eq!(asset.decimals(), chain.native_decimals());
                     assert_eq!(asset.symbol(), chain.ticker());
-                    assert_eq!(asset.display_name(), chain.coin_name());
+                    let name = if chain == ChainId::Bsc {
+                        "BNB"
+                    } else if chain == ChainId::Ton {
+                        "Gram"
+                    } else if chain == ChainId::Avalanche {
+                        "Avalanche"
+                    } else {
+                        chain.display_name()
+                    };
+                    assert_eq!(asset.display_name(), name);
                 }
                 AssetId::Token(token) => {
                     assert_eq!(asset.chain(), token.chain());

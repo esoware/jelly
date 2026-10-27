@@ -20,6 +20,7 @@ import { Panel } from "@/ui/panel.tsx"
 import { SegmentedGroup, SegmentedList, SegmentedTab, SegmentedTabs } from "@/ui/segmented.tsx"
 import { Skeleton } from "@/ui/skeleton.tsx"
 import { StepTransition } from "@/ui/step-transition.tsx"
+import { TooltipText } from "@/ui/tooltip.tsx"
 import { useAccentColor } from "@/ui/use-accent-color.ts"
 import { CHAIN_BRANDS, ChainLogo } from "@/widgets/logos.tsx"
 
@@ -67,7 +68,7 @@ interface HeroLogoProps {
 }
 
 export function HeroLogo({ chain, children }: HeroLogoProps) {
-  const [isSpent, setIsSpent] = useState(false)
+  const [isSpinning, setIsSpinning] = useState(false)
   const sync = useIpcMutation<ChainId[], ChainId | null>({
     mutationFn: chainCommands.syncNow,
     errorTitle: "Could not start a sync",
@@ -75,31 +76,35 @@ export function HeroLogo({ chain, children }: HeroLogoProps) {
   })
 
   return (
-    <button
-      type="button"
-      data-spent={isSpent}
-      className="group relative flex shrink-0 rounded-full"
-      onClick={() => {
-        if (!isSpent) {
-          setIsSpent(true)
-          sync.mutate(chain)
-        }
-      }}
-      onPointerLeave={() => {
-        setIsSpent(false)
-      }}
-      onBlur={() => {
-        setIsSpent(false)
-      }}
+    <TooltipText
+      content="Sync now"
+      render={
+        <button
+          type="button"
+          data-spinning={isSpinning}
+          className="group/logo relative flex shrink-0 rounded-full"
+          onClick={() => {
+            if (!isSpinning) {
+              setIsSpinning(true)
+              sync.mutate(chain)
+            }
+          }}
+        />
+      }
     >
       {children}
-      <span className="absolute inset-0 flex items-center justify-center rounded-full bg-logo-cover text-fg opacity-0 transition-opacity duration-base ease-standard group-data-[spent=false]:group-hover:opacity-100">
+      <span className="absolute inset-0 flex items-center justify-center rounded-full bg-logo-cover text-fg opacity-0 transition-opacity duration-base ease-standard group-hover/logo:opacity-100 group-focus-visible/logo:opacity-100 group-data-[spinning=true]/logo:opacity-100">
         <Icon
           name="sync"
-          className="size-icon-lg transition-[rotate] duration-base ease-enter group-data-[spent=true]:rotate-180"
+          className="size-icon-lg group-data-[spinning=true]/logo:animate-spin"
+          onAnimationIteration={() => {
+            if (!sync.isPending) {
+              setIsSpinning(false)
+            }
+          }}
         />
       </span>
-    </button>
+    </TooltipText>
   )
 }
 

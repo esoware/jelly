@@ -5,6 +5,7 @@ import type {
   IpcErrorDetail,
   RejectionKind,
   RetryPolicy,
+  SkipReason,
 } from "@/ipc/bindings.gen.ts"
 import { IpcError } from "@/ipc/client.ts"
 import type { IpcErrorKind } from "@/ipc/client.ts"
@@ -27,7 +28,7 @@ const CODE_MESSAGES: Record<IpcErrorCode, string> = {
   insufficient_funds: "The balance is too low for this transfer.",
   endpoints_down: "No endpoint responded. Check your endpoint settings.",
   rpc: "The chain returned an error.",
-  no_adapter: "This chain is not enabled for this wallet.",
+  no_adapter: "Jelly is not syncing this chain.",
   unsupported: "This chain does not support that operation.",
   confirmation_required: "The confirmation text did not match.",
   unknown_pending_tx: "This transaction is no longer ready to send. Review it again.",
@@ -78,6 +79,12 @@ const REJECTION_MESSAGES: Record<RejectionKind, string> = {
   unclassified: "The network refused the transaction.",
 }
 
+const SKIP_MESSAGES: Record<SkipReason, (name: string) => string> = {
+  no_endpoints: (name) => `No ${name} endpoint is available. Check your endpoint settings.`,
+  no_keys: (name) => `This wallet holds no key for ${name}.`,
+  build_failed: (name) => `Jelly could not set up ${name}. Check your network settings.`,
+}
+
 const RETRY_MESSAGES: Record<RetryPolicy, string> = {
   did_not_land: "Nothing was sent. Review the transaction and try again.",
   final_everywhere: "The transaction must change before you retry.",
@@ -101,7 +108,7 @@ function describeDetail(detail: IpcErrorDetail): string {
     }
     case "endpoints_down": {
       if (detail.attempts.length === 0) {
-        return `No ${chainName(detail.chain)} endpoint is available. Check your endpoint settings.`
+        return SKIP_MESSAGES.no_endpoints(chainName(detail.chain))
       }
       return `Jelly could not reach ${chainName(detail.chain)}. Endpoint failures: ${describeAttempts(detail.attempts)}.`
     }
@@ -109,7 +116,10 @@ function describeDetail(detail: IpcErrorDetail): string {
       return `${REJECTION_MESSAGES[detail.rejection]} ${RETRY_MESSAGES[detail.retry]}`
     }
     case "no_adapter": {
-      return `${chainName(detail.chain)} is not enabled for this wallet.`
+      const name = chainName(detail.chain)
+      return detail.reason === null
+        ? `Jelly is not syncing ${name} for this wallet.`
+        : SKIP_MESSAGES[detail.reason](name)
     }
     case "protocol_too_new": {
       return `This endpoint uses ${chainName(detail.chain)} protocol v${detail.version}. Update Jelly to use it.`

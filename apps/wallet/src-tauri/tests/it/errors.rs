@@ -6,7 +6,7 @@ use std::sync::Arc;
 use jelly_core::{
     Amount, AssetId, ChainError, ChainId, CoreError, DerivationPath, EndpointAttempt,
     EndpointHealth, EndpointHealthRecord, EndpointLabel, ErrorCode, FailureKind, FeeSelection,
-    PendingTxId, PhraseWords, Rejection, RejectionKind, RetryPolicy, SystemClock, TxId,
+    PendingTxId, PhraseWords, Rejection, RejectionKind, RetryPolicy, SkipReason, SystemClock, TxId,
     WalletColor,
 };
 use jelly_engine::{
@@ -228,8 +228,23 @@ fn a_failure_with_typed_facts_carries_them_in_its_detail() {
         IpcError::from(CoreError::ConfirmationRequired { expected: String::from("first") });
     assert_eq!(confirmation.detail, None);
 
-    let adapter = IpcError::from(CoreError::NoAdapter(ChainId::Solana));
-    assert_eq!(adapter.detail, Some(IpcErrorDetail::NoAdapter { chain: ChainId::Solana }));
+    let skipped = IpcError::from(CoreError::NoAdapter {
+        chain: ChainId::Solana,
+        reason: Some(SkipReason::NoEndpoints),
+    });
+    assert_eq!(
+        skipped.detail,
+        Some(IpcErrorDetail::NoAdapter {
+            chain: ChainId::Solana,
+            reason: Some(SkipReason::NoEndpoints),
+        })
+    );
+    let switched_off =
+        IpcError::from(CoreError::NoAdapter { chain: ChainId::Solana, reason: None });
+    assert_eq!(
+        switched_off.detail,
+        Some(IpcErrorDetail::NoAdapter { chain: ChainId::Solana, reason: None })
+    );
 
     let invalid = IpcError::from(CoreError::invalid_input("cursor", "that page token is not ours"));
     assert_eq!(invalid.detail, None);

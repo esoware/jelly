@@ -49,7 +49,7 @@ fn core_errors() -> Vec<(CoreError, ErrorCode)> {
         (CoreError::not_found("wallet", "1"), ErrorCode::NotFound),
         (CoreError::AlreadyExists { entity: "address" }, ErrorCode::AlreadyExists),
         (CoreError::invalid_input("amount", "empty"), ErrorCode::InvalidInput),
-        (CoreError::NoAdapter(ChainId::Solana), ErrorCode::NoAdapter),
+        (CoreError::NoAdapter { chain: ChainId::Solana, reason: None }, ErrorCode::NoAdapter),
         (CoreError::Unsupported("not on this chain"), ErrorCode::Unsupported),
         (
             CoreError::ConfirmationRequired { expected: String::from("DESTROY") },
@@ -134,7 +134,8 @@ fn a_rejection_renders_its_kind_and_the_nodes_own_words() {
 fn errors_that_name_a_chain_name_it_the_way_a_person_reads_it() {
     let down = ChainError::endpoints_down(ChainId::Bsc, "balance", Vec::new());
     assert_eq!(down.to_string(), "no BNB Smart Chain endpoint answered for balance");
-    assert_eq!(CoreError::NoAdapter(ChainId::Monero).to_string(), "no adapter for Monero");
+    let no_adapter = CoreError::NoAdapter { chain: ChainId::Monero, reason: None };
+    assert_eq!(no_adapter.to_string(), "no adapter for Monero");
     let too_new = ChainError::protocol_too_new(ChainId::Litecoin, "1.9");
     assert!(too_new.to_string().starts_with("Litecoin speaks protocol v1.9"), "{too_new}");
 }

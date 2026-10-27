@@ -382,7 +382,7 @@ async fn a_send_from_a_chain_with_no_adapter_is_refused() {
     let (harness, from) = ready().await.unwrap();
     harness.engine.set_chain_enabled(CHAIN, false).await.unwrap();
     let refused = harness.engine.prepare_tx(request(from)).await;
-    assert!(matches!(refused, Err(CoreError::NoAdapter(_))), "{refused:?}");
+    assert!(matches!(refused, Err(CoreError::NoAdapter { reason: None, .. })), "{refused:?}");
 }
 
 #[tokio::test]
@@ -421,7 +421,10 @@ async fn a_bump_of_an_unknown_transaction_is_not_found() {
 
     let elsewhere = TxId::new(ChainId::Monero, "deadbeef");
     let refused = harness.engine.quote_bump(&elsewhere, &FeeSelection::NORMAL).await;
-    assert!(matches!(refused, Err(CoreError::NoAdapter(ChainId::Monero))), "{refused:?}");
+    assert!(
+        matches!(refused, Err(CoreError::NoAdapter { chain: ChainId::Monero, .. })),
+        "{refused:?}"
+    );
 }
 
 #[tokio::test]
@@ -468,7 +471,10 @@ async fn a_cancel_of_an_unknown_transaction_is_not_found() {
 
     let elsewhere = TxId::new(ChainId::Monero, "deadbeef");
     let refused = harness.engine.quote_cancel(&elsewhere, &FeeSelection::NORMAL).await;
-    assert!(matches!(refused, Err(CoreError::NoAdapter(ChainId::Monero))), "{refused:?}");
+    assert!(
+        matches!(refused, Err(CoreError::NoAdapter { chain: ChainId::Monero, .. })),
+        "{refused:?}"
+    );
 }
 
 /// A replaced send never ran, so it moved nothing and paid nothing, and the

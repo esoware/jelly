@@ -624,8 +624,11 @@ export type IpcErrorCode = ErrorCode | ShellErrorCode;
 /**
  *  Typed error details for the frontend. Amounts retain their base units so the frontend
  *  can apply the asset's decimals.
+ * 
+ *  A missing adapter has no reason when the chain is switched off or the wallet's
+ *  adapters are not built yet.
  */
-export type IpcErrorDetail = { kind: "insufficient_funds"; asset: AssetId; needed: Amount; available: Amount } | { kind: "no_adapter"; chain: ChainId } | { kind: "endpoints_down"; chain: ChainId; attempts: EndpointAttempt[] } | { kind: "rejected"; rejection: RejectionKind; retry: RetryPolicy } | { kind: "protocol_too_new"; chain: ChainId; version: string } | { kind: "schema_too_new"; found: number; supported: number };
+export type IpcErrorDetail = { kind: "insufficient_funds"; asset: AssetId; needed: Amount; available: Amount } | { kind: "no_adapter"; chain: ChainId; reason: SkipReason | null } | { kind: "endpoints_down"; chain: ChainId; attempts: EndpointAttempt[] } | { kind: "rejected"; rejection: RejectionKind; retry: RetryPolicy } | { kind: "protocol_too_new"; chain: ChainId; version: string } | { kind: "schema_too_new"; found: number; supported: number };
 
 /**  Where one address's key comes from. */
 export type KeySource = { kind: "derived"; path: DerivationPath } | 
@@ -827,6 +830,25 @@ export type ShellErrorCode =
 "prices_unavailable" | 
 /**  The command task panicked. */
 "panic";
+
+/**
+ *  Why a chain has no adapter after a rebuild. The engine already knows which chains
+ *  the wallet switched off, so a builder never reports that.
+ * 
+ *  The reasons are separate because each is a different problem. An empty rotation is
+ *  configuration, a missing key is a permanent property of the wallet, and anything
+ *  else is a failure the next rebuild retries.
+ */
+export type SkipReason = 
+/**  The endpoint registry offered nothing to talk to. */
+"no_endpoints" | 
+/**
+ *  This wallet holds no key the chain can be scanned or spent with, and
+ *  no rebuild will change that.
+ */
+"no_keys" | 
+/**  Endpoints exist but the adapter could not be constructed. */
+"build_failed";
 
 export type StartupChanged = StartupStatus;
 

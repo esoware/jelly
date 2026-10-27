@@ -2,7 +2,7 @@ use std::{fmt, io};
 
 use jelly_core::{
     Amount, AssetId, ChainError, ChainId, CoreError, EndpointAttempt, ErrorCode, Rejection,
-    RejectionKind, RetryPolicy, wire_enum,
+    RejectionKind, RetryPolicy, SkipReason, wire_enum,
 };
 use jelly_engine::StartupError;
 use serde::Serialize;
@@ -64,11 +64,14 @@ impl fmt::Display for IpcErrorCode {
 
 /// Typed error details for the frontend. Amounts retain their base units so the frontend
 /// can apply the asset's decimals.
+///
+/// A missing adapter has no reason when the chain is switched off or the wallet's
+/// adapters are not built yet.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum IpcErrorDetail {
     InsufficientFunds { asset: AssetId, needed: Amount, available: Amount },
-    NoAdapter { chain: ChainId },
+    NoAdapter { chain: ChainId, reason: Option<SkipReason> },
     EndpointsDown { chain: ChainId, attempts: Vec<EndpointAttempt> },
     Rejected { rejection: RejectionKind, retry: RetryPolicy },
     ProtocolTooNew { chain: ChainId, version: String },
@@ -127,8 +130,8 @@ impl From<CoreError> for IpcError {
         let (message, detail) = match error {
             CoreError::Chain(ChainError::InvalidInput(text, _)) => (text, None),
             CoreError::Chain(chain) => (copy.to_owned(), chain_detail(chain)),
-            CoreError::NoAdapter(chain) => {
-                (copy.to_owned(), Some(IpcErrorDetail::NoAdapter { chain }))
+            CoreError::NoAdapter { chain, reason } => {
+                (copy.to_owned(), Some(IpcErrorDetail::NoAdapter { chain, reason }))
             }
             CoreError::InvalidInput { detail, .. } => (detail, None),
             CoreError::ConfirmationRequired { .. }

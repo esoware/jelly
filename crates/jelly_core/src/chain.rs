@@ -105,29 +105,6 @@ impl ChainId {
             Self::Monero => "Monero",
         }
     }
-
-    /// User-facing name of the chain's own coin, which is not always the chain's name: the
-    /// coin on BNB Smart Chain is BNB, and the coin on the Avalanche C-Chain is Avalanche.
-    pub const fn coin_name(self) -> &'static str {
-        match self {
-            Self::Bitcoin => "Bitcoin",
-            Self::Litecoin => "Litecoin",
-            Self::Dogecoin => "Dogecoin",
-            Self::BitcoinCash => "Bitcoin Cash",
-            Self::Zcash => "Zcash",
-            Self::Ethereum => "Ethereum",
-            Self::Bsc => "BNB",
-            Self::Polygon => "Polygon",
-            Self::Arbitrum => "Arbitrum",
-            Self::Base => "Base",
-            Self::Avalanche => "Avalanche",
-            Self::Solana => "Solana",
-            Self::Tron => "TRON",
-            Self::Xrp => "XRP",
-            Self::Ton => "Gram",
-            Self::Monero => "Monero",
-        }
-    }
 }
 
 wire_enum! {
