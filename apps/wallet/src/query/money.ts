@@ -6,7 +6,7 @@ import { unwrap } from "@/ipc/client.ts"
 import { assetKey } from "@/lib/chain.ts"
 import { setPriceHistory, setPrices } from "@/store.ts"
 
-const PRICE_CHART_REFRESH_MS = 300_000
+export const PRICE_CHART_REFRESH_MS = 300_000
 
 export const moneyKeys = {
   root: ["money"] as const,

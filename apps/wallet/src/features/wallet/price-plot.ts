@@ -11,6 +11,8 @@ const MIN_PRICE_TICK_GAP = 28
 const MIN_TIME_TICK_GAP = 72
 const BODY_SHARE = 0.6
 const MAX_BODY_WIDTH = 12
+const MAX_PACED_ZOOM_RATIO = 4
+const MAX_PACED_ZOOM = Math.log(MAX_PACED_ZOOM_RATIO)
 
 interface Bounds {
   left: number
@@ -204,7 +206,10 @@ export function drawPlot(asset: string, series: ChartSeries, size: PlotSize): Pl
 }
 
 function zoomReach<V>(from: Scale<V>, to: Scale<V>, progress: number): number {
-  const zoom = Math.log(to.perUnit / from.perUnit)
+  const zoom = Math.min(
+    MAX_PACED_ZOOM,
+    Math.max(-MAX_PACED_ZOOM, Math.log(to.perUnit / from.perUnit)),
+  )
   return zoom === 0 ? progress : Math.expm1(zoom * progress) / Math.expm1(zoom)
 }
 
@@ -366,7 +371,8 @@ function blendTicks<T>(
   from: readonly TickMark<T>[],
   to: readonly TickMark<T>[],
   reach: number,
-  place: ((tick: T) => number) | null,
+  forward: Affine,
+  backward: Affine,
 ): TickMark<T>[] {
   const toKeys = new Set(to.map((mark) => mark.key))
   const fromByKey = new Map(from.map((mark) => [mark.key, mark]))
@@ -378,7 +384,7 @@ function blendTicks<T>(
       .map((mark) => ({
         key: mark.key,
         tick: mark.tick,
-        at: place === null ? mark.at : place(mark.tick),
+        at: lerp(mark.at, apply(forward, mark.at), reach),
         opacity: lerp(mark.opacity, 0, fadeOut),
       })),
     ...to.map((mark) => {
@@ -386,7 +392,7 @@ function blendTicks<T>(
       return {
         key: mark.key,
         tick: mark.tick,
-        at: place === null ? lerp(shown?.at ?? mark.at, mark.at, reach) : place(mark.tick),
+        at: lerp(shown?.at ?? apply(backward, mark.at), mark.at, reach),
         opacity:
           shown === undefined
             ? lerp(0, mark.opacity, fadeIn)
@@ -396,15 +402,13 @@ function blendTicks<T>(
   ]
 }
 
-const IN_PLACE: Affine = { offset: 0, factor: 1 }
-
 export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
-  const isSwitch = from.asset !== to.asset
+  const fromPrice = from.asset === to.asset ? from.price : to.price
   const timeShiftSecs = from.time.origin - to.time.origin
-  const priceShiftBaseUnits = Number(from.price.origin - to.price.origin)
+  const priceShiftBaseUnits = Number(fromPrice.origin - to.price.origin)
   const forward = {
     x: relate(from.time, to.time, timeShiftSecs),
-    y: isSwitch ? IN_PLACE : relate(from.price, to.price, priceShiftBaseUnits),
+    y: relate(fromPrice, to.price, priceShiftBaseUnits),
   }
   const backward = { x: invert(forward.x), y: invert(forward.y) }
   const fromLine = from.line ?? (to.line === null ? null : absentLine(to.line, backward))
@@ -416,12 +420,8 @@ export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
     const pace = {
       progress,
       x: zoomReach(from.time, to.time, progress),
-      y: isSwitch ? progress : zoomReach(from.price, to.price, progress),
+      y: zoomReach(fromPrice, to.price, progress),
     }
-    const time = blendScale(from.time, to.time, timeShiftSecs, pace.x)
-    const price = isSwitch
-      ? to.price
-      : blendScale(from.price, to.price, priceShiftBaseUnits, pace.y)
     return {
       asset: to.asset,
       bounds: {
@@ -430,17 +430,10 @@ export function blendPlots(from: Plot, to: Plot): (progress: number) => Plot {
         top: lerp(from.bounds.top, to.bounds.top, progress),
         bottom: lerp(from.bounds.bottom, to.bounds.bottom, progress),
       },
-      time,
-      price,
-      priceTicks: blendTicks(
-        from.priceTicks,
-        to.priceTicks,
-        pace.y,
-        isSwitch ? null : (tick) => placePrice(price, tick.price),
-      ),
-      timeTicks: blendTicks(from.timeTicks, to.timeTicks, pace.x, (tick) =>
-        placeTime(time, tick.unixSecs),
-      ),
+      time: blendScale(from.time, to.time, timeShiftSecs, pace.x),
+      price: blendScale(fromPrice, to.price, priceShiftBaseUnits, pace.y),
+      priceTicks: blendTicks(from.priceTicks, to.priceTicks, pace.y, forward.y, backward.y),
+      timeTicks: blendTicks(from.timeTicks, to.timeTicks, pace.x, forward.x, backward.x),
       line: line === null ? null : blendLines(line, pace),
       candles: candles.map((pair) => blendCandles(pair, pace)),
     }

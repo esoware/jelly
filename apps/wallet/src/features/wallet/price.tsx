@@ -24,7 +24,7 @@ import type {
   Spot,
 } from "@/features/wallet/price-scale.ts"
 import type { AssetId, CandleInterval } from "@/ipc/bindings.gen.ts"
-import { assetFromKey, assetKey } from "@/lib/chain.ts"
+import { assetKey } from "@/lib/chain.ts"
 import { formatFiat } from "@/lib/fiat.ts"
 import { NONE, unixSecondsOf } from "@/lib/format.ts"
 import { moneyQueries } from "@/query/money.ts"
@@ -269,9 +269,10 @@ interface ChartPlotProps {
   interval: CandleInterval
   width: number
   height: number
+  isInteractive: boolean
 }
 
-function ChartPlot({ asset, series, interval, width, height }: ChartPlotProps) {
+function ChartPlot({ asset, series, interval, width, height, isInteractive }: ChartPlotProps) {
   const labelsRef = useRef<SVGGElement>(null)
   const clipId = useId()
   const [labelWidth, setLabelWidth] = useState(0)
@@ -302,8 +303,9 @@ function ChartPlot({ asset, series, interval, width, height }: ChartPlotProps) {
           x: placeTime(plot.time, vertex.unixSecs),
           y: shownYs.get(vertex.unixSecs) ?? vertex.y,
         }))
-  const hoveredSpot = hoveredIndex === null ? undefined : spots[hoveredIndex]
-  const hoveredKey = hoveredIndex === null ? null : (target.candles[hoveredIndex]?.key ?? null)
+  const readIndex = isInteractive ? hoveredIndex : null
+  const hoveredSpot = readIndex === null ? undefined : spots[readIndex]
+  const hoveredKey = readIndex === null ? null : (target.candles[readIndex]?.key ?? null)
   const clipPath = `url(#${clipId})`
 
   function readout(spot: Spot, i: number): ReactNode {
@@ -387,9 +389,7 @@ function ChartPlot({ asset, series, interval, width, height }: ChartPlotProps) {
         </g>
       </svg>
 
-      {hoveredIndex === null || hoveredSpot === undefined
-        ? null
-        : readout(hoveredSpot, hoveredIndex)}
+      {readIndex === null || hoveredSpot === undefined ? null : readout(hoveredSpot, readIndex)}
     </>
   )
 }
@@ -398,9 +398,10 @@ interface PriceChartProps {
   asset: string
   series: ChartSeries
   interval: CandleInterval
+  isInteractive: boolean
 }
 
-function PriceChart({ asset, series, interval }: PriceChartProps) {
+function PriceChart({ asset, series, interval, isInteractive }: PriceChartProps) {
   const frameRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<Size | null>(null)
 
@@ -431,6 +432,7 @@ function PriceChart({ asset, series, interval }: PriceChartProps) {
           interval={interval}
           width={size.width}
           height={size.height}
+          isInteractive={isInteractive}
         />
       )}
     </div>
@@ -471,16 +473,20 @@ export function PricePanel({ asset, range, onRangeChange }: PricePanelProps) {
     ranged.data === undefined
       ? null
       : {
-          asset: assetKey(asset),
+          asset,
+          key: assetKey(asset),
           currency,
           chart: ranged.data,
           range,
           nowUnixSecs: unixSecondsOf(ranged.dataUpdatedAt),
         }
   const [kept, setKept] = useState(loaded)
+  if (ranged.isError && ranged.data === undefined && kept !== null) {
+    setKept(null)
+  }
   if (
     loaded !== null &&
-    (kept?.asset !== loaded.asset ||
+    (kept?.key !== loaded.key ||
       kept.currency !== loaded.currency ||
       kept.chart !== loaded.chart ||
       kept.range !== loaded.range ||
@@ -488,10 +494,10 @@ export function PricePanel({ asset, range, onRangeChange }: PricePanelProps) {
   ) {
     setKept(loaded)
   }
-  const shown =
-    kept?.currency !== currency || (ranged.isError && ranged.data === undefined) ? null : kept
-  const isPending = shown !== null && (shown.asset !== assetKey(asset) || shown.range !== range)
-  const chartAsset = (shown === null ? null : assetFromKey(shown.asset)) ?? asset
+  const shown = kept?.currency === currency ? kept : null
+  const isOtherAsset = shown !== null && shown.key !== assetKey(asset)
+  const isPending = shown !== null && (isOtherAsset || shown.range !== range)
+  const chartAsset = shown?.asset ?? asset
   const chartPrice = usePrice(chartAsset)
   const isChartPriceStale = useIsFiatStale(chartAsset)
 
@@ -516,13 +522,14 @@ export function PricePanel({ asset, range, onRangeChange }: PricePanelProps) {
     }
     return (
       <PriceChart
-        asset={shown.asset}
+        asset={shown.key}
         series={
           mode === "line"
             ? { mode, currency: shown.chart.currency, points }
             : chartCandles(shown.chart, shown.range, live, shown.nowUnixSecs)
         }
         interval={CHART_RANGES[shown.range].interval}
+        isInteractive={!isOtherAsset}
       />
     )
   }

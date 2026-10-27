@@ -23,7 +23,7 @@ import { formatAmount } from "@/lib/amount.ts"
 import { assetName, assetSymbol, assetsForChain, chainName, shownAsset } from "@/lib/chain.ts"
 import { positionOf } from "@/lib/portfolio.ts"
 import type { Holdings } from "@/lib/portfolio.ts"
-import { moneyQueries } from "@/query/money.ts"
+import { PRICE_CHART_REFRESH_MS, moneyQueries } from "@/query/money.ts"
 import { settingQueries } from "@/query/setting.ts"
 import { useFiatCurrency } from "@/store.ts"
 import { Button } from "@/ui/button.tsx"
@@ -34,12 +34,13 @@ import { AssetMenu } from "@/widgets/asset-menu.tsx"
 import { AssetLogo, ChainLogo, assetBrand } from "@/widgets/logos.tsx"
 
 const LONG_FIGURE_CHARS = 11
+const CHART_PREFETCH_CONCURRENCY = 4
 
 interface BalancePanelProps {
   holdings: Holdings
   asset: AssetId
   onAssetChange: (asset: AssetId) => void
-  onAssetMenuOpen: () => void
+  onAssetMenuOpenChange: (isOpen: boolean) => void
   onSend: () => void
   onReceive: () => void
 }
@@ -48,7 +49,7 @@ function BalancePanel({
   holdings,
   asset,
   onAssetChange,
-  onAssetMenuOpen,
+  onAssetMenuOpenChange,
   onSend,
   onReceive,
 }: BalancePanelProps) {
@@ -76,11 +77,7 @@ function BalancePanel({
             assets={assets}
             asset={asset}
             onAssetChange={onAssetChange}
-            onOpenChange={(isOpen) => {
-              if (isOpen) {
-                onAssetMenuOpen()
-              }
-            }}
+            onOpenChange={onAssetMenuOpenChange}
             amountFor={(option) => positionOf(holdings, option).amount}
             trigger={
               <Button variant="ghost" size="icon-sm">
@@ -133,16 +130,28 @@ export function ChainView() {
   const asset = shownAsset(chain, settings.data.shownTokens)
   const isChartShown = settings.data.isPriceFeedEnabled && settings.data.isPriceChartEnabled
 
-  function prefetchCharts(): void {
-    if (!isChartShown) {
+  function prefetchCharts(isMenuOpen: boolean): void {
+    if (!isMenuOpen || !isChartShown) {
       return
     }
     const { interval } = CHART_RANGES[range]
-    void Promise.allSettled(
-      assetsForChain(chain).map((option) =>
-        client.query({ ...moneyQueries.priceChart(option, interval, currency), retry: false }),
-      ),
-    )
+    const queue = assetsForChain(chain)
+    async function prefetchNext(): Promise<void> {
+      const next = queue.shift()
+      if (next === undefined) {
+        return
+      }
+      try {
+        await client.query({
+          ...moneyQueries.priceChart(next, interval, currency),
+          gcTime: PRICE_CHART_REFRESH_MS,
+        })
+      } catch {}
+      await prefetchNext()
+    }
+    for (let i = 0; i < CHART_PREFETCH_CONCURRENCY; i += 1) {
+      void prefetchNext()
+    }
   }
 
   function openReceive(): void {
@@ -164,7 +173,7 @@ export function ChainView() {
           onAssetChange={(next) => {
             saveShownAsset.mutate(next)
           }}
-          onAssetMenuOpen={prefetchCharts}
+          onAssetMenuOpenChange={prefetchCharts}
           onSend={() => {
             setAction("send")
           }}
