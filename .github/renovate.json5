@@ -13,7 +13,7 @@
   },
   prBodyTemplate: "{{{table}}}{{{warnings}}}{{{notes}}}{{{controls}}}",
   packageRules: [
-    // The bare name keeps a PR title within the 72 characters the PR title check allows.
+    // The bare name keeps a PR title within the 72 characters CONTRIBUTING.md allows.
     {
       matchPackageNames: ["*"],
       commitMessageTopic: "{{depName}}",

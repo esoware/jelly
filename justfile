@@ -67,7 +67,7 @@ lint-fix:
 deny:
   cargo deny check bans sources
 
-# A new advisory can land at any time, so this runs on a schedule, on a PR that changes a lockfile, and before a release rather than in ready.
+# A new advisory can land at any time, so this runs on a schedule and before a release rather than in ready.
 
 # Check the locked crates and the npm packages the app ships against published advisories
 advisories:

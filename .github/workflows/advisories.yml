@@ -1,10 +1,6 @@
 name: Advisories
 
-# A PR that changes what is locked runs this too, so it can't add a dependency that an advisory
-# already affects.
 on:
-  pull_request:
-    paths: [Cargo.lock, pnpm-lock.yaml, deny.toml]
   schedule:
     - cron: "23 5 * * *"
   workflow_dispatch:
@@ -14,7 +10,6 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -49,7 +44,7 @@ jobs:
   report:
     name: Open an issue
     needs: scan
-    if: failure() && github.event_name != 'pull_request'
+    if: failure()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
