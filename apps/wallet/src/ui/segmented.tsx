@@ -76,7 +76,6 @@ interface SegmentedProps<T extends string> {
   value: T
   onValueChange: (value: T) => void
   items: readonly SegmentedItem<T>[]
-  endItems?: readonly SegmentedItem<T>[] | undefined
   variant?: SegmentedVariant | undefined
   orientation?: "horizontal" | "vertical" | undefined
   className?: string | undefined
@@ -86,7 +85,6 @@ export function Segmented<T extends string>({
   value,
   onValueChange,
   items,
-  endItems,
   variant = "bar",
   orientation,
   className,
@@ -111,23 +109,12 @@ export function Segmented<T extends string>({
     slide(pill, source.getBoundingClientRect(), target.getBoundingClientRect())
   })
 
-  function renderTab(item: SegmentedItem<T>) {
-    return (
-      <SegmentedTab
-        key={item.value}
-        item={item}
-        variant={variant}
-        pillRef={variant !== "cards" && item.value === value ? pillRef : null}
-      />
-    )
-  }
-
   return (
     <Tabs.Root
       value={value}
       orientation={orientation}
       onValueChange={(next: unknown) => {
-        const picked = [...items, ...(endItems ?? [])].find((item) => item.value === next)
+        const picked = items.find((item) => item.value === next)
         if (picked !== undefined) {
           onValueChange(picked.value)
         }
@@ -141,13 +128,14 @@ export function Segmented<T extends string>({
           )
         }
       >
-        {items.map((item) => renderTab(item))}
-        {endItems === undefined ? null : (
-          <>
-            <span className="flex-1" />
-            {endItems.map((item) => renderTab(item))}
-          </>
-        )}
+        {items.map((item) => (
+          <SegmentedTab
+            key={item.value}
+            item={item}
+            variant={variant}
+            pillRef={variant !== "cards" && item.value === value ? pillRef : null}
+          />
+        ))}
       </Tabs.List>
     </Tabs.Root>
   )

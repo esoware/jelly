@@ -141,6 +141,7 @@ function WalletNav({ holdings, view, walletAsset }: WalletNavProps) {
     <Segmented
       variant="accent"
       value={view}
+      className="mx-auto w-fit max-w-full"
       items={[
         {
           value: "portfolio",
@@ -157,8 +158,6 @@ function WalletNav({ holdings, view, walletAsset }: WalletNavProps) {
           label: "Address book",
           icon: <Icon name="contacts" className="size-icon-lg" />,
         },
-      ]}
-      endItems={[
         {
           value: "settings",
           label: "Settings",
@@ -217,7 +216,7 @@ export function WalletLayout() {
 export function WalletLayoutFallback() {
   return (
     <div className="flex flex-col gap-3 px-3 pt-1 pb-3">
-      <Skeleton className="h-10 w-full rounded-full" />
+      <Skeleton className="mx-auto h-10 w-104 rounded-full" />
       <Skeleton className="h-9 w-full" />
       <Skeleton className="h-9 w-full" />
     </div>
