@@ -45,7 +45,7 @@ async fn a_native_build_previews_the_transaction_fields_and_costs() {
         "the recorded 12 gwei base fee plus the 1 gwei tip, under the 30 gwei cap"
     );
 
-    assert_eq!(detail(&preview.details, "Network"), "Ethereum (chain id 1)");
+    assert_eq!(detail(&preview.details, "Chain id"), "1");
     assert_eq!(detail(&preview.details, "Asset"), "ETH");
     assert_eq!(detail(&preview.details, "Amount"), "1 ETH");
     assert_eq!(detail(&preview.details, "Recipient"), PEER);
@@ -211,15 +211,15 @@ async fn a_bsc_token_build_says_bep_20_and_uses_eighteen_decimals() {
     let unsigned =
         build(&harness, &pinned(PEER, asset, ETH, 5 * GWEI, GWEI, 65_000)).await.unwrap();
     assert_eq!(detail(&unsigned.preview.details, "Asset"), "USDT (BEP-20)");
-    assert_eq!(detail(&unsigned.preview.details, "Network"), "BNB Smart Chain (chain id 56)");
+    assert_eq!(detail(&unsigned.preview.details, "Chain id"), "56");
     assert_eq!(detail(&unsigned.preview.details, "Amount"), "1 USDT");
     assert_eq!(detail(&unsigned.preview.details, "Token decimals"), "18");
 }
 
 /// USDT0 and the other issuers' own deployments read as plain erc-20 coins, and
-/// the network row says which network they are on.
+/// the chain id row says which network they are on.
 #[tokio::test]
-async fn a_polygon_token_build_names_the_network_and_pays_gas_in_pol() {
+async fn a_polygon_token_build_names_the_chain_id_and_pays_gas_in_pol() {
     let harness = Harness::new(common::Setup::on(POLYGON)).unwrap();
     harness.watch(&[watched(7, ChainId::Polygon, OWNER)]).await.unwrap();
     ready(&harness, 0, 5 * ETH, Some(10_000_000));
@@ -229,7 +229,7 @@ async fn a_polygon_token_build_names_the_network_and_pays_gas_in_pol() {
         .await
         .unwrap();
     assert_eq!(detail(&unsigned.preview.details, "Asset"), "USDT (ERC-20)");
-    assert_eq!(detail(&unsigned.preview.details, "Network"), "Polygon (chain id 137)");
+    assert_eq!(detail(&unsigned.preview.details, "Chain id"), "137");
     assert_eq!(detail(&unsigned.preview.details, "Amount"), "1 USDT");
     assert_eq!(detail(&unsigned.preview.details, "Token decimals"), "6");
     assert_eq!(
@@ -669,7 +669,7 @@ async fn an_op_stack_preview_names_the_l1_data_fee_and_counts_it_in_both_fees() 
     let unsigned =
         build(&harness, &pinned(PEER, BASE.native(), ETH, 30 * GWEI, GWEI, 21_000)).await.unwrap();
     let preview = &unsigned.preview;
-    assert_eq!(detail(&preview.details, "Network"), "Base (chain id 8453)");
+    assert_eq!(detail(&preview.details, "Chain id"), "8453");
     assert_eq!(detail(&preview.details, "L1 data fee"), "0.000000000973558459 ETH (973558459 wei)");
     assert_eq!(preview.fee.base_units(), 13 * GWEI * 21_000 + L1_FEE_WEI);
     assert_eq!(

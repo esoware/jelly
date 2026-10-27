@@ -5,7 +5,7 @@ import { isSubmitting, preparedOf } from "@/features/wallet/send-state.ts"
 import type { SendState } from "@/features/wallet/send-state.ts"
 import type { PendingTxId, TxPreview, TxWarningKind } from "@/ipc/bindings.gen.ts"
 import { addAmounts } from "@/lib/amount.ts"
-import { chainMeta, nativeAsset } from "@/lib/chain.ts"
+import { chainMeta, chainName, nativeAsset } from "@/lib/chain.ts"
 import { useFiatCurrency, useFiatValue, useIsFiatStale } from "@/store.ts"
 import { Button } from "@/ui/button.tsx"
 import { Callout } from "@/ui/callout.tsx"
@@ -27,6 +27,7 @@ import { AddressList } from "@/widgets/address.tsx"
 import { CryptoAmount, FiatAmount, FiatValue } from "@/widgets/amounts.tsx"
 import { CopyButton, DetailList, MonoWithCopy } from "@/widgets/copyable.tsx"
 import type { DetailRow } from "@/widgets/copyable.tsx"
+import { ChainLogo } from "@/widgets/logos.tsx"
 
 interface SourceListProps {
   sources: readonly string[]
@@ -180,6 +181,11 @@ export function ReviewStep({ state, onBack, onConfirm }: ReviewStepProps) {
                   className="text-fg-muted"
                 />
               </p>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="text-caption text-fg-faint">Chain</span>
+                <ChainLogo chain={preview.chain} className="size-icon-sm" />
+                <span className="truncate">{chainName(preview.chain)}</span>
+              </div>
               <div className="flex min-w-0 items-center gap-2">
                 <span className="text-caption text-fg-faint">From</span>
                 <AddressList addresses={preview.from} className="font-mono select-text" />

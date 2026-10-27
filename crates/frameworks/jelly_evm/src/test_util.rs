@@ -1,7 +1,7 @@
 //! Scripted EVM services, network figures, and the chain crates' address vectors for
 //! tests. Only `[dev-dependencies]` enable the `test-util` feature.
 //!
-//! The six networks' params here are copies of the chain crates' own, for this crate's
+//! The networks' params here are copies of the chain crates' own, for this crate's
 //! unit tests. Those cannot take them from a chain crate, whose copy of this crate is a
 //! separate build with its own types. Each chain crate's tests assert that its params
 //! match its copy.
@@ -192,6 +192,83 @@ pub const ETHEREUM: EvmParams = EvmParams {
     has_keyless_history: true,
 };
 
+/// The Arbitrum One figures the chain crate ships.
+pub const ARBITRUM: EvmParams = EvmParams {
+    chain: ChainId::Arbitrum,
+    chain_id: 42_161,
+    request_timeout: Duration::from_secs(10),
+    tokens: &[
+        TokenId::LinkArbitrum,
+        TokenId::WethArbitrum,
+        TokenId::ArbArbitrum,
+        TokenId::UsdtArbitrum,
+        TokenId::UsdcArbitrum,
+        TokenId::UsdsArbitrum,
+        TokenId::UsdgArbitrum,
+        TokenId::PyusdArbitrum,
+        TokenId::XautArbitrum,
+    ],
+    token_standard: "ERC-20",
+    block_millis: 250,
+    watch_floor: Duration::from_secs(6),
+    fee_history_blocks: 20,
+    min_priority_fee_wei: 0,
+    max_priority_fee_wei: None,
+    confirmations_target: 20,
+    log_window_blocks: 50_000,
+    backfill_floor: 0,
+    has_native_transfer_logs: false,
+    has_l1_data_fee: false,
+    has_keyless_history: false,
+};
+
+/// The Base figures the chain crate ships.
+pub const BASE: EvmParams = EvmParams {
+    chain: ChainId::Base,
+    chain_id: 8_453,
+    request_timeout: Duration::from_secs(10),
+    tokens: &[TokenId::LinkBase, TokenId::WethBase, TokenId::UsdcBase, TokenId::UsdsBase],
+    token_standard: "ERC-20",
+    block_millis: 2_000,
+    watch_floor: Duration::from_secs(6),
+    fee_history_blocks: 30,
+    min_priority_fee_wei: 1_000_000,
+    max_priority_fee_wei: None,
+    confirmations_target: 10,
+    log_window_blocks: 10_000,
+    backfill_floor: 0,
+    has_native_transfer_logs: false,
+    has_l1_data_fee: true,
+    has_keyless_history: false,
+};
+
+/// The OP Mainnet figures the chain crate ships.
+pub const OPTIMISM: EvmParams = EvmParams {
+    chain: ChainId::Optimism,
+    chain_id: 10,
+    request_timeout: Duration::from_secs(10),
+    tokens: &[
+        TokenId::LinkOptimism,
+        TokenId::WethOptimism,
+        TokenId::OpOptimism,
+        TokenId::UsdtOptimism,
+        TokenId::UsdcOptimism,
+        TokenId::UsdsOptimism,
+    ],
+    token_standard: "ERC-20",
+    block_millis: 2_000,
+    watch_floor: Duration::from_secs(6),
+    fee_history_blocks: 30,
+    min_priority_fee_wei: 1_000_000,
+    max_priority_fee_wei: None,
+    confirmations_target: 10,
+    log_window_blocks: 10_000,
+    backfill_floor: 0,
+    has_native_transfer_logs: false,
+    has_l1_data_fee: true,
+    has_keyless_history: false,
+};
+
 /// The BNB Smart Chain figures the chain crate ships.
 pub const BSC: EvmParams = EvmParams {
     chain: ChainId::Bsc,
@@ -242,56 +319,6 @@ pub const POLYGON: EvmParams = EvmParams {
     backfill_floor: 0,
     has_native_transfer_logs: true,
     has_l1_data_fee: false,
-    has_keyless_history: false,
-};
-
-/// The Arbitrum figures the chain crate ships.
-pub const ARBITRUM: EvmParams = EvmParams {
-    chain: ChainId::Arbitrum,
-    chain_id: 42_161,
-    request_timeout: Duration::from_secs(10),
-    tokens: &[
-        TokenId::LinkArbitrum,
-        TokenId::WethArbitrum,
-        TokenId::ArbArbitrum,
-        TokenId::UsdtArbitrum,
-        TokenId::UsdcArbitrum,
-        TokenId::UsdsArbitrum,
-        TokenId::UsdgArbitrum,
-        TokenId::PyusdArbitrum,
-        TokenId::XautArbitrum,
-    ],
-    token_standard: "ERC-20",
-    block_millis: 250,
-    watch_floor: Duration::from_secs(6),
-    fee_history_blocks: 20,
-    min_priority_fee_wei: 0,
-    max_priority_fee_wei: None,
-    confirmations_target: 20,
-    log_window_blocks: 50_000,
-    backfill_floor: 0,
-    has_native_transfer_logs: false,
-    has_l1_data_fee: false,
-    has_keyless_history: false,
-};
-
-/// The Base figures the chain crate ships.
-pub const BASE: EvmParams = EvmParams {
-    chain: ChainId::Base,
-    chain_id: 8_453,
-    request_timeout: Duration::from_secs(10),
-    tokens: &[TokenId::LinkBase, TokenId::WethBase, TokenId::UsdcBase, TokenId::UsdsBase],
-    token_standard: "ERC-20",
-    block_millis: 2_000,
-    watch_floor: Duration::from_secs(6),
-    fee_history_blocks: 30,
-    min_priority_fee_wei: 1_000_000,
-    max_priority_fee_wei: None,
-    confirmations_target: 10,
-    log_window_blocks: 10_000,
-    backfill_floor: 0,
-    has_native_transfer_logs: false,
-    has_l1_data_fee: true,
     has_keyless_history: false,
 };
 

@@ -19,7 +19,14 @@ import type {
 } from "@/ipc/bindings.gen.ts"
 import { ZERO_AMOUNT, addAmounts, formatAmount, toBaseUnits } from "@/lib/amount.ts"
 import type { Parsed } from "@/lib/amount.ts"
-import { assetDecimals, assetSymbol, assetsForChain, chainMeta, nativeAsset } from "@/lib/chain.ts"
+import {
+  assetDecimals,
+  assetLabel,
+  assetSymbol,
+  assetsForChain,
+  chainMeta,
+  nativeAsset,
+} from "@/lib/chain.ts"
 import { describeFailure } from "@/lib/failure.ts"
 import { CURRENCIES, PRICE_DECIMALS, fiatToBaseUnits } from "@/lib/fiat.ts"
 import { NONE } from "@/lib/format.ts"
@@ -587,7 +594,7 @@ function SendContent({ chain, defaultAsset, onSent }: SendContentProps) {
           }}
         >
           <DialogHeader>
-            <DialogTitle>{`Send ${assetSymbol(asset)}`}</DialogTitle>
+            <DialogTitle>{`Send ${assetLabel(asset)}`}</DialogTitle>
           </DialogHeader>
           <DialogBody>
             <SourceGate state={addresses} hasSource={sourceAddresses.length > 0}>

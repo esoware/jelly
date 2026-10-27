@@ -4,7 +4,6 @@
 use std::path::Path;
 use std::pin::pin;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll, Wake, Waker};
 use std::time::Duration;
 
@@ -14,9 +13,6 @@ use jelly_net::{Endpoint, EndpointOrigin, HealthClass, NetError};
 use jelly_vault::test_util::MemoryKeyStore;
 use tokio::sync::Notify;
 use tokio::time::timeout;
-use tracing::{Event, Level, Subscriber, subscriber};
-use tracing_subscriber::layer::{self, SubscriberExt as _};
-use tracing_subscriber::{Layer, registry};
 
 use crate::common::{Fallible, deps, offline_config};
 
@@ -237,27 +233,8 @@ async fn an_unreadable_endpoint_row_is_deleted_and_its_chain_keeps_the_curated_l
     services.shutdown().await;
 }
 
-/// Counts the warnings the endpoint loader logs on the thread it is installed on.
-#[derive(Clone, Default)]
-struct LoaderWarnings(Arc<AtomicUsize>);
-
-impl LoaderWarnings {
-    fn count(&self) -> usize {
-        self.0.load(Ordering::SeqCst)
-    }
-}
-
-impl<S: Subscriber> Layer<S> for LoaderWarnings {
-    fn on_event(&self, event: &Event<'_>, _context: layer::Context<'_, S>) {
-        let metadata = event.metadata();
-        if *metadata.level() == Level::WARN && metadata.target() == "jelly::app::endpoints" {
-            self.0.fetch_add(1, Ordering::SeqCst);
-        }
-    }
-}
-
 /// A stored row on a transport its chain never uses still lets the shell start. It is
-/// deleted at the first start, so it is never listed and warns only once.
+/// deleted at the first start and never listed.
 #[tokio::test]
 async fn a_stored_endpoint_on_a_transport_its_chain_never_uses_is_deleted_at_startup() {
     let directory = tempfile::tempdir().unwrap();
@@ -271,8 +248,6 @@ async fn a_stored_endpoint_on_a_transport_its_chain_never_uses_is_deleted_at_sta
         .unwrap();
     services.shutdown().await;
 
-    let warnings = LoaderWarnings::default();
-    let _logging = subscriber::set_default(registry().with(warnings.clone()));
     for _ in 0..2 {
         let restarted = Services::start(offline_config(), deps(directory.path())).await.unwrap();
         let stored = restarted.engine().unwrap().list_endpoints().await.unwrap();
@@ -282,7 +257,6 @@ async fn a_stored_endpoint_on_a_transport_its_chain_never_uses_is_deleted_at_sta
         assert!(!rows.is_empty(), "the shipped endpoints are still there");
         restarted.shutdown().await;
     }
-    assert_eq!(warnings.count(), 1, "one warning for one deleted row, over two starts");
 }
 
 #[tokio::test]

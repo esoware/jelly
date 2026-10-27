@@ -19,6 +19,7 @@ const FEE_RATE_UNIT: &str = "lit/vB";
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Litecoin,
     coin_name: "Litecoin",
+    coin_chain: ChainId::Litecoin,
     slip44: 2,
     key_kind: KeyKind::Secp256k1,
     default_path: "m/84'/2'/0'/0/{index}",

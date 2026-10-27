@@ -77,6 +77,7 @@ impl Pair {
             Ticker::Ondo => ("ONDOUSD", "ONDOUSD"),
             Ticker::Pepe => ("PEPEUSD", "PEPEUSD"),
             Ticker::Arb => ("ARBUSD", "ARBUSD"),
+            Ticker::Op => ("OPUSD", "OPUSD"),
             Ticker::Jup => ("JUPUSD", "JUPUSD"),
             Ticker::Usdt => ("USDTZUSD", "USDTUSD"),
             Ticker::Usdc => ("USDCUSD", "USDCUSD"),

@@ -1,0 +1,51 @@
+{
+  "chain": "optimism",
+  "note": "Free public OP Mainnet JSON-RPC endpoints, verified with eth_chainId returning 0xa, a JSON-RPC batch, eth_feeHistory with reward percentiles, a Multicall3 eth_call, an eth_getLogs window of 10,000 blocks, and logs from the first WETH transfers in block 2179, before the Bedrock upgrade. Endpoints that refused eth_getLogs or capped it below that width, needed a key, or were unreachable at verification time are omitted, Sentio's and dRPC's HTTP tiers among them. Pocket Network's gateway is omitted because it answers an empty list, rather than an error, for a window older than its pruned history. PublicNode refuses every receipt, and logs outside its recent history, with HTTP 403, so receipts and older windows come from the others. The websocket rows carry the newHeads subscription that wakes a sync pass when blocks land, and each was verified by subscribing and receiving a push. The history API row is the Etherscan v2 multichain service, which serves OP Mainnet under chainid 10 on paid plans only; a free key is refused for this chain and history falls back to logs and balances. Routescan does not serve OP Mainnet, and Blockscout's service reports internal transactions it has not processed yet, so neither is listed.",
+  "endpoints": [
+    {
+      "url": "https://mainnet.optimism.io",
+      "transport": "http_jsonrpc",
+      "note": "OP Labs public endpoint, rate limited"
+    },
+    {
+      "url": "https://optimism-rpc.publicnode.com",
+      "transport": "http_jsonrpc",
+      "note": "PublicNode, no key, recent history only"
+    },
+    {
+      "url": "https://optimism.gateway.tenderly.co",
+      "transport": "http_jsonrpc",
+      "note": "Tenderly public gateway, rate limited"
+    },
+    {
+      "url": "wss://optimism-rpc.publicnode.com",
+      "transport": "ws_jsonrpc",
+      "note": "PublicNode websocket"
+    },
+    {
+      "url": "wss://optimism.drpc.org",
+      "transport": "ws_jsonrpc",
+      "note": "dRPC public websocket"
+    },
+    {
+      "url": "wss://optimism.gateway.tenderly.co",
+      "transport": "ws_jsonrpc",
+      "note": "Tenderly public websocket"
+    },
+    {
+      "url": "wss://op.api.pocket.network",
+      "transport": "ws_jsonrpc",
+      "note": "Pocket Network public websocket"
+    },
+    {
+      "url": "wss://rpc.sentio.xyz/optimism",
+      "transport": "ws_jsonrpc",
+      "note": "Sentio public websocket"
+    },
+    {
+      "url": "https://api.etherscan.io/v2/api",
+      "transport": "history_api",
+      "note": "Etherscan history API"
+    }
+  ]
+}

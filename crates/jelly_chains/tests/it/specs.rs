@@ -13,10 +13,11 @@ fn every_chain_derives_under_its_expected_coin_type() {
         (ChainId::BitcoinCash, 145),
         (ChainId::Zcash, 133),
         (ChainId::Ethereum, 60),
-        (ChainId::Bsc, 60),
-        (ChainId::Polygon, 60),
         (ChainId::Arbitrum, 60),
         (ChainId::Base, 60),
+        (ChainId::Optimism, 60),
+        (ChainId::Bsc, 60),
+        (ChainId::Polygon, 60),
         (ChainId::Avalanche, 60),
         (ChainId::Solana, 501),
         (ChainId::Tron, 195),
@@ -30,8 +31,8 @@ fn every_chain_derives_under_its_expected_coin_type() {
     }
 }
 
-/// A coin takes its network's name unless it trades under its own, so the rollups'
-/// ether is named for each rollup. The table lists every chain in declaration order.
+/// A coin takes its network's name unless it has its own, and a rollup's coin is ether,
+/// named as it is on Ethereum. The table lists every chain in declaration order.
 #[test]
 fn every_chain_names_its_own_coin() {
     let expected = [
@@ -41,10 +42,11 @@ fn every_chain_names_its_own_coin() {
         (ChainId::BitcoinCash, "Bitcoin Cash"),
         (ChainId::Zcash, "Zcash"),
         (ChainId::Ethereum, "Ethereum"),
+        (ChainId::Arbitrum, "Ethereum"),
+        (ChainId::Base, "Ethereum"),
+        (ChainId::Optimism, "Ethereum"),
         (ChainId::Bsc, "BNB"),
         (ChainId::Polygon, "Polygon"),
-        (ChainId::Arbitrum, "Arbitrum"),
-        (ChainId::Base, "Base"),
         (ChainId::Avalanche, "Avalanche"),
         (ChainId::Solana, "Solana"),
         (ChainId::Tron, "TRON"),
@@ -55,6 +57,21 @@ fn every_chain_names_its_own_coin() {
     assert_eq!(expected.map(|(chain, _)| chain), ChainId::ALL);
     for (chain, name) in expected {
         assert_eq!(chains().spec(chain).coin_name, name, "{}", chain.as_str());
+    }
+}
+
+/// A coin is the same coin on every chain that pays in it, and only a rollup's coin is
+/// native to another chain.
+#[test]
+fn every_coin_chain_pays_in_the_same_coin() {
+    for chain in ChainId::ALL {
+        let spec = chains().spec(chain);
+        let coin_spec = chains().spec(spec.coin_chain);
+        assert_eq!(coin_spec.coin_chain, spec.coin_chain, "{}", chain.as_str());
+        assert_eq!(coin_spec.coin_name, spec.coin_name, "{}", chain.as_str());
+        assert_eq!(spec.coin_chain.ticker(), chain.ticker(), "{}", chain.as_str());
+        let is_rollup = matches!(chain, ChainId::Arbitrum | ChainId::Base | ChainId::Optimism);
+        assert_eq!(spec.coin_chain == chain, !is_rollup, "{}", chain.as_str());
     }
 }
 
@@ -76,20 +93,21 @@ fn polygon_shares_ethereums_coin_type_and_trades_as_pol() {
     assert!(!ChainId::ALL.iter().any(|chain| chain.ticker() == "MATIC"));
 }
 
-/// Both rollups pay gas in ether, so a seed has Ethereum's address on them and their
-/// coin trades as ETH.
+/// Every rollup pays gas in ether, so a seed has Ethereum's address on it and its coin
+/// is Ethereum's coin, while the network keeps its own precise name.
 #[test]
-fn the_rollups_share_ethereums_coin_type_and_trade_as_eth() {
-    for chain in [ChainId::Arbitrum, ChainId::Base] {
-        assert_eq!(chains().spec(chain).slip44, chains().spec(ChainId::Ethereum).slip44);
-        assert_eq!(
-            chains().spec(chain).default_path,
-            chains().spec(ChainId::Ethereum).default_path
-        );
-        assert_eq!(chain.ticker(), "ETH", "{}", chain.as_str());
+fn the_rollups_share_ethereums_coin_type_and_coin() {
+    let ethereum = chains().spec(ChainId::Ethereum);
+    for chain in [ChainId::Arbitrum, ChainId::Base, ChainId::Optimism] {
+        let spec = chains().spec(chain);
+        assert_eq!(spec.slip44, ethereum.slip44, "{}", chain.as_str());
+        assert_eq!(spec.default_path, ethereum.default_path, "{}", chain.as_str());
+        assert_eq!(chain.ticker(), ChainId::Ethereum.ticker(), "{}", chain.as_str());
+        assert_eq!(spec.coin_chain, ChainId::Ethereum, "{}", chain.as_str());
     }
-    assert_eq!(ChainId::Arbitrum.display_name(), "Arbitrum");
+    assert_eq!(ChainId::Arbitrum.display_name(), "Arbitrum One");
     assert_eq!(ChainId::Base.display_name(), "Base");
+    assert_eq!(ChainId::Optimism.display_name(), "OP Mainnet");
 }
 
 /// The X-Chain and P-Chain derive at Avalanche's own coin type 9000, but every
@@ -197,20 +215,22 @@ fn capability_flags_agree_with_the_chains_that_have_them() {
                 | ChainId::Litecoin
                 | ChainId::Dogecoin
                 | ChainId::Ethereum
-                | ChainId::Bsc
-                | ChainId::Polygon
                 | ChainId::Arbitrum
                 | ChainId::Base
+                | ChainId::Optimism
+                | ChainId::Bsc
+                | ChainId::Polygon
                 | ChainId::Avalanche
         );
         assert_eq!(spec.can_bump_fee, can_bump, "{}", chain.as_str());
         let can_cancel = matches!(
             chain,
             ChainId::Ethereum
-                | ChainId::Bsc
-                | ChainId::Polygon
                 | ChainId::Arbitrum
                 | ChainId::Base
+                | ChainId::Optimism
+                | ChainId::Bsc
+                | ChainId::Polygon
                 | ChainId::Avalanche
         );
         assert_eq!(spec.can_cancel, can_cancel, "{}", chain.as_str());
@@ -244,9 +264,10 @@ fn every_chain_offers_the_fee_levels_and_custom_fee_its_market_allows() {
                 (&[FeeLevel::Normal], Some(CustomFee::Rate))
             }
             ChainId::Ethereum
-            | ChainId::Polygon
             | ChainId::Arbitrum
             | ChainId::Base
+            | ChainId::Optimism
+            | ChainId::Polygon
             | ChainId::Avalanche => (&FeeLevel::ALL, Some(CustomFee::FeeCap)),
             ChainId::Bsc => (&FeeLevel::ALL, Some(CustomFee::GasPrice)),
             ChainId::Solana => (&FeeLevel::ALL, Some(CustomFee::PriorityFee)),
@@ -276,10 +297,11 @@ fn settled_confirmations_match_each_chains_finality() {
         (ChainId::BitcoinCash, 6),
         (ChainId::Zcash, 10),
         (ChainId::Ethereum, 12),
-        (ChainId::Bsc, 3),
-        (ChainId::Polygon, 5),
         (ChainId::Arbitrum, 1),
         (ChainId::Base, 1),
+        (ChainId::Optimism, 1),
+        (ChainId::Bsc, 3),
+        (ChainId::Polygon, 5),
         (ChainId::Avalanche, 1),
         (ChainId::Solana, 1),
         (ChainId::Tron, 19),

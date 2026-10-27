@@ -35,10 +35,7 @@ pub(crate) fn of(
     let target = built.call_target().unwrap_or(plan.to);
 
     let mut details = vec![
-        TxDetail::new(
-            "Network",
-            format!("{} (chain id {})", params.chain.display_name(), params.chain_id),
-        ),
+        TxDetail::new("Chain id", params.chain_id.to_string()),
         TxDetail::new("Asset", asset_label),
         TxDetail::new("Amount", format!("{} {amount_symbol}", plan.amount.format(decimals))),
         TxDetail::new("Recipient", plan.to.to_string()),

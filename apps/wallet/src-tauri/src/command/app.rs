@@ -18,6 +18,9 @@ use crate::window::{WINDOW_CONTROLS, WindowBackdrop, WindowControls};
 pub(crate) struct ChainMeta {
     chain: ChainId,
     name: &'static str,
+    /// The chain the coin is native to, such as Ethereum on a rollup that pays fees in
+    /// ether.
+    coin_chain: ChainId,
     fee_rate_unit: Option<&'static str>,
     /// The fee levels a send can pick from, slowest first. Empty on a chain whose
     /// protocol fixes the fee.
@@ -138,6 +141,7 @@ pub(crate) async fn list_chain_metadata() -> Result<Vec<ChainMeta>, IpcError> {
         ChainMeta {
             chain: spec.chain,
             name: spec.chain.display_name(),
+            coin_chain: spec.coin_chain,
             fee_rate_unit: spec.fee_rate_unit,
             fee_levels: spec.fee_levels,
             custom_fee: spec.custom_fee,
@@ -195,6 +199,7 @@ mod tests {
             let spec = jelly_chains::chains().spec(chain);
             assert_eq!(metadata.name, chain.display_name());
             assert!(!metadata.name.is_empty(), "{}", chain.as_str());
+            assert_eq!(metadata.coin_chain, spec.coin_chain, "{}", chain.as_str());
             assert_eq!(metadata.fee_rate_unit, spec.fee_rate_unit, "{}", chain.as_str());
             assert_eq!(metadata.fee_levels, spec.fee_levels, "{}", chain.as_str());
             assert_eq!(metadata.custom_fee, spec.custom_fee, "{}", chain.as_str());

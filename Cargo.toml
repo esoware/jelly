@@ -39,10 +39,11 @@ jelly_dogecoin         = { path = "crates/chains/jelly_dogecoin" }
 jelly_bitcoin_cash     = { path = "crates/chains/jelly_bitcoin_cash" }
 jelly_zcash            = { path = "crates/chains/jelly_zcash" }
 jelly_ethereum         = { path = "crates/chains/jelly_ethereum" }
-jelly_bsc              = { path = "crates/chains/jelly_bsc" }
-jelly_polygon          = { path = "crates/chains/jelly_polygon" }
 jelly_arbitrum         = { path = "crates/chains/jelly_arbitrum" }
 jelly_base             = { path = "crates/chains/jelly_base" }
+jelly_optimism         = { path = "crates/chains/jelly_optimism" }
+jelly_bsc              = { path = "crates/chains/jelly_bsc" }
+jelly_polygon          = { path = "crates/chains/jelly_polygon" }
 jelly_avalanche        = { path = "crates/chains/jelly_avalanche" }
 jelly_solana           = { path = "crates/chains/jelly_solana" }
 jelly_tron             = { path = "crates/chains/jelly_tron" }

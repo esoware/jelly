@@ -24,7 +24,7 @@ impl fmt::Debug for ChainTable {
 impl ChainTable {
     /// `entries` must sit in [`ChainId::ALL`] order. A table whose entries declare
     /// other chains is a build defect, and the assertion names the first wrong slot.
-    pub fn new(entries: [&'static dyn ChainEntry; ChainId::COUNT]) -> Self {
+    pub fn new(entries: &[&'static dyn ChainEntry; ChainId::COUNT]) -> Self {
         for (chain, entry) in ChainId::ALL.into_iter().zip(entries) {
             assert_eq!(
                 entry.spec().chain,
@@ -33,7 +33,7 @@ impl ChainTable {
                 entry.spec().chain
             );
         }
-        Self { entries }
+        Self { entries: *entries }
     }
 
     pub fn entry(&self, chain: ChainId) -> &'static dyn ChainEntry {

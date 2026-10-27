@@ -64,6 +64,7 @@ pub(crate) const fn kraken_key(ticker: Ticker) -> &'static str {
         Ticker::Ondo => "ONDOUSD",
         Ticker::Pepe => "PEPEUSD",
         Ticker::Arb => "ARBUSD",
+        Ticker::Op => "OPUSD",
         Ticker::Jup => "JUPUSD",
         Ticker::Usdt => "USDTZUSD",
         Ticker::Usdc => "USDCUSD",

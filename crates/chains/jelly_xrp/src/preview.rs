@@ -8,7 +8,7 @@ pub(crate) fn xrp(drops: u64) -> String {
 }
 
 pub(crate) fn of(payment: &Payment) -> TxPreview {
-    let mut details = vec![TxDetail::new("Network", "XRP Ledger mainnet")];
+    let mut details = Vec::new();
     let mut warnings = Vec::new();
     match payment.kind {
         SendKind::Payment => {

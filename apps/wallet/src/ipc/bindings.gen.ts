@@ -170,7 +170,7 @@ export const commands = {
 	 *  Wakes the sync loop of `chain`, or of every chain with an adapter when it is `None`,
 	 *  and returns the IDs it woke. It does not start overlapping passes.
 	 */
-	syncNow: (chain: "bitcoin" | "litecoin" | "dogecoin" | "bitcoin_cash" | "zcash" | "ethereum" | "bsc" | "polygon" | "arbitrum" | "base" | "avalanche" | "solana" | "tron" | "xrp" | "ton" | "monero" | null) => typedError<ChainId[], IpcError>(__TAURI_INVOKE("sync_now", { chain })),
+	syncNow: (chain: "bitcoin" | "litecoin" | "dogecoin" | "bitcoin_cash" | "zcash" | "ethereum" | "arbitrum" | "base" | "optimism" | "bsc" | "polygon" | "avalanche" | "solana" | "tron" | "xrp" | "ton" | "monero" | null) => typedError<ChainId[], IpcError>(__TAURI_INVOKE("sync_now", { chain })),
 	listEnabledChains: () => typedError<ChainId[], IpcError>(__TAURI_INVOKE("list_enabled_chains")),
 	setChainEnabled: (chain: ChainId, isEnabled: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("set_chain_enabled", { chain, isEnabled })),
 	/**  `None` restores the shipped interval for the chain. */
@@ -387,8 +387,11 @@ export type CandleInterval = "hour" | "day" | "week";
 /**
  *  The supported chains. Endpoint file names and database values use these wire
  *  strings.
+ * 
+ *  The wallet lists chains as declared, so the rollups that pay fees in ether follow
+ *  Ethereum.
  */
-export type ChainId = "bitcoin" | "litecoin" | "dogecoin" | "bitcoin_cash" | "zcash" | "ethereum" | "bsc" | "polygon" | "arbitrum" | "base" | "avalanche" | "solana" | "tron" | "xrp" | "ton" | "monero";
+export type ChainId = "bitcoin" | "litecoin" | "dogecoin" | "bitcoin_cash" | "zcash" | "ethereum" | "arbitrum" | "base" | "optimism" | "bsc" | "polygon" | "avalanche" | "solana" | "tron" | "xrp" | "ton" | "monero";
 
 /**
  *  Asset scale and symbol come from `AssetMeta`.
@@ -397,6 +400,11 @@ export type ChainId = "bitcoin" | "litecoin" | "dogecoin" | "bitcoin_cash" | "zc
 export type ChainMeta = {
 	chain: ChainId,
 	name: string,
+	/**
+	 *  The chain the coin is native to, such as Ethereum on a rollup that pays fees in
+	 *  ether.
+	 */
+	coinChain: ChainId,
 	feeRateUnit: string | null,
 	/**
 	 *  The fee levels a send can pick from, slowest first. Empty on a chain whose
@@ -865,7 +873,7 @@ export type StartupStatus = { kind: "starting" } | { kind: "ready"; rebuilt: Dat
  *  declared: other tokens first, then real world assets with the dollar coins
  *  before gold, each by market capitalization.
  */
-export type TokenId = "link_erc20" | "wbtc_erc20" | "weth_erc20" | "uni_erc20" | "shib_erc20" | "ena_erc20" | "aave_erc20" | "ondo_erc20" | "pepe_erc20" | "arb_erc20" | "usdt_erc20" | "usdc_erc20" | "usds_erc20" | "dai_erc20" | "usdg_erc20" | "pyusd_erc20" | "xaut_erc20" | "paxg_erc20" | "link_bep20" | "weth_bep20" | "usdt_bep20" | "usdc_bep20" | "xaut_bep20" | "link_polygon" | "weth_polygon" | "usdt_polygon" | "usdc_polygon" | "pyusd_polygon" | "xaut_polygon" | "link_arbitrum" | "weth_arbitrum" | "arb_arbitrum" | "usdt_arbitrum" | "usdc_arbitrum" | "usds_arbitrum" | "usdg_arbitrum" | "pyusd_arbitrum" | "xaut_arbitrum" | "link_base" | "weth_base" | "usdc_base" | "usds_base" | "link_avalanche" | "weth_avalanche" | "usdt_avalanche" | "usdc_avalanche" | "usds_avalanche" | "xaut_avalanche" | "link_spl" | "pump_spl" | "jup_spl" | "usdt_spl" | "usdc_spl" | "usds_spl" | "usdg_spl" | "pyusd_spl" | "paxg_spl" | "usdt_trc20" | "usdt_jetton" | "xaut_jetton";
+export type TokenId = "link_erc20" | "wbtc_erc20" | "weth_erc20" | "uni_erc20" | "shib_erc20" | "ena_erc20" | "aave_erc20" | "ondo_erc20" | "pepe_erc20" | "arb_erc20" | "usdt_erc20" | "usdc_erc20" | "usds_erc20" | "dai_erc20" | "usdg_erc20" | "pyusd_erc20" | "xaut_erc20" | "paxg_erc20" | "link_arbitrum" | "weth_arbitrum" | "arb_arbitrum" | "usdt_arbitrum" | "usdc_arbitrum" | "usds_arbitrum" | "usdg_arbitrum" | "pyusd_arbitrum" | "xaut_arbitrum" | "link_base" | "weth_base" | "usdc_base" | "usds_base" | "link_optimism" | "weth_optimism" | "op_optimism" | "usdt_optimism" | "usdc_optimism" | "usds_optimism" | "link_bep20" | "weth_bep20" | "usdt_bep20" | "usdc_bep20" | "xaut_bep20" | "link_polygon" | "weth_polygon" | "usdt_polygon" | "usdc_polygon" | "pyusd_polygon" | "xaut_polygon" | "link_avalanche" | "weth_avalanche" | "usdt_avalanche" | "usdc_avalanche" | "usds_avalanche" | "xaut_avalanche" | "link_spl" | "pump_spl" | "jup_spl" | "usdt_spl" | "usdc_spl" | "usds_spl" | "usdg_spl" | "pyusd_spl" | "paxg_spl" | "usdt_trc20" | "usdt_jetton" | "xaut_jetton";
 
 /**
  *  How an endpoint is reached. The pool takes its timeout policy from this,

@@ -116,10 +116,11 @@ pub(crate) fn address_vectors(params: &UtxoParams) -> Fallible<Value> {
         ChainId::Dogecoin => include_str!("../../vectors/dogecoin/addresses.json"),
         other @ (ChainId::Zcash
         | ChainId::Ethereum
-        | ChainId::Bsc
-        | ChainId::Polygon
         | ChainId::Arbitrum
         | ChainId::Base
+        | ChainId::Optimism
+        | ChainId::Bsc
+        | ChainId::Polygon
         | ChainId::Avalanche
         | ChainId::Solana
         | ChainId::Tron
@@ -185,10 +186,11 @@ pub(crate) fn spec(params: &UtxoParams) -> Fallible<&'static ChainSpec> {
         ChainId::Dogecoin => Ok(&jelly_dogecoin::SPEC),
         other @ (ChainId::Zcash
         | ChainId::Ethereum
-        | ChainId::Bsc
-        | ChainId::Polygon
         | ChainId::Arbitrum
         | ChainId::Base
+        | ChainId::Optimism
+        | ChainId::Bsc
+        | ChainId::Polygon
         | ChainId::Avalanche
         | ChainId::Solana
         | ChainId::Tron

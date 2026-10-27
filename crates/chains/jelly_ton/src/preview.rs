@@ -6,7 +6,6 @@ use crate::payload::{Payment, Transfer};
 
 pub(crate) fn of(payment: &Payment) -> Result<TxPreview, TonError> {
     let mut details = vec![
-        TxDetail::new("Network", "TON mainnet"),
         TxDetail::new("Wallet contract", payment.version.name()),
         TxDetail::new("Sequence", payment.seqno.to_string()),
     ];

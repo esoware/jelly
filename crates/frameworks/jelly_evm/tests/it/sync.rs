@@ -18,9 +18,9 @@ use serde_json::Value;
 use tokio::time::sleep;
 
 use crate::common::{
-    Answer, BASE, BSC, ETH, ETHEREUM, FakeNode, Fallible, GWEI, Harness, L1_FEE_WEI, OWNER, PEER,
-    SECOND, SHEET_ENTRIES, SIGNER, Setup, TIP, TIP_HEX, aggregate, evm_fee, fixture, quantity,
-    receipt, receipt_for, sheet, sheet_index, sheets_on, watched, word,
+    Answer, BASE, BSC, ETH, ETHEREUM, FakeNode, Fallible, GWEI, Harness, L1_FEE_WEI, OPTIMISM,
+    OWNER, PEER, SECOND, SHEET_ENTRIES, SIGNER, Setup, TIP, TIP_HEX, aggregate, evm_fee, fixture,
+    quantity, receipt, receipt_for, sheet, sheet_index, sheets_on, watched, word,
 };
 
 fn logs(key: &str) -> Fallible<String> {
@@ -825,6 +825,7 @@ async fn each_carried_token_reports_its_balance_and_its_logged_transfers() {
         (BSC, TokenId::LinkBep20),
         (BSC, TokenId::XautBep20),
         (BASE, TokenId::WethBase),
+        (OPTIMISM, TokenId::OpOptimism),
     ] {
         let harness = Harness::new(Setup::on(network).one_window()).unwrap();
         let cursor = serde_json::json!({

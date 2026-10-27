@@ -5,7 +5,7 @@ import type { ComponentProps, ReactNode } from "react"
 
 import { AllocationMark } from "@/features/wallet/donut.tsx"
 import type { AssetId, ChainId } from "@/ipc/bindings.gen.ts"
-import { chainName, chainTicker, hasOwnTicker, withShownAsset } from "@/lib/chain.ts"
+import { chainName, withShownAsset } from "@/lib/chain.ts"
 import { appendClassName } from "@/lib/class-name.ts"
 import { allocate, holdingsFor } from "@/lib/portfolio.ts"
 import type { Holdings } from "@/lib/portfolio.ts"
@@ -188,7 +188,7 @@ function WalletNav({ holdings, view }: WalletNavProps) {
               key={chain}
               item={{
                 value: chain,
-                label: hasOwnTicker(chain) ? chainTicker(chain) : chainName(chain),
+                label: chainName(chain),
                 icon: <ChainLogo chain={chain} />,
               }}
             />
