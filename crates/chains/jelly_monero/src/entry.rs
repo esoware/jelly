@@ -10,6 +10,7 @@ use crate::params::{CHAIN, FEE_RATE_UNIT};
 
 pub const SPEC: ChainSpec = ChainSpec {
     chain: CHAIN,
+    coin_name: "Monero",
     slip44: 128,
     key_kind: KeyKind::MoneroSpend,
     default_path: "m/44'/128'/{index}'",

@@ -13,6 +13,9 @@ use crate::tx::{CustomFee, FeeLevel, TxWarning, TxWarningKind};
 )]
 pub struct ChainSpec {
     pub chain: ChainId,
+    /// The name of the chain's own coin, which is not always the network's: the coin on
+    /// BNB Smart Chain is BNB.
+    pub coin_name: &'static str,
     /// SLIP-44 coin type of the chain's default derivation path.
     pub slip44: u32,
     pub key_kind: KeyKind,
@@ -151,6 +154,7 @@ mod tests {
 
     const UTXO: ChainSpec = ChainSpec {
         chain: ChainId::Bitcoin,
+        coin_name: "Bitcoin",
         slip44: 0,
         key_kind: KeyKind::Secp256k1,
         default_path: "m/84'/0'/0'/0/{index}",

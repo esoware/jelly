@@ -20,6 +20,7 @@ const FEE_RATE_UNIT: &str = "koinu/B";
 /// to read.
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Dogecoin,
+    coin_name: "Dogecoin",
     slip44: 3,
     key_kind: KeyKind::Secp256k1,
     default_path: "m/44'/3'/0'/0/{index}",

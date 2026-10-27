@@ -15,6 +15,7 @@ const FEE_RATE_UNIT: &str = "sat/vB";
 
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Bitcoin,
+    coin_name: "Bitcoin",
     slip44: 0,
     key_kind: KeyKind::Secp256k1,
     default_path: "m/84'/0'/0'/0/{index}",

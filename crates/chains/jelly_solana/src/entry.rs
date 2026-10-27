@@ -11,6 +11,7 @@ use crate::keypair::{self, KeyFormat};
 
 pub const SPEC: ChainSpec = ChainSpec {
     chain: CHAIN,
+    coin_name: "Solana",
     slip44: 501,
     key_kind: KeyKind::Ed25519Seed,
     default_path: "m/44'/501'/{index}'/0'",
