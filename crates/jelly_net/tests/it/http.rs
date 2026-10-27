@@ -1,5 +1,4 @@
 use std::io;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -8,7 +7,6 @@ use jelly_net::{HttpClient, HttpRequest, NetError, UrlRejection};
 use parking_lot::Mutex;
 use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpStream;
-use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
 use crate::common::{endpoint, loopback_server, read_head};
@@ -20,19 +18,8 @@ const REMOTE: &str = "plaintext-node.example";
 /// Every request line the fake proxy read.
 type Lines = Arc<Mutex<Vec<String>>>;
 
-/// One listener that is both a loopback endpoint and the HTTP proxy every request goes
-/// through. It redirects the endpoint to a plaintext remote host and answers the remote
-/// host itself.
-async fn redirecting_proxy() -> io::Result<(SocketAddr, Lines, JoinHandle<()>)> {
-    let lines: Lines = Arc::new(Mutex::new(Vec::new()));
-    let (address, server) = loopback_server({
-        let lines = Arc::clone(&lines);
-        move |stream| serve(stream, Arc::clone(&lines))
-    })
-    .await?;
-    Ok((address, lines, server))
-}
-
+/// Answers as both a loopback endpoint and the HTTP proxy every request goes through. It
+/// redirects the endpoint to a plaintext remote host and answers the remote host itself.
 async fn serve(mut stream: TcpStream, lines: Lines) {
     loop {
         let Ok(head) = read_head(&mut stream).await else { return };
@@ -65,7 +52,13 @@ async fn a_redirect_to_a_plaintext_remote_host_is_not_followed() {
         "{refused:?}"
     );
 
-    let (address, lines, server) = redirecting_proxy().await.expect("a loopback proxy");
+    let lines: Lines = Arc::new(Mutex::new(Vec::new()));
+    let (address, server) = loopback_server({
+        let lines = Arc::clone(&lines);
+        move |stream| serve(stream, Arc::clone(&lines))
+    })
+    .await
+    .expect("a loopback proxy");
     let proxy = ProxySetting::Http { url: format!("http://{address}") };
     let http = HttpClient::new(Some(&proxy)).expect("the client builds");
     let endpoint = endpoint(&format!("http://{address}")).expect("a loopback endpoint");
@@ -166,16 +159,8 @@ const GZIPPED: [u8; 52] = [
     0x00, 0x40, 0x00, 0x00,
 ];
 
-/// Gzips the answer only when the request accepts gzip, as a real server does.
 async fn gzip_body(mut stream: TcpStream) -> io::Result<()> {
-    let head = read_head(&mut stream).await?.to_ascii_lowercase();
-    if !head.contains("accept-encoding: gzip") {
-        return stream
-            .write_all(
-                b"HTTP/1.1 406 Not Acceptable\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
-            )
-            .await;
-    }
+    read_head(&mut stream).await?;
     let reply = format!(
         "HTTP/1.1 200 OK\r\ncontent-encoding: gzip\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
         GZIPPED.len()

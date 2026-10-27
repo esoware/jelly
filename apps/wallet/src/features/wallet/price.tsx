@@ -93,7 +93,7 @@ function ChartAxes({ plot, clipPath }: ChartAxesProps) {
         className="stroke-edge"
       />
       <g textAnchor="end" className="fill-fg-faint">
-        {plot.priceTicks.map(({ key, tick, at, opacity }) => {
+        {plot.priceTicks.map(({ key, label, at, opacity }) => {
           const overshoot = Math.max(0, bounds.top - at, at - bounds.bottom)
           return (
             <text
@@ -103,13 +103,13 @@ function ChartAxes({ plot, clipPath }: ChartAxesProps) {
               opacity={opacity * Math.max(0, 1 - overshoot / AXIS_GAP)}
               dominantBaseline="central"
             >
-              {tick.label}
+              {label}
             </text>
           )
         })}
       </g>
       <g textAnchor="middle" className="fill-fg-faint">
-        {plot.timeTicks.map(({ key, tick, at, opacity }) => (
+        {plot.timeTicks.map(({ key, label, at, opacity }) => (
           <text
             key={key}
             x={at}
@@ -117,7 +117,7 @@ function ChartAxes({ plot, clipPath }: ChartAxesProps) {
             opacity={opacity}
             dominantBaseline="hanging"
           >
-            {tick.label}
+            {label}
           </text>
         ))}
       </g>
@@ -285,7 +285,7 @@ function ChartPlot({ asset, series, interval, width, height, isInteractive }: Ch
     (source) => drawPlot(assetKey(source.asset), source.series, plotSize),
     blendPlots,
   )
-  const labels = target.priceTicks.map((mark) => mark.tick.label)
+  const labels = target.priceTicks.map((mark) => mark.label)
 
   useLayoutEffect(() => {
     const group = labelsRef.current

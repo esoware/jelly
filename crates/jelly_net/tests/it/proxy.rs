@@ -15,7 +15,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, timeout};
 
-use crate::common::{loopback_server, read_head};
+use crate::common::{endpoint, loopback_server, read_head};
 
 const TARGET_HOST: &str = "node.example";
 const TARGET_PORT: u16 = 50002;
@@ -238,9 +238,7 @@ async fn a_socks5h_route_spelled_socks5_leaves_name_resolution_to_the_proxy() {
 
     let proxy = ProxySetting::Socks5h { url: format!("socks5://{address}") };
     let http = HttpClient::new(Some(&proxy)).expect("the client builds");
-    let endpoint =
-        Endpoint::parse(ChainId::Ethereum, Transport::HttpJsonrpc, "https://localhost:8545")
-            .expect("a loopback endpoint");
+    let endpoint = endpoint("https://localhost:8545").expect("a loopback endpoint");
     let sent = timeout(
         Duration::from_secs(10),
         http.send(&endpoint, "", HttpRequest::get(Duration::from_secs(5))),
@@ -390,9 +388,7 @@ async fn an_http_proxy_with_an_unusable_scheme_is_never_bypassed_by_the_http_cli
     });
 
     let proxy = ProxySetting::Http { url: format!("htpp://{proxy_address}") };
-    let endpoint =
-        Endpoint::parse(ChainId::Bitcoin, Transport::FeeApi, &format!("http://{target_address}"))
-            .expect("a loopback endpoint");
+    let endpoint = endpoint(&format!("http://{target_address}")).expect("a loopback endpoint");
     if let Ok(http) = HttpClient::new(Some(&proxy)) {
         let request = http.send(&endpoint, "", HttpRequest::get(Duration::from_secs(5)));
         let _ = timeout(Duration::from_secs(10), request).await;

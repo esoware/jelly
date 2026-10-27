@@ -1,5 +1,5 @@
 import { priceTicks, seriesDomain, seriesExtent, timeTicks } from "@/features/wallet/price-scale.ts"
-import type { ChartSeries, PriceTick, TimeTick } from "@/features/wallet/price-scale.ts"
+import type { ChartSeries } from "@/features/wallet/price-scale.ts"
 import { lerp } from "@/ui/use-morph.ts"
 
 export const AXIS_GAP = 6
@@ -43,18 +43,18 @@ interface Pace {
   y: number
 }
 
-interface TickMark<T> {
+interface TickMark {
   key: string
-  tick: T
+  label: string
   at: number
   opacity: number
 }
 
 type TickFade = "leaving" | "arriving" | "staying"
 
-interface TickPair<T> {
+interface TickPair {
   key: string
-  tick: T
+  label: string
   fromAt: number
   toAt: number
   fromOpacity: number
@@ -104,8 +104,8 @@ export interface Plot {
   bounds: Bounds
   time: Scale<number>
   price: Scale<bigint>
-  priceTicks: readonly TickMark<PriceTick>[]
-  timeTicks: readonly TickMark<TimeTick>[]
+  priceTicks: readonly TickMark[]
+  timeTicks: readonly TickMark[]
   line: LineMark | null
   candles: readonly CandleMark[]
 }
@@ -171,7 +171,7 @@ export function drawPlot(assetKey: string, series: ChartSeries, size: PlotSize):
       series.currency,
     ).map((tick) => ({
       key: `${tick.price.toString()} ${tick.label}`,
-      tick,
+      label: tick.label,
       at: placePrice(price, tick.price),
       opacity: 1,
     })),
@@ -182,7 +182,7 @@ export function drawPlot(assetKey: string, series: ChartSeries, size: PlotSize):
     )
       .map((tick) => ({
         key: `${String(tick.unixSecs)} ${tick.label}`,
-        tick,
+        label: tick.label,
         at: placeTime(time, tick.unixSecs),
         opacity: 1,
       }))
@@ -379,19 +379,19 @@ function pairCandles(from: Plot, to: Plot, forward: Relation, backward: Relation
   return [...leaving, ...arriving]
 }
 
-function pairTicks<T>(
-  from: readonly TickMark<T>[],
-  to: readonly TickMark<T>[],
+function pairTicks(
+  from: readonly TickMark[],
+  to: readonly TickMark[],
   forward: Affine,
   backward: Affine,
-): TickPair<T>[] {
+): TickPair[] {
   const toKeys = new Set(to.map((mark) => mark.key))
   const fromByKey = new Map(from.map((mark) => [mark.key, mark]))
   const leaving = from
     .filter((mark) => !toKeys.has(mark.key))
     .map((mark) => ({
       key: mark.key,
-      tick: mark.tick,
+      label: mark.label,
       fromAt: mark.at,
       toAt: apply(forward, mark.at),
       fromOpacity: mark.opacity,
@@ -402,7 +402,7 @@ function pairTicks<T>(
     const shown = fromByKey.get(mark.key)
     return {
       key: mark.key,
-      tick: mark.tick,
+      label: mark.label,
       fromAt: shown?.at ?? apply(backward, mark.at),
       toAt: mark.at,
       fromOpacity: shown?.opacity ?? 0,
@@ -413,7 +413,7 @@ function pairTicks<T>(
   return [...leaving, ...arriving]
 }
 
-function blendTicks<T>(pairs: readonly TickPair<T>[], reach: number): TickMark<T>[] {
+function blendTicks(pairs: readonly TickPair[], reach: number): TickMark[] {
   const shares: Record<TickFade, number> = {
     leaving: Math.min(1, reach * 2),
     arriving: Math.max(0, reach * 2 - 1),
@@ -421,7 +421,7 @@ function blendTicks<T>(pairs: readonly TickPair<T>[], reach: number): TickMark<T
   }
   return pairs.map((pair) => ({
     key: pair.key,
-    tick: pair.tick,
+    label: pair.label,
     at: lerp(pair.fromAt, pair.toAt, reach),
     opacity: lerp(pair.fromOpacity, pair.toOpacity, shares[pair.fade]),
   }))
