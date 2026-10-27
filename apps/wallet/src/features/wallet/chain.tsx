@@ -1,7 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
 import { useNavigate, useParams } from "@tanstack/react-router"
 import { useState } from "react"
-import type { ComponentProps, ReactElement } from "react"
 
 import { ActivityPanel } from "@/features/wallet/activity.tsx"
 import { AddressesPanel } from "@/features/wallet/addresses.tsx"
@@ -17,67 +16,97 @@ import {
 import { PricePanel } from "@/features/wallet/price.tsx"
 import { ReceiveDialog } from "@/features/wallet/receive.tsx"
 import { SendDialog } from "@/features/wallet/send.tsx"
-import type { AssetId, ChainId } from "@/ipc/bindings.gen.ts"
+import type { AssetId } from "@/ipc/bindings.gen.ts"
 import { formatAmount } from "@/lib/amount.ts"
 import {
+  assetChain,
   assetName,
   assetSymbol,
   assetsForChain,
   chainName,
   chainTicker,
+  nativeAsset,
   shownAsset,
 } from "@/lib/chain.ts"
-import { appendClassName } from "@/lib/class-name.ts"
 import { positionOf } from "@/lib/portfolio.ts"
 import type { Holdings } from "@/lib/portfolio.ts"
 import { settingQueries } from "@/query/setting.ts"
 import { Button } from "@/ui/button.tsx"
 import { Icon } from "@/ui/icon.tsx"
-import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@/ui/menu.tsx"
+import {
+  Menu,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuSubmenu,
+  MenuTrigger,
+} from "@/ui/menu.tsx"
 import { useAccentColor } from "@/ui/use-accent-color.ts"
 import { FiatAmount } from "@/widgets/amounts.tsx"
-import { AssetMenu } from "@/widgets/asset-menu.tsx"
+import { AssetMenuItems } from "@/widgets/asset-menu.tsx"
 import { AssetLogo, ChainLogo, assetBrand } from "@/widgets/logos.tsx"
 
 const LONG_FIGURE_CHARS = 11
 
-function SwitchRow({ className, children, ...props }: ComponentProps<"button">) {
-  return (
-    <button
-      type="button"
-      {...props}
-      className={appendClassName(
-        "group/switch flex min-w-0 items-center gap-1 text-left transition-colors",
-        className,
-      )}
-    >
-      {children}
-      <span className="-my-px ml-auto flex size-4.5 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors group-hover/switch:bg-hover group-hover/switch:text-fg group-data-popup-open/switch:bg-active group-data-popup-open/switch:text-fg">
-        <Icon name="switch" className="size-icon-sm" />
-      </span>
-    </button>
-  )
+interface CoinMenuProps {
+  allHoldings: readonly Holdings[]
+  asset: AssetId
+  onAssetChange: (asset: AssetId) => void
 }
 
-interface ChainMenuProps {
-  chains: readonly ChainId[]
-  chain: ChainId
-  onChainChange: (chain: ChainId) => void
-  trigger: ReactElement
-}
+function CoinMenu({ allHoldings, asset, onAssetChange }: CoinMenuProps) {
+  const chain = assetChain(asset)
 
-function ChainMenu({ chains, chain, onChainChange, trigger }: ChainMenuProps) {
   return (
     <Menu>
-      <MenuTrigger render={trigger} />
-      <MenuPopup align="start" className="min-w-60">
-        <MenuRadioGroup label="Chains" value={chain} onValueChange={onChainChange}>
-          {chains.map((option) => (
-            <MenuRadioItem key={option} value={option} description={chainTicker(option)}>
-              <ChainLogo chain={option} />
-              <span className="min-w-0 truncate">{chainName(option)}</span>
-            </MenuRadioItem>
-          ))}
+      <MenuTrigger
+        render={
+          <Button variant="ghost" size="icon-sm">
+            <Icon name="switch" />
+          </Button>
+        }
+      />
+      <MenuPopup align="end" className="min-w-60">
+        <MenuRadioGroup
+          label="Chains"
+          value={chain}
+          onValueChange={(next) => {
+            onAssetChange(nativeAsset(next))
+          }}
+        >
+          {allHoldings.map((entry) => {
+            const assets = assetsForChain(entry.chain)
+            const label = (
+              <>
+                <ChainLogo chain={entry.chain} />
+                <span className="min-w-0 truncate">{chainName(entry.chain)}</span>
+              </>
+            )
+            return assets.length > 1 ? (
+              <MenuSubmenu
+                key={entry.chain}
+                label={label}
+                description={chainTicker(entry.chain)}
+                isChecked={entry.chain === chain}
+                className="min-w-60"
+              >
+                <AssetMenuItems
+                  assets={assets}
+                  asset={entry.chain === chain ? asset : null}
+                  onAssetChange={onAssetChange}
+                  amountFor={(option) => positionOf(entry, option).amount}
+                />
+              </MenuSubmenu>
+            ) : (
+              <MenuRadioItem
+                key={entry.chain}
+                value={entry.chain}
+                description={chainTicker(entry.chain)}
+              >
+                {label}
+              </MenuRadioItem>
+            )
+          })}
         </MenuRadioGroup>
       </MenuPopup>
     </Menu>
@@ -86,34 +115,24 @@ function ChainMenu({ chains, chain, onChainChange, trigger }: ChainMenuProps) {
 
 interface BalancePanelProps {
   holdings: Holdings
-  chains: readonly ChainId[]
+  allHoldings: readonly Holdings[]
   asset: AssetId
   onAssetChange: (asset: AssetId) => void
-  onChainChange: (chain: ChainId) => void
   onSend: () => void
   onReceive: () => void
 }
 
 function BalancePanel({
   holdings,
-  chains,
+  allHoldings,
   asset,
   onAssetChange,
-  onChainChange,
   onSend,
   onReceive,
 }: BalancePanelProps) {
   const accentRef = useAccentColor<HTMLElement>(assetBrand(asset).color)
-  const assets = assetsForChain(holdings.chain)
   const position = positionOf(holdings, asset)
   const text = formatAmount(position.amount, position.decimals)
-  const chainLine = (
-    <>
-      On
-      <ChainLogo chain={holdings.chain} className="size-icon-sm" />
-      <span className="truncate">{chainName(holdings.chain)}</span>
-    </>
-  )
 
   return (
     <HeroPanel ref={accentRef} className="transition-colors">
@@ -122,39 +141,16 @@ function BalancePanel({
           <AssetLogo asset={asset} className="size-8" />
         </HeroLogo>
         <div className="flex min-w-0 flex-1 flex-col">
-          {assets.length > 1 ? (
-            <AssetMenu
-              assets={assets}
-              asset={asset}
-              onAssetChange={onAssetChange}
-              amountFor={(option) => positionOf(holdings, option).amount}
-              align="start"
-              trigger={
-                <SwitchRow className="text-title">
-                  <span className="truncate">{assetName(asset)}</span>
-                </SwitchRow>
-              }
-            />
-          ) : (
-            <span className="truncate text-title">{assetName(asset)}</span>
-          )}
-          {chains.length > 1 ? (
-            <ChainMenu
-              chains={chains}
-              chain={holdings.chain}
-              onChainChange={onChainChange}
-              trigger={
-                <SwitchRow className="text-caption text-fg-muted hover:text-fg data-popup-open:text-fg">
-                  {chainLine}
-                </SwitchRow>
-              }
-            />
-          ) : (
-            <span className="flex min-w-0 items-center gap-1 text-caption text-fg-muted">
-              {chainLine}
-            </span>
-          )}
+          <span className="truncate text-title">{assetName(asset)}</span>
+          <span className="flex min-w-0 items-center gap-1 text-caption text-fg-muted">
+            On
+            <ChainLogo chain={holdings.chain} className="size-icon-sm" />
+            <span className="truncate">{chainName(holdings.chain)}</span>
+          </span>
         </div>
+        {allHoldings.length > 1 || assetsForChain(holdings.chain).length > 1 ? (
+          <CoinMenu allHoldings={allHoldings} asset={asset} onAssetChange={onAssetChange} />
+        ) : null}
       </HeroPanelTop>
 
       <HeroPanelFigures>
@@ -212,14 +208,14 @@ export function ChainView() {
       <div className="flex w-72 shrink-0 flex-col gap-3">
         <BalancePanel
           holdings={holdings}
-          chains={allHoldings.map((entry) => entry.chain)}
+          allHoldings={allHoldings}
           asset={asset}
           onAssetChange={(next) => {
             saveShownAsset.mutate(next)
-          }}
-          onChainChange={(next) => {
-            saveShownAsset.mutate(shownAsset(next, settings.data.shownTokens))
-            void navigate({ to: "/wallet/$chain", params: { chain: next } })
+            const nextChain = assetChain(next)
+            if (nextChain !== chain) {
+              void navigate({ to: "/wallet/$chain", params: { chain: nextChain } })
+            }
           }}
           onSend={() => {
             setAction("send")

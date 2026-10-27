@@ -20,7 +20,7 @@ import { Segmented } from "@/ui/segmented.tsx"
 import { Skeleton } from "@/ui/skeleton.tsx"
 import { StepTransition } from "@/ui/step-transition.tsx"
 import { useAccentColor } from "@/ui/use-accent-color.ts"
-import { AssetLogo, CHAIN_BRANDS } from "@/widgets/logos.tsx"
+import { AssetLogo, assetBrand } from "@/widgets/logos.tsx"
 
 const WALLET_VIEWS = ["portfolio", "wallet", "contacts", "settings"] as const
 
@@ -129,15 +129,13 @@ export function HeroFigure({ isLong, children }: HeroFigureProps) {
 interface WalletNavProps {
   holdings: readonly Holdings[]
   view: WalletView
+  walletAsset: AssetId | null
 }
 
-function WalletNav({ holdings, view }: WalletNavProps) {
+function WalletNav({ holdings, view, walletAsset }: WalletNavProps) {
   const navigate = useNavigate()
   const prices = usePrices()
-  const { shownChain, shownTokens } = useSuspenseQuery(settingQueries.all()).data
   const allocation = allocate(holdings, prices)
-  const chain =
-    holdings.find((entry) => entry.chain === shownChain)?.chain ?? holdings.at(0)?.chain ?? null
 
   return (
     <Segmented
@@ -152,7 +150,7 @@ function WalletNav({ holdings, view }: WalletNavProps) {
         {
           value: "wallet",
           label: "Wallet",
-          icon: chain === null ? undefined : <AssetLogo asset={shownAsset(chain, shownTokens)} />,
+          icon: walletAsset === null ? undefined : <AssetLogo asset={walletAsset} />,
         },
         { value: "contacts", label: "Address book" },
       ]}
@@ -170,10 +168,10 @@ function WalletNav({ holdings, view }: WalletNavProps) {
           void navigate({ to: "/wallet/contacts" })
         } else if (next === "settings") {
           void navigate({ to: "/wallet/settings" })
-        } else if (chain === null) {
+        } else if (walletAsset === null) {
           void navigate({ to: "/wallet/settings/chains" })
         } else {
-          void navigate({ to: "/wallet/$chain", params: { chain } })
+          void navigate({ to: "/wallet/$chain", params: { chain: assetChain(walletAsset) } })
         }
       }}
     />
@@ -188,8 +186,15 @@ export function WalletLayout() {
         .walletView ?? "portfolio",
   })
   const holdings = useHoldings()
+  const { shownChain, shownTokens } = useSuspenseQuery(settingQueries.all()).data
+  const walletChain =
+    chain ??
+    holdings.find((entry) => entry.chain === shownChain)?.chain ??
+    holdings.at(0)?.chain ??
+    null
+  const walletAsset = walletChain === null ? null : shownAsset(walletChain, shownTokens)
   const accentRef = useAccentColor<HTMLDivElement>(
-    chain === undefined ? null : CHAIN_BRANDS[chain].color,
+    chain === undefined || walletAsset === null ? null : assetBrand(walletAsset).color,
   )
 
   return (
@@ -197,7 +202,7 @@ export function WalletLayout() {
       ref={accentRef}
       className="flex h-full flex-col gap-3 px-3 pt-1 pb-3 [transition:--color-accent_var(--transition-duration-base)_var(--ease-enter)]"
     >
-      <WalletNav holdings={holdings} view={view} />
+      <WalletNav holdings={holdings} view={view} walletAsset={walletAsset} />
       <StepTransition step={WALLET_VIEWS.indexOf(view)} className="flex min-h-0 flex-1 gap-3">
         <Outlet />
       </StepTransition>
