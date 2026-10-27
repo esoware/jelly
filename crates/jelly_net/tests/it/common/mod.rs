@@ -1,5 +1,6 @@
 use std::future::pending;
 use std::io;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -10,7 +11,8 @@ use jelly_net::{
 };
 use parking_lot::Mutex;
 use tokio::io::AsyncReadExt as _;
-use tokio::net::TcpStream;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::task::{JoinHandle, JoinSet};
 
 pub(crate) const ENDPOINT_A: &str = "https://a.example";
 pub(crate) const ENDPOINT_B: &str = "https://b.example";
@@ -30,6 +32,24 @@ pub(crate) async fn read_head(stream: &mut TcpStream) -> io::Result<String> {
         head.extend_from_slice(&byte);
     }
     Ok(String::from_utf8_lossy(&head).into_owned())
+}
+
+/// A loopback server that hands every connection to `serve`, until its handle is aborted.
+pub(crate) async fn loopback_server<F, Fut>(serve: F) -> io::Result<(SocketAddr, JoinHandle<()>)>
+where
+    F: Fn(TcpStream) -> Fut + Send + 'static,
+    Fut: Future + Send + 'static,
+    Fut::Output: Send + 'static,
+{
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let server = tokio::spawn(async move {
+        let mut connections = JoinSet::new();
+        while let Ok((stream, _)) = listener.accept().await {
+            connections.spawn(serve(stream));
+        }
+    });
+    Ok((address, server))
 }
 
 /// Stands in for whatever a chain talks through. It carries the canonical URL

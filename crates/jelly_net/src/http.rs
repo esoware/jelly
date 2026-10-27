@@ -139,10 +139,7 @@ async fn read_body(
         response.chunk().await.map_err(|source| transport_error(label, timeout, source))?
     {
         if body.len().saturating_add(chunk.len()) > max_bytes {
-            return Err(NetError::protocol(
-                label,
-                "the response is larger than the request allows",
-            ));
+            return Err(NetError::TooLarge { endpoint: label.clone(), max_bytes });
         }
         body.extend_from_slice(&chunk);
     }

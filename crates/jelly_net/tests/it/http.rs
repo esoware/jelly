@@ -7,11 +7,11 @@ use jelly_core::ProxySetting;
 use jelly_net::{HttpClient, HttpRequest, NetError, UrlRejection};
 use parking_lot::Mutex;
 use tokio::io::AsyncWriteExt as _;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::task::{JoinHandle, JoinSet};
+use tokio::net::TcpStream;
+use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
-use crate::common::{endpoint, read_head};
+use crate::common::{endpoint, loopback_server, read_head};
 
 /// A remote name the endpoint policy refuses over plaintext. The fake proxy answers for
 /// it, so nothing leaves the machine.
@@ -19,24 +19,6 @@ const REMOTE: &str = "plaintext-node.example";
 
 /// Every request line the fake proxy read.
 type Lines = Arc<Mutex<Vec<String>>>;
-
-/// A loopback HTTP server that hands every connection to `serve`.
-async fn loopback_server<F, Fut>(serve: F) -> io::Result<(SocketAddr, JoinHandle<()>)>
-where
-    F: Fn(TcpStream) -> Fut + Send + 'static,
-    Fut: Future + Send + 'static,
-    Fut::Output: Send + 'static,
-{
-    let listener = TcpListener::bind("127.0.0.1:0").await?;
-    let address = listener.local_addr()?;
-    let server = tokio::spawn(async move {
-        let mut connections = JoinSet::new();
-        while let Ok((stream, _)) = listener.accept().await {
-            connections.spawn(serve(stream));
-        }
-    });
-    Ok((address, server))
-}
 
 /// One listener that is both a loopback endpoint and the HTTP proxy every request goes
 /// through. It redirects the endpoint to a plaintext remote host and answers the remote
@@ -136,7 +118,7 @@ async fn a_response_body_that_streams_past_the_cap_is_refused() {
     let fitting = http.send(&endpoint, "", HttpRequest::get(budget).with_max_bytes(whole)).await;
     server.abort();
 
-    assert!(matches!(refused, Err(NetError::Protocol { .. })), "{refused:?}");
+    assert!(matches!(refused, Err(NetError::TooLarge { .. })), "{refused:?}");
     let body =
         fitting.expect("a body exactly at the cap is read").into_bytes().expect("a success status");
     assert_eq!(body.len(), whole);
@@ -168,7 +150,7 @@ async fn a_request_without_its_own_cap_still_refuses_an_endless_body() {
     server.abort();
 
     assert!(
-        matches!(sent, Err(NetError::Protocol { .. })),
+        matches!(sent, Err(NetError::TooLarge { .. })),
         "{:?}",
         sent.map(|response| response.status())
     );
@@ -221,7 +203,7 @@ async fn a_gzip_body_is_decoded_and_capped_at_its_decoded_size() {
         http.send(&endpoint, "", HttpRequest::get(budget).with_max_bytes(DECODED_BYTES)).await;
     server.abort();
 
-    assert!(matches!(refused, Err(NetError::Protocol { .. })), "{refused:?}");
+    assert!(matches!(refused, Err(NetError::TooLarge { .. })), "{refused:?}");
     let body =
         fitting.expect("a body exactly at the cap is read").into_bytes().expect("a success status");
     assert_eq!(body, vec![b'a'; DECODED_BYTES]);

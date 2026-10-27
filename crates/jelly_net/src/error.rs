@@ -33,6 +33,10 @@ pub enum NetError {
     /// interface receives. A caller logs the library's error itself when it helps.
     #[error("{endpoint}: malformed response: {detail}")]
     Protocol { endpoint: EndpointLabel, detail: &'static str },
+    /// A caller whose answer scales with its query, such as a log read, narrows the
+    /// query rather than rotating, because every host would send the same bytes.
+    #[error("{endpoint}: the response is larger than {max_bytes} bytes")]
+    TooLarge { endpoint: EndpointLabel, max_bytes: usize },
     #[error("{endpoint}: http {status}")]
     Status { endpoint: EndpointLabel, status: u16 },
     #[error("{endpoint}: rate limited")]
@@ -91,9 +95,10 @@ impl NetError {
         match *self {
             Self::Endpoint { kind, .. } => kind,
             Self::Timeout { .. } => FailureKind::Timeout,
-            Self::Protocol { .. } | Self::WrongNetwork { .. } | Self::Rpc { .. } => {
-                FailureKind::Protocol
-            }
+            Self::Protocol { .. }
+            | Self::TooLarge { .. }
+            | Self::WrongNetwork { .. }
+            | Self::Rpc { .. } => FailureKind::Protocol,
             Self::Status { status, .. } => {
                 if status >= 500 {
                     FailureKind::Server
@@ -121,6 +126,7 @@ impl NetError {
             }
             Self::Timeout { .. } | Self::WrongNetwork { .. } | Self::NoEndpoints { .. } => true,
             Self::Protocol { .. }
+            | Self::TooLarge { .. }
             | Self::Status { .. }
             | Self::RateLimited { .. }
             | Self::Rpc { .. }
@@ -138,6 +144,7 @@ impl NetError {
             Self::Endpoint { endpoint, .. }
             | Self::Timeout { endpoint, .. }
             | Self::Protocol { endpoint, .. }
+            | Self::TooLarge { endpoint, .. }
             | Self::Status { endpoint, .. }
             | Self::RateLimited { endpoint, .. }
             | Self::Rpc { endpoint, .. }
@@ -158,6 +165,7 @@ impl NetError {
             Self::Endpoint { .. }
             | Self::Timeout { .. }
             | Self::Protocol { .. }
+            | Self::TooLarge { .. }
             | Self::Status { .. }
             | Self::Rpc { .. }
             | Self::WrongNetwork { .. }
@@ -182,6 +190,7 @@ impl NetError {
             }
             Self::Timeout { .. }
             | Self::Protocol { .. }
+            | Self::TooLarge { .. }
             | Self::Status { .. }
             | Self::RateLimited { .. }
             | Self::Rpc { .. }
@@ -208,6 +217,7 @@ impl NetError {
             },
             other @ (Self::Timeout { .. }
             | Self::Protocol { .. }
+            | Self::TooLarge { .. }
             | Self::Status { .. }
             | Self::RateLimited { .. }
             | Self::Rpc { .. }
@@ -248,6 +258,7 @@ impl From<NetError> for ChainError {
             other @ (NetError::Endpoint { .. }
             | NetError::Timeout { .. }
             | NetError::Protocol { .. }
+            | NetError::TooLarge { .. }
             | NetError::Status { .. }
             | NetError::RateLimited { .. }
             | NetError::Rpc { .. }

@@ -95,7 +95,9 @@ impl ProbeReport {
             NetError::Timeout { .. } => ProbeFailure::TimedOut,
             NetError::Status { .. } => ProbeFailure::HttpStatus,
             NetError::RateLimited { .. } => ProbeFailure::RateLimited,
-            NetError::Protocol { .. } | NetError::Rpc { .. } => ProbeFailure::BadAnswer,
+            NetError::Protocol { .. } | NetError::TooLarge { .. } | NetError::Rpc { .. } => {
+                ProbeFailure::BadAnswer
+            }
             NetError::NoEndpoints { .. }
             | NetError::NoneReady { .. }
             | NetError::AllFailed { .. }

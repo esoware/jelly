@@ -15,7 +15,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, timeout};
 
-use crate::common::read_head;
+use crate::common::{loopback_server, read_head};
 
 const TARGET_HOST: &str = "node.example";
 const TARGET_PORT: u16 = 50002;
@@ -375,7 +375,8 @@ async fn the_raw_socket_dialler_never_sends_an_https_proxy_its_credentials_in_pl
 #[tokio::test]
 async fn an_http_proxy_with_an_unusable_scheme_is_never_bypassed_by_the_http_client() {
     let (target_address, target) = listener().await.expect("a loopback port");
-    let (proxy_address, proxy_listener) = listener().await.expect("a loopback port");
+    let (proxy_address, proxy_task) =
+        loopback_server(async |stream| drop(stream)).await.expect("a loopback proxy");
     let reached = Arc::new(AtomicBool::new(false));
     let target_task = tokio::spawn({
         let reached = Arc::clone(&reached);
@@ -385,11 +386,6 @@ async fn an_http_proxy_with_an_unusable_scheme_is_never_bypassed_by_the_http_cli
             stream
                 .write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
                 .await
-        }
-    });
-    let proxy_task = tokio::spawn(async move {
-        while let Ok((stream, _)) = proxy_listener.accept().await {
-            drop(stream);
         }
     });
 
