@@ -152,7 +152,11 @@ function WalletNav({ holdings, view, walletAsset }: WalletNavProps) {
           label: "Wallet",
           icon: walletAsset === null ? undefined : <AssetLogo asset={walletAsset} />,
         },
-        { value: "contacts", label: "Address book" },
+        {
+          value: "contacts",
+          label: "Address book",
+          icon: <Icon name="contacts" className="size-icon-lg" />,
+        },
       ]}
       endItems={[
         {
