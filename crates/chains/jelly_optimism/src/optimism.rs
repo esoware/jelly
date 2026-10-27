@@ -74,9 +74,9 @@ pub const PARAMS: EvmParams = EvmParams {
     // The OP Labs endpoint caps eth_getLogs at this width, and the other shipped
     // endpoint that serves old logs takes it.
     log_window_blocks: 10_000,
-    // WETH logged its first transfers in block 2179, before the Bedrock upgrade, and
-    // the shipped endpoints that serve old logs reach back that far, so the walk runs
-    // back to genesis.
+    // WETH logged its first transfers in block 2179, and OP and LINK moved long before
+    // the Bedrock upgrade at block 105235063, so a floor at Bedrock would lose history.
+    // The shipped endpoints that serve old logs reach back to genesis.
     backfill_floor: 0,
     has_native_transfer_logs: false,
     has_l1_data_fee: true,
