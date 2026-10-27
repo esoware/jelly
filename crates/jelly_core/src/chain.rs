@@ -5,6 +5,9 @@ wire_enum! {
     #[cfg_attr(feature = "ipc", derive(specta::Type))]
     /// The supported chains. Endpoint file names and database values use these wire
     /// strings.
+    ///
+    /// The wallet lists chains as declared, so the rollups that pay fees in ether follow
+    /// Ethereum.
     pub enum ChainId {
         Bitcoin => "bitcoin",
         Litecoin => "litecoin",
@@ -12,10 +15,11 @@ wire_enum! {
         BitcoinCash => "bitcoin_cash",
         Zcash => "zcash",
         Ethereum => "ethereum",
-        Bsc => "bsc",
-        Polygon => "polygon",
         Arbitrum => "arbitrum",
         Base => "base",
+        Optimism => "optimism",
+        Bsc => "bsc",
+        Polygon => "polygon",
         Avalanche => "avalanche",
         Solana => "solana",
         Tron => "tron",
@@ -32,10 +36,11 @@ impl ChainId {
                 true
             }
             Self::Ethereum
-            | Self::Bsc
-            | Self::Polygon
             | Self::Arbitrum
             | Self::Base
+            | Self::Optimism
+            | Self::Bsc
+            | Self::Polygon
             | Self::Avalanche
             | Self::Solana
             | Self::Tron
@@ -49,10 +54,11 @@ impl ChainId {
         match self {
             Self::Bitcoin | Self::Litecoin | Self::Dogecoin | Self::BitcoinCash | Self::Zcash => 8,
             Self::Ethereum
-            | Self::Bsc
-            | Self::Polygon
             | Self::Arbitrum
             | Self::Base
+            | Self::Optimism
+            | Self::Bsc
+            | Self::Polygon
             | Self::Avalanche => 18,
             Self::Solana | Self::Ton => 9,
             Self::Tron | Self::Xrp => 6,
@@ -67,7 +73,7 @@ impl ChainId {
             Self::Dogecoin => "DOGE",
             Self::BitcoinCash => "BCH",
             Self::Zcash => "ZEC",
-            Self::Ethereum | Self::Arbitrum | Self::Base => "ETH",
+            Self::Ethereum | Self::Arbitrum | Self::Base | Self::Optimism => "ETH",
             Self::Bsc => "BNB",
             Self::Polygon => "POL",
             Self::Avalanche => "AVAX",
@@ -85,6 +91,9 @@ impl ChainId {
     }
 
     /// User-facing chain name. Do not display the wire string.
+    ///
+    /// It names the network precisely where its brand covers more than one, such as
+    /// Arbitrum One beside Arbitrum Nova and OP Mainnet beside the rest of the Superchain.
     pub const fn display_name(self) -> &'static str {
         match self {
             Self::Bitcoin => "Bitcoin",
@@ -93,10 +102,11 @@ impl ChainId {
             Self::BitcoinCash => "Bitcoin Cash",
             Self::Zcash => "Zcash",
             Self::Ethereum => "Ethereum",
+            Self::Arbitrum => "Arbitrum One",
+            Self::Base => "Base",
+            Self::Optimism => "OP Mainnet",
             Self::Bsc => "BNB Smart Chain",
             Self::Polygon => "Polygon",
-            Self::Arbitrum => "Arbitrum",
-            Self::Base => "Base",
             Self::Avalanche => "Avalanche C-Chain",
             Self::Solana => "Solana",
             Self::Tron => "TRON",

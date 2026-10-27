@@ -10,13 +10,16 @@ const fn ticker_for(asset: AssetId) -> Ticker {
         AssetId::Native(ChainId::Dogecoin) => Ticker::Doge,
         AssetId::Native(ChainId::BitcoinCash) => Ticker::Bch,
         AssetId::Native(ChainId::Zcash) => Ticker::Zec,
-        AssetId::Native(ChainId::Ethereum | ChainId::Arbitrum | ChainId::Base)
+        AssetId::Native(
+            ChainId::Ethereum | ChainId::Arbitrum | ChainId::Base | ChainId::Optimism,
+        )
         | AssetId::Token(
             TokenId::WethErc20
-            | TokenId::WethBep20
-            | TokenId::WethPolygon
             | TokenId::WethArbitrum
             | TokenId::WethBase
+            | TokenId::WethOptimism
+            | TokenId::WethBep20
+            | TokenId::WethPolygon
             | TokenId::WethAvalanche,
         ) => Ticker::Eth,
         AssetId::Native(ChainId::Bsc) => Ticker::Bnb,
@@ -29,10 +32,11 @@ const fn ticker_for(asset: AssetId) -> Ticker {
         AssetId::Native(ChainId::Monero) => Ticker::Xmr,
         AssetId::Token(
             TokenId::LinkErc20
-            | TokenId::LinkBep20
-            | TokenId::LinkPolygon
             | TokenId::LinkArbitrum
             | TokenId::LinkBase
+            | TokenId::LinkOptimism
+            | TokenId::LinkBep20
+            | TokenId::LinkPolygon
             | TokenId::LinkAvalanche
             | TokenId::LinkSpl,
         ) => Ticker::Link,
@@ -45,12 +49,14 @@ const fn ticker_for(asset: AssetId) -> Ticker {
         AssetId::Token(TokenId::OndoErc20) => Ticker::Ondo,
         AssetId::Token(TokenId::PepeErc20) => Ticker::Pepe,
         AssetId::Token(TokenId::ArbErc20 | TokenId::ArbArbitrum) => Ticker::Arb,
+        AssetId::Token(TokenId::OpOptimism) => Ticker::Op,
         AssetId::Token(TokenId::JupSpl) => Ticker::Jup,
         AssetId::Token(
             TokenId::UsdtErc20
+            | TokenId::UsdtArbitrum
+            | TokenId::UsdtOptimism
             | TokenId::UsdtBep20
             | TokenId::UsdtPolygon
-            | TokenId::UsdtArbitrum
             | TokenId::UsdtAvalanche
             | TokenId::UsdtSpl
             | TokenId::UsdtTrc20
@@ -58,10 +64,11 @@ const fn ticker_for(asset: AssetId) -> Ticker {
         ) => Ticker::Usdt,
         AssetId::Token(
             TokenId::UsdcErc20
-            | TokenId::UsdcBep20
-            | TokenId::UsdcPolygon
             | TokenId::UsdcArbitrum
             | TokenId::UsdcBase
+            | TokenId::UsdcOptimism
+            | TokenId::UsdcBep20
+            | TokenId::UsdcPolygon
             | TokenId::UsdcAvalanche
             | TokenId::UsdcSpl,
         ) => Ticker::Usdc,
@@ -69,6 +76,7 @@ const fn ticker_for(asset: AssetId) -> Ticker {
             TokenId::UsdsErc20
             | TokenId::UsdsArbitrum
             | TokenId::UsdsBase
+            | TokenId::UsdsOptimism
             | TokenId::UsdsAvalanche
             | TokenId::UsdsSpl,
         ) => Ticker::Usds,
@@ -78,15 +86,15 @@ const fn ticker_for(asset: AssetId) -> Ticker {
         }
         AssetId::Token(
             TokenId::PyusdErc20
-            | TokenId::PyusdPolygon
             | TokenId::PyusdArbitrum
+            | TokenId::PyusdPolygon
             | TokenId::PyusdSpl,
         ) => Ticker::Pyusd,
         AssetId::Token(
             TokenId::XautErc20
+            | TokenId::XautArbitrum
             | TokenId::XautBep20
             | TokenId::XautPolygon
-            | TokenId::XautArbitrum
             | TokenId::XautAvalanche
             | TokenId::XautJetton,
         ) => Ticker::Xaut,

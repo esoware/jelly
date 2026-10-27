@@ -57,18 +57,13 @@ mod tests {
     };
 
     use super::*;
-    use crate::test_util::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, POLYGON, endpoint};
+    use crate::test_util::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, OPTIMISM, POLYGON, endpoint};
 
     #[test]
     fn each_network_admits_its_own_chain_id_and_names_any_other() {
         assert_eq!(
             verdict(&ETHEREUM, &endpoint(), "0x1").unwrap(),
             Identity::confirmed("chain id 1")
-        );
-        assert_eq!(verdict(&BSC, &endpoint(), "0x38").unwrap(), Identity::confirmed("chain id 56"));
-        assert_eq!(
-            verdict(&POLYGON, &endpoint(), "0x89").unwrap(),
-            Identity::confirmed("chain id 137")
         );
         assert_eq!(
             verdict(&ARBITRUM, &endpoint(), "0xa4b1").unwrap(),
@@ -77,6 +72,15 @@ mod tests {
         assert_eq!(
             verdict(&BASE, &endpoint(), "0x2105").unwrap(),
             Identity::confirmed("chain id 8453")
+        );
+        assert_eq!(
+            verdict(&OPTIMISM, &endpoint(), "0xa").unwrap(),
+            Identity::confirmed("chain id 10")
+        );
+        assert_eq!(verdict(&BSC, &endpoint(), "0x38").unwrap(), Identity::confirmed("chain id 56"));
+        assert_eq!(
+            verdict(&POLYGON, &endpoint(), "0x89").unwrap(),
+            Identity::confirmed("chain id 137")
         );
         assert_eq!(
             verdict(&AVALANCHE, &endpoint(), "0xa86a").unwrap(),

@@ -18,6 +18,7 @@ import jupiterLogo from "@/assets/brands/jupiter.svg"
 import litecoinLogo from "@/assets/brands/litecoin.svg"
 import moneroLogo from "@/assets/brands/monero.svg"
 import ondoLogo from "@/assets/brands/ondo.svg"
+import optimismLogo from "@/assets/brands/optimism.svg"
 import paxGoldLogo from "@/assets/brands/pax-gold.svg"
 import paypalUsdLogo from "@/assets/brands/paypal-usd.svg"
 import pepeLogo from "@/assets/brands/pepe.svg"
@@ -46,7 +47,9 @@ interface Brand {
   readonly gradient?: readonly [string, string] | undefined
 }
 
+const ETHER: Brand = { color: "#627eea", logo: ethereumLogo }
 const ARBITRUM: Brand = { color: "#1b4add", logo: arbitrumLogo }
+const OPTIMISM: Brand = { color: "#ff0420", logo: optimismLogo }
 
 export const CHAIN_BRANDS: Record<ChainId, Brand> = {
   bitcoin: { color: "#f7931a", logo: bitcoinLogo },
@@ -54,17 +57,38 @@ export const CHAIN_BRANDS: Record<ChainId, Brand> = {
   dogecoin: { color: "#c2a633", logo: dogecoinLogo },
   bitcoin_cash: { color: "#0ac18e", logo: bitcoinCashLogo },
   zcash: { color: "#f4b728", logo: zcashLogo },
-  ethereum: { color: "#627eea", logo: ethereumLogo },
-  bsc: { color: "#f0b90b", logo: bnbSmartChainLogo },
-  polygon: { color: "#670de5", logo: polygonLogo },
+  ethereum: ETHER,
   arbitrum: ARBITRUM,
   base: { color: "#0000ff", logo: baseLogo },
+  optimism: OPTIMISM,
+  bsc: { color: "#f0b90b", logo: bnbSmartChainLogo },
+  polygon: { color: "#670de5", logo: polygonLogo },
   avalanche: { color: "#e6212f", logo: avalancheLogo },
   solana: { color: "#9945ff", logo: solanaLogo, gradient: ["#9945ff", "#19fb9b"] },
   tron: { color: "#ea0029", logo: tronLogo },
   xrp: { color: "#141414", logo: xrpLogo },
   ton: { color: "#30a1f5", logo: gramLogo },
   monero: { color: "#f26822", logo: moneroLogo },
+}
+
+const COIN_BRANDS: Record<ChainId, Brand> = {
+  bitcoin: CHAIN_BRANDS.bitcoin,
+  litecoin: CHAIN_BRANDS.litecoin,
+  dogecoin: CHAIN_BRANDS.dogecoin,
+  bitcoin_cash: CHAIN_BRANDS.bitcoin_cash,
+  zcash: CHAIN_BRANDS.zcash,
+  ethereum: ETHER,
+  arbitrum: ETHER,
+  base: ETHER,
+  optimism: ETHER,
+  bsc: CHAIN_BRANDS.bsc,
+  polygon: CHAIN_BRANDS.polygon,
+  avalanche: CHAIN_BRANDS.avalanche,
+  solana: CHAIN_BRANDS.solana,
+  tron: CHAIN_BRANDS.tron,
+  xrp: CHAIN_BRANDS.xrp,
+  ton: CHAIN_BRANDS.ton,
+  monero: CHAIN_BRANDS.monero,
 }
 
 const CHAINLINK: Brand = { color: "#2a5ada", logo: chainlinkLogo }
@@ -96,17 +120,6 @@ const TOKEN_BRANDS: Record<TokenId, Brand> = {
   pyusd_erc20: PAYPAL_USD,
   xaut_erc20: TETHER_GOLD,
   paxg_erc20: PAX_GOLD,
-  link_bep20: CHAINLINK,
-  weth_bep20: WRAPPED_ETHER,
-  usdt_bep20: TETHER,
-  usdc_bep20: USD_COIN,
-  xaut_bep20: TETHER_GOLD,
-  link_polygon: CHAINLINK,
-  weth_polygon: WRAPPED_ETHER,
-  usdt_polygon: TETHER,
-  usdc_polygon: USD_COIN,
-  pyusd_polygon: PAYPAL_USD,
-  xaut_polygon: TETHER_GOLD,
   link_arbitrum: CHAINLINK,
   weth_arbitrum: WRAPPED_ETHER,
   arb_arbitrum: ARBITRUM,
@@ -120,6 +133,23 @@ const TOKEN_BRANDS: Record<TokenId, Brand> = {
   weth_base: WRAPPED_ETHER,
   usdc_base: USD_COIN,
   usds_base: USDS,
+  link_optimism: CHAINLINK,
+  weth_optimism: WRAPPED_ETHER,
+  op_optimism: OPTIMISM,
+  usdt_optimism: TETHER,
+  usdc_optimism: USD_COIN,
+  usds_optimism: USDS,
+  link_bep20: CHAINLINK,
+  weth_bep20: WRAPPED_ETHER,
+  usdt_bep20: TETHER,
+  usdc_bep20: USD_COIN,
+  xaut_bep20: TETHER_GOLD,
+  link_polygon: CHAINLINK,
+  weth_polygon: WRAPPED_ETHER,
+  usdt_polygon: TETHER,
+  usdc_polygon: USD_COIN,
+  pyusd_polygon: PAYPAL_USD,
+  xaut_polygon: TETHER_GOLD,
   link_avalanche: CHAINLINK,
   weth_avalanche: WRAPPED_ETHER,
   usdt_avalanche: TETHER,
@@ -141,7 +171,7 @@ const TOKEN_BRANDS: Record<TokenId, Brand> = {
 }
 
 export function assetBrand(asset: AssetId): Brand {
-  return asset.kind === "native" ? CHAIN_BRANDS[asset.value] : TOKEN_BRANDS[asset.value]
+  return asset.kind === "native" ? COIN_BRANDS[asset.value] : TOKEN_BRANDS[asset.value]
 }
 
 interface BrandLogoProps {
@@ -171,14 +201,16 @@ interface AssetLogoProps {
 }
 
 export function AssetLogo({ asset, shouldShowChain = false, className }: AssetLogoProps) {
-  if (!shouldShowChain || asset.kind === "native") {
-    return <BrandLogo brand={assetBrand(asset)} className={className} />
+  const brand = assetBrand(asset)
+  const chain = assetChain(asset)
+  if (!shouldShowChain || brand === CHAIN_BRANDS[chain]) {
+    return <BrandLogo brand={brand} className={className} />
   }
 
   return (
     <span className={appendClassName("relative inline-flex size-icon-lg shrink-0", className)}>
-      <BrandLogo brand={assetBrand(asset)} className="size-full" />
-      <ChainLogo chain={assetChain(asset)} className="absolute -right-1/8 -bottom-1/8 size-1/2" />
+      <BrandLogo brand={brand} className="size-full" />
+      <ChainLogo chain={chain} className="absolute -right-1/8 -bottom-1/8 size-1/2" />
     </span>
   )
 }

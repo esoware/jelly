@@ -13,8 +13,9 @@ use crate::tx::{CustomFee, FeeLevel, TxWarning, TxWarningKind};
 )]
 pub struct ChainSpec {
     pub chain: ChainId,
-    /// The name of the chain's own coin, which is not always the network's: the coin on
-    /// BNB Smart Chain is BNB.
+    /// The name of the coin the chain pays fees in, which is not always the network's:
+    /// the coin on BNB Smart Chain is BNB, and a rollup's coin is ether, named Ethereum
+    /// as it is on Ethereum.
     pub coin_name: &'static str,
     /// SLIP-44 coin type of the chain's default derivation path.
     pub slip44: u32,

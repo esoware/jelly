@@ -3,7 +3,7 @@ import { QRCodeSVG } from "qrcode.react"
 import { useState } from "react"
 
 import type { AssetId, ChainId } from "@/ipc/bindings.gen.ts"
-import { assetSymbol, chainName } from "@/lib/chain.ts"
+import { assetLabel, chainName } from "@/lib/chain.ts"
 import { addressQueries } from "@/query/address.ts"
 import {
   Dialog,
@@ -60,7 +60,7 @@ function ReceiveBody({ chain }: ReceiveBodyProps) {
               hint={
                 chain === "xrp"
                   ? "Send only XRP on the XRP Ledger mainnet. Jelly does not require a destination tag. A new account needs enough XRP to cover the network reserve."
-                  : `Send only ${chainName(chain)} assets to this address.`
+                  : `Send only on ${chainName(chain)}.`
               }
             >
               <Select
@@ -107,11 +107,11 @@ export function ReceiveDialog({ chain, asset, open, onOpenChange }: ReceiveDialo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPopup size="md">
         <DialogHeader>
-          <DialogTitle>{`Receive ${assetSymbol(asset)}`}</DialogTitle>
+          <DialogTitle>{`Receive ${assetLabel(asset)}`}</DialogTitle>
           <DialogDescription>
             {chain === "zcash"
               ? "Share this transparent Zcash address or QR code. Payments are public. Do not send mining rewards directly to this address."
-              : `Share your address or QR code to receive ${chainName(chain)} assets.`}
+              : `Share your address or QR code to receive on ${chainName(chain)}.`}
           </DialogDescription>
         </DialogHeader>
         <DialogBody hasFooter={false}>

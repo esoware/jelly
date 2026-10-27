@@ -3901,6 +3901,7 @@ dependencies = [
  "jelly_litecoin",
  "jelly_monero",
  "jelly_net",
+ "jelly_optimism",
  "jelly_polygon",
  "jelly_solana",
  "jelly_ton",
@@ -4020,6 +4021,7 @@ dependencies = [
  "jelly_evm",
  "jelly_keypair",
  "jelly_net",
+ "jelly_optimism",
  "jelly_polygon",
  "parking_lot",
  "serde",
@@ -4142,6 +4144,18 @@ dependencies = [
  "tracing",
  "url",
  "webpki-roots",
+]
+
+[[package]]
+name = "jelly_optimism"
+version = "0.1.0"
+dependencies = [
+ "jelly_core",
+ "jelly_evm",
+ "jelly_keypair",
+ "jelly_net",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

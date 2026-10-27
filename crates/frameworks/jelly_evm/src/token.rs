@@ -94,7 +94,7 @@ impl TryFrom<TokenId> for TokenMeta {
 mod tests {
     use super::*;
     use crate::abi::MULTICALL3;
-    use crate::test_util::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, POLYGON};
+    use crate::test_util::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, OPTIMISM, POLYGON};
 
     #[test]
     fn the_table_resolves_every_network_and_answers_by_address_and_by_id() {
@@ -103,7 +103,7 @@ mod tests {
             "0xcA11bde05977b3631167028862bE2a173976CA11",
             "the checksummed spelling"
         );
-        for params in [ETHEREUM, BSC, POLYGON, ARBITRUM, BASE, AVALANCHE] {
+        for params in [ETHEREUM, ARBITRUM, BASE, OPTIMISM, BSC, POLYGON, AVALANCHE] {
             let table = TokenTable::for_params(&params).expect("the registry parses");
             for &token in table.all() {
                 assert_eq!(token.address().to_string(), token.id().contract());
@@ -154,17 +154,6 @@ mod tests {
             (TokenId::PyusdErc20, "0x6c3ea9036406852006290770BEdFcAbA0e23A0e8", 6),
             (TokenId::XautErc20, "0x68749665FF8D2d112Fa859AA293F07A622782F38", 6),
             (TokenId::PaxgErc20, "0x45804880De22913dAFE09f4980848ECE6EcbAf78", 18),
-            (TokenId::LinkBep20, "0xF8A0BF9cF54Bb92F17374d9e9A321E6a111a51bD", 18),
-            (TokenId::WethBep20, "0x2170Ed0880ac9A755fd29B2688956BD959F933F8", 18),
-            (TokenId::UsdtBep20, "0x55d398326f99059fF775485246999027B3197955", 18),
-            (TokenId::UsdcBep20, "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", 18),
-            (TokenId::XautBep20, "0x21cAef8A43163Eea865baeE23b9C2E327696A3bf", 6),
-            (TokenId::LinkPolygon, "0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39", 18),
-            (TokenId::WethPolygon, "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", 18),
-            (TokenId::UsdtPolygon, "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", 6),
-            (TokenId::UsdcPolygon, "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", 6),
-            (TokenId::PyusdPolygon, "0x99aF3EeA856556646C98c8B9b2548Fe815240750", 6),
-            (TokenId::XautPolygon, "0xF1815bd50389c46847f0Bda824eC8da914045D14", 6),
             (TokenId::LinkArbitrum, "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4", 18),
             (TokenId::WethArbitrum, "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", 18),
             (TokenId::ArbArbitrum, "0x912CE59144191C1204E64559FE8253a0e49E6548", 18),
@@ -178,6 +167,23 @@ mod tests {
             (TokenId::WethBase, "0x4200000000000000000000000000000000000006", 18),
             (TokenId::UsdcBase, "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 6),
             (TokenId::UsdsBase, "0x820C137fa70C8691f0e44Dc420a5e53c168921Dc", 18),
+            (TokenId::LinkOptimism, "0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6", 18),
+            (TokenId::WethOptimism, "0x4200000000000000000000000000000000000006", 18),
+            (TokenId::OpOptimism, "0x4200000000000000000000000000000000000042", 18),
+            (TokenId::UsdtOptimism, "0x01bFF41798a0BcF287b996046Ca68b395DbC1071", 6),
+            (TokenId::UsdcOptimism, "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", 6),
+            (TokenId::UsdsOptimism, "0x4F13a96EC5C4Cf34e442b46Bbd98a0791F20edC3", 18),
+            (TokenId::LinkBep20, "0xF8A0BF9cF54Bb92F17374d9e9A321E6a111a51bD", 18),
+            (TokenId::WethBep20, "0x2170Ed0880ac9A755fd29B2688956BD959F933F8", 18),
+            (TokenId::UsdtBep20, "0x55d398326f99059fF775485246999027B3197955", 18),
+            (TokenId::UsdcBep20, "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", 18),
+            (TokenId::XautBep20, "0x21cAef8A43163Eea865baeE23b9C2E327696A3bf", 6),
+            (TokenId::LinkPolygon, "0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39", 18),
+            (TokenId::WethPolygon, "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", 18),
+            (TokenId::UsdtPolygon, "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", 6),
+            (TokenId::UsdcPolygon, "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", 6),
+            (TokenId::PyusdPolygon, "0x99aF3EeA856556646C98c8B9b2548Fe815240750", 6),
+            (TokenId::XautPolygon, "0xF1815bd50389c46847f0Bda824eC8da914045D14", 6),
             (TokenId::LinkAvalanche, "0x5947BB275c521040051D82396192181b413227A3", 18),
             (TokenId::WethAvalanche, "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB", 18),
             (TokenId::UsdtAvalanche, "0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7", 6),
@@ -185,7 +191,7 @@ mod tests {
             (TokenId::UsdsAvalanche, "0x86Ff09db814ac346a7C6FE2Cd648F27706D1D470", 18),
             (TokenId::XautAvalanche, "0x2775d5105276781B4b85bA6eA6a6653bEeD1dd32", 6),
         ];
-        for params in [ETHEREUM, BSC, POLYGON, ARBITRUM, BASE, AVALANCHE] {
+        for params in [ETHEREUM, ARBITRUM, BASE, OPTIMISM, BSC, POLYGON, AVALANCHE] {
             let table = TokenTable::for_params(&params).unwrap();
             for &token in table.all() {
                 let row = expected

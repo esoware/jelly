@@ -86,11 +86,11 @@ const INDEXER_LAG_SECS: u64 = 120;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_util::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, POLYGON};
+    use crate::test_util::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, OPTIMISM, POLYGON};
 
     #[test]
     fn the_indexer_lag_is_the_same_wall_clock_on_every_network() {
-        for params in [ETHEREUM, BSC, POLYGON, ARBITRUM, BASE, AVALANCHE] {
+        for params in [ETHEREUM, ARBITRUM, BASE, OPTIMISM, BSC, POLYGON, AVALANCHE] {
             let seconds = |blocks: u64| {
                 blocks.saturating_mul(params.block_millis).checked_div(1_000).unwrap_or_default()
             };

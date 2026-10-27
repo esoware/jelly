@@ -355,7 +355,7 @@ mod tests {
     use jelly_core::{Amount, AssetId, ChainId, test_util::TxRequestBuilder};
 
     use super::*;
-    use crate::test_util::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, POLYGON};
+    use crate::test_util::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, OPTIMISM, POLYGON};
 
     const GWEI: u128 = 1_000_000_000;
 
@@ -458,7 +458,7 @@ mod tests {
             "baseFeePerGas":["0x1","0x5"],
             "reward":[["0x0","0x0","0x9"],["0x2","0x2","0x2"],["0x1","0x64","0x3e8"]]
         }"#;
-        for params in [ETHEREUM, BSC, POLYGON, ARBITRUM, BASE, AVALANCHE] {
+        for params in [ETHEREUM, ARBITRUM, BASE, OPTIMISM, BSC, POLYGON, AVALANCHE] {
             for body in [RISING, lopsided] {
                 let market = FeeMarket::from_history(&history(body), &params).expect("a market");
                 let pairs: Vec<FeePair> = market.levels().map(|(_, pair)| pair).collect();
@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn empty_blocks_and_a_missing_reward_matrix_fall_back_to_the_network_floor() {
-        for params in [ETHEREUM, BSC, POLYGON, ARBITRUM, BASE, AVALANCHE] {
+        for params in [ETHEREUM, ARBITRUM, BASE, OPTIMISM, BSC, POLYGON, AVALANCHE] {
             for body in [
                 r#"{"baseFeePerGas":["0x3b9aca00","0x3b9aca00"],"reward":[["0x0","0x0","0x0"]]}"#,
                 r#"{"baseFeePerGas":["0x3b9aca00","0x3b9aca00"]}"#,

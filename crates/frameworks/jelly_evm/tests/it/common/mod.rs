@@ -38,22 +38,25 @@ use tokio::time::sleep;
 pub(crate) type Fallible<T> = Result<T, Box<dyn Error>>;
 
 pub(crate) const ETHEREUM: &EvmParams = &jelly_ethereum::PARAMS;
-pub(crate) const BSC: &EvmParams = &jelly_bsc::PARAMS;
-pub(crate) const POLYGON: &EvmParams = &jelly_polygon::PARAMS;
 pub(crate) const ARBITRUM: &EvmParams = &jelly_arbitrum::PARAMS;
 pub(crate) const BASE: &EvmParams = &jelly_base::PARAMS;
+pub(crate) const OPTIMISM: &EvmParams = &jelly_optimism::PARAMS;
+pub(crate) const BSC: &EvmParams = &jelly_bsc::PARAMS;
+pub(crate) const POLYGON: &EvmParams = &jelly_polygon::PARAMS;
 pub(crate) const AVALANCHE: &EvmParams = &jelly_avalanche::PARAMS;
 /// Ethereum with a confirmation target deep enough that a fixture receipt does not
 /// retire its send in the pass that observes it.
 pub(crate) static DEEP_ETHEREUM: EvmParams = EvmParams { confirmations_target: 1_000, ..*ETHEREUM };
-pub(crate) const NETWORKS: [&EvmParams; 6] = [ETHEREUM, BSC, POLYGON, ARBITRUM, BASE, AVALANCHE];
+pub(crate) const NETWORKS: [&EvmParams; 7] =
+    [ETHEREUM, ARBITRUM, BASE, OPTIMISM, BSC, POLYGON, AVALANCHE];
 /// The entries of the same networks, in the same order.
-pub(crate) const ENTRIES: [&dyn ChainEntry; 6] = [
+pub(crate) const ENTRIES: [&dyn ChainEntry; 7] = [
     jelly_ethereum::ENTRY,
-    jelly_bsc::ENTRY,
-    jelly_polygon::ENTRY,
     jelly_arbitrum::ENTRY,
     jelly_base::ENTRY,
+    jelly_optimism::ENTRY,
+    jelly_bsc::ENTRY,
+    jelly_polygon::ENTRY,
     jelly_avalanche::ENTRY,
 ];
 

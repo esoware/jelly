@@ -18,10 +18,11 @@ jelly_dogecoin     = { workspace = true }
 jelly_bitcoin_cash = { workspace = true }
 jelly_zcash        = { workspace = true }
 jelly_ethereum     = { workspace = true }
-jelly_bsc          = { workspace = true }
-jelly_polygon      = { workspace = true }
 jelly_arbitrum     = { workspace = true }
 jelly_base         = { workspace = true }
+jelly_optimism     = { workspace = true }
+jelly_bsc          = { workspace = true }
+jelly_polygon      = { workspace = true }
 jelly_avalanche    = { workspace = true }
 jelly_solana       = { workspace = true }
 jelly_tron         = { workspace = true }

@@ -35,9 +35,10 @@ jelly_net       = { workspace = true, features = ["test-util"] }
 jelly_evm       = { workspace = true, features = ["test-util"] }
 # The integration tests run against the networks as their chain crates ship them.
 jelly_ethereum  = { workspace = true }
-jelly_bsc       = { workspace = true }
-jelly_polygon   = { workspace = true }
 jelly_arbitrum  = { workspace = true }
 jelly_base      = { workspace = true }
+jelly_optimism  = { workspace = true }
+jelly_bsc       = { workspace = true }
+jelly_polygon   = { workspace = true }
 jelly_avalanche = { workspace = true }
 tokio           = { workspace = true, features = ["test-util", "net", "io-util"] }

@@ -82,7 +82,7 @@ const API_KEYS: readonly ApiKey[] = [
   {
     id: "etherscan",
     label: "Etherscan",
-    hint: "Ethereum and Arbitrum transaction history need a free Etherscan key, which also loads Polygon history faster. BSC and Base history need a paid Etherscan plan.",
+    hint: "Arbitrum One transaction history needs a free Etherscan key, which also loads Polygon history faster. BNB Smart Chain, Base, and OP Mainnet history need a paid Etherscan plan.",
     isStored: (settings) => settings.hasEtherscanApiKey,
     save: settingCommands.setEtherscanApiKey,
   },

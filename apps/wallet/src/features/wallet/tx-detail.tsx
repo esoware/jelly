@@ -17,7 +17,14 @@ import type {
   TxId,
 } from "@/ipc/bindings.gen.ts"
 import { amountToBigInt } from "@/lib/amount.ts"
-import { assetChain, assetDecimals, chainMeta, explorerTxUrl, nativeAsset } from "@/lib/chain.ts"
+import {
+  assetChain,
+  assetDecimals,
+  chainMeta,
+  chainName,
+  explorerTxUrl,
+  nativeAsset,
+} from "@/lib/chain.ts"
 import { appendClassName } from "@/lib/class-name.ts"
 import { HISTORICAL_PRICE_NOTICE, fiatValue, isPriceStale, priceForAsset } from "@/lib/fiat.ts"
 import { dayKey, formatClock, formatDay } from "@/lib/format.ts"
@@ -260,6 +267,7 @@ function TxFacts({ row, onBumpFee, onCancel }: TxFactsProps) {
 
   return (
     <div className="space-y-1 text-caption">
+      <TxFact label="Chain">{chainName(chain)}</TxFact>
       <TxFact label="Transaction" copy={row.txid}>
         {row.txid}
       </TxFact>
