@@ -824,6 +824,51 @@ async fn a_token_transfer_someone_else_sent_is_recorded_without_their_fee() {
     );
 }
 
+/// The owner's token transfer is its own call to the token contract, so `txlist`
+/// lists it too, moving no coin.
+#[tokio::test]
+async fn a_token_transfer_the_owner_sent_is_one_record_and_explains_the_coin_its_fee_took() {
+    let only_the_send = |key: &str| -> Fallible<String> {
+        let mut page: Value = serde_json::from_str(&fixture("etherscan.json", key)?)?;
+        page.get_mut("result").and_then(Value::as_array_mut).ok_or("a page of rows")?.retain(
+            |row| {
+                row.get("hash")
+                    .and_then(Value::as_str)
+                    .is_some_and(|hash| hash.starts_with("0x22e0"))
+            },
+        );
+        Ok(page.to_string())
+    };
+    let history = FakeHistory::new();
+    history.serve(&only_the_send("txlist").unwrap(), &only_the_send("tokentx").unwrap()).unwrap();
+    let harness = Harness::new(Setup::with_history(history)).unwrap();
+    harness.watch_owner().await.unwrap();
+    harness.node.always(Method::BlockNumber, Answer::ok(TIP_HEX));
+    harness.node.always(Method::Call, Answer::ok(&aggregate(&sheet(5 * ETH))));
+    harness.sync().await.unwrap();
+
+    let records = harness.records();
+    assert_eq!(records.len(), 1, "the token record and no record of the coin: {records:?}");
+    let sent = records.first().unwrap();
+    assert_eq!(sent.asset, AssetId::Token(TokenId::UsdtErc20));
+    assert_eq!(sent.direction, TxDirection::Outgoing);
+    assert_eq!(sent.amount.base_units(), 1_000_000);
+    assert_eq!(sent.counterparty.as_deref(), Some(PEER));
+    let fee = 65_000 * 20_000_000_000;
+    assert_eq!(sent.fee.map(Amount::base_units), Some(fee));
+
+    harness.node.always(Method::Call, Answer::ok(&aggregate(&sheet(5 * ETH - fee))));
+    harness.sync().await.unwrap();
+    let caught_up = TIP + ETHEREUM.indexer_lag_blocks();
+    harness.node.always(Method::BlockNumber, Answer::ok(&quantity(u128::from(caught_up))));
+    harness.sync().await.unwrap();
+    let records = harness.records();
+    assert!(
+        records.iter().all(|record| record.detection == TxDetection::Full),
+        "the send's own row accounts for the fee, so nothing is guessed at: {records:?}"
+    );
+}
+
 /// Etherscan's free plan stopped covering BNB Smart Chain. The key still serves
 /// Ethereum, so the adapter is kept and walks logs instead, without failing a pass
 /// or asking again.

@@ -307,6 +307,8 @@ pub(crate) struct ParsedInfo {
     pub(crate) destination: Option<String>,
     #[serde(default)]
     pub(crate) lamports: Option<u64>,
+    #[serde(default, rename = "newAccount")]
+    pub(crate) new_account: Option<String>,
 }
 
 /// A node answers `null` for a list it did not record, which is how older

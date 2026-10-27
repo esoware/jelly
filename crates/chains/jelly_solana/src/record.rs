@@ -1,6 +1,8 @@
 //! Amounts come from the metadata's balance deltas, which cover inner and
-//! multi-instruction transfers. Instructions only name counterparties and mark a
-//! record as decoded rather than balance-only.
+//! multi-instruction transfers.
+//!
+//! Instructions name counterparties, mark a record as decoded rather than
+//! balance-only, and name the lamports that opened accounts.
 
 use jelly_core::{Amount, AssetId, TxDetection, TxDirection, TxId, TxOutcome, TxRecord};
 
@@ -64,7 +66,16 @@ pub(crate) fn of_transaction(
             records.push(record);
         }
     }
-    if let Some(record) = seen.native_record(records.is_empty()) {
+    // The rent that opened an account, such as a recipient's new token account, is
+    // what moving the tokens cost beyond the fee, so the first token record carries
+    // it and it is no native movement.
+    let deposit = if records.is_empty() { 0 } else { seen.deposits() };
+    if let Some(first) = records.first_mut()
+        && deposit > 0
+    {
+        first.fee = Some(first.fee.unwrap_or(Amount::ZERO).saturating_add(Amount::from(deposit)));
+    }
+    if let Some(record) = seen.native_record(records.is_empty(), deposit) {
         records.push(record);
     }
     records
@@ -90,12 +101,14 @@ impl Seen<'_> {
 
     /// The fee payer of a transaction that moved nothing else this build tracks
     /// still gets a record, because the fee left the account and a history
-    /// without it does not add up. That is what `is_fee_only` decides.
-    fn native_record(&self, is_fee_only: bool) -> Option<TxRecord> {
+    /// without it does not add up. That is what `is_fee_only` decides. A token record
+    /// already carries `deposit`.
+    fn native_record(&self, is_fee_only: bool, deposit: u64) -> Option<TxRecord> {
         let keys = &self.tx.transaction.message.account_keys;
         let index = keys.iter().position(|key| key.pubkey == self.address)?;
         let is_fee_payer = index == 0;
-        let moved = native_delta(self.metadata, index, is_fee_payer);
+        let moved =
+            native_delta(self.metadata, index, is_fee_payer).saturating_add(i128::from(deposit));
         let self_transfer = native_self_transfer(self.tx, self.address);
         if moved == 0 && self_transfer.is_none() && !(is_fee_payer && is_fee_only) {
             return None;
@@ -122,6 +135,26 @@ impl Seen<'_> {
             is_decoded,
             outcome: TxOutcome::Success,
         }))
+    }
+
+    /// The lamports the address put into accounts the transaction created and left
+    /// open. An account closed again in the same transaction, such as one that
+    /// wrapped SOL for a swap, returned them.
+    fn deposits(&self) -> u64 {
+        let keys = &self.tx.transaction.message.account_keys;
+        all_instructions(self.tx)
+            .filter(|instruction| instruction.program.as_deref() == Some("system"))
+            .filter_map(|instruction| instruction.parsed.as_ref())
+            .filter(|body| body.kind == "createAccount" || body.kind == "createAccountWithSeed")
+            .filter_map(|body| body.info.as_ref())
+            .filter(|info| info.source.as_deref() == Some(self.address))
+            .filter_map(|info| {
+                let created = info.new_account.as_deref()?;
+                let index = keys.iter().position(|key| key.pubkey == created)?;
+                let kept = self.metadata.post_balances.get(index).copied()?;
+                Some(info.lamports?.min(kept))
+            })
+            .fold(0, u64::saturating_add)
     }
 
     fn record(&self, parts: Parts) -> TxRecord {
@@ -313,7 +346,9 @@ mod tests {
     use super::*;
     use crate::fixtures::tracked;
     use crate::pending::Tracked;
-    use crate::rpc::{ParsedMessage, ParsedTransaction, TransactionFailure, UiTokenAmount};
+    use crate::rpc::{
+        ParsedBody, ParsedInfo, ParsedMessage, ParsedTransaction, TransactionFailure, UiTokenAmount,
+    };
 
     fn keys(list: &[&str]) -> Vec<ParsedAccountKey> {
         list.iter().map(|key| ParsedAccountKey { pubkey: (*key).to_owned() }).collect()
@@ -430,6 +465,53 @@ mod tests {
             }),
         };
         assert!(of_transaction(&poisoned, "sig", "me", 4, 100).is_empty());
+    }
+
+    fn create_account(created: &str, lamports: u64) -> ParsedInstruction {
+        ParsedInstruction {
+            program: Some(String::from("system")),
+            parsed: Some(ParsedBody {
+                kind: String::from("createAccount"),
+                info: Some(ParsedInfo {
+                    source: Some(String::from("me")),
+                    destination: None,
+                    lamports: Some(lamports),
+                    new_account: Some(created.to_owned()),
+                }),
+            }),
+        }
+    }
+
+    /// A swap that wraps SOL opens an account for it and closes it again, which
+    /// returns the rent.
+    #[test]
+    fn only_the_rent_of_an_account_left_open_is_charged_to_the_token_record() {
+        let mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+        let tx = TransactionRow {
+            slot: 100,
+            block_time: Some(1_700_000_000),
+            transaction: ParsedTransaction {
+                message: ParsedMessage {
+                    account_keys: keys(&["me", "opened", "closed", "peer"]),
+                    instructions: vec![
+                        create_account("opened", 2_000),
+                        create_account("closed", 3_000),
+                    ],
+                },
+            },
+            meta: Some(TransactionMeta {
+                pre_balances: vec![100_000, 0, 0, 7],
+                post_balances: vec![93_000, 2_000, 0, 7],
+                pre_token_balances: vec![balance("me", mint, 50)],
+                post_token_balances: vec![balance("me", mint, 40), balance("peer", mint, 10)],
+                ..sample_metadata()
+            }),
+        };
+        let records = of_transaction(&tx, "sig", "me", 7, 100);
+        assert_eq!(records.len(), 1, "the rent left open is no SOL movement: {records:?}");
+        let record = records.first().expect("the token record");
+        assert_eq!(record.asset, AssetId::Token(TokenId::UsdcSpl));
+        assert_eq!(record.fee, Some(Amount::from_base_units(7_000)), "the fee and the rent");
     }
 
     /// A transaction from "me" to "peer" that ran and failed.

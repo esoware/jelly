@@ -1,5 +1,5 @@
 {
-  "_recorded": "Etherscan v2 pages for one address in the shape the service returns, with placeholder hashes. The txlist page ends with a failed transaction, which the service marks with isError 1. The tokentx page carries one transfer of a contract outside the registry and one whose value is not a number. txlist_refund is a send of 1 ETH to a router, and the first txlistinternal row is the 0.3 ETH the router paid back inside the same transaction; the rest of that page is a payout from a contract in a transaction the address did not send, a contract creation that does not involve the address, and a failed call. context_calls holds the three call types that run in their caller's context, then an ordinary call. free_tier_chain is the refusal Etherscan documents at docs.etherscan.io/resources/common-error-messages for a free key asked about a chain only paid plans cover, such as BNB Smart Chain under chainid 56, wrapped in the documented NOTOK envelope.",
+  "_recorded": "Etherscan v2 pages for one address in the shape the service returns, with placeholder hashes. The txlist page ends with a failed transaction, which the service marks with isError 1. Its middle row is the address's own call to the USDT contract that made the second tokentx row, moving no coin, because the service lists every transaction the address sent, a token transfer included. The tokentx page carries one transfer of a contract outside the registry and one whose value is not a number. txlist_refund is a send of 1 ETH to a router, and the first txlistinternal row is the 0.3 ETH the router paid back inside the same transaction; the rest of that page is a payout from a contract in a transaction the address did not send, a contract creation that does not involve the address, and a failed call. context_calls holds the three call types that run in their caller's context, then an ordinary call. free_tier_chain is the refusal Etherscan documents at docs.etherscan.io/resources/common-error-messages for a free key asked about a chain only paid plans cover, such as BNB Smart Chain under chainid 56, wrapped in the documented NOTOK envelope.",
   "txlist": {
     "status": "1",
     "message": "OK",
@@ -22,6 +22,25 @@
         "cumulativeGasUsed": "1000000",
         "gasUsed": "21000",
         "confirmations": "120"
+      },
+      {
+        "blockNumber": "18000001",
+        "timeStamp": "1692000012",
+        "hash": "0x22e0e5d2b9fc02fae2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5",
+        "nonce": "13",
+        "blockHash": "0xaa00000000000000000000000000000000000000000000000000000000000002",
+        "transactionIndex": "2",
+        "from": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+        "to": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+        "value": "0",
+        "gas": "90000",
+        "gasPrice": "20000000000",
+        "isError": "0",
+        "txreceipt_status": "1",
+        "input": "0xa9059cbb0000000000000000000000005041ed759dd4afc3a72b8192c143f72f4724081a00000000000000000000000000000000000000000000000000000000000f4240",
+        "cumulativeGasUsed": "1000000",
+        "gasUsed": "65000",
+        "confirmations": "119"
       },
       {
         "blockNumber": "18000005",
