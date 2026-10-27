@@ -11,7 +11,7 @@ export const POPUP_LIST_CLASSES =
   "max-h-[min(--spacing(80),var(--available-height))] min-w-[max(--spacing(52),var(--anchor-width))] origin-(--transform-origin) motion-pop overflow-x-hidden overflow-y-auto rounded-lg overlay-sm p-1 outline-none app-region-no-drag"
 
 export const POPUP_ITEM_CLASSES =
-  "popup-item flex min-h-control-md w-full shrink-0 items-center gap-2 rounded-md px-2 text-body outline-none select-none data-checked:bg-hover data-selected:bg-hover [.popup-item+&]:mt-1 [:where(&>svg)]:pointer-events-none [:where(&>svg)]:size-icon-md [:where(&>svg)]:shrink-0"
+  "popup-item flex min-h-control-md w-full shrink-0 items-center gap-2 rounded-md px-2 text-body outline-none select-none data-checked:bg-hover data-selected:bg-hover [.popup-item~&]:mt-1 [:where(&>svg)]:pointer-events-none [:where(&>svg)]:size-icon-md [:where(&>svg)]:shrink-0"
 
 export const POPUP_ITEM_TONE_CLASSES = {
   default: "data-highlighted:bg-hover [:where(&>svg)]:text-fg-muted",
