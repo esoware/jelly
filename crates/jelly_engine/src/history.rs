@@ -48,9 +48,9 @@ pub struct TxEntry {
     pub outcome: TxOutcome,
     pub amount: Amount,
     pub fee: Option<Amount>,
-    /// What the wallet's addresses paid besides the fee to open an account the transfer
-    /// needed, such as a recipient's new token account, in the native asset. `None` when
-    /// they paid none.
+    /// What the wallet's addresses paid besides the fee to open token accounts the
+    /// transfer needed, such as the recipient's, in the native asset. `None` when they
+    /// paid none.
     pub rent: Option<Amount>,
     /// The other side, or for a self-transfer the address it went to, when known.
     pub counterparty: Option<String>,

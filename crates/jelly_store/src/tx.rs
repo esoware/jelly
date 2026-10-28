@@ -1,5 +1,7 @@
 use hex::FromHex as _;
-use jelly_core::{Amount, AssetId, ChainId, TxDetection, TxDirection, TxId, TxOutcome, TxRecord};
+use jelly_core::{
+    Amount, AssetId, ChainId, TokenId, TxDetection, TxDirection, TxId, TxOutcome, TxRecord,
+};
 use rusqlite::{Row, ToSql, params, params_from_iter};
 
 use crate::address::AddressOwner;
@@ -62,7 +64,8 @@ statements! {
            timestamp = CASE WHEN ?17 AND height IS NOT NULL THEN excluded.timestamp \
              ELSE COALESCE(excluded.timestamp, timestamp) END";
 
-    /// A native row that moved nothing goes when a row of another asset carries its fee.
+    /// A native row that moved nothing and names `?7`, the contract of token `?6`, goes
+    /// when that token's row of the transaction carries the same fee.
     ///
     /// Both are one address's rows of one transaction, so the native row says nothing
     /// the other does not, whichever arrived first. An EVM indexer lists the owner's call
@@ -71,9 +74,10 @@ statements! {
     DROP_REDUNDANT_NATIVE =
         "DELETE FROM txs \
          WHERE chain = ?1 AND txid = ?2 AND address_id = ?3 AND asset = ?4 AND amount = ?5 \
+           AND counterparty = ?7 \
            AND EXISTS (SELECT 1 FROM txs k \
-             WHERE k.chain = ?1 AND k.txid = ?2 AND k.address_id = ?3 AND k.asset <> ?4 \
-               AND k.fee IS NOT NULL AND k.fee <> ?5)";
+             WHERE k.chain = ?1 AND k.txid = ?2 AND k.address_id = ?3 AND k.asset = ?6 \
+               AND k.fee = txs.fee)";
 
     /// Whether the wallet already holds a row of the transaction for the asset, at any of
     /// its addresses.
@@ -390,20 +394,34 @@ impl Writer<'_> {
             ],
         )
         .constrained(TX, UNIQUE_COLUMNS)?;
-        let native = AssetId::Native(owner.chain);
-        let zero = codec::amount_to_blob(Amount::ZERO);
-        let dropped = sql::run(
-            self.connection(),
-            DROP_REDUNDANT_NATIVE,
-            params![
-                owner.chain.as_str(),
-                record.txid.value(),
-                record.address_id,
-                native.key(),
-                zero
-            ],
-        )?;
-        let is_redundant = record.asset == native && dropped > 0;
+        let called = match record.asset {
+            AssetId::Native(_) if record.amount.is_zero() => {
+                record.counterparty.as_deref().and_then(|party| {
+                    TokenId::ALL
+                        .into_iter()
+                        .find(|token| token.chain() == owner.chain && token.contract() == party)
+                })
+            }
+            AssetId::Native(_) => None,
+            AssetId::Token(token) => record.fee.is_some().then_some(token),
+        };
+        let dropped = match called {
+            Some(token) => sql::run(
+                self.connection(),
+                DROP_REDUNDANT_NATIVE,
+                params![
+                    owner.chain.as_str(),
+                    record.txid.value(),
+                    record.address_id,
+                    AssetId::Native(owner.chain).key(),
+                    codec::amount_to_blob(Amount::ZERO),
+                    AssetId::Token(token).key(),
+                    token.contract(),
+                ],
+            )?,
+            None => 0,
+        };
+        let is_redundant = matches!(record.asset, AssetId::Native(_)) && dropped > 0;
         Ok(if is_known || is_redundant { TxWrite::Updated } else { TxWrite::Inserted })
     }
 

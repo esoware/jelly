@@ -62,9 +62,9 @@ pub struct TxRecord {
     pub outcome: TxOutcome,
     pub amount: Amount,
     pub fee: Option<Amount>,
-    /// What the address paid besides the fee to open an account the transfer needed,
-    /// such as a recipient's new token account. It is held in that account rather than
-    /// spent, and counted in the native asset.
+    /// What the address paid besides the fee to open a token account the transfer
+    /// needed, such as the recipient's. It is held in that account rather than spent,
+    /// and counted in the native asset.
     pub rent: Option<Amount>,
     pub counterparty: Option<String>,
     /// The unconfirmed transaction this one spends from only to pay its fee, when it is

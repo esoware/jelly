@@ -96,6 +96,8 @@ impl Seen<'_> {
             return None;
         }
         let counterparty = token_counterparty(self.metadata, self.address, &mint, delta);
+        let rent_lamports =
+            self.opened(&mint).map(|(_, lamports)| lamports).fold(0, u64::saturating_add);
         let record = self
             .record(Parts {
                 asset: token.asset(),
@@ -105,7 +107,7 @@ impl Seen<'_> {
                 is_decoded: has_token_transfer(self.tx),
                 outcome: TxOutcome::Success,
             })
-            .rent(Amount::from(self.rent_lamports(&mint)))
+            .rent(Amount::from(rent_lamports))
             .build();
         Some(record)
     }
@@ -115,7 +117,8 @@ impl Seen<'_> {
     /// not add up.
     ///
     /// The rent `token_records` carry, such as for a recipient's new token account,
-    /// is what moving the tokens took and no SOL transfer.
+    /// is what moving the tokens took and no SOL transfer, so an account it opened is
+    /// no party to any other SOL the address moved.
     fn native_record(&self, token_records: &[TxRecord]) -> Option<TxRecord> {
         let keys = &self.tx.transaction.message.account_keys;
         let index = keys.iter().position(|key| key.pubkey == self.address)?;
@@ -124,6 +127,14 @@ impl Seen<'_> {
             .iter()
             .filter_map(|record| record.rent)
             .fold(Amount::ZERO, Amount::saturating_add);
+        let opened: Vec<&str> = token_records
+            .iter()
+            .filter_map(|record| match record.asset {
+                AssetId::Token(token) => Some(token.contract()),
+                AssetId::Native(_) => None,
+            })
+            .flat_map(|mint| self.opened(mint).map(|(account, _)| account))
+            .collect();
         let moved = native_delta(self.metadata, index, is_fee_payer)
             .saturating_add(i128::try_from(rent.base_units()).unwrap_or(i128::MAX));
         let self_transfer = native_self_transfer(self.tx, self.address);
@@ -134,10 +145,10 @@ impl Seen<'_> {
         let (direction, amount, counterparty, is_decoded) = if let Some(lamports) = self_transfer {
             (TxDirection::SelfTransfer, u128::from(lamports), Some(self.address.to_owned()), true)
         } else {
-            let named = decoded_native_counterparty(self.tx, self.address);
+            let named = decoded_native_counterparty(self.tx, self.address, &opened);
             let is_decoded = named.is_some();
-            let party =
-                named.or_else(|| native_counterparty(self.metadata, keys, self.address, moved));
+            let party = named
+                .or_else(|| native_counterparty(self.metadata, keys, self.address, moved, &opened));
             (
                 direction(moved, party.as_deref(), self.address),
                 moved.unsigned_abs(),
@@ -158,23 +169,23 @@ impl Seen<'_> {
         Some(record)
     }
 
-    /// The lamports the address paid into accounts of `mint` that the transaction
-    /// opened, which hold the token after it and did not before. Each counts only as
-    /// far as the account kept them.
-    fn rent_lamports(&self, mint: &str) -> u64 {
+    /// Each account of `mint` that the transaction opened, which holds the token after
+    /// it and did not before, with the lamports the address paid into it. They count
+    /// only as far as the account kept them.
+    fn opened(&self, mint: &str) -> impl Iterator<Item = (&str, u64)> {
         let keys = &self.tx.transaction.message.account_keys;
         let metadata = self.metadata;
         metadata
             .post_token_balances
             .iter()
-            .filter(|after| after.mint == mint)
-            .filter(|after| {
+            .filter(move |after| after.mint == mint)
+            .filter(move |after| {
                 metadata
                     .pre_token_balances
                     .iter()
                     .all(|before| before.account_index != after.account_index)
             })
-            .filter_map(|opened| {
+            .filter_map(move |opened| {
                 let account = keys.get(opened.account_index)?.pubkey.as_str();
                 let paid_lamports = all_instructions(self.tx)
                     .filter_map(|instruction| system_info(instruction, &FUNDING))
@@ -186,9 +197,8 @@ impl Seen<'_> {
                     .fold(0, u64::saturating_add);
                 let kept_lamports =
                     u64::try_from(lamport_delta(metadata, opened.account_index)).unwrap_or(0);
-                Some(paid_lamports.min(kept_lamports))
+                Some((account, paid_lamports.min(kept_lamports)))
             })
-            .fold(0, u64::saturating_add)
     }
 
     fn record(&self, parts: Parts) -> TxRecordBuilder {
@@ -289,16 +299,18 @@ fn token_counterparty(
         .map(|(owner, _)| owner.to_owned())
 }
 
-/// The account whose lamport delta has the opposite sign and the largest size.
+/// The account whose lamport delta has the opposite sign and the largest size, other
+/// than those in `skipped`.
 fn native_counterparty(
     metadata: &TransactionMeta,
     keys: &[ParsedAccountKey],
     address: &str,
     our_delta: i128,
+    skipped: &[&str],
 ) -> Option<String> {
     let mut best: Option<(&str, i128)> = None;
     for (index, key) in keys.iter().enumerate() {
-        if key.pubkey == address {
+        if key.pubkey == address || skipped.contains(&key.pubkey.as_str()) {
             continue;
         }
         let delta = lamport_delta(metadata, index);
@@ -342,11 +354,18 @@ fn has_token_transfer(tx: &TransactionRow) -> bool {
     })
 }
 
-fn decoded_native_counterparty(tx: &TransactionRow, address: &str) -> Option<String> {
+fn decoded_native_counterparty(
+    tx: &TransactionRow,
+    address: &str,
+    skipped: &[&str],
+) -> Option<String> {
     for info in all_instructions(tx).filter_map(|instruction| system_info(instruction, &TRANSFERS))
     {
         let source = info.source.as_deref();
         let destination = info.destination.as_deref();
+        if destination.is_some_and(|account| skipped.contains(&account)) {
+            continue;
+        }
         if source == Some(address) && destination != Some(address) {
             return destination.map(str::to_owned);
         }
@@ -456,10 +475,11 @@ mod tests {
             ..metadata
         };
         assert_eq!(
-            native_counterparty(&lamports, &accounts, "me", -1_000).as_deref(),
+            native_counterparty(&lamports, &accounts, "me", -1_000, &[]).as_deref(),
             Some("peer")
         );
-        assert_eq!(native_counterparty(&lamports, &accounts, "me", 1_000), None);
+        assert_eq!(native_counterparty(&lamports, &accounts, "me", 1_000, &[]), None);
+        assert_eq!(native_counterparty(&lamports, &accounts, "me", -1_000, &["peer"]), None);
     }
 
     #[test]
@@ -562,7 +582,7 @@ mod tests {
 
     #[test]
     fn the_rent_of_the_account_a_token_send_opened_is_its_own_and_no_sol_movement() {
-        for (funding, lamports_before, rent) in
+        for (funding, lamports_before, rent_lamports) in
             [(create_account("opened", 2_000), 0, 2_000), (transfer("opened", 1_999), 1, 1_999)]
         {
             let tx = usdc_send(
@@ -575,8 +595,27 @@ mod tests {
             let record = records.first().expect("the token record");
             assert_eq!(record.asset, AssetId::Token(TokenId::UsdcSpl));
             assert_eq!(record.fee, Some(Amount::from_base_units(5_000)), "the network fee alone");
-            assert_eq!(record.rent, Some(Amount::from_base_units(rent)));
+            assert_eq!(record.rent, Some(Amount::from_base_units(rent_lamports)));
         }
+    }
+
+    /// The rent went into an account someone had already sent a lamport to, so it is a
+    /// plain transfer, and "other" got 1,000 lamports from the address in a way only the
+    /// balances show.
+    #[test]
+    fn an_account_the_rent_opened_is_no_party_to_the_sol_the_address_moved_besides() {
+        let tx = usdc_send(
+            vec![transfer("opened", 1_999)],
+            vec![100_000, 2_000, 1, 0],
+            vec![92_001, 2_000, 2_000, 1_000],
+        );
+        let records = of_transaction(&tx, "sig", "me", 7, 100);
+        assert_eq!(records.len(), 2, "{records:?}");
+        let sol = records.iter().find(|record| record.asset == NATIVE).expect("a SOL record");
+        assert_eq!(sol.direction, TxDirection::Outgoing);
+        assert_eq!(sol.amount, Amount::from_base_units(1_000));
+        assert_eq!(sol.counterparty.as_deref(), Some("other"));
+        assert_eq!(sol.detection, TxDetection::BalanceDelta, "no instruction named the payment");
     }
 
     /// A swap that pays USDT for USDC and opens the address's own USDC account.

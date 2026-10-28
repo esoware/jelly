@@ -130,7 +130,7 @@ pub struct TxPreview {
     pub destination_tag: Option<u32>,
     pub amount: Amount,
     pub fee: Amount,
-    /// What the sender pays besides the fee to open an account for the recipient, in
+    /// What the sender pays besides the fee to open the recipient's token account, in
     /// the native asset. Only the recipient can reclaim it.
     pub rent: Option<Amount>,
     pub details: Vec<TxDetail>,

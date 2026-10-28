@@ -955,9 +955,9 @@ export type TxEntry = {
 	amount: Amount,
 	fee: Amount | null,
 	/**
-	 *  What the wallet's addresses paid besides the fee to open an account the transfer
-	 *  needed, such as a recipient's new token account, in the native asset. `None` when
-	 *  they paid none.
+	 *  What the wallet's addresses paid besides the fee to open token accounts the
+	 *  transfer needed, such as the recipient's, in the native asset. `None` when they
+	 *  paid none.
 	 */
 	rent: Amount | null,
 	/**  The other side, or for a self-transfer the address it went to, when known. */
@@ -1019,7 +1019,7 @@ export type TxPreview = {
 	amount: Amount,
 	fee: Amount,
 	/**
-	 *  What the sender pays besides the fee to open an account for the recipient, in
+	 *  What the sender pays besides the fee to open the recipient's token account, in
 	 *  the native asset. Only the recipient can reclaim it.
 	 */
 	rent: Amount | null,
