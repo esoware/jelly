@@ -23,9 +23,9 @@ use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 use crate::common::{
-    self, AVALANCHE, Answer, BSC, ETH, ETHEREUM, FakeNode, Fallible, Harness, OWNER, PEER,
-    SHEET_ENTRIES, Setup, TIP, TIP_HEX, aggregate, fixture, http_pool, quantity, sheet,
-    sheet_index, sheets_on, watched,
+    self, AVALANCHE, Answer, BASE, BSC, ETH, ETHEREUM, FakeNode, Fallible, Harness, L1_FEE_WEI,
+    OWNER, PEER, SHEET_ENTRIES, Setup, TIP, TIP_HEX, aggregate, fixture, http_pool, quantity,
+    sheet, sheet_index, sheets_on, watched,
 };
 
 #[test]
@@ -873,6 +873,87 @@ async fn a_token_transfer_the_owner_sent_carries_its_fee_and_explains_the_coin_i
     assert!(
         records.iter().all(|record| record.detection == TxDetection::Full),
         "the send's own row accounts for the fee, so nothing is guessed at: {records:?}"
+    );
+}
+
+/// The OP Stack charges for posting a transaction's data to Ethereum apart from gas.
+///
+/// The service's rows leave that out, so the owner's send is priced by its receipt,
+/// and a payment someone else sent is asked about nothing.
+#[tokio::test]
+async fn an_op_stack_send_is_priced_by_its_receipt_rather_than_its_gas() {
+    let sent = format!("0x{}", "5d".repeat(32));
+    let paid = format!("0x{}", "5e".repeat(32));
+    let usdc = TokenId::UsdcBase.contract();
+    let gas_price_wei: u128 = 1_000_000;
+    let native_row = |hash: &str, from: &str, to: &str, value: u128| {
+        serde_json::json!({
+            "blockNumber": "18000001",
+            "timeStamp": "1692000012",
+            "hash": hash,
+            "from": from,
+            "to": to,
+            "value": value.to_string(),
+            "gasUsed": "65000",
+            "gasPrice": gas_price_wei.to_string(),
+            "isError": "0",
+        })
+    };
+    let txlist = serde_json::json!({
+        "status": "1",
+        "message": "OK",
+        "result": [native_row(&sent, OWNER, usdc, 0), native_row(&paid, PEER, OWNER, ETH)],
+    });
+    let tokentx = serde_json::json!({
+        "status": "1",
+        "message": "OK",
+        "result": [{
+            "blockNumber": "18000001",
+            "timeStamp": "1692000012",
+            "hash": sent,
+            "from": OWNER,
+            "contractAddress": usdc,
+            "to": PEER,
+            "value": "1000000",
+            "gasUsed": "65000",
+            "gasPrice": gas_price_wei.to_string(),
+        }],
+    });
+    let history = FakeHistory::new();
+    history.serve(&txlist.to_string(), &tokentx.to_string()).unwrap();
+    let harness = Harness::new(Setup { history: Some(history), ..Setup::on(BASE) }).unwrap();
+    harness.watch_owner().await.unwrap();
+    harness.node.always(Method::BlockNumber, Answer::ok(TIP_HEX));
+    harness.node.always(Method::Call, Answer::ok(&aggregate(&sheets_on(BASE, 1, ETH))));
+    let receipt = serde_json::json!({
+        "transactionHash": sent,
+        "status": "0x1",
+        "gasUsed": "0xfde8",
+        "effectiveGasPrice": format!("{gas_price_wei:#x}"),
+        "l1Fee": format!("{L1_FEE_WEI:#x}"),
+        "blockNumber": "0x112a7e1",
+        "blockHash": format!("0x{}", "aa".repeat(32)),
+    });
+    harness.node.always(Method::GetTransactionReceipt, Answer::ok(&receipt.to_string()));
+    harness.sync().await.unwrap();
+
+    let records = harness.records();
+    let fee_wei = 65_000 * gas_price_wei + L1_FEE_WEI;
+    let of_asset = |asset: AssetId| {
+        records.iter().find(|record| record.asset == asset).expect("a record of the asset")
+    };
+    let token = of_asset(AssetId::Token(TokenId::UsdcBase));
+    assert_eq!(token.fee.map(Amount::base_units), Some(fee_wei), "{records:?}");
+    let native: Vec<_> =
+        records.iter().filter(|record| record.asset == AssetId::Native(ChainId::Base)).collect();
+    let call = native.iter().find(|record| record.txid == token.txid).expect("the call's record");
+    assert_eq!(call.fee.map(Amount::base_units), Some(fee_wei), "the call is the same send");
+    let payment = native.iter().find(|record| record.txid != token.txid).expect("the payment");
+    assert_eq!(payment.fee, None, "the sender paid, not us");
+    assert_eq!(
+        harness.node.calls_to(Method::GetTransactionReceipt).len(),
+        1,
+        "only the owner's own send is asked about"
     );
 }
 

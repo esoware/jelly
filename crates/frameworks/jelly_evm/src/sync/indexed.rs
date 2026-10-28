@@ -1,12 +1,13 @@
 use std::collections::{BTreeMap, HashMap};
 
-use jelly_core::{Clock, Deadline, WalletEvent};
+use alloy::primitives::B256;
+use jelly_core::{AssetId, Clock, Deadline, TxRecord, WalletEvent};
 
 use super::balances::{Explained, Sheet};
 use super::{PassInputs, TARGET};
 use crate::cursor::{Frontier, ScanCursor, Window};
 use crate::error::{EvmError, HistoryRefusal};
-use crate::history::{HistoryApi, HistoryPage, HistoryRow};
+use crate::history::{HistoryApi, HistoryPage, HistoryRow, InternalRow, NativeRow, TokenRow};
 use crate::record;
 use crate::watched::Watched;
 
@@ -110,9 +111,10 @@ pub(super) async fn indexed_history(
             let native = api.native(entry.owner, start).await?;
             let internal = api.internal(entry.owner, start).await?;
             let tokens = api.tokens(entry.owner, start).await?;
-            Ok::<_, EvmError>((native, internal, tokens))
+            let records = records_of(inputs, entry, &native, &internal, &tokens, tip).await?;
+            Ok::<_, EvmError>((native, internal, tokens, records))
         };
-        let (native, internal, tokens) = match read.await {
+        let (native, internal, tokens, records) = match read.await {
             Ok(pages) => pages,
             Err(EvmError::HistoryRefused(HistoryRefusal::ChainNotCovered)) => {
                 tracing::info!(
@@ -139,10 +141,7 @@ pub(super) async fn indexed_history(
             }
         };
 
-        let mut records =
-            record::of_native(inputs.params.native(), entry, native.rows(), internal.rows(), tip);
-        let has_native = !records.is_empty();
-        records.extend(record::of_tokens(inputs.tokens, entry, tokens.rows(), native.rows(), tip));
+        let has_native = records.iter().any(|record| matches!(record.asset, AssetId::Native(_)));
         for record in records {
             inputs.events.emit(WalletEvent::TxDetected(record)).await;
         }
@@ -177,6 +176,50 @@ pub(super) async fn indexed_history(
     outcome
 }
 
+/// Receipts asked for in one batch, so a long history is not one request a public
+/// node refuses.
+const RECEIPT_BATCH: usize = 20;
+
+/// One address's read as records.
+///
+/// The OP Stack charges for posting a transaction's data to Ethereum apart from gas,
+/// and the service's rows price only the gas. There each transaction the owner sent
+/// is priced by its receipt, as the send's own record is, so the two agree and the
+/// stored fee stands. One whose receipt states no fee keeps its row's gas.
+async fn records_of(
+    inputs: &PassInputs<'_>,
+    entry: &Watched,
+    native: &HistoryPage<NativeRow>,
+    internal: &HistoryPage<InternalRow>,
+    tokens: &HistoryPage<TokenRow>,
+    tip: u64,
+) -> Result<Vec<TxRecord>, EvmError> {
+    let mut receipt_fee_wei = HashMap::new();
+    if inputs.params.has_l1_data_fee {
+        let mut sent: Vec<B256> = native
+            .rows()
+            .iter()
+            .filter(|row| row.from == entry.owner)
+            .map(|row| row.hash)
+            .collect();
+        sent.sort_unstable();
+        sent.dedup();
+        for batch in sent.chunks(RECEIPT_BATCH) {
+            let receipts = inputs.client.receipts(batch).await?;
+            for (txid, receipt) in batch.iter().zip(receipts) {
+                if let Some(fee) = receipt.and_then(|receipt| receipt.fee_wei()) {
+                    receipt_fee_wei.insert(*txid, fee);
+                }
+            }
+        }
+    }
+    let (native, internal, tokens) = (native.rows(), internal.rows(), tokens.rows());
+    let coin = inputs.params.native();
+    let mut records = record::of_native(coin, entry, native, internal, &receipt_fee_wei, tip);
+    records.extend(record::of_tokens(inputs.tokens, entry, tokens, native, &receipt_fee_wei, tip));
+    Ok(records)
+}
+
 /// The service answers oldest first.
 ///
 /// A complete read covers what the service has indexed, which is assumed to reach
@@ -193,11 +236,8 @@ fn covered_to<T: HistoryRow>(page: &HistoryPage<T>, start: u64, indexed: u64) ->
 
 #[cfg(test)]
 mod tests {
-    use alloy::primitives::B256;
-
     use super::*;
     use crate::fixtures::address;
-    use crate::history::NativeRow;
 
     #[test]
     fn a_complete_indexed_read_claims_only_what_the_service_has_surely_indexed() {
