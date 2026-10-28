@@ -19,7 +19,10 @@ pub const SPEC: ChainSpec = ChainSpec {
     script_kinds: &[],
     default_script: None,
     settled_confirmations: 1,
-    poll_secs: 8,
+    // Pushes wake a pass as soon as a watched balance moves, so polling is the fallback, and
+    // a pass asks for the signatures of every owner and token account it watches, which
+    // api.mainnet-beta limits to 40 calls in ten seconds.
+    poll_secs: 12,
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::PriorityFee),

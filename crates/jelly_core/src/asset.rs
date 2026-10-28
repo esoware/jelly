@@ -497,7 +497,7 @@ impl TokenId {
             Self::PaxgErc20 => "0x45804880De22913dAFE09f4980848ECE6EcbAf78",
             Self::LinkArbitrum => "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
             Self::WethArbitrum => "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-            // Ethena's LayerZero ENA, at the same address on each of these networks.
+            // Ethena deploys its LayerZero ENA at the same address on each of these networks.
             Self::EnaArbitrum | Self::EnaBase | Self::EnaOptimism | Self::EnaBep20 => {
                 "0x58538e6A46E07434d7E7375Bc268D3cb839C0133"
             }
@@ -509,7 +509,7 @@ impl TokenId {
             Self::PyusdArbitrum => "0x46850aD61C2B7d64d08c9C754F45254596696984",
             Self::XautArbitrum => "0x40461291347e1eCbb09499F3371D3f17f10d7159",
             Self::LinkBase => "0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196",
-            // The OP Stack's WETH predeploy, at the same address on every OP Stack network.
+            // The OP Stack predeploys WETH at the same address on every OP Stack network.
             Self::WethBase | Self::WethOptimism => "0x4200000000000000000000000000000000000006",
             Self::UsdcBase => "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
             Self::UsdsBase => "0x820C137fa70C8691f0e44Dc420a5e53c168921Dc",
@@ -673,10 +673,11 @@ mod tests {
         for token in TokenId::ALL {
             let expected = match token.symbol() {
                 "LINK" | "ENA" if token.chain() == ChainId::Solana => 9,
+                "ENA" if token.chain() == ChainId::Ton => 6,
                 "WBTC" => 8,
                 "LINK" | "WETH" | "UNI" | "SHIB" | "ENA" | "AAVE" | "ONDO" | "PEPE" | "ARB"
                 | "OP" | "DAI" | "USDS" | "PAXG"
-                    if !matches!(token.chain(), ChainId::Solana | ChainId::Ton) =>
+                    if token.chain() != ChainId::Solana =>
                 {
                     18
                 }

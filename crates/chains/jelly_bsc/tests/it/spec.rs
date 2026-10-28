@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::time::Duration;
 
 use jelly_bsc::{ENTRY, PARAMS, SPEC};
-use jelly_core::{ChainId, KeyKind, Transport};
+use jelly_core::{ChainId, KeyKind, TokenId, Transport};
 use jelly_evm::test_util;
 use jelly_net::DefaultEndpoints;
 
@@ -44,7 +44,17 @@ fn the_params_carry_the_eip_155_chain_id_and_bnb_smart_chains_figures() {
     assert_eq!(PARAMS.confirmations_target, 15);
     assert_eq!(PARAMS.watch_floor, Duration::from_secs(6));
     assert_eq!(PARAMS.request_timeout, Duration::from_secs(10));
-    assert_eq!(PARAMS.tokens.len(), 6);
+    assert_eq!(
+        PARAMS.tokens,
+        [
+            TokenId::LinkBep20,
+            TokenId::WethBep20,
+            TokenId::EnaBep20,
+            TokenId::UsdtBep20,
+            TokenId::UsdcBep20,
+            TokenId::XautBep20
+        ]
+    );
     for token in PARAMS.tokens {
         assert_eq!(token.chain(), ChainId::Bsc, "{token:?}");
     }

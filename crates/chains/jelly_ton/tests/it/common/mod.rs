@@ -77,7 +77,7 @@ pub(crate) struct State {
 
 impl Default for State {
     fn default() -> Self {
-        let jettons = [(TokenId::EnaJetton, 3), (TokenId::UsdtJetton, 1), (TokenId::XautJetton, 2)]
+        let jettons = [(TokenId::UsdtJetton, 1), (TokenId::XautJetton, 2), (TokenId::EnaJetton, 3)]
             .map(|(token, seed)| FakeJetton {
                 token,
                 wallet: TonAddress::new(0, [seed; 32].into()),
@@ -185,7 +185,13 @@ fn stack_owner(params: &Value) -> Result<TonAddress, TonError> {
 pub(crate) fn jetton_wallet_of(token: TokenId, owner: &TonAddress) -> TonAddress {
     let mut hash = owner.hash_part.clone();
     if let Some(first) = hash.as_mut_slice().first_mut() {
-        *first ^= if token == TokenId::UsdtJetton { 0x5a } else { 0xa5 };
+        *first ^= if token == TokenId::UsdtJetton {
+            0x5a
+        } else if token == TokenId::XautJetton {
+            0xa5
+        } else {
+            0xc3
+        };
     }
     TonAddress::new(0, hash)
 }

@@ -30,10 +30,12 @@ pub(crate) struct Jetton {
     pub(crate) attached_nanogram: u64,
 }
 
+/// USDT comes first because most wallets hold it, and the probe stops at the first
+/// jetton wallet it finds deployed.
 pub(crate) const JETTONS: [Jetton; 3] = [
-    Jetton { token: TokenId::EnaJetton, attached_nanogram: 50_000_000 },
     Jetton { token: TokenId::UsdtJetton, attached_nanogram: 18_000_000 },
     Jetton { token: TokenId::XautJetton, attached_nanogram: 50_000_000 },
+    Jetton { token: TokenId::EnaJetton, attached_nanogram: 50_000_000 },
 ];
 
 pub(crate) fn jetton(token: TokenId) -> Option<Jetton> {
@@ -108,9 +110,12 @@ mod tests {
 
     #[test]
     fn the_jetton_table_is_total_over_the_tokens_this_chain_serves() {
-        let served: Vec<TokenId> =
+        let mut served: Vec<TokenId> =
             TokenId::ALL.into_iter().filter(|token| token.chain() == ChainId::Ton).collect();
-        assert_eq!(served, JETTONS.map(|jetton| jetton.token));
+        let mut carried = JETTONS.map(|jetton| jetton.token);
+        served.sort_unstable();
+        carried.sort_unstable();
+        assert_eq!(served, carried);
         for jetton in JETTONS {
             master(jetton.token).unwrap();
             assert_eq!(asset_jetton(AssetId::Token(jetton.token)).unwrap(), Some(jetton));
@@ -124,8 +129,8 @@ mod tests {
     fn each_jetton_attaches_what_mytonwallet_attaches() {
         // MyTonWallet's TINY_TOKEN_TRANSFER_AMOUNT for USDT and TOKEN_TRANSFER_AMOUNT for
         // every other jetton, in src/api/chains/ton/constants.ts.
-        assert_eq!(jetton(TokenId::EnaJetton).unwrap().attached_nanogram, 50_000_000);
         assert_eq!(jetton(TokenId::UsdtJetton).unwrap().attached_nanogram, 18_000_000);
         assert_eq!(jetton(TokenId::XautJetton).unwrap().attached_nanogram, 50_000_000);
+        assert_eq!(jetton(TokenId::EnaJetton).unwrap().attached_nanogram, 50_000_000);
     }
 }
