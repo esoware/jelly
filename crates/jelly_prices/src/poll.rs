@@ -457,7 +457,11 @@ mod tests {
         assert!(!report.is_failure());
 
         let snapshot = harness.feed.snapshot();
-        assert_eq!(snapshot.len(), Ticker::Eth.assets().len(), "one quote prices ether everywhere");
+        assert_eq!(
+            snapshot.len(),
+            Ticker::Eth.assets().count(),
+            "one quote prices ether everywhere"
+        );
         assert!(snapshot.get(BTC).is_none(), "bitcoin wore ether's price");
         assert_eq!(
             snapshot.get(ETH).map(|record| record.price.to_string()),
