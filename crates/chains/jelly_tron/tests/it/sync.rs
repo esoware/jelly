@@ -3,9 +3,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use jelly_core::{
-    Amount, ChainAdapter as _, ChainError, ChainId, ChainSyncProgress, Clock as _, CursorBytes,
-    CursorScope, CursorStore as _, Deadline, ScanStream, TokenId, TxDetection, TxDirection,
-    TxOutcome, WalletEvent,
+    Amount, AssetId, ChainAdapter as _, ChainError, ChainId, ChainSyncProgress, Clock as _,
+    CursorBytes, CursorScope, CursorStore as _, Deadline, ScanStream, TokenId, TxDetection,
+    TxDirection, TxOutcome, WalletEvent,
     test_util::{FakeClock, FakeEventSink, MemoryCursorStore, WatchedAddressBuilder, records},
 };
 use jelly_tron::{
@@ -358,13 +358,13 @@ async fn a_token_that_will_not_answer_does_not_cost_the_coin() {
     let harness = ready(&fake).await.unwrap();
     let sink = FakeEventSink::new();
     pass(&harness, &sink).await.unwrap();
-    let seen = balances(&sink.drain());
-    assert!(seen.iter().any(|(_, asset, _)| *asset == TRX));
-    assert!(
-        seen.iter().all(|(_, asset, _)| *asset != USDT_ASSET),
+    let assets: Vec<AssetId> =
+        balances(&sink.drain()).into_iter().map(|(_, asset, _)| asset).collect();
+    assert_eq!(
+        assets,
+        [TRX, AssetId::Token(TokenId::WbtcTrc20)],
         "the token that would not answer is absent, not zero"
     );
-    assert_eq!(seen.len(), 2, "the coin and the token that answered");
 }
 
 #[tokio::test]
