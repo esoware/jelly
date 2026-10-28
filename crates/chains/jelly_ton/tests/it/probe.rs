@@ -53,7 +53,7 @@ async fn a_wallet_that_only_ever_received_usdt_is_found_at_the_first_jetton_aske
     let adapter = node.adapter().await.unwrap();
     let candidates = other_versions().unwrap();
     let owner = TonAddress::from_base64_url(candidates[0].value()).unwrap();
-    node.state.lock().used = vec![jetton_wallet_of(TokenId::UsdtJetton, &owner)];
+    node.state.lock().used = vec![jetton_wallet_of(TokenId::UsdtJetton, &owner).unwrap()];
     let before = node.state.lock().calls.len();
     let used = adapter.script_probe().unwrap().used(&candidates[..1]).await.unwrap();
     assert_eq!(used, [candidates[0].clone()]);
@@ -72,7 +72,7 @@ async fn a_wallet_that_only_ever_received_jettons_is_found_in_use() {
     let adapter = node.adapter().await.unwrap();
     let candidates = other_versions().unwrap();
     let owner = TonAddress::from_base64_url(candidates[1].value()).unwrap();
-    node.state.lock().used = vec![jetton_wallet_of(TokenId::XautJetton, &owner)];
+    node.state.lock().used = vec![jetton_wallet_of(TokenId::XautJetton, &owner).unwrap()];
     let used = adapter.script_probe().unwrap().used(&candidates).await.unwrap();
     assert_eq!(used, [candidates[1].clone()], "the deployed XAUT wallet shows the V3R2 key used");
 }
