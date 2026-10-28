@@ -77,7 +77,7 @@ pub(crate) struct State {
 
 impl Default for State {
     fn default() -> Self {
-        let jettons = [(TokenId::UsdtJetton, 1), (TokenId::XautJetton, 2)]
+        let jettons = [(TokenId::EnaJetton, 3), (TokenId::UsdtJetton, 1), (TokenId::XautJetton, 2)]
             .map(|(token, seed)| FakeJetton {
                 token,
                 wallet: TonAddress::new(0, [seed; 32].into()),

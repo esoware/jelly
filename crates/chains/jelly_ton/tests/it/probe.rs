@@ -36,6 +36,8 @@ async fn the_probe_stops_asking_about_an_address_at_its_first_sign_of_use() {
             Method::GetAddressInformation,
             Method::RunGet,
             Method::GetAddressInformation,
+            Method::RunGet,
+            Method::GetAddressInformation,
         ],
         "a candidate in use is asked once, and an unused one about each jetton wallet"
     );

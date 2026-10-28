@@ -45,7 +45,8 @@ mod balances {
 
     #[tokio::test]
     async fn a_pass_over_two_addresses_costs_three_documents() {
-        let harness = Harness::new();
+        let max_batch = u32::try_from(2 * ACCOUNTS_PER_OWNER).unwrap();
+        let harness = Harness::with(SolanaConfig { max_batch, ..SolanaConfig::default() });
         harness.node.quiet().unwrap();
         harness.watch(&[watched(7, OWNER), watched(8, RECORDED)]).await.unwrap();
         harness.node.forget_calls();

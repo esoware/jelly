@@ -3,6 +3,7 @@ use jelly_prices::Ticker;
 
 /// The match is exhaustive, so a new chain or token is a compile error here
 /// rather than an asset that silently loses its fiat value.
+#[expect(clippy::too_many_lines, reason = "the exhaustive match names every asset")]
 const fn ticker_for(asset: AssetId) -> Ticker {
     match asset {
         AssetId::Native(ChainId::Bitcoin) => Ticker::Btc,
@@ -40,10 +41,18 @@ const fn ticker_for(asset: AssetId) -> Ticker {
             | TokenId::LinkAvalanche
             | TokenId::LinkSpl,
         ) => Ticker::Link,
-        AssetId::Token(TokenId::WbtcErc20) => Ticker::Wbtc,
+        AssetId::Token(TokenId::WbtcErc20 | TokenId::WbtcSpl | TokenId::WbtcTrc20) => Ticker::Wbtc,
         AssetId::Token(TokenId::UniErc20) => Ticker::Uni,
         AssetId::Token(TokenId::ShibErc20) => Ticker::Shib,
-        AssetId::Token(TokenId::EnaErc20) => Ticker::Ena,
+        AssetId::Token(
+            TokenId::EnaErc20
+            | TokenId::EnaArbitrum
+            | TokenId::EnaBase
+            | TokenId::EnaOptimism
+            | TokenId::EnaBep20
+            | TokenId::EnaSpl
+            | TokenId::EnaJetton,
+        ) => Ticker::Ena,
         AssetId::Token(TokenId::AaveErc20) => Ticker::Aave,
         AssetId::Token(TokenId::PumpSpl) => Ticker::Pump,
         AssetId::Token(TokenId::OndoErc20) => Ticker::Ondo,
@@ -96,6 +105,7 @@ const fn ticker_for(asset: AssetId) -> Ticker {
             | TokenId::XautBep20
             | TokenId::XautPolygon
             | TokenId::XautAvalanche
+            | TokenId::XautSpl
             | TokenId::XautJetton,
         ) => Ticker::Xaut,
         AssetId::Token(TokenId::PaxgErc20 | TokenId::PaxgSpl) => Ticker::Paxg,

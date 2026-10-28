@@ -67,6 +67,7 @@ fn the_tokens_are_issuer_deployments_with_no_bridged_real_world_asset() {
         [
             TokenId::LinkOptimism,
             TokenId::WethOptimism,
+            TokenId::EnaOptimism,
             TokenId::OpOptimism,
             TokenId::UsdtOptimism,
             TokenId::UsdcOptimism,

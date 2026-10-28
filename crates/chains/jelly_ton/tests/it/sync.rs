@@ -43,7 +43,7 @@ async fn an_account_without_history_syncs_its_balances_and_reads_no_history() {
     assert_eq!(progress.tip_height(), Some(100));
     let drained = events.drain();
     assert!(drained.iter().any(|event| matches!(event, WalletEvent::BalanceChanged(balance) if balance.balance.base_units() == 5_000_000_000)));
-    for token in [TokenId::UsdtJetton, TokenId::XautJetton] {
+    for token in [TokenId::EnaJetton, TokenId::UsdtJetton, TokenId::XautJetton] {
         assert!(
             drained.iter().any(|event| matches!(event, WalletEvent::BalanceChanged(balance)
                 if balance.asset == AssetId::Token(token) && balance.balance.is_zero())),
@@ -61,7 +61,7 @@ async fn jetton_wallets_are_resolved_once_and_read_only_when_they_change() {
     let adapter = node.adapter().await.unwrap();
     let events = FakeEventSink::new();
     adapter.sync(node.clock.deadline_in(Duration::from_secs(30)), &events).await.unwrap();
-    assert_eq!(node.count(Method::RunGet), 2, "one get_wallet_address per registry master");
+    assert_eq!(node.count(Method::RunGet), 3, "one get_wallet_address per registry master");
     let rows: Vec<Value> =
         serde_json::from_str(include_str!("../fixtures/usdt_wallet.json")).unwrap();
     {
@@ -73,9 +73,9 @@ async fn jetton_wallets_are_resolved_once_and_read_only_when_they_change() {
         jetton.pages.push_back(json!(rows));
     }
     adapter.sync(node.clock.deadline_in(Duration::from_secs(30)), &events).await.unwrap();
-    assert_eq!(node.count(Method::RunGet), 3, "a changed jetton wallet is read once");
+    assert_eq!(node.count(Method::RunGet), 4, "a changed jetton wallet is read once");
     adapter.sync(node.clock.deadline_in(Duration::from_secs(30)), &events).await.unwrap();
-    assert_eq!(node.count(Method::RunGet), 3, "an unchanged one is not read again");
+    assert_eq!(node.count(Method::RunGet), 4, "an unchanged one is not read again");
     assert_eq!(usdt_balances(&events), [0, 42, 42]);
 }
 

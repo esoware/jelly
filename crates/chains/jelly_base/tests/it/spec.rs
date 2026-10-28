@@ -60,7 +60,13 @@ fn the_params_carry_the_eip_155_chain_id_and_bases_figures() {
 fn the_tokens_are_coins_carried_elsewhere_with_no_bridged_real_world_asset() {
     assert_eq!(
         PARAMS.tokens,
-        [TokenId::LinkBase, TokenId::WethBase, TokenId::UsdcBase, TokenId::UsdsBase]
+        [
+            TokenId::LinkBase,
+            TokenId::WethBase,
+            TokenId::EnaBase,
+            TokenId::UsdcBase,
+            TokenId::UsdsBase
+        ]
     );
     for token in PARAMS.tokens {
         assert_eq!(token.chain(), ChainId::Base, "{token:?}");

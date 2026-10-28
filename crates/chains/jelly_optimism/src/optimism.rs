@@ -48,12 +48,13 @@ pub const PARAMS: EvmParams = EvmParams {
     chain: SPEC.chain,
     chain_id: 10,
     request_timeout: Duration::from_secs(10),
-    // Each issuer's own deployment: Tether's USDT0, Circle's USDC, and Sky's USDS. The
-    // bridged USDC.e and the standard bridge's USDT are left out. LINK is Chainlink's,
-    // WETH the OP Stack's predeploy, and OP is issued here.
+    // Each issuer's own deployment: Ethena's ENA, Tether's USDT0, Circle's USDC, and
+    // Sky's USDS. The bridged USDC.e and the standard bridge's USDT are left out. LINK
+    // is Chainlink's, WETH the OP Stack's predeploy, and OP is issued here.
     tokens: &[
         TokenId::LinkOptimism,
         TokenId::WethOptimism,
+        TokenId::EnaOptimism,
         TokenId::OpOptimism,
         TokenId::UsdtOptimism,
         TokenId::UsdcOptimism,

@@ -50,6 +50,10 @@ impl Ticker {
     }
 
     /// Every asset one quote for this ticker prices.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "a table with one line per priced asset, which grows with the token registry"
+    )]
     pub const fn assets(self) -> &'static [AssetId] {
         match self {
             Self::Btc => &[AssetId::Native(ChainId::Bitcoin)],
@@ -88,10 +92,22 @@ impl Ticker {
                 AssetId::Token(TokenId::LinkAvalanche),
                 AssetId::Token(TokenId::LinkSpl),
             ],
-            Self::Wbtc => &[AssetId::Token(TokenId::WbtcErc20)],
+            Self::Wbtc => &[
+                AssetId::Token(TokenId::WbtcErc20),
+                AssetId::Token(TokenId::WbtcSpl),
+                AssetId::Token(TokenId::WbtcTrc20),
+            ],
             Self::Uni => &[AssetId::Token(TokenId::UniErc20)],
             Self::Shib => &[AssetId::Token(TokenId::ShibErc20)],
-            Self::Ena => &[AssetId::Token(TokenId::EnaErc20)],
+            Self::Ena => &[
+                AssetId::Token(TokenId::EnaErc20),
+                AssetId::Token(TokenId::EnaArbitrum),
+                AssetId::Token(TokenId::EnaBase),
+                AssetId::Token(TokenId::EnaOptimism),
+                AssetId::Token(TokenId::EnaBep20),
+                AssetId::Token(TokenId::EnaSpl),
+                AssetId::Token(TokenId::EnaJetton),
+            ],
             Self::Aave => &[AssetId::Token(TokenId::AaveErc20)],
             Self::Pump => &[AssetId::Token(TokenId::PumpSpl)],
             Self::Ondo => &[AssetId::Token(TokenId::OndoErc20)],
@@ -146,6 +162,7 @@ impl Ticker {
                 AssetId::Token(TokenId::XautBep20),
                 AssetId::Token(TokenId::XautPolygon),
                 AssetId::Token(TokenId::XautAvalanche),
+                AssetId::Token(TokenId::XautSpl),
                 AssetId::Token(TokenId::XautJetton),
             ],
             Self::Paxg => &[AssetId::Token(TokenId::PaxgErc20), AssetId::Token(TokenId::PaxgSpl)],

@@ -30,7 +30,8 @@ pub(crate) struct Jetton {
     pub(crate) attached_nanogram: u64,
 }
 
-pub(crate) const JETTONS: [Jetton; 2] = [
+pub(crate) const JETTONS: [Jetton; 3] = [
+    Jetton { token: TokenId::EnaJetton, attached_nanogram: 50_000_000 },
     Jetton { token: TokenId::UsdtJetton, attached_nanogram: 18_000_000 },
     Jetton { token: TokenId::XautJetton, attached_nanogram: 50_000_000 },
 ];
@@ -123,6 +124,7 @@ mod tests {
     fn each_jetton_attaches_what_mytonwallet_attaches() {
         // MyTonWallet's TINY_TOKEN_TRANSFER_AMOUNT for USDT and TOKEN_TRANSFER_AMOUNT for
         // every other jetton, in src/api/chains/ton/constants.ts.
+        assert_eq!(jetton(TokenId::EnaJetton).unwrap().attached_nanogram, 50_000_000);
         assert_eq!(jetton(TokenId::UsdtJetton).unwrap().attached_nanogram, 18_000_000);
         assert_eq!(jetton(TokenId::XautJetton).unwrap().attached_nanogram, 50_000_000);
     }

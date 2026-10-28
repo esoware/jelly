@@ -200,6 +200,7 @@ pub const ARBITRUM: EvmParams = EvmParams {
     tokens: &[
         TokenId::LinkArbitrum,
         TokenId::WethArbitrum,
+        TokenId::EnaArbitrum,
         TokenId::ArbArbitrum,
         TokenId::UsdtArbitrum,
         TokenId::UsdcArbitrum,
@@ -227,7 +228,13 @@ pub const BASE: EvmParams = EvmParams {
     chain: ChainId::Base,
     chain_id: 8_453,
     request_timeout: Duration::from_secs(10),
-    tokens: &[TokenId::LinkBase, TokenId::WethBase, TokenId::UsdcBase, TokenId::UsdsBase],
+    tokens: &[
+        TokenId::LinkBase,
+        TokenId::WethBase,
+        TokenId::EnaBase,
+        TokenId::UsdcBase,
+        TokenId::UsdsBase,
+    ],
     token_standard: "ERC-20",
     block_millis: 2_000,
     watch_floor: Duration::from_secs(6),
@@ -250,6 +257,7 @@ pub const OPTIMISM: EvmParams = EvmParams {
     tokens: &[
         TokenId::LinkOptimism,
         TokenId::WethOptimism,
+        TokenId::EnaOptimism,
         TokenId::OpOptimism,
         TokenId::UsdtOptimism,
         TokenId::UsdcOptimism,
@@ -277,6 +285,7 @@ pub const BSC: EvmParams = EvmParams {
     tokens: &[
         TokenId::LinkBep20,
         TokenId::WethBep20,
+        TokenId::EnaBep20,
         TokenId::UsdtBep20,
         TokenId::UsdcBep20,
         TokenId::XautBep20,

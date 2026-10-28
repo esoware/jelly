@@ -70,8 +70,10 @@ pub(crate) const BALANCE_LAMPORTS: u64 = 5_000_000_000;
 pub(crate) const BASE_FEE_LAMPORTS: u64 = 5_000;
 
 /// Every token Jelly carries on Solana, in the order the adapter reports them.
-pub(crate) const SOLANA_TOKEN_IDS: [TokenId; 9] = [
+pub(crate) const SOLANA_TOKEN_IDS: [TokenId; 12] = [
     TokenId::LinkSpl,
+    TokenId::WbtcSpl,
+    TokenId::EnaSpl,
     TokenId::PumpSpl,
     TokenId::JupSpl,
     TokenId::UsdtSpl,
@@ -79,6 +81,7 @@ pub(crate) const SOLANA_TOKEN_IDS: [TokenId; 9] = [
     TokenId::UsdsSpl,
     TokenId::UsdgSpl,
     TokenId::PyusdSpl,
+    TokenId::XautSpl,
     TokenId::PaxgSpl,
 ];
 

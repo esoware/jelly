@@ -42,7 +42,7 @@ async fn a_pass_reports_every_balance_and_the_tip() {
     let seen = balances(&sink.drain());
     assert!(seen.contains(&(1, TRX, Amount::from_base_units(7_000_000))));
     assert!(seen.contains(&(1, USDT_ASSET, Amount::from_base_units(30_577_741_502))));
-    assert_eq!(seen.len(), 2, "one native balance and one per supported token");
+    assert_eq!(seen.len(), 3, "one native balance and one per supported token");
 }
 
 #[tokio::test]
@@ -314,7 +314,7 @@ async fn a_history_route_no_endpoint_serves_never_costs_a_balance() {
     let progress = pass(&harness, &sink).await.unwrap();
 
     let events = sink.drain();
-    assert_eq!(balances(&events).len(), 2, "every balance still reported");
+    assert_eq!(balances(&events).len(), 3, "every balance still reported");
     assert!(records(&events).is_empty());
     assert!(
         progress.synced_height().is_none(),
@@ -360,7 +360,11 @@ async fn a_token_that_will_not_answer_does_not_cost_the_coin() {
     pass(&harness, &sink).await.unwrap();
     let seen = balances(&sink.drain());
     assert!(seen.iter().any(|(_, asset, _)| *asset == TRX));
-    assert_eq!(seen.len(), 1, "the token that would not answer is absent, not zero");
+    assert!(
+        seen.iter().all(|(_, asset, _)| *asset != USDT_ASSET),
+        "the token that would not answer is absent, not zero"
+    );
+    assert_eq!(seen.len(), 2, "the coin and the token that answered");
 }
 
 #[tokio::test]
