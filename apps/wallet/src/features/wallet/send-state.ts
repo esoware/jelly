@@ -197,6 +197,7 @@ function previewsEquivalent(a: TxPreview, b: TxPreview): boolean {
     a.to === b.to &&
     a.amount === b.amount &&
     a.fee === b.fee &&
+    a.rent === b.rent &&
     a.destinationTag === b.destinationTag &&
     a.warnings.length === b.warnings.length &&
     a.warnings.every((warning, i) => warning.kind === b.warnings.at(i)?.kind)

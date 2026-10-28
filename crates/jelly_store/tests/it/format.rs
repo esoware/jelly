@@ -30,6 +30,7 @@ async fn money_is_sixteen_big_endian_bytes_and_nothing_else() {
         Amount::from_base_units(u128::from(u64::MAX).saturating_add(1)),
     )
     .fee(Amount::from_base_units(1))
+    .rent(Amount::from_base_units(2))
     .build();
     harness
         .store
@@ -52,6 +53,8 @@ async fn money_is_sixteen_big_endian_bytes_and_nothing_else() {
     assert_eq!(hex::encode(amount), "00000000000000010000000000000000");
     let fee: Vec<u8> = column(&connection, "SELECT fee FROM txs").unwrap();
     assert_eq!(hex::encode(fee), "00000000000000000000000000000001");
+    let rent: Vec<u8> = column(&connection, "SELECT rent FROM txs").unwrap();
+    assert_eq!(hex::encode(rent), "00000000000000000000000000000002");
     let balance: Vec<u8> = column(&connection, "SELECT amount FROM balances").unwrap();
     assert_eq!(hex::encode(balance), "ffffffffffffffffffffffffffffffff");
 }

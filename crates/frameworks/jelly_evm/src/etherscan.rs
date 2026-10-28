@@ -351,7 +351,7 @@ mod tests {
     #[test]
     fn a_recorded_native_page_decodes_field_for_field() {
         let rows: Vec<NativeRow> = read_page(&body("txlist")).unwrap().rows;
-        assert_eq!(rows.len(), 2);
+        assert_eq!(rows.len(), 3);
         let first = rows.first().expect("a first row");
         assert_eq!(first.block_number, 18_000_000);
         assert_eq!(first.timestamp, 1_692_000_000);
@@ -362,7 +362,11 @@ mod tests {
         assert_eq!(first.from, address("0x5041ed759Dd4aFc3a72b8192C143F72f4724081A"));
         assert_eq!(first.to, Some(address(OWNER)));
 
-        let failed = rows.get(1).expect("the failed row");
+        let token_call = rows.get(1).expect("the token transfer's own row");
+        assert_eq!(token_call.to, Some(address(USDT)));
+        assert_eq!(token_call.value, 0, "a token transfer moves no coin");
+
+        let failed = rows.get(2).expect("the failed row");
         assert!(failed.is_failed, "the service marks it with isError 1");
         assert_eq!(failed.block_number, 18_000_005);
 

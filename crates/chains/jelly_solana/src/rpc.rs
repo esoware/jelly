@@ -300,6 +300,7 @@ pub(crate) struct ParsedBody {
 /// The members the wallet reads out of a parsed instruction. Every one is
 /// optional because the member set differs per instruction type.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct ParsedInfo {
     #[serde(default)]
     pub(crate) source: Option<String>,
@@ -307,6 +308,8 @@ pub(crate) struct ParsedInfo {
     pub(crate) destination: Option<String>,
     #[serde(default)]
     pub(crate) lamports: Option<u64>,
+    #[serde(default)]
+    pub(crate) new_account: Option<String>,
 }
 
 /// A node answers `null` for a list it did not record, which is how older
@@ -339,6 +342,8 @@ pub(crate) struct InnerInstructions {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct TokenBalance {
+    /// The token account's place in the message's account keys.
+    pub(crate) account_index: usize,
     pub(crate) mint: String,
     /// Absent on very old records, where the account cannot be attributed to an
     /// owner and is therefore not this wallet's.

@@ -61,6 +61,7 @@ pub(crate) fn of(payment: &Payment) -> Result<TxPreview, TonError> {
         destination_tag: None,
         amount: payment.amount(),
         fee: Amount::from(payment.cost_nanogram()?),
+        rent: None,
         details,
         warnings,
     })

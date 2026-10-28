@@ -23,9 +23,9 @@ use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 use crate::common::{
-    self, AVALANCHE, Answer, BSC, ETH, ETHEREUM, FakeNode, Fallible, Harness, OWNER, PEER,
-    SHEET_ENTRIES, Setup, TIP, TIP_HEX, aggregate, fixture, http_pool, quantity, sheet,
-    sheet_index, sheets_on, watched,
+    self, AVALANCHE, Answer, BASE, BSC, ETH, ETHEREUM, FakeNode, Fallible, GWEI, Harness,
+    L1_FEE_WEI, OWNER, PEER, SHEET_ENTRIES, Setup, TIP, TIP_HEX, aggregate, fixture, http_pool,
+    quantity, receipt_for, sheet, sheet_index, sheets_on, watched,
 };
 
 #[test]
@@ -67,7 +67,7 @@ async fn an_indexed_pass_records_native_and_token_history_and_asks_for_no_logs()
         "an indexer covers what a log walk would find, and native transfers besides"
     );
     let records = harness.records();
-    assert_eq!(records.len(), 4, "two native rows and the two token rows that are ours");
+    assert_eq!(records.len(), 5, "three native rows and the two token rows that are ours");
 
     let incoming = records
         .iter()
@@ -821,6 +821,135 @@ async fn a_token_transfer_someone_else_sent_is_recorded_without_their_fee() {
         token.fee, None,
         "only a transaction's sender pays its gas, and the owner sent no transaction here, yet \
          the owner's record carries the solver's fee: {token:?}"
+    );
+}
+
+/// The owner's token transfer is its own call to the token contract, so `txlist`
+/// lists it too, moving no coin. The store keeps the token record, which carries the
+/// same fee, in place of the call's.
+#[tokio::test]
+async fn a_token_transfer_the_owner_sent_carries_its_fee_and_explains_the_coin_it_took() {
+    let only_the_send = |key: &str| -> Fallible<String> {
+        let mut page: Value = serde_json::from_str(&fixture("etherscan.json", key)?)?;
+        page.get_mut("result").and_then(Value::as_array_mut).ok_or("a page of rows")?.retain(
+            |row| {
+                row.get("hash")
+                    .and_then(Value::as_str)
+                    .is_some_and(|hash| hash.starts_with("0x22e0"))
+            },
+        );
+        Ok(page.to_string())
+    };
+    let history = FakeHistory::new();
+    history.serve(&only_the_send("txlist").unwrap(), &only_the_send("tokentx").unwrap()).unwrap();
+    let harness = Harness::new(Setup::with_history(history)).unwrap();
+    harness.watch_owner().await.unwrap();
+    harness.node.always(Method::BlockNumber, Answer::ok(TIP_HEX));
+    harness.node.always(Method::Call, Answer::ok(&aggregate(&sheet(5 * ETH))));
+    harness.sync().await.unwrap();
+
+    let records = harness.records();
+    assert_eq!(records.len(), 2, "the token record and the call's: {records:?}");
+    let of_asset = |asset: AssetId| {
+        records.iter().find(|record| record.asset == asset).expect("a record of the asset")
+    };
+    let fee_wei = 65_000 * 20_000_000_000;
+    let sent = of_asset(AssetId::Token(TokenId::UsdtErc20));
+    assert_eq!(sent.direction, TxDirection::Outgoing);
+    assert_eq!(sent.amount.base_units(), 1_000_000);
+    assert_eq!(sent.counterparty.as_deref(), Some(PEER));
+    assert_eq!(sent.fee.map(Amount::base_units), Some(fee_wei));
+    let call = of_asset(AssetId::Native(ChainId::Ethereum));
+    assert_eq!(call.txid, sent.txid);
+    assert_eq!(call.amount, Amount::ZERO);
+    assert_eq!(call.fee.map(Amount::base_units), Some(fee_wei));
+
+    harness.node.always(Method::Call, Answer::ok(&aggregate(&sheet(5 * ETH - fee_wei))));
+    harness.sync().await.unwrap();
+    let caught_up = TIP + ETHEREUM.indexer_lag_blocks();
+    harness.node.always(Method::BlockNumber, Answer::ok(&quantity(u128::from(caught_up))));
+    harness.sync().await.unwrap();
+    let records = harness.records();
+    assert!(
+        records.iter().all(|record| record.detection == TxDetection::Full),
+        "the send's own row accounts for the fee, so nothing is guessed at: {records:?}"
+    );
+}
+
+/// The OP Stack charges for posting a transaction's data to Ethereum apart from gas.
+///
+/// The service's rows leave that out, so the owner's send is priced by its receipt,
+/// and a payment someone else sent is asked about nothing.
+#[tokio::test]
+async fn an_op_stack_send_is_priced_by_its_receipt_rather_than_its_gas() {
+    let sent = format!("0x{}", "5d".repeat(32));
+    let paid = format!("0x{}", "5e".repeat(32));
+    let usdc = TokenId::UsdcBase.contract();
+    let gas_price_wei: u128 = 1_000_000;
+    let native_row = |hash: &str, from: &str, to: &str, value: u128| {
+        serde_json::json!({
+            "blockNumber": "18000001",
+            "timeStamp": "1692000012",
+            "hash": hash,
+            "from": from,
+            "to": to,
+            "value": value.to_string(),
+            "gasUsed": "65000",
+            "gasPrice": gas_price_wei.to_string(),
+            "isError": "0",
+        })
+    };
+    let txlist = serde_json::json!({
+        "status": "1",
+        "message": "OK",
+        "result": [native_row(&sent, OWNER, usdc, 0), native_row(&paid, PEER, OWNER, ETH)],
+    });
+    let tokentx = serde_json::json!({
+        "status": "1",
+        "message": "OK",
+        "result": [{
+            "blockNumber": "18000001",
+            "timeStamp": "1692000012",
+            "hash": sent,
+            "from": OWNER,
+            "contractAddress": usdc,
+            "to": PEER,
+            "value": "1000000",
+            "gasUsed": "65000",
+            "gasPrice": gas_price_wei.to_string(),
+        }],
+    });
+    let history = FakeHistory::new();
+    history.serve(&txlist.to_string(), &tokentx.to_string()).unwrap();
+    let harness = Harness::new(Setup { history: Some(history), ..Setup::on(BASE) }).unwrap();
+    harness.watch_owner().await.unwrap();
+    harness.node.always(Method::BlockNumber, Answer::ok(TIP_HEX));
+    harness.node.always(Method::Call, Answer::ok(&aggregate(&sheets_on(BASE, 1, ETH))));
+    let receipt = receipt_for(&sent, 18_000_001).replacen(
+        '{',
+        &format!(r#"{{"l1Fee":"{L1_FEE_WEI:#x}","#),
+        1,
+    );
+    harness.node.always(Method::GetTransactionReceipt, Answer::ok(&receipt));
+    harness.sync().await.unwrap();
+
+    let records = harness.records();
+    let fee_wei = 21_000 * 20 * GWEI + L1_FEE_WEI;
+    let of_asset = |asset: AssetId| {
+        records.iter().find(|record| record.asset == asset).expect("a record of the asset")
+    };
+    let token = of_asset(AssetId::Token(TokenId::UsdcBase));
+    assert_eq!(token.fee.map(Amount::base_units), Some(fee_wei), "{records:?}");
+    let native: Vec<_> =
+        records.iter().filter(|record| record.asset == AssetId::Native(ChainId::Base)).collect();
+    let call = native.iter().find(|record| record.txid == token.txid).expect("the call's record");
+    assert_eq!(call.fee.map(Amount::base_units), Some(fee_wei), "the call is the same send");
+    let payment = native.iter().find(|record| record.txid != token.txid).expect("the payment");
+    assert_eq!(payment.fee, None, "the sender paid, not us");
+    assert_eq!(
+        harness.node.calls_to(Method::GetTransactionReceipt).len(),
+        1,
+        "only the owner's own send is asked about"
     );
 }
 

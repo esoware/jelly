@@ -115,6 +115,7 @@ pub(crate) fn of(
         destination_tag: None,
         amount: plan.amount,
         fee: Amount::from_base_units(expected_fee_wei),
+        rent: None,
         details,
         warnings: warnings(plan, tokens, worst_case_fee_wei, left_wei),
     })

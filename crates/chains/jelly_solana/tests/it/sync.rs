@@ -7,7 +7,8 @@ use serde_json::json;
 
 use crate::common::{
     self, ACCOUNTS_PER_OWNER, Answer, Harness, OWNER, PEER, RECORDED, TX_NATIVE_TRANSFER,
-    TX_SPL_TRANSFER, TX_USDC_TRANSFER, native, token_account_address, usdc, watched,
+    TX_SPL_TRANSFER, TX_USDC_TRANSFER, TX_USDT_TRANSFER_NEW_ACCOUNT, native, token_account_address,
+    usdc, watched,
 };
 
 fn paged() -> SolanaConfig {
@@ -250,6 +251,35 @@ mod records {
         assert_eq!(record.amount, Amount::ZERO);
         assert_eq!(record.fee, Some(Amount::from_base_units(5_333)));
         assert_eq!(record.detection, TxDetection::BalanceDelta);
+    }
+
+    #[tokio::test]
+    async fn a_token_send_that_opens_the_recipients_account_is_one_record_with_its_rent() {
+        const SENDER: &str = "AvxmrCrmPxWVeQ7DWUmc6WsJnSU6CMzZsDNevxuMxnKX";
+        const RECIPIENT: &str = "2ARtzy35wXV1nvsoWqb5YHqYiYxrSLiZnfZ56q4Qf6CM";
+        let harness = Harness::with(paged());
+        harness.node.quiet().unwrap();
+        harness.node.always(Method::GetAccountInfo, Answer::ok(&common::missing_account()));
+        harness.node.seed_signatures(SENDER, 1);
+        harness.node.always(Method::GetTransaction, Answer::raw(TX_USDT_TRANSFER_NEW_ACCOUNT));
+        harness.watch(&[watched(8, SENDER), watched(9, RECIPIENT)]).await.unwrap();
+        harness.sync().await.unwrap();
+
+        let records = harness.records();
+        assert_eq!(records.len(), 2, "a USDT record for each side and no SOL record: {records:?}");
+        let usdt = AssetId::Token(TokenId::UsdtSpl);
+        let sent = records.iter().find(|record| record.address_id == 8).expect("the send");
+        assert_eq!((sent.asset, sent.direction), (usdt, TxDirection::Outgoing));
+        assert_eq!(sent.amount, Amount::from_base_units(1_131_686));
+        assert_eq!(sent.counterparty.as_deref(), Some(RECIPIENT));
+        assert_eq!(sent.detection, TxDetection::Full);
+        assert_eq!(sent.fee, Some(Amount::from_base_units(10_013)));
+        assert_eq!(sent.rent, Some(Amount::from_base_units(1_488_440)));
+        let received = records.iter().find(|record| record.address_id == 9).expect("the receipt");
+        assert_eq!((received.asset, received.direction), (usdt, TxDirection::Incoming));
+        assert_eq!(received.amount, Amount::from_base_units(1_131_686));
+        assert_eq!(received.fee, None, "the sender paid the fee");
+        assert_eq!(received.rent, Some(Amount::ZERO), "and the rent");
     }
 
     #[tokio::test]

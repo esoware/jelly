@@ -311,6 +311,7 @@ fn flatten(
         destination_tag: None,
         amount: decoded.paid,
         fee: decoded.fee,
+        rent: None,
         details,
         warnings,
     }

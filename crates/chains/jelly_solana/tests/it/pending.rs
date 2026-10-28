@@ -125,6 +125,7 @@ async fn a_token_send_that_landed_and_failed_settles_its_own_row_and_reads_as_th
     assert_eq!(own_row.outcome, TxOutcome::Failed);
     assert_eq!(own_row.amount, Amount::ZERO, "a failure never contributes to a total");
     assert_eq!(own_row.fee, Some(Amount::ZERO), "the fee was paid in SOL and is counted once");
+    assert_eq!(own_row.rent, Some(Amount::ZERO), "a failed send opened no account");
     assert_eq!(own_row.height, Some(common::SLOT), "it no longer reads as pending");
     assert_eq!(harness.adapter.in_flight(), 0);
 }

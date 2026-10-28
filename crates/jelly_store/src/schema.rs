@@ -84,6 +84,7 @@ CREATE TABLE txs (
   detection    TEXT    NOT NULL CHECK (detection IN ('full','balance_delta')),
   amount       BLOB    NOT NULL CHECK (length(amount) = 16),
   fee          BLOB    CHECK (fee IS NULL OR length(fee) = 16),
+  rent         BLOB    CHECK (rent IS NULL OR length(rent) = 16),
   counterparty TEXT,
   pays_for     TEXT,
   height       INTEGER CHECK (height IS NULL OR height >= 0),

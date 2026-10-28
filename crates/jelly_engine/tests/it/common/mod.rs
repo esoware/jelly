@@ -155,6 +155,8 @@ pub(crate) struct FakeState {
     pub(crate) tip: AtomicU64,
     /// Set to make every build charge this fee instead of 1000 base units.
     fee: Mutex<Option<Amount>>,
+    /// Set to make every build open an account for the recipient at this rent.
+    rent: Mutex<Option<Amount>>,
     pub(crate) bump_floor_sat_per_kwu: AtomicU64,
     /// Set to make `broadcast` refuse with this rejection.
     refusal: Mutex<Option<Rejection>>,
@@ -210,6 +212,10 @@ impl FakeState {
 
     pub(crate) fn charge(&self, fee: Amount) {
         *self.fee.lock() = Some(fee);
+    }
+
+    pub(crate) fn charge_rent(&self, rent: Amount) {
+        *self.rent.lock() = Some(rent);
     }
 
     pub(crate) fn sync_count(&self) -> u64 {
@@ -273,6 +279,7 @@ impl FakeAdapter {
             destination_tag: None,
             amount,
             fee: self.state.fee.lock().unwrap_or(Amount::from_base_units(1_000)),
+            rent: *self.state.rent.lock(),
             details: Vec::new(),
             warnings: Vec::new(),
         };

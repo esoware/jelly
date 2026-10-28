@@ -39,6 +39,7 @@ pub(crate) fn of(payment: &Payment) -> TxPreview {
         destination_tag: None,
         amount: Amount::from(payment.amount_zat),
         fee: Amount::from(payment.fee_zat),
+        rent: None,
         details,
         warnings,
     }

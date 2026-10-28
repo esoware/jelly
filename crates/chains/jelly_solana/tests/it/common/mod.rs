@@ -94,6 +94,11 @@ pub(crate) const TOKEN_ACCOUNT_USDC: &str = include_str!("../../fixtures/token_a
 pub(crate) const TX_NATIVE_TRANSFER: &str = include_str!("../../fixtures/tx_native_transfer.json");
 pub(crate) const TX_SPL_TRANSFER: &str = include_str!("../../fixtures/tx_spl_transfer.json");
 pub(crate) const TX_USDC_TRANSFER: &str = include_str!("../../fixtures/tx_usdc_transfer.json");
+/// A USDT send to an owner that had never held USDT, so the sender also paid the
+/// rent of the recipient's new token account. The untrimmed `result` of its
+/// `getTransaction` answer.
+pub(crate) const TX_USDT_TRANSFER_NEW_ACCOUNT: &str =
+    include_str!("../../fixtures/tx_usdt_transfer_new_account.json");
 /// Version 1 transactions, each the untrimmed `result` of its `getTransaction`
 /// answer.
 pub(crate) const TX_V1_NATIVE_TRANSFER: &str =

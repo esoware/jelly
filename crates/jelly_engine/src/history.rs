@@ -48,6 +48,10 @@ pub struct TxEntry {
     pub outcome: TxOutcome,
     pub amount: Amount,
     pub fee: Option<Amount>,
+    /// What the wallet's addresses paid besides the fee to open token accounts the
+    /// transfer needed, such as the recipient's, in the native asset. `None` when they
+    /// paid none.
+    pub rent: Option<Amount>,
     /// The other side, or for a self-transfer the address it went to, when known.
     pub counterparty: Option<String>,
     /// The unconfirmed transaction this one pays the fee of, for a speed-up that
@@ -173,6 +177,7 @@ fn entry_of_row(row: TxRow, tips: &BTreeMap<ChainId, u64>) -> TxEntry {
         outcome: row.outcome,
         amount: row.amount,
         fee: row.fee,
+        rent: row.rent.filter(|rent| !rent.is_zero()),
         counterparty: row.counterparty,
         pays_for: row.pays_for,
         height: row.height,
@@ -241,6 +246,12 @@ fn entry_of_group(group: TxGroup, tips: &BTreeMap<ChainId, u64>) -> Option<TxEnt
     let height = members.iter().filter_map(|member| member.row.height).max();
     let timestamp = members.iter().filter_map(|member| member.row.timestamp_unix_secs).min();
     let fee = members.iter().filter_map(|member| member.row.fee).max();
+    // Each row's rent is what its own address paid, so they add up.
+    let rent = members
+        .iter()
+        .filter_map(|member| member.row.rent)
+        .reduce(Amount::saturating_add)
+        .filter(|rent| !rent.is_zero());
     let pays_for = members.iter().find_map(|member| member.row.pays_for.clone());
     Some(TxEntry {
         txid: lead.txid.clone(),
@@ -253,6 +264,7 @@ fn entry_of_group(group: TxGroup, tips: &BTreeMap<ChainId, u64>) -> Option<TxEnt
         outcome,
         amount,
         fee,
+        rent,
         counterparty,
         pays_for,
         height,
@@ -270,7 +282,54 @@ fn depth(chain: ChainId, height: Option<u64>, tips: &BTreeMap<ChainId, u64>) -> 
 
 #[cfg(test)]
 mod tests {
+    use jelly_core::TokenId;
+
     use super::*;
+
+    fn row(address_id: i64, rent: Option<u128>) -> TxRow {
+        TxRow {
+            id: address_id,
+            address_id,
+            chain: ChainId::Solana,
+            asset: AssetId::Token(TokenId::UsdtSpl),
+            txid: String::from("opening"),
+            direction: TxDirection::Outgoing,
+            outcome: TxOutcome::Success,
+            detection: TxDetection::Full,
+            amount: Amount::from_base_units(10),
+            fee: None,
+            rent: rent.map(Amount::from_base_units),
+            counterparty: None,
+            pays_for: None,
+            height: None,
+            timestamp_unix_secs: None,
+        }
+    }
+
+    /// A walk records the rent of every token movement, so most are zero.
+    #[test]
+    fn a_rent_of_nothing_is_no_rent_and_the_rents_of_a_group_add_up() {
+        let tips = BTreeMap::new();
+        let rent_of_row = |rent: Option<u128>| entry_of_row(row(1, rent), &tips).rent;
+        assert_eq!(rent_of_row(None), None);
+        assert_eq!(rent_of_row(Some(0)), None);
+        assert_eq!(rent_of_row(Some(7)), Some(Amount::from_base_units(7)));
+
+        let rent_of_group = |rents: [Option<u128>; 2]| {
+            let members = rents
+                .into_iter()
+                .zip([1, 2])
+                .map(|(rent, address_id)| TxMember {
+                    row: row(address_id, rent),
+                    is_counterparty_own: false,
+                })
+                .collect();
+            let group = TxGroup { direction: TxDirection::Outgoing, members };
+            entry_of_group(group, &tips)?.rent
+        };
+        assert_eq!(rent_of_group([Some(0), None]), None);
+        assert_eq!(rent_of_group([Some(3), Some(4)]), Some(Amount::from_base_units(7)));
+    }
 
     fn entry() -> TxEntry {
         TxEntry {
@@ -282,6 +341,7 @@ mod tests {
             outcome: TxOutcome::Success,
             amount: Amount::MAX,
             fee: Some(Amount::from_base_units(21_000)),
+            rent: None,
             counterparty: Some(String::from("bc1qother")),
             pays_for: None,
             height: Some(100),
@@ -311,6 +371,7 @@ mod tests {
                 "outcome",
                 "paysFor",
                 "receiverIds",
+                "rent",
                 "senderIds",
                 "timestamp",
                 "txid",

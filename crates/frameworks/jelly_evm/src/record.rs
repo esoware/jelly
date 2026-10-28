@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use alloy::primitives::{Address, B256};
 use jelly_core::{Amount, AssetId, TxDetection, TxDirection, TxId, TxOutcome, TxRecord};
@@ -306,11 +306,15 @@ pub(crate) fn of_logs(
 /// the transaction's own row, and only its sender paid it. A failed transaction is
 /// recorded like a reverted receipt, with no movement, a real fee and a failed
 /// outcome, and its internal calls moved nothing either.
+///
+/// A fee in `receipt_fee_wei` stands in for the row's gas, which leaves out what
+/// the OP Stack charges apart from it.
 pub(crate) fn of_native(
     asset: AssetId,
     entry: &Watched,
     rows: &[NativeRow],
     internal: &[InternalRow],
+    receipt_fee_wei: &HashMap<B256, u128>,
     tip: u64,
 ) -> Vec<TxRecord> {
     let mut moves = Moves::new();
@@ -330,10 +334,10 @@ pub(crate) fn of_native(
             reverted.insert(row.hash);
         }
         if is_from_me && moved.fee.is_none() {
-            moved.fee = row
-                .gas_price
-                .zip(row.gas_used)
-                .and_then(|(gas_price, gas_used)| gas_price.checked_mul(u128::from(gas_used)));
+            moved.fee = receipt_fee_wei.get(&row.hash).copied().or_else(|| {
+                let (gas_price, gas_used) = row.gas_price.zip(row.gas_used)?;
+                gas_price.checked_mul(u128::from(gas_used))
+            });
         }
     }
     for row in internal {
@@ -357,12 +361,14 @@ pub(crate) fn of_native(
 /// `native`, the owner's transactions over the same blocks, says who sent it.
 ///
 /// A row moving nothing is dropped, as [`of_logs`] drops its log. The fee of an
-/// owner's transaction that moved no tokens is on its native row.
+/// owner's transaction that moved no tokens is on its native row. A fee in
+/// `receipt_fee_wei` stands in for the row's gas, as in [`of_native`].
 pub(crate) fn of_tokens(
     tokens: &TokenTable,
     entry: &Watched,
     rows: &[TokenRow],
     native: &[NativeRow],
+    receipt_fee_wei: &HashMap<B256, u128>,
     tip: u64,
 ) -> Vec<TxRecord> {
     let sent_by_owner: HashSet<B256> =
@@ -380,10 +386,10 @@ pub(crate) fn of_tokens(
         moved.confirmed = Some((row.block_number, Some(row.timestamp)));
         // Only the sender paid for the gas, and only once per transaction.
         if sent_by_owner.contains(&row.hash) && moved.fee.is_none() {
-            moved.fee = row
-                .gas_price
-                .zip(row.gas_used)
-                .and_then(|(gas_price, gas_used)| gas_price.checked_mul(u128::from(gas_used)));
+            moved.fee = receipt_fee_wei.get(&row.hash).copied().or_else(|| {
+                let (gas_price, gas_used) = row.gas_price.zip(row.gas_used)?;
+                gas_price.checked_mul(u128::from(gas_used))
+            });
         }
     }
     of_moves(moves, tip)
@@ -465,7 +471,8 @@ mod tests {
     }
 
     fn native_records(rows: &[NativeRow], internal: &[InternalRow]) -> Vec<TxRecord> {
-        of_native(AssetId::Native(ChainId::Ethereum), &watched(1, 1), rows, internal, 100)
+        let asset = AssetId::Native(ChainId::Ethereum);
+        of_native(asset, &watched(1, 1), rows, internal, &HashMap::new(), 100)
     }
 
     fn token_row(hash: u8, from: Address, to: Address) -> TokenRow {
@@ -578,8 +585,14 @@ mod tests {
         let mut inbound = token_row(4, address(2), address(1));
         inbound.value = 0;
         let own = native_row(3, address(1), Some(token_table().contracts()[0]), 0);
-        let records =
-            of_tokens(&token_table(), &watched(1, 1), &[poisoned, inbound], from_ref(&own), 100);
+        let records = of_tokens(
+            &token_table(),
+            &watched(1, 1),
+            &[poisoned, inbound],
+            from_ref(&own),
+            &HashMap::new(),
+            100,
+        );
         assert!(records.is_empty(), "{records:?}");
 
         let natives = native_records(&[own], &[]);
@@ -731,7 +744,14 @@ mod tests {
         let sent = token_row(3, address(1), address(2));
         let pulled = token_row(4, address(1), address(2));
         let own = native_row(3, address(1), Some(contract), 0);
-        let records = of_tokens(&token_table(), &watched(1, 1), &[sent, pulled], &[own], 100);
+        let records = of_tokens(
+            &token_table(),
+            &watched(1, 1),
+            &[sent, pulled],
+            &[own],
+            &HashMap::new(),
+            100,
+        );
         let fee_of = |hash: u8| {
             let txid = B256::repeat_byte(hash).to_string();
             records.iter().find(|record| record.txid.value() == txid).and_then(|record| record.fee)
@@ -774,8 +794,14 @@ mod tests {
                 let native: NativeRow = serde_json::from_str(&body).unwrap();
                 let token: TokenRow = serde_json::from_str(&body).unwrap();
                 let native_records = native_records(from_ref(&native), &[]);
-                let token_records =
-                    of_tokens(&token_table(), &watched(1, 1), &[token], &[native], 100);
+                let token_records = of_tokens(
+                    &token_table(),
+                    &watched(1, 1),
+                    &[token],
+                    &[native],
+                    &HashMap::new(),
+                    100,
+                );
                 assert_eq!(native_records.len(), 1);
                 assert_eq!(token_records.len(), 1);
                 assert_eq!(native_records[0].fee, expected_fee, "{field}: {value:?}");

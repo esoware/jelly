@@ -954,6 +954,12 @@ export type TxEntry = {
 	outcome: TxOutcome,
 	amount: Amount,
 	fee: Amount | null,
+	/**
+	 *  What the wallet's addresses paid besides the fee to open token accounts the
+	 *  transfer needed, such as the recipient's, in the native asset. `None` when they
+	 *  paid none.
+	 */
+	rent: Amount | null,
 	/**  The other side, or for a self-transfer the address it went to, when known. */
 	counterparty: string | null,
 	/**
@@ -1012,6 +1018,11 @@ export type TxPreview = {
 	destinationTag: number | null,
 	amount: Amount,
 	fee: Amount,
+	/**
+	 *  What the sender pays besides the fee to open the recipient's token account, in
+	 *  the native asset. Only the recipient can reclaim it.
+	 */
+	rent: Amount | null,
 	details: TxDetail[],
 	warnings: TxWarning[],
 };

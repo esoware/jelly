@@ -22,6 +22,7 @@ pub(crate) fn of(plan: &Plan, facts: &Facts) -> TxPreview {
         destination_tag: None,
         amount: facts.amount,
         fee: Amount::from(plan.cost.burn_sun),
+        rent: None,
         details: details(plan, facts),
         warnings: warnings(plan, facts),
     }

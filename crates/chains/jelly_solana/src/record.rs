@@ -1,14 +1,27 @@
 //! Amounts come from the metadata's balance deltas, which cover inner and
-//! multi-instruction transfers. Instructions only name counterparties and mark a
-//! record as decoded rather than balance-only.
+//! multi-instruction transfers.
+//!
+//! Instructions name counterparties, mark a record as decoded rather than
+//! balance-only, and name the lamports that opened token accounts.
 
-use jelly_core::{Amount, AssetId, TxDetection, TxDirection, TxId, TxOutcome, TxRecord};
+use jelly_core::{
+    Amount, AssetId, TxDetection, TxDirection, TxId, TxOutcome, TxRecord, TxRecordBuilder,
+};
 
 use crate::config::NATIVE;
 use crate::rpc::{
-    ParsedAccountKey, ParsedInstruction, TokenBalance, TransactionMeta, TransactionRow,
+    ParsedAccountKey, ParsedInfo, ParsedInstruction, TokenBalance, TransactionMeta, TransactionRow,
 };
 use crate::token::{SOLANA_TOKENS, SolanaToken};
+
+const TRANSFERS: [&str; 2] = ["transfer", "transferWithSeed"];
+
+/// The system instructions that pay lamports into an account.
+///
+/// The associated token program opens an account with `createAccount`, or with a
+/// `transfer` of what it lacks when someone had already sent lamports to its address.
+const FUNDING: [&str; 4] =
+    ["createAccount", "createAccountWithSeed", "transfer", "transferWithSeed"];
 
 /// One transaction, read for one watched address.
 struct Seen<'a> {
@@ -48,14 +61,17 @@ pub(crate) fn of_transaction(
         if !is_fee_payer {
             return Vec::new();
         }
-        return vec![seen.record(Parts {
-            asset: NATIVE,
-            direction: TxDirection::Outgoing,
-            amount: Amount::ZERO,
-            counterparty: None,
-            is_decoded: true,
-            outcome: TxOutcome::Failed,
-        })];
+        return vec![
+            seen.record(Parts {
+                asset: NATIVE,
+                direction: TxDirection::Outgoing,
+                amount: Amount::ZERO,
+                counterparty: None,
+                is_decoded: true,
+                outcome: TxOutcome::Failed,
+            })
+            .build(),
+        ];
     }
 
     let mut records = Vec::new();
@@ -64,13 +80,15 @@ pub(crate) fn of_transaction(
             records.push(record);
         }
     }
-    if let Some(record) = seen.native_record(records.is_empty()) {
+    if let Some(record) = seen.native_record(&records) {
         records.push(record);
     }
     records
 }
 
 impl Seen<'_> {
+    /// The record carries the rent the address paid to open accounts of the token,
+    /// zero included, so it replaces the figure a send's review estimated.
     fn token_record(&self, token: SolanaToken) -> Option<TxRecord> {
         let mint = token.mint().to_string();
         let delta = token_delta(self.metadata, self.address, &mint);
@@ -78,35 +96,56 @@ impl Seen<'_> {
             return None;
         }
         let counterparty = token_counterparty(self.metadata, self.address, &mint, delta);
-        Some(self.record(Parts {
-            asset: token.asset(),
-            direction: direction(delta, counterparty.as_deref(), self.address),
-            amount: Amount::from_base_units(delta.unsigned_abs()),
-            counterparty,
-            is_decoded: has_token_transfer(self.tx),
-            outcome: TxOutcome::Success,
-        }))
+        let rent_lamports =
+            self.opened_accounts(&mint).map(|(_, lamports)| lamports).fold(0, u64::saturating_add);
+        let record = self
+            .record(Parts {
+                asset: token.asset(),
+                direction: direction(delta, counterparty.as_deref(), self.address),
+                amount: Amount::from_base_units(delta.unsigned_abs()),
+                counterparty,
+                is_decoded: has_token_transfer(self.tx),
+                outcome: TxOutcome::Success,
+            })
+            .rent(Amount::from(rent_lamports))
+            .build();
+        Some(record)
     }
 
-    /// The fee payer of a transaction that moved nothing else this build tracks
-    /// still gets a record, because the fee left the account and a history
-    /// without it does not add up. That is what `is_fee_only` decides.
-    fn native_record(&self, is_fee_only: bool) -> Option<TxRecord> {
+    /// The fee payer of a transaction that moved no token this build tracks still
+    /// gets a record, because the fee left the account and a history without it does
+    /// not add up.
+    ///
+    /// The rent `token_records` carry, such as for a recipient's new token account,
+    /// is what moving the tokens took and no SOL transfer, so an account it opened is
+    /// no party to any other SOL the address moved.
+    fn native_record(&self, token_records: &[TxRecord]) -> Option<TxRecord> {
         let keys = &self.tx.transaction.message.account_keys;
         let index = keys.iter().position(|key| key.pubkey == self.address)?;
         let is_fee_payer = index == 0;
-        let moved = native_delta(self.metadata, index, is_fee_payer);
+        let mut opened = Vec::new();
+        let mut rent_lamports = 0u64;
+        for record in token_records {
+            let AssetId::Token(token) = record.asset else { continue };
+            for (account, lamports) in self.opened_accounts(token.contract()) {
+                opened.push(account);
+                rent_lamports = rent_lamports.saturating_add(lamports);
+            }
+        }
+        let moved = native_delta(self.metadata, index, is_fee_payer)
+            .saturating_add(i128::from(rent_lamports));
         let self_transfer = native_self_transfer(self.tx, self.address);
+        let is_fee_only = token_records.is_empty();
         if moved == 0 && self_transfer.is_none() && !(is_fee_payer && is_fee_only) {
             return None;
         }
         let (direction, amount, counterparty, is_decoded) = if let Some(lamports) = self_transfer {
             (TxDirection::SelfTransfer, u128::from(lamports), Some(self.address.to_owned()), true)
         } else {
-            let named = decoded_native_counterparty(self.tx, self.address);
+            let named = decoded_native_counterparty(self.tx, self.address, &opened);
             let is_decoded = named.is_some();
-            let party =
-                named.or_else(|| native_counterparty(self.metadata, keys, self.address, moved));
+            let party = named
+                .or_else(|| native_counterparty(self.metadata, keys, self.address, moved, &opened));
             (
                 direction(moved, party.as_deref(), self.address),
                 moved.unsigned_abs(),
@@ -114,17 +153,52 @@ impl Seen<'_> {
                 is_decoded,
             )
         };
-        Some(self.record(Parts {
-            asset: NATIVE,
-            direction,
-            amount: Amount::from_base_units(amount),
-            counterparty,
-            is_decoded,
-            outcome: TxOutcome::Success,
-        }))
+        let record = self
+            .record(Parts {
+                asset: NATIVE,
+                direction,
+                amount: Amount::from_base_units(amount),
+                counterparty,
+                is_decoded,
+                outcome: TxOutcome::Success,
+            })
+            .build();
+        Some(record)
     }
 
-    fn record(&self, parts: Parts) -> TxRecord {
+    /// Each account of `mint` that the transaction opened, which holds the token after
+    /// it and did not before, with the lamports the address paid into it. They count
+    /// only as far as the account kept them.
+    fn opened_accounts(&self, mint: &str) -> impl Iterator<Item = (&str, u64)> {
+        let keys = &self.tx.transaction.message.account_keys;
+        let metadata = self.metadata;
+        metadata
+            .post_token_balances
+            .iter()
+            .filter(move |after| after.mint == mint)
+            .filter(move |after| {
+                metadata
+                    .pre_token_balances
+                    .iter()
+                    .all(|before| before.account_index != after.account_index)
+            })
+            .filter_map(move |opened| {
+                let account = keys.get(opened.account_index)?.pubkey.as_str();
+                let paid_lamports = all_instructions(self.tx)
+                    .filter_map(|instruction| system_info(instruction, &FUNDING))
+                    .filter(|info| info.source.as_deref() == Some(self.address))
+                    .filter(|info| {
+                        info.new_account.as_deref().or(info.destination.as_deref()) == Some(account)
+                    })
+                    .filter_map(|info| info.lamports)
+                    .fold(0, u64::saturating_add);
+                let kept_lamports =
+                    u64::try_from(lamport_delta(metadata, opened.account_index)).unwrap_or(0);
+                Some((account, paid_lamports.min(kept_lamports)))
+            })
+    }
+
+    fn record(&self, parts: Parts) -> TxRecordBuilder {
         let mut builder = TxRecord::builder(
             parts.asset,
             self.address_id,
@@ -141,7 +215,7 @@ impl Seen<'_> {
         if let Some(party) = parts.counterparty {
             builder = builder.counterparty(party);
         }
-        builder.build()
+        builder
     }
 }
 
@@ -222,16 +296,18 @@ fn token_counterparty(
         .map(|(owner, _)| owner.to_owned())
 }
 
-/// The account whose lamport delta has the opposite sign and the largest size.
+/// The account whose lamport delta has the opposite sign and the largest size, other
+/// than those in `skipped`.
 fn native_counterparty(
     metadata: &TransactionMeta,
     keys: &[ParsedAccountKey],
     address: &str,
     our_delta: i128,
+    skipped: &[&str],
 ) -> Option<String> {
     let mut best: Option<(&str, i128)> = None;
     for (index, key) in keys.iter().enumerate() {
-        if key.pubkey == address {
+        if key.pubkey == address || skipped.contains(&key.pubkey.as_str()) {
             continue;
         }
         let delta = lamport_delta(metadata, index);
@@ -254,12 +330,13 @@ fn all_instructions(tx: &TransactionRow) -> impl Iterator<Item = &ParsedInstruct
     tx.transaction.message.instructions.iter().chain(inner)
 }
 
-fn is_system_transfer(instruction: &ParsedInstruction) -> bool {
-    instruction.program.as_deref() == Some("system")
-        && instruction
-            .parsed
-            .as_ref()
-            .is_some_and(|body| body.kind == "transfer" || body.kind == "transferWithSeed")
+/// What `instruction` says when it is a system instruction of one of `kinds`.
+fn system_info<'a>(instruction: &'a ParsedInstruction, kinds: &[&str]) -> Option<&'a ParsedInfo> {
+    if instruction.program.as_deref() != Some("system") {
+        return None;
+    }
+    let body = instruction.parsed.as_ref().filter(|body| kinds.contains(&body.kind.as_str()))?;
+    body.info.as_ref()
 }
 
 fn has_token_transfer(tx: &TransactionRow) -> bool {
@@ -274,16 +351,18 @@ fn has_token_transfer(tx: &TransactionRow) -> bool {
     })
 }
 
-fn decoded_native_counterparty(tx: &TransactionRow, address: &str) -> Option<String> {
-    for instruction in all_instructions(tx) {
-        if !is_system_transfer(instruction) {
-            continue;
-        }
-        let Some(info) = instruction.parsed.as_ref().and_then(|body| body.info.as_ref()) else {
-            continue;
-        };
+fn decoded_native_counterparty(
+    tx: &TransactionRow,
+    address: &str,
+    skipped: &[&str],
+) -> Option<String> {
+    for info in all_instructions(tx).filter_map(|instruction| system_info(instruction, &TRANSFERS))
+    {
         let source = info.source.as_deref();
         let destination = info.destination.as_deref();
+        if destination.is_some_and(|account| skipped.contains(&account)) {
+            continue;
+        }
         if source == Some(address) && destination != Some(address) {
             return destination.map(str::to_owned);
         }
@@ -295,15 +374,12 @@ fn decoded_native_counterparty(tx: &TransactionRow, address: &str) -> Option<Str
 }
 
 fn native_self_transfer(tx: &TransactionRow, address: &str) -> Option<u64> {
-    all_instructions(tx).find_map(|instruction| {
-        if !is_system_transfer(instruction) {
-            return None;
-        }
-        let info = instruction.parsed.as_ref()?.info.as_ref()?;
-        let is_self_transfer =
-            info.source.as_deref() == Some(address) && info.destination.as_deref() == Some(address);
-        is_self_transfer.then(|| info.lamports.unwrap_or(0))
-    })
+    all_instructions(tx)
+        .filter_map(|instruction| system_info(instruction, &TRANSFERS))
+        .find(|info| {
+            info.source.as_deref() == Some(address) && info.destination.as_deref() == Some(address)
+        })
+        .map(|info| info.lamports.unwrap_or(0))
 }
 
 #[cfg(test)]
@@ -313,14 +389,17 @@ mod tests {
     use super::*;
     use crate::fixtures::tracked;
     use crate::pending::Tracked;
-    use crate::rpc::{ParsedMessage, ParsedTransaction, TransactionFailure, UiTokenAmount};
+    use crate::rpc::{
+        ParsedBody, ParsedMessage, ParsedTransaction, TransactionFailure, UiTokenAmount,
+    };
 
     fn keys(list: &[&str]) -> Vec<ParsedAccountKey> {
         list.iter().map(|key| ParsedAccountKey { pubkey: (*key).to_owned() }).collect()
     }
 
-    fn balance(owner: &str, mint: &str, amount: u64) -> TokenBalance {
+    fn balance(account_index: usize, owner: &str, mint: &str, amount: u64) -> TokenBalance {
         TokenBalance {
+            account_index,
             mint: mint.to_owned(),
             owner: Some(owner.to_owned()),
             ui_token_amount: UiTokenAmount { amount },
@@ -359,8 +438,8 @@ mod tests {
     fn a_token_delta_sums_every_account_the_owner_holds_for_the_mint() {
         let mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
         let metadata = TransactionMeta {
-            pre_token_balances: vec![balance("me", mint, 100), balance("me", mint, 50)],
-            post_token_balances: vec![balance("me", mint, 20), balance("me", mint, 50)],
+            pre_token_balances: vec![balance(1, "me", mint, 100), balance(2, "me", mint, 50)],
+            post_token_balances: vec![balance(1, "me", mint, 20), balance(2, "me", mint, 50)],
             ..sample_metadata()
         };
         assert_eq!(token_delta(&metadata, "me", mint), -80);
@@ -373,14 +452,14 @@ mod tests {
         let mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
         let metadata = TransactionMeta {
             pre_token_balances: vec![
-                balance("me", mint, 100),
-                balance("small", mint, 0),
-                balance("big", mint, 0),
+                balance(1, "me", mint, 100),
+                balance(2, "small", mint, 0),
+                balance(3, "big", mint, 0),
             ],
             post_token_balances: vec![
-                balance("me", mint, 0),
-                balance("small", mint, 10),
-                balance("big", mint, 90),
+                balance(1, "me", mint, 0),
+                balance(2, "small", mint, 10),
+                balance(3, "big", mint, 90),
             ],
             ..sample_metadata()
         };
@@ -393,10 +472,11 @@ mod tests {
             ..metadata
         };
         assert_eq!(
-            native_counterparty(&lamports, &accounts, "me", -1_000).as_deref(),
+            native_counterparty(&lamports, &accounts, "me", -1_000, &[]).as_deref(),
             Some("peer")
         );
-        assert_eq!(native_counterparty(&lamports, &accounts, "me", 1_000), None);
+        assert_eq!(native_counterparty(&lamports, &accounts, "me", 1_000, &[]), None);
+        assert_eq!(native_counterparty(&lamports, &accounts, "me", -1_000, &["peer"]), None);
     }
 
     #[test]
@@ -424,12 +504,179 @@ mod tests {
             meta: Some(TransactionMeta {
                 pre_balances: vec![10_000, 7],
                 post_balances: vec![5_000, 7],
-                pre_token_balances: vec![balance("lookalike", mint, 0), balance("me", mint, 9)],
-                post_token_balances: vec![balance("lookalike", mint, 0), balance("me", mint, 9)],
+                pre_token_balances: vec![
+                    balance(2, "lookalike", mint, 0),
+                    balance(3, "me", mint, 9),
+                ],
+                post_token_balances: vec![
+                    balance(2, "lookalike", mint, 0),
+                    balance(3, "me", mint, 9),
+                ],
                 ..sample_metadata()
             }),
         };
         assert!(of_transaction(&poisoned, "sig", "me", 4, 100).is_empty());
+    }
+
+    fn system(kind: &str, info: ParsedInfo) -> ParsedInstruction {
+        ParsedInstruction {
+            program: Some(String::from("system")),
+            parsed: Some(ParsedBody { kind: kind.to_owned(), info: Some(info) }),
+        }
+    }
+
+    fn create_account(created: &str, lamports: u64) -> ParsedInstruction {
+        system(
+            "createAccount",
+            ParsedInfo {
+                source: Some(String::from("me")),
+                destination: None,
+                lamports: Some(lamports),
+                new_account: Some(created.to_owned()),
+            },
+        )
+    }
+
+    fn transfer(destination: &str, lamports: u64) -> ParsedInstruction {
+        system(
+            "transfer",
+            ParsedInfo {
+                source: Some(String::from("me")),
+                destination: Some(destination.to_owned()),
+                lamports: Some(lamports),
+                new_account: None,
+            },
+        )
+    }
+
+    /// A send of 10 USDC from "me", which pays the fee, to "peer", whose new token
+    /// account "opened" is. "mine" is the sender's token account, and "other" holds
+    /// no tokens.
+    fn usdc_send(
+        instructions: Vec<ParsedInstruction>,
+        pre_balances: Vec<u64>,
+        post_balances: Vec<u64>,
+    ) -> TransactionRow {
+        let mint = TokenId::UsdcSpl.contract();
+        TransactionRow {
+            slot: 100,
+            block_time: Some(1_700_000_000),
+            transaction: ParsedTransaction {
+                message: ParsedMessage {
+                    account_keys: keys(&["me", "mine", "opened", "other"]),
+                    instructions,
+                },
+            },
+            meta: Some(TransactionMeta {
+                pre_balances,
+                post_balances,
+                pre_token_balances: vec![balance(1, "me", mint, 50)],
+                post_token_balances: vec![balance(1, "me", mint, 40), balance(2, "peer", mint, 10)],
+                ..sample_metadata()
+            }),
+        }
+    }
+
+    #[test]
+    fn the_rent_of_the_account_a_token_send_opened_is_its_own_and_no_sol_movement() {
+        for (funding, lamports_before, rent_lamports) in
+            [(create_account("opened", 2_000), 0, 2_000), (transfer("opened", 1_999), 1, 1_999)]
+        {
+            let tx = usdc_send(
+                vec![funding],
+                vec![100_000, 2_000, lamports_before, 0],
+                vec![93_000 + lamports_before, 2_000, 2_000, 0],
+            );
+            let records = of_transaction(&tx, "sig", "me", 7, 100);
+            assert_eq!(records.len(), 1, "{records:?}");
+            let record = records.first().expect("the token record");
+            assert_eq!(record.asset, AssetId::Token(TokenId::UsdcSpl));
+            assert_eq!(record.fee, Some(Amount::from_base_units(5_000)), "the network fee alone");
+            assert_eq!(record.rent, Some(Amount::from_base_units(rent_lamports)));
+        }
+    }
+
+    /// The rent went into an account someone had already sent a lamport to, so it is a
+    /// plain transfer, and "other" got 1,000 lamports from the address in a way only the
+    /// balances show.
+    #[test]
+    fn an_account_the_rent_opened_is_no_party_to_the_sol_the_address_moved_besides() {
+        let tx = usdc_send(
+            vec![transfer("opened", 1_999)],
+            vec![100_000, 2_000, 1, 0],
+            vec![92_001, 2_000, 2_000, 1_000],
+        );
+        let records = of_transaction(&tx, "sig", "me", 7, 100);
+        assert_eq!(records.len(), 2, "{records:?}");
+        let sol = records.iter().find(|record| record.asset == NATIVE).expect("a SOL record");
+        assert_eq!(sol.direction, TxDirection::Outgoing);
+        assert_eq!(sol.amount, Amount::from_base_units(1_000));
+        assert_eq!(sol.counterparty.as_deref(), Some("other"));
+        assert_eq!(sol.detection, TxDetection::BalanceDelta, "no instruction named the payment");
+    }
+
+    /// A swap that pays USDT for USDC and opens the address's own USDC account.
+    #[test]
+    fn the_rent_is_on_the_record_of_the_token_whose_account_it_opened() {
+        let usdt = TokenId::UsdtSpl.contract();
+        let usdc = TokenId::UsdcSpl.contract();
+        let tx = TransactionRow {
+            slot: 100,
+            block_time: Some(1_700_000_000),
+            transaction: ParsedTransaction {
+                message: ParsedMessage {
+                    account_keys: keys(&["me", "my_usdt", "my_usdc", "pool_usdt", "pool_usdc"]),
+                    instructions: vec![create_account("my_usdc", 2_000)],
+                },
+            },
+            meta: Some(TransactionMeta {
+                pre_balances: vec![100_000, 2_000, 0, 2_000, 2_000],
+                post_balances: vec![93_000, 2_000, 2_000, 2_000, 2_000],
+                pre_token_balances: vec![
+                    balance(1, "me", usdt, 50),
+                    balance(3, "pool", usdt, 0),
+                    balance(4, "pool", usdc, 50),
+                ],
+                post_token_balances: vec![
+                    balance(1, "me", usdt, 40),
+                    balance(2, "me", usdc, 10),
+                    balance(3, "pool", usdt, 10),
+                    balance(4, "pool", usdc, 40),
+                ],
+                ..sample_metadata()
+            }),
+        };
+        let records = of_transaction(&tx, "sig", "me", 7, 100);
+        assert_eq!(records.len(), 2, "a record of each token and none of SOL: {records:?}");
+        let rent_of = |token: TokenId| {
+            records.iter().find(|record| record.asset == AssetId::Token(token))?.rent
+        };
+        assert_eq!(rent_of(TokenId::UsdcSpl), Some(Amount::from_base_units(2_000)));
+        assert_eq!(rent_of(TokenId::UsdtSpl), Some(Amount::ZERO));
+    }
+
+    /// A stake account or an escrow holds no tokens, and an account of a token this
+    /// build does not track is no part of moving one it does.
+    #[test]
+    fn sol_paid_into_anything_but_a_new_account_of_a_moved_token_is_a_sol_movement() {
+        for untracked in [None, Some("an untracked mint")] {
+            let mut tx = usdc_send(
+                vec![create_account("opened", 2_000), create_account("other", 50_000)],
+                vec![100_000, 2_000, 0, 0],
+                vec![43_000, 2_000, 2_000, 50_000],
+            );
+            if let Some(mint) = untracked
+                && let Some(metadata) = tx.meta.as_mut()
+            {
+                metadata.post_token_balances.push(balance(3, "me", mint, 1));
+            }
+            let records = of_transaction(&tx, "sig", "me", 7, 100);
+            assert_eq!(records.len(), 2, "{untracked:?}: {records:?}");
+            let sol = records.iter().find(|record| record.asset == NATIVE).expect("a SOL record");
+            assert_eq!(sol.direction, TxDirection::Outgoing);
+            assert_eq!(sol.amount, Amount::from_base_units(50_000), "{untracked:?}");
+            assert_eq!(sol.counterparty.as_deref(), Some("other"));
+        }
     }
 
     /// A transaction from "me" to "peer" that ran and failed.

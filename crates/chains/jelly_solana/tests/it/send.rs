@@ -494,6 +494,7 @@ mod token_transfers {
         assert_eq!(unsigned.preview.asset, usdc());
         assert!(!warns(&unsigned.preview.warnings, TxWarningKind::AccountActivation));
         assert!(detail(&unsigned.preview.details, "Token account rent").is_none());
+        assert_eq!(unsigned.preview.rent, None);
         assert_eq!(
             detail(&unsigned.preview.details, "Destination token account"),
             Some(token_account_address(PEER, TokenId::UsdcSpl).unwrap())
@@ -508,6 +509,7 @@ mod token_transfers {
         assert!(warns(&unsigned.preview.warnings, TxWarningKind::AccountActivation));
         let rent = detail(&unsigned.preview.details, "Token account rent").unwrap();
         assert!(rent.contains("2039280"), "{rent}");
+        assert_eq!(unsigned.preview.rent, Some(Amount::from_base_units(2_039_280)));
         assert!(
             detail(&unsigned.preview.details, "Destination token account")
                 .unwrap()
