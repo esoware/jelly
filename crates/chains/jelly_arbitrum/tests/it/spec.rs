@@ -63,6 +63,7 @@ fn the_tokens_are_coins_carried_elsewhere_with_no_bridged_real_world_asset() {
         [
             TokenId::LinkArbitrum,
             TokenId::WethArbitrum,
+            TokenId::EnaArbitrum,
             TokenId::ArbArbitrum,
             TokenId::UsdtArbitrum,
             TokenId::UsdcArbitrum,

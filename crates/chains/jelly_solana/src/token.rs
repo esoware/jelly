@@ -151,17 +151,17 @@ impl SolanaToken {
     }
 
     /// What `owner` holds of this token in the account at one of its associated
-    /// addresses.
+    /// addresses, or `None` when it holds no account there.
     ///
-    /// It holds nothing when that account has not been created, holds only
+    /// It holds none when that account has not been created, holds only
     /// lamports, or has been reassigned to another owner, whose tokens they then
     /// are.
     pub(crate) fn balance_of(
         self,
         owner: &Pubkey,
         account: Option<&RawAccount>,
-    ) -> Result<u64, SolanaError> {
-        Ok(self.held_by(owner, account)?.map_or(0, |held| held.amount))
+    ) -> Result<Option<u64>, SolanaError> {
+        Ok(self.held_by(owner, account)?.map(|held| held.amount))
     }
 
     /// What a transfer can move out of `owner`'s associated account, which is the
@@ -311,10 +311,18 @@ fn is_token_program(program: Pubkey) -> bool {
 ///
 /// Each mint is spelled here and in `jelly_core::TokenId::contract`, so a
 /// `const` table can hold it. A test fails if the two spellings disagree.
-pub(crate) const SOLANA_TOKENS: [SolanaToken; 9] = [
+pub(crate) const SOLANA_TOKENS: [SolanaToken; 12] = [
     SolanaToken {
         id: TokenId::LinkSpl,
         mint: Pubkey::from_str_const("LinkhB3afbBKb2EQQu7s7umdZceV3wcvAUJhQAfQ23L"),
+    },
+    SolanaToken {
+        id: TokenId::WbtcSpl,
+        mint: Pubkey::from_str_const("5XZw2LKTyrfvfiskJ78AMpackRjPcyCif1WhUsPDuVqQ"),
+    },
+    SolanaToken {
+        id: TokenId::EnaSpl,
+        mint: Pubkey::from_str_const("72QvBVwpxqmheEPfaCwWSWqEFsUy3rhWt6JhQBMNTwD1"),
     },
     SolanaToken {
         id: TokenId::PumpSpl,
@@ -343,6 +351,10 @@ pub(crate) const SOLANA_TOKENS: [SolanaToken; 9] = [
     SolanaToken {
         id: TokenId::PyusdSpl,
         mint: Pubkey::from_str_const("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo"),
+    },
+    SolanaToken {
+        id: TokenId::XautSpl,
+        mint: Pubkey::from_str_const("AymATz4TCL9sWNEEV9Kvyz45CHVhDZ6kUgjTJPzLpU9P"),
     },
     SolanaToken {
         id: TokenId::PaxgSpl,
@@ -379,6 +391,8 @@ mod tests {
     use crate::test_util::TokenState;
 
     const LINK_MINT: &str = "LinkhB3afbBKb2EQQu7s7umdZceV3wcvAUJhQAfQ23L";
+    const WBTC_MINT: &str = "5XZw2LKTyrfvfiskJ78AMpackRjPcyCif1WhUsPDuVqQ";
+    const ENA_MINT: &str = "72QvBVwpxqmheEPfaCwWSWqEFsUy3rhWt6JhQBMNTwD1";
     const PUMP_MINT: &str = "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn";
     const JUP_MINT: &str = "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN";
     const USDT_MINT: &str = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
@@ -386,6 +400,7 @@ mod tests {
     const USDG_MINT: &str = "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH";
     const USDS_MINT: &str = "USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA";
     const PYUSD_MINT: &str = "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo";
+    const XAUT_MINT: &str = "AymATz4TCL9sWNEEV9Kvyz45CHVhDZ6kUgjTJPzLpU9P";
     const PAXG_MINT: &str = "5GgRAEmv8ZxF2PR5hY72Qs5x1bnQ6UK2RbTPoqJ3wSwW";
     const VECTORS: &str = include_str!("../tests/vectors/instructions.json");
 
@@ -401,6 +416,8 @@ mod tests {
             carried,
             vec![
                 TokenId::LinkSpl,
+                TokenId::WbtcSpl,
+                TokenId::EnaSpl,
                 TokenId::PumpSpl,
                 TokenId::JupSpl,
                 TokenId::UsdtSpl,
@@ -408,6 +425,7 @@ mod tests {
                 TokenId::UsdsSpl,
                 TokenId::UsdgSpl,
                 TokenId::PyusdSpl,
+                TokenId::XautSpl,
                 TokenId::PaxgSpl
             ]
         );
@@ -428,6 +446,8 @@ mod tests {
         // Spelled out here as well, so a typo shared by both tables still fails.
         for (id, mint) in [
             (TokenId::LinkSpl, LINK_MINT),
+            (TokenId::WbtcSpl, WBTC_MINT),
+            (TokenId::EnaSpl, ENA_MINT),
             (TokenId::PumpSpl, PUMP_MINT),
             (TokenId::JupSpl, JUP_MINT),
             (TokenId::UsdtSpl, USDT_MINT),
@@ -435,6 +455,7 @@ mod tests {
             (TokenId::UsdsSpl, USDS_MINT),
             (TokenId::UsdgSpl, USDG_MINT),
             (TokenId::PyusdSpl, PYUSD_MINT),
+            (TokenId::XautSpl, XAUT_MINT),
             (TokenId::PaxgSpl, PAXG_MINT),
         ] {
             assert_eq!(
@@ -616,12 +637,12 @@ mod tests {
     #[test]
     fn an_owner_holds_what_its_associated_account_holds() {
         let account = token_account(&usdc(), &OWNER, 50_000_000, TokenState::default());
-        assert_eq!(usdc().balance_of(&OWNER, Some(&account)).expect("a balance"), 50_000_000);
+        assert_eq!(usdc().balance_of(&OWNER, Some(&account)).expect("a balance"), Some(50_000_000));
     }
 
     #[test]
     fn an_owner_with_no_associated_account_holds_nothing_rather_than_failing() {
-        assert_eq!(usdc().balance_of(&OWNER, None).expect("a balance"), 0);
+        assert_eq!(usdc().balance_of(&OWNER, None).expect("a balance"), None);
     }
 
     /// A classic token account's owner can be reassigned, after which the
@@ -629,7 +650,7 @@ mod tests {
     #[test]
     fn an_associated_account_reassigned_away_holds_none_of_the_owners_tokens() {
         let account = token_account(&usdc(), &OWNER, 50_000_000, TokenState::default());
-        assert_eq!(usdc().balance_of(&PEER, Some(&account)).expect("a balance"), 0);
+        assert_eq!(usdc().balance_of(&PEER, Some(&account)).expect("a balance"), None);
         assert_eq!(usdc().spendable_by(&PEER, Some(&account)).expect("nothing to spend"), 0);
     }
 
@@ -638,7 +659,7 @@ mod tests {
     #[test]
     fn an_associated_address_holding_only_lamports_holds_no_tokens() {
         let funded = RawAccount { owner: SYSTEM_PROGRAM, data: (String::new(), Encoding::Base64) };
-        assert_eq!(usdc().balance_of(&OWNER, Some(&funded)).expect("a balance"), 0);
+        assert_eq!(usdc().balance_of(&OWNER, Some(&funded)).expect("a balance"), None);
     }
 
     #[test]
@@ -657,7 +678,7 @@ mod tests {
             50_000_000,
             TokenState { is_frozen: true, ..TokenState::default() },
         );
-        assert_eq!(usdc().balance_of(&OWNER, Some(&frozen)).expect("a balance"), 50_000_000);
+        assert_eq!(usdc().balance_of(&OWNER, Some(&frozen)).expect("a balance"), Some(50_000_000));
         assert!(matches!(
             usdc().spendable_by(&OWNER, Some(&frozen)),
             Err(SolanaError::FrozenSource { token: TokenId::UsdcSpl })

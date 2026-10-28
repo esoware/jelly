@@ -26,9 +26,10 @@ const NEWS_WINDOW: Duration = Duration::from_secs(60);
 /// [`NEWS_WINDOW`] after a balance moved by more than the records already
 /// reported explain, or while a send of the address's own lands, so this sweep is
 /// what finds a transfer no balance showed, such as a payment in and out between
-/// two passes. The two balance reads every pass makes cost 14,400 requests an
-/// address a day at a twelve-second interval. Reading the three streams every
-/// pass would add 21,600 more, and at ten minutes the sweep adds 432.
+/// two passes. Every pass reads one balance per asset, which costs 7,200
+/// requests an asset a day at a twelve-second interval. Reading the three
+/// streams every pass would add 21,600 an address a day, and at ten minutes the
+/// sweep adds 432.
 const HISTORY_SWEEP: Duration = Duration::from_secs(600);
 
 /// What decides when the indexer next reads one address's history streams.

@@ -43,7 +43,7 @@ pub(crate) struct DailyPrice {
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct AssetHistory {
-    pub(crate) assets: &'static [AssetId],
+    pub(crate) assets: Vec<AssetId>,
     pub(crate) prices: Vec<DailyPrice>,
 }
 
@@ -170,7 +170,9 @@ impl PriceHistoryLoader {
                 Ok(Ok((market, prices))) => {
                     match market {
                         Market::Asset(ticker) => {
-                            history.prices.push(AssetHistory { assets: ticker.assets(), prices });
+                            history
+                                .prices
+                                .push(AssetHistory { assets: ticker.assets().collect(), prices });
                         }
                         Market::Rate(currency) => {
                             history.rates.push(RateHistory { currency, prices });
@@ -391,7 +393,7 @@ mod tests {
             .iter()
             .find(|series| series.assets.contains(&AssetId::Token(TokenId::UsdtErc20)))
             .unwrap();
-        assert_eq!(stablecoin.assets, Ticker::Usdt.assets());
+        assert_eq!(stablecoin.assets, Ticker::Usdt.assets().collect::<Vec<_>>());
         assert_eq!(stablecoin.prices.len(), 1);
         let encoded = serde_json::to_value(&stablecoin.prices[0]).unwrap();
         assert_eq!(encoded["price"], "200000000");

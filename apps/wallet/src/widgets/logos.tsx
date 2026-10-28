@@ -71,7 +71,9 @@ export const CHAIN_BRANDS: Record<ChainId, Brand> = {
 }
 
 const CHAINLINK: Brand = { color: "#2a5ada", logo: chainlinkLogo }
+const WRAPPED_BITCOIN: Brand = { color: "#f09242", logo: wrappedBitcoinLogo }
 const WRAPPED_ETHER: Brand = { color: "#ec1c79", logo: wrappedEtherLogo }
+const ETHENA: Brand = { color: "#8c919c", logo: ethenaLogo, gradient: ["#626874", "#c1c5cd"] }
 const TETHER: Brand = { color: "#009393", logo: tetherUsdLogo }
 const USD_COIN: Brand = { color: "#0b53bf", logo: usdCoinLogo }
 const USDS: Brand = { color: "#ff9b50", logo: usdsLogo }
@@ -82,11 +84,11 @@ const PAX_GOLD: Brand = { color: "#dbba08", logo: paxGoldLogo }
 
 const TOKEN_BRANDS: Record<TokenId, Brand> = {
   link_erc20: CHAINLINK,
-  wbtc_erc20: { color: "#f09242", logo: wrappedBitcoinLogo },
+  wbtc_erc20: WRAPPED_BITCOIN,
   weth_erc20: WRAPPED_ETHER,
   uni_erc20: { color: "#ff007a", logo: uniswapLogo },
   shib_erc20: { color: "#ffa409", logo: shibaInuLogo },
-  ena_erc20: { color: "#8c919c", logo: ethenaLogo, gradient: ["#626874", "#c1c5cd"] },
+  ena_erc20: ETHENA,
   aave_erc20: { color: "#9391f7", logo: aaveLogo },
   ondo_erc20: { color: "#4d78a8", logo: ondoLogo, gradient: ["#345477", "#8cafd4"] },
   pepe_erc20: { color: "#3d8130", logo: pepeLogo },
@@ -101,6 +103,7 @@ const TOKEN_BRANDS: Record<TokenId, Brand> = {
   paxg_erc20: PAX_GOLD,
   link_arbitrum: CHAINLINK,
   weth_arbitrum: WRAPPED_ETHER,
+  ena_arbitrum: ETHENA,
   arb_arbitrum: ARBITRUM,
   usdt_arbitrum: TETHER,
   usdc_arbitrum: USD_COIN,
@@ -110,16 +113,19 @@ const TOKEN_BRANDS: Record<TokenId, Brand> = {
   xaut_arbitrum: TETHER_GOLD,
   link_base: CHAINLINK,
   weth_base: WRAPPED_ETHER,
+  ena_base: ETHENA,
   usdc_base: USD_COIN,
   usds_base: USDS,
   link_optimism: CHAINLINK,
   weth_optimism: WRAPPED_ETHER,
+  ena_optimism: ETHENA,
   op_optimism: OPTIMISM,
   usdt_optimism: TETHER,
   usdc_optimism: USD_COIN,
   usds_optimism: USDS,
   link_bep20: CHAINLINK,
   weth_bep20: WRAPPED_ETHER,
+  ena_bep20: ETHENA,
   usdt_bep20: TETHER,
   usdc_bep20: USD_COIN,
   xaut_bep20: TETHER_GOLD,
@@ -136,6 +142,8 @@ const TOKEN_BRANDS: Record<TokenId, Brand> = {
   usds_avalanche: USDS,
   xaut_avalanche: TETHER_GOLD,
   link_spl: CHAINLINK,
+  wbtc_spl: WRAPPED_BITCOIN,
+  ena_spl: ETHENA,
   pump_spl: { color: "#54d38e", logo: pumpFunLogo },
   jup_spl: { color: "#c6f462", logo: jupiterLogo, gradient: ["#33d9ff", "#c6f462"] },
   usdt_spl: TETHER,
@@ -143,8 +151,11 @@ const TOKEN_BRANDS: Record<TokenId, Brand> = {
   usds_spl: USDS,
   usdg_spl: GLOBAL_DOLLAR,
   pyusd_spl: PAYPAL_USD,
+  xaut_spl: TETHER_GOLD,
   paxg_spl: PAX_GOLD,
+  wbtc_trc20: WRAPPED_BITCOIN,
   usdt_trc20: TETHER,
+  ena_jetton: ETHENA,
   usdt_jetton: TETHER,
   xaut_jetton: TETHER_GOLD,
 }

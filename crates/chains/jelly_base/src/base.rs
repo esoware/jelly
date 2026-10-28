@@ -48,9 +48,15 @@ pub const PARAMS: EvmParams = EvmParams {
     chain: SPEC.chain,
     chain_id: 8_453,
     request_timeout: Duration::from_secs(10),
-    // Each issuer's own deployment: Circle's USDC and Sky's USDS. The bridged
-    // USDbC is left out. LINK is Chainlink's, and WETH the OP Stack's predeploy.
-    tokens: &[TokenId::LinkBase, TokenId::WethBase, TokenId::UsdcBase, TokenId::UsdsBase],
+    // Each issuer's own deployment: Ethena's ENA, Circle's USDC, and Sky's USDS. The
+    // bridged USDbC is left out. LINK is Chainlink's, and WETH the OP Stack's predeploy.
+    tokens: &[
+        TokenId::LinkBase,
+        TokenId::WethBase,
+        TokenId::EnaBase,
+        TokenId::UsdcBase,
+        TokenId::UsdsBase,
+    ],
     token_standard: "ERC-20",
     block_millis: 2_000,
     // A pass per block is wasteful at this pace, so a burst of heads wakes one pass.

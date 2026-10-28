@@ -68,8 +68,8 @@ pub(crate) struct StatusReading {
 pub(crate) struct TokenHolding {
     pub(crate) token: SolanaToken,
     /// What the owner's associated account holds, which is the account a
-    /// transfer spends from.
-    pub(crate) balance: u64,
+    /// transfer spends from, or `None` when the owner holds no account there.
+    pub(crate) balance: Option<u64>,
 }
 
 #[derive(Debug, Clone)]

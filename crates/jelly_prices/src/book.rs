@@ -130,7 +130,7 @@ impl PriceBook {
         let mut published = Published::default();
         for quote in &quotes.accepted {
             let usd = Dated { value: quote.usd, as_of_unix_secs: now_unix_secs };
-            for &asset in quote.ticker.assets() {
+            for asset in quote.ticker.assets() {
                 published.tally(apply(&mut self.usd_prices, asset, usd));
             }
         }

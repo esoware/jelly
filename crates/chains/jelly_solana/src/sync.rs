@@ -14,7 +14,7 @@ use jelly_core::{
 use solana_pubkey::Pubkey;
 
 use crate::broadcast::Attempt;
-use crate::client::{SolanaClient, Tip};
+use crate::client::{Holdings, SolanaClient, Tip};
 use crate::config::{CHAIN, NATIVE, SolanaConfig};
 use crate::cursor::Walk;
 use crate::error::SolanaError;
@@ -53,14 +53,14 @@ pub(crate) async fn run(
         return Ok(progress(inputs, watched, tip));
     }
 
-    emit_balances(inputs, watched, events).await?;
+    let holdings = emit_balances(inputs, watched, events).await?;
     events.try_emit(WalletEvent::SyncProgress(progress(inputs, watched, tip)));
 
     if !deadline.is_expired(inputs.clock) {
         follow_up(inputs, tip, events).await?;
     }
     if !deadline.is_expired(inputs.clock) {
-        walk(inputs, watched, tip, deadline, events).await?;
+        walk(inputs, watched, &holdings, tip, deadline, events).await?;
     }
     Ok(progress(inputs, watched, tip))
 }
@@ -86,24 +86,24 @@ async fn emit_balances(
     inputs: &PassInputs<'_>,
     watched: &[Watched],
     events: &dyn EventSink,
-) -> Result<(), SolanaError> {
+) -> Result<Vec<Holdings>, SolanaError> {
     let owners: Vec<Pubkey> = watched.iter().map(|entry| entry.owner).collect();
     let holdings_by_owner = inputs.client.holdings(&owners).await?;
-    for (entry, holdings) in watched.iter().zip(holdings_by_owner) {
+    for (entry, holdings) in watched.iter().zip(&holdings_by_owner) {
         events.try_emit(WalletEvent::BalanceChanged(BalanceUpdate {
             address_id: entry.address_id,
             asset: NATIVE,
             balance: Amount::from(holdings.lamports),
         }));
-        for holding in holdings.tokens {
+        for holding in &holdings.tokens {
             events.try_emit(WalletEvent::BalanceChanged(BalanceUpdate {
                 address_id: entry.address_id,
                 asset: holding.token.asset(),
-                balance: Amount::from(holding.balance),
+                balance: Amount::from(holding.balance.unwrap_or(0)),
             }));
         }
     }
-    Ok(())
+    Ok(holdings_by_owner)
 }
 
 /// Decides the fate of every send this wallet is still following.
@@ -243,32 +243,47 @@ struct Target<'a> {
     account: String,
 }
 
-/// Each owner, followed by every carried token's associated account.
+/// Each owner, followed by the associated account of every carried token the
+/// owner holds or whose history has not been read through yet.
 ///
 /// A node lists a signature under the accounts its transaction names, so each
-/// carried token's associated account is walked beside the owner.
-fn targets(watched: &[Watched]) -> Vec<Target<'_>> {
-    watched
-        .iter()
-        .flat_map(|entry| {
-            entry.accounts().map(move |(token, account)| Target {
-                entry,
-                token,
-                account: account.to_string(),
-            })
-        })
-        .collect()
+/// such account is walked beside the owner. One the owner does not hold is
+/// skipped once read, because the instruction that creates an associated account
+/// names its owner, and the first pass that finds it held walks it forward from
+/// where its cursor stopped.
+fn targets<'a>(
+    inputs: &PassInputs<'_>,
+    watched: &'a [Watched],
+    holdings: &[Holdings],
+) -> Vec<Target<'a>> {
+    let mut targets = Vec::new();
+    for (entry, holdings) in watched.iter().zip(holdings) {
+        for (token, account) in entry.accounts() {
+            let should_walk = token.is_none_or(|token| {
+                let is_held = holdings
+                    .tokens
+                    .iter()
+                    .any(|holding| holding.token == token && holding.balance.is_some());
+                is_held || !inputs.states.scan(entry.address_id, Some(token)).is_complete()
+            });
+            if should_walk {
+                targets.push(Target { entry, token, account: account.to_string() });
+            }
+        }
+    }
+    targets
 }
 
 /// Cursors move only over the rows whose transactions were turned into records.
 async fn walk(
     inputs: &PassInputs<'_>,
     watched: &[Watched],
+    holdings: &[Holdings],
     tip: Tip,
     deadline: Deadline,
     events: &dyn EventSink,
 ) -> Result<(), SolanaError> {
-    let targets = targets(watched);
+    let targets = targets(inputs, watched, holdings);
     let mut walks: Vec<Walk> = targets
         .iter()
         .map(|target| {

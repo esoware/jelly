@@ -824,6 +824,7 @@ async fn each_carried_token_reports_its_balance_and_its_logged_transfers() {
         (ETHEREUM, TokenId::XautErc20),
         (BSC, TokenId::LinkBep20),
         (BSC, TokenId::XautBep20),
+        (BSC, TokenId::EnaBep20),
         (BASE, TokenId::WethBase),
         (OPTIMISM, TokenId::OpOptimism),
     ] {

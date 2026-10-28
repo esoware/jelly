@@ -57,7 +57,7 @@ async fn a_pass_that_sees_no_news_reads_no_history() {
         pass(&harness, &sink).await.unwrap();
         assert_eq!(reads(&harness), [0, 0, 0], "nothing moved, so nothing was asked");
     }
-    assert_eq!(balances(&sink.drain()).len(), 8, "every pass still reports every balance");
+    assert_eq!(balances(&sink.drain()).len(), 12, "every pass still reports every balance");
 }
 
 #[tokio::test]

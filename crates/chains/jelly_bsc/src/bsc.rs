@@ -51,10 +51,11 @@ pub const PARAMS: EvmParams = EvmParams {
     request_timeout: Duration::from_secs(10),
     // Binance's own copies of LINK and ether, which its withdrawals send and the
     // network's exchanges trade, rather than the ERC-677 LINK Chainlink's PegSwap
-    // issues for paying its oracles.
+    // issues for paying its oracles. ENA is Ethena's own deployment.
     tokens: &[
         TokenId::LinkBep20,
         TokenId::WethBep20,
+        TokenId::EnaBep20,
         TokenId::UsdtBep20,
         TokenId::UsdcBep20,
         TokenId::XautBep20,

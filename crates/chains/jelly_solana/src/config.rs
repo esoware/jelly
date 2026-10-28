@@ -32,7 +32,7 @@ impl Default for SolanaConfig {
         Self {
             signature_page_size: 100,
             page_budget: 3,
-            max_batch: 20,
+            max_batch: 26,
             max_level_priority_fee_lamports: 10_000_000,
         }
     }

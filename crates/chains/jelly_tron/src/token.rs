@@ -6,7 +6,7 @@ use jelly_core::{AssetId, TokenId};
 use crate::config::CHAIN;
 use crate::error::TronError;
 
-pub(crate) const TOKENS: [TokenId; 1] = [TokenId::UsdtTrc20];
+pub(crate) const TOKENS: [TokenId; 2] = [TokenId::WbtcTrc20, TokenId::UsdtTrc20];
 
 /// The token a contract address names, if this build carries it.
 pub(crate) fn token_at(contract: &str) -> Option<TokenId> {

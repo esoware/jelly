@@ -31,6 +31,7 @@ wire_enum! {
         PaxgErc20 => "paxg_erc20",
         LinkArbitrum => "link_arbitrum",
         WethArbitrum => "weth_arbitrum",
+        EnaArbitrum => "ena_arbitrum",
         ArbArbitrum => "arb_arbitrum",
         UsdtArbitrum => "usdt_arbitrum",
         UsdcArbitrum => "usdc_arbitrum",
@@ -40,16 +41,19 @@ wire_enum! {
         XautArbitrum => "xaut_arbitrum",
         LinkBase => "link_base",
         WethBase => "weth_base",
+        EnaBase => "ena_base",
         UsdcBase => "usdc_base",
         UsdsBase => "usds_base",
         LinkOptimism => "link_optimism",
         WethOptimism => "weth_optimism",
+        EnaOptimism => "ena_optimism",
         OpOptimism => "op_optimism",
         UsdtOptimism => "usdt_optimism",
         UsdcOptimism => "usdc_optimism",
         UsdsOptimism => "usds_optimism",
         LinkBep20 => "link_bep20",
         WethBep20 => "weth_bep20",
+        EnaBep20 => "ena_bep20",
         UsdtBep20 => "usdt_bep20",
         UsdcBep20 => "usdc_bep20",
         XautBep20 => "xaut_bep20",
@@ -66,6 +70,8 @@ wire_enum! {
         UsdsAvalanche => "usds_avalanche",
         XautAvalanche => "xaut_avalanche",
         LinkSpl => "link_spl",
+        WbtcSpl => "wbtc_spl",
+        EnaSpl => "ena_spl",
         PumpSpl => "pump_spl",
         JupSpl => "jup_spl",
         UsdtSpl => "usdt_spl",
@@ -73,8 +79,11 @@ wire_enum! {
         UsdsSpl => "usds_spl",
         UsdgSpl => "usdg_spl",
         PyusdSpl => "pyusd_spl",
+        XautSpl => "xaut_spl",
         PaxgSpl => "paxg_spl",
+        WbtcTrc20 => "wbtc_trc20",
         UsdtTrc20 => "usdt_trc20",
+        EnaJetton => "ena_jetton",
         UsdtJetton => "usdt_jetton",
         XautJetton => "xaut_jetton",
     }
@@ -103,6 +112,7 @@ impl TokenId {
             | Self::PaxgErc20 => ChainId::Ethereum,
             Self::LinkArbitrum
             | Self::WethArbitrum
+            | Self::EnaArbitrum
             | Self::ArbArbitrum
             | Self::UsdtArbitrum
             | Self::UsdcArbitrum
@@ -110,15 +120,19 @@ impl TokenId {
             | Self::UsdgArbitrum
             | Self::PyusdArbitrum
             | Self::XautArbitrum => ChainId::Arbitrum,
-            Self::LinkBase | Self::WethBase | Self::UsdcBase | Self::UsdsBase => ChainId::Base,
+            Self::LinkBase | Self::WethBase | Self::EnaBase | Self::UsdcBase | Self::UsdsBase => {
+                ChainId::Base
+            }
             Self::LinkOptimism
             | Self::WethOptimism
+            | Self::EnaOptimism
             | Self::OpOptimism
             | Self::UsdtOptimism
             | Self::UsdcOptimism
             | Self::UsdsOptimism => ChainId::Optimism,
             Self::LinkBep20
             | Self::WethBep20
+            | Self::EnaBep20
             | Self::UsdtBep20
             | Self::UsdcBep20
             | Self::XautBep20 => ChainId::Bsc,
@@ -135,6 +149,8 @@ impl TokenId {
             | Self::UsdsAvalanche
             | Self::XautAvalanche => ChainId::Avalanche,
             Self::LinkSpl
+            | Self::WbtcSpl
+            | Self::EnaSpl
             | Self::PumpSpl
             | Self::JupSpl
             | Self::UsdtSpl
@@ -142,9 +158,10 @@ impl TokenId {
             | Self::UsdsSpl
             | Self::UsdgSpl
             | Self::PyusdSpl
+            | Self::XautSpl
             | Self::PaxgSpl => ChainId::Solana,
-            Self::UsdtTrc20 => ChainId::Tron,
-            Self::UsdtJetton | Self::XautJetton => ChainId::Ton,
+            Self::WbtcTrc20 | Self::UsdtTrc20 => ChainId::Tron,
+            Self::EnaJetton | Self::UsdtJetton | Self::XautJetton => ChainId::Ton,
         }
     }
 
@@ -162,7 +179,7 @@ impl TokenId {
             | Self::LinkPolygon
             | Self::LinkAvalanche
             | Self::LinkSpl => "LINK",
-            Self::WbtcErc20 => "WBTC",
+            Self::WbtcErc20 | Self::WbtcSpl | Self::WbtcTrc20 => "WBTC",
             Self::WethErc20
             | Self::WethArbitrum
             | Self::WethBase
@@ -172,7 +189,13 @@ impl TokenId {
             | Self::WethAvalanche => "WETH",
             Self::UniErc20 => "UNI",
             Self::ShibErc20 => "SHIB",
-            Self::EnaErc20 => "ENA",
+            Self::EnaErc20
+            | Self::EnaArbitrum
+            | Self::EnaBase
+            | Self::EnaOptimism
+            | Self::EnaBep20
+            | Self::EnaSpl
+            | Self::EnaJetton => "ENA",
             Self::AaveErc20 => "AAVE",
             Self::OndoErc20 => "ONDO",
             Self::PepeErc20 => "PEPE",
@@ -211,6 +234,7 @@ impl TokenId {
             | Self::XautBep20
             | Self::XautPolygon
             | Self::XautAvalanche
+            | Self::XautSpl
             | Self::XautJetton => "XAUT",
             Self::PaxgErc20 | Self::PaxgSpl => "PAXG",
         }
@@ -227,7 +251,7 @@ impl TokenId {
             | Self::LinkPolygon
             | Self::LinkAvalanche
             | Self::LinkSpl => "Chainlink",
-            Self::WbtcErc20 => "Wrapped Bitcoin",
+            Self::WbtcErc20 | Self::WbtcSpl | Self::WbtcTrc20 => "Wrapped Bitcoin",
             Self::WethErc20
             | Self::WethArbitrum
             | Self::WethBase
@@ -237,7 +261,13 @@ impl TokenId {
             | Self::WethAvalanche => "Wrapped Ether",
             Self::UniErc20 => "Uniswap",
             Self::ShibErc20 => "Shiba Inu",
-            Self::EnaErc20 => "Ethena",
+            Self::EnaErc20
+            | Self::EnaArbitrum
+            | Self::EnaBase
+            | Self::EnaOptimism
+            | Self::EnaBep20
+            | Self::EnaSpl
+            | Self::EnaJetton => "Ethena",
             Self::AaveErc20 => "Aave",
             Self::OndoErc20 => "Ondo",
             Self::PepeErc20 => "Pepe",
@@ -278,6 +308,7 @@ impl TokenId {
             | Self::XautBep20
             | Self::XautPolygon
             | Self::XautAvalanche
+            | Self::XautSpl
             | Self::XautJetton => "Tether Gold",
             Self::PaxgErc20 | Self::PaxgSpl => "PAX Gold",
         }
@@ -321,6 +352,7 @@ impl TokenId {
             | Self::UsdsSpl
             | Self::UsdgSpl
             | Self::PyusdSpl
+            | Self::XautSpl
             | Self::PaxgSpl
             | Self::UsdtTrc20
             | Self::UsdtJetton
@@ -337,21 +369,29 @@ impl TokenId {
             | Self::ArbErc20
             | Self::LinkArbitrum
             | Self::WethArbitrum
+            | Self::EnaArbitrum
             | Self::ArbArbitrum
             | Self::LinkBase
             | Self::WethBase
+            | Self::EnaBase
             | Self::LinkOptimism
             | Self::WethOptimism
+            | Self::EnaOptimism
             | Self::OpOptimism
             | Self::LinkBep20
             | Self::WethBep20
+            | Self::EnaBep20
             | Self::LinkPolygon
             | Self::WethPolygon
             | Self::LinkAvalanche
             | Self::WethAvalanche
             | Self::LinkSpl
+            | Self::WbtcSpl
+            | Self::EnaSpl
             | Self::PumpSpl
-            | Self::JupSpl => false,
+            | Self::JupSpl
+            | Self::WbtcTrc20
+            | Self::EnaJetton => false,
         }
     }
 
@@ -373,17 +413,21 @@ impl TokenId {
             | Self::PaxgErc20
             | Self::LinkArbitrum
             | Self::WethArbitrum
+            | Self::EnaArbitrum
             | Self::ArbArbitrum
             | Self::UsdsArbitrum
             | Self::LinkBase
             | Self::WethBase
+            | Self::EnaBase
             | Self::UsdsBase
             | Self::LinkOptimism
             | Self::WethOptimism
+            | Self::EnaOptimism
             | Self::OpOptimism
             | Self::UsdsOptimism
             | Self::LinkBep20
             | Self::WethBep20
+            | Self::EnaBep20
             | Self::UsdtBep20
             | Self::UsdcBep20
             | Self::LinkPolygon
@@ -391,8 +435,8 @@ impl TokenId {
             | Self::LinkAvalanche
             | Self::WethAvalanche
             | Self::UsdsAvalanche => 18,
-            Self::LinkSpl => 9,
-            Self::WbtcErc20 => 8,
+            Self::LinkSpl | Self::EnaSpl => 9,
+            Self::WbtcErc20 | Self::WbtcSpl | Self::WbtcTrc20 => 8,
             Self::UsdtErc20
             | Self::UsdcErc20
             | Self::UsdgErc20
@@ -421,8 +465,10 @@ impl TokenId {
             | Self::UsdsSpl
             | Self::UsdgSpl
             | Self::PyusdSpl
+            | Self::XautSpl
             | Self::PaxgSpl
             | Self::UsdtTrc20
+            | Self::EnaJetton
             | Self::UsdtJetton
             | Self::XautJetton => 6,
         }
@@ -451,6 +497,10 @@ impl TokenId {
             Self::PaxgErc20 => "0x45804880De22913dAFE09f4980848ECE6EcbAf78",
             Self::LinkArbitrum => "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
             Self::WethArbitrum => "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+            // Ethena deploys its LayerZero ENA at the same address on each of these networks.
+            Self::EnaArbitrum | Self::EnaBase | Self::EnaOptimism | Self::EnaBep20 => {
+                "0x58538e6A46E07434d7E7375Bc268D3cb839C0133"
+            }
             Self::ArbArbitrum => "0x912CE59144191C1204E64559FE8253a0e49E6548",
             Self::UsdtArbitrum => "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
             Self::UsdcArbitrum => "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
@@ -459,7 +509,7 @@ impl TokenId {
             Self::PyusdArbitrum => "0x46850aD61C2B7d64d08c9C754F45254596696984",
             Self::XautArbitrum => "0x40461291347e1eCbb09499F3371D3f17f10d7159",
             Self::LinkBase => "0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196",
-            // The OP Stack's WETH predeploy, at the same address on every OP Stack network.
+            // The OP Stack predeploys WETH at the same address on every OP Stack network.
             Self::WethBase | Self::WethOptimism => "0x4200000000000000000000000000000000000006",
             Self::UsdcBase => "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
             Self::UsdsBase => "0x820C137fa70C8691f0e44Dc420a5e53c168921Dc",
@@ -486,6 +536,8 @@ impl TokenId {
             Self::UsdsAvalanche => "0x86Ff09db814ac346a7C6FE2Cd648F27706D1D470",
             Self::XautAvalanche => "0x2775d5105276781B4b85bA6eA6a6653bEeD1dd32",
             Self::LinkSpl => "LinkhB3afbBKb2EQQu7s7umdZceV3wcvAUJhQAfQ23L",
+            Self::WbtcSpl => "5XZw2LKTyrfvfiskJ78AMpackRjPcyCif1WhUsPDuVqQ",
+            Self::EnaSpl => "72QvBVwpxqmheEPfaCwWSWqEFsUy3rhWt6JhQBMNTwD1",
             Self::PumpSpl => "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn",
             Self::JupSpl => "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
             Self::UsdtSpl => "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
@@ -493,8 +545,11 @@ impl TokenId {
             Self::UsdsSpl => "USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA",
             Self::UsdgSpl => "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH",
             Self::PyusdSpl => "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
+            Self::XautSpl => "AymATz4TCL9sWNEEV9Kvyz45CHVhDZ6kUgjTJPzLpU9P",
             Self::PaxgSpl => "5GgRAEmv8ZxF2PR5hY72Qs5x1bnQ6UK2RbTPoqJ3wSwW",
+            Self::WbtcTrc20 => "TYhWwKpw43ENFWBTGpzLHn3882f2au7SMi",
             Self::UsdtTrc20 => "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+            Self::EnaJetton => "EQAFhZFZYye0llsl785OzOJG9QT6PXyYUdmiC4U95lBuHh1S",
             Self::UsdtJetton => "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs",
             Self::XautJetton => "EQA1R_LuQCLHlMgOo1S4G7Y7W1cd0FrAkbA10Zq7rddKxi9k",
         }
@@ -612,10 +667,13 @@ mod tests {
         assert_eq!(TokenId::UsdtBep20.decimals(), 18);
         assert_eq!(TokenId::UsdcBep20.decimals(), 18);
         assert_eq!(TokenId::LinkSpl.decimals(), 9, "Solana's LINK is scaled for its own mint");
+        assert_eq!(TokenId::EnaSpl.decimals(), 9, "so is Solana's ENA");
+        assert_eq!(TokenId::EnaJetton.decimals(), 6, "and TON's ENA has six");
         assert_eq!(TokenId::WbtcErc20.decimals(), 8, "wrapped bitcoin keeps bitcoin's satoshi");
         for token in TokenId::ALL {
             let expected = match token.symbol() {
-                "LINK" if token == TokenId::LinkSpl => 9,
+                "LINK" | "ENA" if token.chain() == ChainId::Solana => 9,
+                "ENA" if token.chain() == ChainId::Ton => 6,
                 "WBTC" => 8,
                 "LINK" | "WETH" | "UNI" | "SHIB" | "ENA" | "AAVE" | "ONDO" | "PEPE" | "ARB"
                 | "OP" | "DAI" | "USDS" | "PAXG"
@@ -654,6 +712,7 @@ mod tests {
             (TokenId::XautBep20, ChainId::Bsc, "XAUT", "Tether Gold", 6),
             (TokenId::XautPolygon, ChainId::Polygon, "XAUT", "Tether Gold", 6),
             (TokenId::XautAvalanche, ChainId::Avalanche, "XAUT", "Tether Gold", 6),
+            (TokenId::XautSpl, ChainId::Solana, "XAUT", "Tether Gold", 6),
             (TokenId::XautJetton, ChainId::Ton, "XAUT", "Tether Gold", 6),
         ] {
             assert_eq!(token.chain(), chain);

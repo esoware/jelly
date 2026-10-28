@@ -48,12 +48,13 @@ pub const PARAMS: EvmParams = EvmParams {
     chain: SPEC.chain,
     chain_id: 42_161,
     request_timeout: Duration::from_secs(10),
-    // Each issuer's own deployment: Tether's USDT0 and XAUt0, Circle's USDC,
-    // Paxos's PYUSD and USDG, and Sky's USDS. The bridged USDC.e is left out. LINK
-    // and WETH are the canonical bridge's, and ARB is issued here.
+    // Each issuer's own deployment: Ethena's ENA, Tether's USDT0 and XAUt0, Circle's
+    // USDC, Paxos's PYUSD and USDG, and Sky's USDS. The bridged USDC.e is left out.
+    // LINK and WETH are the canonical bridge's, and ARB is issued here.
     tokens: &[
         TokenId::LinkArbitrum,
         TokenId::WethArbitrum,
+        TokenId::EnaArbitrum,
         TokenId::ArbArbitrum,
         TokenId::UsdtArbitrum,
         TokenId::UsdcArbitrum,

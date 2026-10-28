@@ -653,7 +653,8 @@ mod walking {
 
     #[tokio::test]
     async fn a_saved_frontier_missing_from_the_node_does_not_block_history() {
-        for account in [OWNER.to_owned(), token_account_address(OWNER, TokenId::UsdcSpl).unwrap()] {
+        let held = token_account_address(OWNER, TokenId::UsdcSpl).unwrap();
+        for account in [OWNER.to_owned(), held.clone()] {
             let original = Harness::with(paged());
             original.node.quiet().unwrap();
             original.node.seed_signatures(&account, 2);
@@ -663,6 +664,11 @@ mod walking {
 
             let restarted = Harness::over(paged(), Arc::clone(&original.cursors));
             restarted.node.quiet().unwrap();
+            restarted.node.at(
+                Method::GetAccountInfo,
+                &held,
+                Answer::ok(&common::token_account(OWNER, common::USDC_MINT, 1).unwrap()),
+            );
             restarted.node.prepend_signatures(&account, 11);
             restarted.node.always(Method::GetTransaction, Answer::raw(TX_NATIVE_TRANSFER));
             restarted.watch_owner().await.unwrap();
@@ -745,6 +751,45 @@ mod walking {
             after_first,
             "nothing changed, nothing written"
         );
+    }
+
+    /// The instruction that creates an associated token account names its owner,
+    /// so the owner's own walk finds it, and the account's history matters only
+    /// once the owner holds it.
+    #[tokio::test]
+    async fn a_token_account_the_owner_does_not_hold_is_walked_until_read_and_once_held() {
+        let account = token_account_address(OWNER, TokenId::UsdcSpl).unwrap();
+        let harness = Harness::with(paged());
+        harness.node.quiet().unwrap();
+        harness.node.always(Method::GetTransaction, Answer::raw(TX_NATIVE_TRANSFER));
+        harness.watch_owner().await.unwrap();
+        let walked = || -> Vec<String> {
+            harness
+                .node
+                .calls_to(Method::GetSignaturesForAddress)
+                .into_iter()
+                .filter_map(|call| call.first())
+                .collect()
+        };
+
+        harness.node.forget_calls();
+        harness.sync().await.unwrap();
+        assert_eq!(walked().len(), ACCOUNTS_PER_OWNER, "the first pass reads every account");
+
+        harness.node.forget_calls();
+        harness.sync().await.unwrap();
+        assert_eq!(walked(), vec![OWNER.to_owned()], "no token account is held");
+
+        harness.node.at(
+            Method::GetAccountInfo,
+            &account,
+            Answer::ok(&common::token_account(OWNER, common::USDC_MINT, 1).unwrap()),
+        );
+        harness.node.seed_signatures(&account, 1);
+        harness.node.forget_calls();
+        harness.sync().await.unwrap();
+        assert_eq!(walked(), vec![OWNER.to_owned(), account]);
+        assert_eq!(harness.node.count(Method::GetTransaction), 1, "the held account's transfer");
     }
 
     #[tokio::test]

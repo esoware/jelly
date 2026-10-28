@@ -39,6 +39,13 @@ pub(crate) const USDT_WALLET: &str = "EQDg4AjfaxQBVsUFueenkKlHLhhYWrcBvCEzbEgfrT
 /// 32 zero bytes in base64, the hash of a position that names no transaction.
 pub(crate) const ZERO_HASH: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
+/// Every jetton the fake master serves, with the seed its wallets derive from.
+///
+/// The watched owner's wallet is the seed throughout, and another owner's is that
+/// owner's hash with the seed flipped into its first byte.
+const JETTONS: [(TokenId, u8); 3] =
+    [(TokenId::UsdtJetton, 1), (TokenId::XautJetton, 2), (TokenId::EnaJetton, 3)];
+
 /// One jetton wallet the fake master names for the watched owner.
 #[derive(Debug)]
 pub(crate) struct FakeJetton {
@@ -77,7 +84,7 @@ pub(crate) struct State {
 
 impl Default for State {
     fn default() -> Self {
-        let jettons = [(TokenId::UsdtJetton, 1), (TokenId::XautJetton, 2)]
+        let jettons = JETTONS
             .map(|(token, seed)| FakeJetton {
                 token,
                 wallet: TonAddress::new(0, [seed; 32].into()),
@@ -182,12 +189,14 @@ fn stack_owner(params: &Value) -> Result<TonAddress, TonError> {
 }
 
 /// The jetton wallet the fake master names for an owner other than the watched wallet.
-pub(crate) fn jetton_wallet_of(token: TokenId, owner: &TonAddress) -> TonAddress {
+pub(crate) fn jetton_wallet_of(token: TokenId, owner: &TonAddress) -> Result<TonAddress, TonError> {
+    let (_, seed) =
+        JETTONS.into_iter().find(|&(jetton, _)| jetton == token).ok_or(TonError::Protocol)?;
     let mut hash = owner.hash_part.clone();
     if let Some(first) = hash.as_mut_slice().first_mut() {
-        *first ^= if token == TokenId::UsdtJetton { 0x5a } else { 0xa5 };
+        *first ^= seed;
     }
-    TonAddress::new(0, hash)
+    Ok(TonAddress::new(0, hash))
 }
 
 fn run_result(stack: &Value) -> Value {
@@ -292,7 +301,7 @@ impl TonNode for Node {
                         let wallet = if owner == state.sender {
                             jetton.wallet.clone()
                         } else {
-                            jetton_wallet_of(jetton.token, &owner)
+                            jetton_wallet_of(jetton.token, &owner)?
                         };
                         Ok(run_result(&json!([cell(&wallet)?])))
                     }
