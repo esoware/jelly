@@ -317,7 +317,9 @@ async fn a_write_says_whether_the_row_was_already_there() {
 }
 
 /// An EVM token transfer is the owner's call to the token contract, which an indexer
-/// also lists as a native transaction that moved nothing and paid the same fee.
+/// also lists as a native transaction that moved nothing and paid the fee.
+///
+/// A receipt on the OP Stack charges an L1 data fee the indexer leaves out.
 #[tokio::test]
 async fn a_call_to_a_token_contract_is_dropped_beside_the_token_row_that_paid_its_fee() {
     let harness = common::harness().await.unwrap();
@@ -360,8 +362,8 @@ async fn a_call_to_a_token_contract_is_dropped_beside_the_token_row_that_paid_it
     .unwrap();
     assert_eq!(token_first, vec![TxWrite::Inserted, TxWrite::Updated], "the call is no news");
     let mut reverted = vec![
-        row(owner.id, usdt, "reverted", 0, Some(9)),
         row(owner.id, eth, "reverted", 0, Some(9)),
+        row(owner.id, usdt, "reverted", 0, Some(12)),
     ];
     for record in &mut reverted {
         record.outcome = TxOutcome::Failed;
@@ -375,8 +377,6 @@ async fn a_call_to_a_token_contract_is_dropped_beside_the_token_row_that_paid_it
         vec![
             row(owner.id, usdt, "unpaid", 500, None),
             row(owner.id, eth, "unpaid", 0, Some(9)),
-            row(owner.id, usdt, "estimated", 500, Some(8)),
-            row(owner.id, eth, "estimated", 0, Some(9)),
             row(owner.id, usdt, "moved", 500, Some(9)),
             row(owner.id, eth, "moved", 7, Some(9)),
             row(owner.id, usdt, "apart", 500, Some(9)),
@@ -388,26 +388,17 @@ async fn a_call_to_a_token_contract_is_dropped_beside_the_token_row_that_paid_it
     .await
     .unwrap();
 
-    let calls = async || {
-        let filter = TxFilter { asset: Some(eth), ..TxFilter::new(wallet.id) };
-        let mut kept = txids(&harness.store.list_txs(filter).await.unwrap().rows);
-        kept.sort();
-        kept
-    };
+    let filter = TxFilter { asset: Some(eth), ..TxFilter::new(wallet.id) };
+    let mut kept = txids(&harness.store.list_txs(filter).await.unwrap().rows);
+    kept.sort();
     assert_eq!(
-        calls().await,
-        ["apart", "estimated", "moved", "router", "unpaid"],
-        "a row that moved coin or called another contract, a token row with another fee or \
-         none, and another address keep theirs"
-    );
-    write(&harness.store, vec![row(owner.id, usdt, "estimated", 500, Some(9))]).await.unwrap();
-    assert_eq!(
-        calls().await,
+        kept,
         ["apart", "moved", "router", "unpaid"],
-        "the fee a receipt charged is the call's"
+        "a row that moved coin or called another contract, a token row with no fee, and \
+         another address keep theirs"
     );
     let filter = TxFilter { asset: Some(usdt), ..TxFilter::new(wallet.id) };
-    assert_eq!(harness.store.list_txs(filter).await.unwrap().rows.len(), 8);
+    assert_eq!(harness.store.list_txs(filter).await.unwrap().rows.len(), 7);
 }
 
 #[tokio::test]
