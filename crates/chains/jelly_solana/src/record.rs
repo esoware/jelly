@@ -97,7 +97,7 @@ impl Seen<'_> {
         }
         let counterparty = token_counterparty(self.metadata, self.address, &mint, delta);
         let rent_lamports =
-            self.opened(&mint).map(|(_, lamports)| lamports).fold(0, u64::saturating_add);
+            self.opened_accounts(&mint).map(|(_, lamports)| lamports).fold(0, u64::saturating_add);
         let record = self
             .record(Parts {
                 asset: token.asset(),
@@ -123,20 +123,17 @@ impl Seen<'_> {
         let keys = &self.tx.transaction.message.account_keys;
         let index = keys.iter().position(|key| key.pubkey == self.address)?;
         let is_fee_payer = index == 0;
-        let rent = token_records
-            .iter()
-            .filter_map(|record| record.rent)
-            .fold(Amount::ZERO, Amount::saturating_add);
-        let opened: Vec<&str> = token_records
+        let (opened, rent_lamports): (Vec<&str>, Vec<u64>) = token_records
             .iter()
             .filter_map(|record| match record.asset {
                 AssetId::Token(token) => Some(token.contract()),
                 AssetId::Native(_) => None,
             })
-            .flat_map(|mint| self.opened(mint).map(|(account, _)| account))
-            .collect();
+            .flat_map(|mint| self.opened_accounts(mint))
+            .unzip();
+        let rent_lamports = rent_lamports.into_iter().fold(0, u64::saturating_add);
         let moved = native_delta(self.metadata, index, is_fee_payer)
-            .saturating_add(i128::try_from(rent.base_units()).unwrap_or(i128::MAX));
+            .saturating_add(i128::from(rent_lamports));
         let self_transfer = native_self_transfer(self.tx, self.address);
         let is_fee_only = token_records.is_empty();
         if moved == 0 && self_transfer.is_none() && !(is_fee_payer && is_fee_only) {
@@ -172,7 +169,7 @@ impl Seen<'_> {
     /// Each account of `mint` that the transaction opened, which holds the token after
     /// it and did not before, with the lamports the address paid into it. They count
     /// only as far as the account kept them.
-    fn opened(&self, mint: &str) -> impl Iterator<Item = (&str, u64)> {
+    fn opened_accounts(&self, mint: &str) -> impl Iterator<Item = (&str, u64)> {
         let keys = &self.tx.transaction.message.account_keys;
         let metadata = self.metadata;
         metadata

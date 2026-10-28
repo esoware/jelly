@@ -395,15 +395,11 @@ impl Writer<'_> {
         )
         .constrained(TX, UNIQUE_COLUMNS)?;
         let called = match record.asset {
-            AssetId::Native(_) if record.amount.is_zero() => {
-                record.counterparty.as_deref().and_then(|party| {
-                    TokenId::ALL
-                        .into_iter()
-                        .find(|token| token.chain() == owner.chain && token.contract() == party)
-                })
-            }
-            AssetId::Native(_) => None,
-            AssetId::Token(token) => record.fee.is_some().then_some(token),
+            AssetId::Native(_) => TokenId::ALL.into_iter().find(|token| {
+                token.chain() == owner.chain
+                    && record.counterparty.as_deref() == Some(token.contract())
+            }),
+            AssetId::Token(token) => Some(token),
         };
         let dropped = match called {
             Some(token) => sql::run(
