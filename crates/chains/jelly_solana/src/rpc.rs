@@ -300,6 +300,7 @@ pub(crate) struct ParsedBody {
 /// The members the wallet reads out of a parsed instruction. Every one is
 /// optional because the member set differs per instruction type.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct ParsedInfo {
     #[serde(default)]
     pub(crate) source: Option<String>,
@@ -307,7 +308,7 @@ pub(crate) struct ParsedInfo {
     pub(crate) destination: Option<String>,
     #[serde(default)]
     pub(crate) lamports: Option<u64>,
-    #[serde(default, rename = "newAccount")]
+    #[serde(default)]
     pub(crate) new_account: Option<String>,
 }
 

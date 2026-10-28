@@ -4,7 +4,9 @@
 //! Instructions name counterparties, mark a record as decoded rather than
 //! balance-only, and name the lamports that opened token accounts.
 
-use jelly_core::{Amount, AssetId, TxDetection, TxDirection, TxId, TxOutcome, TxRecord};
+use jelly_core::{
+    Amount, AssetId, TxDetection, TxDirection, TxId, TxOutcome, TxRecord, TxRecordBuilder,
+};
 
 use crate::config::NATIVE;
 use crate::rpc::{
@@ -59,15 +61,17 @@ pub(crate) fn of_transaction(
         if !is_fee_payer {
             return Vec::new();
         }
-        return vec![seen.record(Parts {
-            asset: NATIVE,
-            direction: TxDirection::Outgoing,
-            amount: Amount::ZERO,
-            counterparty: None,
-            is_decoded: true,
-            outcome: TxOutcome::Failed,
-            rent: None,
-        })];
+        return vec![
+            seen.record(Parts {
+                asset: NATIVE,
+                direction: TxDirection::Outgoing,
+                amount: Amount::ZERO,
+                counterparty: None,
+                is_decoded: true,
+                outcome: TxOutcome::Failed,
+            })
+            .build(),
+        ];
     }
 
     let mut records = Vec::new();
@@ -92,15 +96,18 @@ impl Seen<'_> {
             return None;
         }
         let counterparty = token_counterparty(self.metadata, self.address, &mint, delta);
-        Some(self.record(Parts {
-            asset: token.asset(),
-            direction: direction(delta, counterparty.as_deref(), self.address),
-            amount: Amount::from_base_units(delta.unsigned_abs()),
-            counterparty,
-            is_decoded: has_token_transfer(self.tx),
-            outcome: TxOutcome::Success,
-            rent: Some(Amount::from(self.rent_lamports(&mint))),
-        }))
+        let record = self
+            .record(Parts {
+                asset: token.asset(),
+                direction: direction(delta, counterparty.as_deref(), self.address),
+                amount: Amount::from_base_units(delta.unsigned_abs()),
+                counterparty,
+                is_decoded: has_token_transfer(self.tx),
+                outcome: TxOutcome::Success,
+            })
+            .rent(Amount::from(self.rent_lamports(&mint)))
+            .build();
+        Some(record)
     }
 
     /// The fee payer of a transaction that moved no token this build tracks still
@@ -113,12 +120,12 @@ impl Seen<'_> {
         let keys = &self.tx.transaction.message.account_keys;
         let index = keys.iter().position(|key| key.pubkey == self.address)?;
         let is_fee_payer = index == 0;
-        let rent_lamports = token_records
+        let rent = token_records
             .iter()
             .filter_map(|record| record.rent)
-            .fold(0, |sum: u128, rent| sum.saturating_add(rent.base_units()));
+            .fold(Amount::ZERO, Amount::saturating_add);
         let moved = native_delta(self.metadata, index, is_fee_payer)
-            .saturating_add(i128::try_from(rent_lamports).unwrap_or(i128::MAX));
+            .saturating_add(i128::try_from(rent.base_units()).unwrap_or(i128::MAX));
         let self_transfer = native_self_transfer(self.tx, self.address);
         let is_fee_only = token_records.is_empty();
         if moved == 0 && self_transfer.is_none() && !(is_fee_payer && is_fee_only) {
@@ -138,15 +145,17 @@ impl Seen<'_> {
                 is_decoded,
             )
         };
-        Some(self.record(Parts {
-            asset: NATIVE,
-            direction,
-            amount: Amount::from_base_units(amount),
-            counterparty,
-            is_decoded,
-            outcome: TxOutcome::Success,
-            rent: None,
-        }))
+        let record = self
+            .record(Parts {
+                asset: NATIVE,
+                direction,
+                amount: Amount::from_base_units(amount),
+                counterparty,
+                is_decoded,
+                outcome: TxOutcome::Success,
+            })
+            .build();
+        Some(record)
     }
 
     /// The lamports the address paid into accounts of `mint` that the transaction
@@ -182,7 +191,7 @@ impl Seen<'_> {
             .fold(0, u64::saturating_add)
     }
 
-    fn record(&self, parts: Parts) -> TxRecord {
+    fn record(&self, parts: Parts) -> TxRecordBuilder {
         let mut builder = TxRecord::builder(
             parts.asset,
             self.address_id,
@@ -196,13 +205,10 @@ impl Seen<'_> {
         if let Some(fee) = self.fee {
             builder = builder.fee(fee);
         }
-        if let Some(rent) = parts.rent {
-            builder = builder.rent(rent);
-        }
         if let Some(party) = parts.counterparty {
             builder = builder.counterparty(party);
         }
-        builder.build()
+        builder
     }
 }
 
@@ -216,7 +222,6 @@ struct Parts {
     /// sheet did.
     is_decoded: bool,
     outcome: TxOutcome,
-    rent: Option<Amount>,
 }
 
 /// The fee payer's lamport delta includes the fee, so stripping it leaves what
@@ -535,7 +540,7 @@ mod tests {
         pre_balances: Vec<u64>,
         post_balances: Vec<u64>,
     ) -> TransactionRow {
-        let mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+        let mint = TokenId::UsdcSpl.contract();
         TransactionRow {
             slot: 100,
             block_time: Some(1_700_000_000),
@@ -577,8 +582,8 @@ mod tests {
     /// A swap that pays USDT for USDC and opens the address's own USDC account.
     #[test]
     fn the_rent_is_on_the_record_of_the_token_whose_account_it_opened() {
-        let usdt = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
-        let usdc = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+        let usdt = TokenId::UsdtSpl.contract();
+        let usdc = TokenId::UsdcSpl.contract();
         let tx = TransactionRow {
             slot: 100,
             block_time: Some(1_700_000_000),

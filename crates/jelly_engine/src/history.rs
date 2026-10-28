@@ -250,7 +250,8 @@ fn entry_of_group(group: TxGroup, tips: &BTreeMap<ChainId, u64>) -> Option<TxEnt
     let rent = members
         .iter()
         .filter_map(|member| member.row.rent)
-        .fold(Amount::ZERO, Amount::saturating_add);
+        .reduce(Amount::saturating_add)
+        .filter(|rent| !rent.is_zero());
     let pays_for = members.iter().find_map(|member| member.row.pays_for.clone());
     Some(TxEntry {
         txid: lead.txid.clone(),
@@ -263,7 +264,7 @@ fn entry_of_group(group: TxGroup, tips: &BTreeMap<ChainId, u64>) -> Option<TxEnt
         outcome,
         amount,
         fee,
-        rent: (!rent.is_zero()).then_some(rent),
+        rent,
         counterparty,
         pays_for,
         height,
@@ -285,14 +286,14 @@ mod tests {
 
     use super::*;
 
-    fn row(address_id: i64, direction: TxDirection, rent: Option<u128>) -> TxRow {
+    fn row(address_id: i64, rent: Option<u128>) -> TxRow {
         TxRow {
             id: address_id,
             address_id,
             chain: ChainId::Solana,
             asset: AssetId::Token(TokenId::UsdtSpl),
             txid: String::from("opening"),
-            direction,
+            direction: TxDirection::Outgoing,
             outcome: TxOutcome::Success,
             detection: TxDetection::Full,
             amount: Amount::from_base_units(10),
@@ -309,8 +310,7 @@ mod tests {
     #[test]
     fn a_rent_of_nothing_is_no_rent_and_the_rents_of_a_group_add_up() {
         let tips = BTreeMap::new();
-        let rent_of_row =
-            |rent: Option<u128>| entry_of_row(row(1, TxDirection::Outgoing, rent), &tips).rent;
+        let rent_of_row = |rent: Option<u128>| entry_of_row(row(1, rent), &tips).rent;
         assert_eq!(rent_of_row(None), None);
         assert_eq!(rent_of_row(Some(0)), None);
         assert_eq!(rent_of_row(Some(7)), Some(Amount::from_base_units(7)));
@@ -320,7 +320,7 @@ mod tests {
                 .into_iter()
                 .zip([1, 2])
                 .map(|(rent, address_id)| TxMember {
-                    row: row(address_id, TxDirection::Outgoing, rent),
+                    row: row(address_id, rent),
                     is_counterparty_own: false,
                 })
                 .collect();

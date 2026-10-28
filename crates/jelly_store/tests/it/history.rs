@@ -354,12 +354,14 @@ async fn a_native_row_that_moved_nothing_is_dropped_beside_a_token_row_that_paid
     .await
     .unwrap();
     assert_eq!(token_first, vec![TxWrite::Inserted, TxWrite::Updated], "the call is no news");
-    let mut reverted =
-        [row(owner.id, usdt, "reverted", 0, Some(9)), row(owner.id, eth, "reverted", 0, Some(9))];
+    let mut reverted = vec![
+        row(owner.id, usdt, "reverted", 0, Some(9)),
+        row(owner.id, eth, "reverted", 0, Some(9)),
+    ];
     for record in &mut reverted {
         record.outcome = TxOutcome::Failed;
     }
-    write(&harness.store, reverted.to_vec()).await.unwrap();
+    write(&harness.store, reverted).await.unwrap();
 
     write(
         &harness.store,

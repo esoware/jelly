@@ -3,8 +3,8 @@ import type { ComponentProps } from "react"
 
 import { isSubmitting, preparedOf } from "@/features/wallet/send-state.ts"
 import type { SendState } from "@/features/wallet/send-state.ts"
-import type { Amount, PendingTxId, TxPreview, TxWarningKind } from "@/ipc/bindings.gen.ts"
-import { addAmounts } from "@/lib/amount.ts"
+import type { PendingTxId, TxPreview, TxWarningKind } from "@/ipc/bindings.gen.ts"
+import { ZERO_AMOUNT, addAmounts } from "@/lib/amount.ts"
 import { chainMeta, chainName, nativeAsset } from "@/lib/chain.ts"
 import { useFiatCurrency, useFiatValue, useIsFiatStale } from "@/store.ts"
 import { Button } from "@/ui/button.tsx"
@@ -46,8 +46,8 @@ function SourceList({ sources }: SourceListProps) {
   )
 }
 
-function nativeCost(preview: TxPreview): Amount | bigint | null {
-  return preview.rent === null ? preview.fee : addAmounts(preview.fee, preview.rent)
+function nativeCost(preview: TxPreview): bigint | null {
+  return addAmounts(preview.fee, preview.rent ?? ZERO_AMOUNT)
 }
 
 interface TotalAmountProps {
