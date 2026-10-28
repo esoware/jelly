@@ -2,17 +2,16 @@ use std::time::Duration;
 
 use jelly_vault::Argon2Params;
 
-/// Engine tunables. Every value has a shipped default that an application may override
-/// at construction.
+/// Engine tunables, with shipped defaults the app can override.
 #[derive(Debug, Clone)]
 pub struct EngineConfig {
     /// The budget one pass is handed as a [`jelly_core::Deadline`]. An adapter
     /// is expected to stop and report partial progress when it runs out.
     pub pass_budget: Duration,
-    /// How much longer than its budget a pass may take before the engine stops waiting.
-    /// It guards against an adapter that ignores its deadline and is not a second
-    /// budget. It should exceed [`jelly_core::Deadline::GRACE`], so an adapter that cuts
-    /// its own pass off reports that failure itself.
+    /// How much longer than its budget a pass may run before the engine stops waiting.
+    /// It only guards against an adapter that ignores its deadline. It should exceed
+    /// [`jelly_core::Deadline::GRACE`], so an adapter that cuts its own pass off reports
+    /// that failure itself.
     pub pass_grace: Duration,
     /// Capacity of the bounded event sink and of the broadcast the interface
     /// subscribes to. Zero is treated as one.
@@ -26,9 +25,8 @@ pub struct EngineConfig {
     pub retry_delay: Duration,
     /// Argon2id profile for vaults this engine creates.
     ///
-    /// Production keeps [`Argon2Params::RECOMMENDED`]. A test harness may drop
-    /// to [`Argon2Params::MINIMUM`], which is the accepted floor rather than a
-    /// weakened profile. The vault refuses anything below it.
+    /// Production uses [`Argon2Params::RECOMMENDED`]. Tests may drop to
+    /// [`Argon2Params::MINIMUM`], the lowest the vault accepts.
     pub vault_kdf: Argon2Params,
 }
 
@@ -47,21 +45,20 @@ impl Default for EngineConfig {
 }
 
 impl EngineConfig {
-    /// The wall clock a pass may occupy at most. Strictly longer than the budget
-    /// the adapter was handed, so an adapter that honours its deadline reports its own
-    /// failure rather than being cut off by the engine, provided `pass_grace` exceeds
-    /// `Deadline::GRACE`.
+    /// The most wall-clock time a pass may take. Always longer than the adapter's budget,
+    /// so an adapter that honors its deadline reports its own failure before the engine
+    /// cuts it off, as long as `pass_grace` exceeds `Deadline::GRACE`.
     pub(crate) fn pass_watchdog(&self) -> Duration {
         self.pass_budget.saturating_add(self.pass_grace.max(Duration::from_millis(1)))
     }
 
-    /// Never zero, because a bounded channel of zero cannot be built.
+    /// Never zero, because a bounded channel of zero can't be built.
     pub(crate) const fn channel_capacity(&self) -> usize {
         if self.event_capacity == 0 { 1 } else { self.event_capacity }
     }
 
-    /// How many write attempts to make, never zero. Named apart from the field
-    /// it clamps, so reaching for the raw value cannot be a typo.
+    /// How many write attempts to make, never zero. Named apart from the field it
+    /// clamps, so reaching for the raw value can't be a typo.
     pub(crate) const fn attempts(&self) -> u32 {
         if self.write_attempts == 0 { 1 } else { self.write_attempts }
     }

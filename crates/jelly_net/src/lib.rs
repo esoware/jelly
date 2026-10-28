@@ -1,22 +1,24 @@
 //! Shared HTTP, TLS, websocket, and proxy code.
 //!
-//! TLS uses compiled-in Mozilla roots and `ring`, not the platform root store. Electrum
-//! alone may fall back to trust-on-first-use pinning for self-signed servers.
+//! TLS runs on `ring` and trusts the compiled-in Mozilla roots, never the platform store.
+//! Electrum alone pins each server's key on first use, since most public servers are
+//! self-signed.
 //!
-//! All transports follow the same proxy setting. Direct mode ignores system proxies.
-//! Endpoint identity is checked before use, by a check each chain's crate supplies, so
-//! this crate knows no network's identity. Logs and errors use redacted endpoint labels
-//! because URLs can contain credentials.
+//! Every transport follows the one proxy setting, and direct mode ignores system proxies.
+//! Each chain's crate supplies the check for which network an endpoint serves, so this
+//! crate knows nothing about any network. Logs and errors name an endpoint only by its
+//! redacted label, because a URL can carry credentials.
 //!
-//! `Pool` orders endpoints by health and applies pacing and retry classification. Broadcast
-//! gets one attempt because a timeout does not prove rejection. Websocket notifications
-//! only wake sync, which re-fetches data before acting.
+//! `Pool` tries endpoints in health order under per-endpoint pacing, and the caller's
+//! classifier decides what each failure means. A broadcast gets one attempt, because a
+//! timeout doesn't prove the node rejected it. Websocket pushes only wake sync, which
+//! re-fetches before acting.
 
 #![deny(clippy::float_arithmetic)]
 mod connect;
 mod credentials;
 mod defaults;
-mod dialler;
+mod dialer;
 mod endpoint;
 mod error;
 mod health;
@@ -38,7 +40,7 @@ mod ws;
 
 pub use crate::connect::{Connect, IDENTITY_TIMEOUT, Identity, IdentityCheck, NoIdentity};
 pub use crate::defaults::{DefaultEndpoint, DefaultEndpoints};
-pub use crate::dialler::{Dialler, Socket};
+pub use crate::dialer::{Dialer, Socket};
 pub use crate::endpoint::{Endpoint, EndpointOrigin, PlaintextPolicy, UrlRejection};
 pub use crate::error::NetError;
 pub use crate::health::{HealthClass, HealthEntry, HealthTracker};

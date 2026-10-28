@@ -28,10 +28,7 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[],
     custom_fee: None,
-    // About $2.00 at the October 2026 price of $1.25. A payment costs a few thousandths of a
-    // Gram, and a jetton transfer adds the gas it attaches, 0.018 for USDT and 0.05 for
-    // every other jetton, most of which comes back. A fee estimate above 0.1 is refused, so
-    // no fee comes near it.
+    // About $2.
     high_fee: Amount::from_base_units(1_600_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
@@ -68,13 +65,12 @@ impl ChainEntry for TonEntry {
     }
 
     fn validate_address(&self, value: &str) -> Result<Address, AddressError> {
-        // The codec reads a `ton://transfer/` request itself, because the comment it can
-        // carry is often what the recipient credits the payment by.
+        // The codec accepts a `ton://transfer/` request too, because its comment is often how
+        // the recipient identifies the payment.
         CODEC.validate(value)
     }
 
-    /// The adapter reads the comment out of the request, so a send keeps the request
-    /// rather than the bare address.
+    /// Keeps the whole request, because the adapter reads its comment.
     fn payment_target(&self, value: &str) -> Result<String, AddressError> {
         CODEC.validate(value)?;
         Ok(value.trim().to_owned())

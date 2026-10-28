@@ -1,8 +1,7 @@
-//! The `CashAddr` format, a base32 payload of a version byte and a hash under a
-//! 40-bit BCH-code checksum that also covers the network prefix.
+//! `CashAddr`: a base32 version byte and hash under a 40-bit BCH-code checksum.
 //!
-//! The prefix is part of the checksum but optional in text, so text without one is
-//! read against the prefix the caller expects.
+//! The checksum also covers the network prefix. The prefix is optional in text, so text
+//! without one is checked against the prefix the caller expects.
 
 use std::iter;
 
@@ -27,7 +26,7 @@ pub(crate) struct CashAddr {
     pub(crate) hash: Vec<u8>,
 }
 
-/// Why text is not a `CashAddr`. Positions are byte offsets into the text as given.
+/// Positions are byte offsets into the text as given.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Error {
     InvalidCharacter { position: usize },
@@ -39,7 +38,7 @@ pub(crate) enum Error {
 
 impl CashAddr {
     /// `prefix` is lowercase and `address_type` is the four type bits. `None` for a hash
-    /// length the format has no size for.
+    /// length the format can't encode.
     pub(crate) fn new(prefix: &str, address_type: u8, hash: &[u8]) -> Option<Self> {
         let size = HASH_LENGTHS.iter().position(|&length| length == hash.len())?;
         let version = (address_type << 3) | u8::try_from(size).ok()?;
@@ -77,8 +76,7 @@ impl CashAddr {
         text
     }
 
-    /// Reads `text`, with or without its prefix. Without one, `default_prefix` is the
-    /// prefix the checksum is verified against.
+    /// When `text` has no prefix, the checksum is verified against `default_prefix`.
     pub(crate) fn decode(text: &str, default_prefix: &str) -> Result<Self, Error> {
         check_case(text)?;
         let (prefix, payload, offset) = match text.split_once(SEPARATOR) {
@@ -147,8 +145,8 @@ fn polymod(values: impl Iterator<Item = u8>) -> u64 {
 
 /// Regroups five-bit values into bytes.
 ///
-/// `fes_to_bytes` drops the bits left over unread, so they are checked here. They must be
-/// fewer than five and all zero, or the text was not written by an encoder.
+/// `fes_to_bytes` silently drops leftover bits, so they're checked here. An encoder
+/// leaves fewer than five, all zero.
 fn from_five_bits(values: &[Fe32]) -> Result<Vec<u8>, Error> {
     let bytes: Vec<u8> = values.iter().copied().fes_to_bytes().collect();
     let leftover_bits =
@@ -184,8 +182,6 @@ mod tests {
         hash: String,
     }
 
-    /// Every published vector, whatever its prefix, type, or hash size, decodes to
-    /// its payload, encodes back to itself, and is what its payload builds.
     #[test]
     fn the_published_vectors_round_trip() {
         let vectors: Vectors = serde_json::from_str(VECTORS_JSON).unwrap();

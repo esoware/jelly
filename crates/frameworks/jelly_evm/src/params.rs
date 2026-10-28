@@ -2,10 +2,9 @@ use std::time::Duration;
 
 use jelly_core::{AssetId, ChainId, TokenId};
 
-/// What one EIP-155 network varies by, declared once as a `const` by its chain crate.
+/// What one EIP-155 network varies by, declared as a `const` in its chain crate.
 ///
-/// Keys, addresses and the transaction format are identical on every network, and only
-/// these figures differ.
+/// Keys, addresses and the transaction format are the same on every network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EvmParams {
     pub chain: ChainId,
@@ -24,7 +23,7 @@ pub struct EvmParams {
     pub watch_floor: Duration,
     /// Blocks sampled by `eth_feeHistory`.
     pub fee_history_blocks: u64,
-    /// Floor for `maxPriorityFeePerGas`.
+    /// Floor for an automatic `maxPriorityFeePerGas`.
     pub min_priority_fee_wei: u128,
     /// Ceiling for an automatic `maxPriorityFeePerGas`, where a few senders'
     /// generous tips would otherwise lift the median far above what the network's
@@ -33,7 +32,7 @@ pub struct EvmParams {
     /// Confirmations after which a tracked send stops being watched, and at which a
     /// nonce some other transaction took counts as taken for good.
     pub confirmations_target: u32,
-    /// The widest `eth_getLogs` window, which a walk starts at.
+    /// The widest `eth_getLogs` window, and the width the adapter starts at.
     ///
     /// The window halves when an endpoint says the range is too wide and doubles
     /// back after a clean window. It never grows past this, because rediscovering
@@ -45,13 +44,13 @@ pub struct EvmParams {
     /// The node logs every native transfer, as Bor does from its system token
     /// contract, so the log walk finds native history without an indexer.
     pub has_native_transfer_logs: bool,
-    /// The OP Stack charges for posting a transaction's data to Ethereum apart
-    /// from its gas. Its `GasPriceOracle` predeploy quotes the charge and each
+    /// The OP Stack charges for posting a transaction's data to Ethereum on top
+    /// of its gas. Its `GasPriceOracle` predeploy quotes the charge and each
     /// receipt reports it as `l1Fee`. Arbitrum folds the same cost into gas, so it
-    /// has none.
+    /// doesn't set this.
     pub has_l1_data_fee: bool,
     /// The shipped history service answers without a key, as Routescan's does, so
-    /// it is read whether or not an Etherscan key is saved, and that key is never
+    /// it's read whether or not an Etherscan key is saved, and that key is never
     /// sent to it.
     pub has_keyless_history: bool,
 }

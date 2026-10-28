@@ -41,17 +41,17 @@ pub fn run() -> Result<(), AppError> {
     let ipc = surface::builder();
     #[expect(
         clippy::large_stack_frames,
-        reason = "the frame is Tauri's generated context, which grows with every command's permissions"
+        reason = "Tauri's generated context grows with every command's permissions"
     )]
     let context = tauri::generate_context!();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|handle, _args, _cwd| {
             if let Some(window) = handle.get_webview_window(window::MAIN_WINDOW) {
                 if let Err(error) = window.unminimize() {
-                    tracing::warn!(target: TARGET, %error, "the window could not be restored");
+                    tracing::warn!(target: TARGET, %error, "the window couldn't be restored");
                 }
                 if let Err(error) = window.set_focus() {
-                    tracing::warn!(target: TARGET, %error, "the window could not take focus");
+                    tracing::warn!(target: TARGET, %error, "the window couldn't take focus");
                 }
             }
         }))

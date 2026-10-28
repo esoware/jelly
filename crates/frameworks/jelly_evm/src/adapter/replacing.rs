@@ -22,12 +22,11 @@ struct Replacing {
 }
 
 impl EvmAdapter {
-    /// The nonce slot a replacement of `txid` reuses.
+    /// The sent original whose nonce slot a replacement of `txid` reuses.
     ///
-    /// Everything but the price comes from the signed original, so a speed-up
-    /// is the same payment at a higher price and a cancel is nothing paid to the
-    /// same sender, never a different payment. The price either must clear is
-    /// the slot's floor, which resolving the draft reads.
+    /// Everything but the price comes from the original, so a speed-up is the
+    /// same payment at a higher price and a cancel pays nothing to the sender
+    /// itself. `resolve` checks either price against the slot's floor.
     fn replacing(&self, txid: &TxId) -> Result<Replacing, EvmError> {
         let id = txid_of(txid)?;
         let not_ours = || EvmError::NotOurs { txid: txid.value().to_owned() };
@@ -56,18 +55,16 @@ impl EvmAdapter {
 }
 
 impl Replacing {
-    /// Pins the nonce to the slot, which makes a node treat the result as a
-    /// replacement, and an automatic half is the market's at the chosen level
-    /// raised to the slot's floor, as `MetaMask` and Rainbow price a speed-up.
-    ///
-    /// Only the price and the gas limit come from `fee`. The level and any pinned
-    /// half are the caller's, and the nonce and the calldata never are.
+    /// Pins the nonce to the original's slot, which makes a node treat the result
+    /// as a replacement. The level, any pinned half and the gas limit come from
+    /// `fee`. An automatic half is the market's price at that level raised to the
+    /// slot's floor, which is how `MetaMask` and Rainbow price a speed-up.
     fn price(&self, fee: &FeeSelection) -> Result<Overrides, EvmError> {
         Ok(Overrides { nonce: Some(self.nonce), ..Overrides::price_of(fee)? })
     }
 
     /// The original's asset, amount, recipient and calldata at a new price, so a
-    /// speed-up cannot become a different call.
+    /// speed-up can't become a different call.
     fn speed_up<'a>(&'a self, fee: &FeeSelection) -> Result<Draft<'a>, EvmError> {
         Ok(Draft {
             from_address_id: self.from_address_id,
@@ -79,9 +76,9 @@ impl Replacing {
         })
     }
 
-    /// Nothing of the native coin to the sender itself, with no calldata, in the
-    /// original's slot. Its gas is estimated rather than assumed, because on
-    /// Arbitrum even an empty transfer pays its L1 cost in gas.
+    /// Zero native coin to the sender itself, with no calldata, in the original's
+    /// slot. Gas is estimated, not assumed to be 21000, because on Arbitrum even
+    /// an empty transfer pays its L1 cost in gas.
     fn cancel<'a>(&'a self, native: AssetId, fee: &FeeSelection) -> Result<Draft<'a>, EvmError> {
         Ok(Draft {
             from_address_id: self.from_address_id,
@@ -109,10 +106,10 @@ impl FeeBump for EvmAdapter {
     }
 }
 
-/// A cancel takes the slot through the same quote, build, sign and broadcast as
-/// a speed-up, so it clears the same floor and is watched the same way. Once it
-/// lands at depth, the original is replaced by the rule that settles any send
-/// whose nonce another transaction took.
+/// A cancel goes through the same quote, build, sign and broadcast as a speed-up,
+/// so it clears the same floor and is watched the same way. Once it's deep
+/// enough, the original settles as replaced, like any send whose nonce another
+/// transaction took.
 #[async_trait]
 impl TxCancel for EvmAdapter {
     async fn quote_cancel(&self, txid: &TxId, fee: &FeeSelection) -> Result<FeeQuote, ChainError> {

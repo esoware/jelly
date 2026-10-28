@@ -9,11 +9,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::common::json;
 
-/// Round-trip only input types.
-#[expect(
-    clippy::expect_used,
-    reason = "a fixture helper outside a #[test] body is still test code and must fail loudly"
-)]
+#[expect(clippy::expect_used, reason = "test helper")]
 fn round_trip<T>(value: &T)
 where
     T: Serialize + DeserializeOwned + PartialEq + Debug,

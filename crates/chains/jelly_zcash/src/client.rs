@@ -20,9 +20,8 @@ use crate::zat::add;
 // Blockbook indexes a block shortly after its node has it, and a wider gap means the
 // indexer is still catching up.
 const MAX_INDEXER_LAG_BLOCKS: u32 = 10;
-// A payment is built on the endpoint's view of the chain, so that view must be recent.
-// Zcash aims for a block every 75 seconds, so an hour without one is rare, and the lead
-// allows for a local clock that runs behind the network.
+// Zcash targets a block every 75 seconds, so a tip over an hour old most likely means a
+// stale endpoint. The lead allows for a local clock that runs behind the network.
 const MAX_NODE_LAG_SECONDS: i64 = 3_600;
 const MAX_NODE_LEAD_SECONDS: i64 = 120;
 const MAX_HISTORY_PAGES: u32 = 10_000;
@@ -154,8 +153,8 @@ impl ZcashClient {
         Ok(Tip { height, hash, branch })
     }
 
-    /// The tip, refused unless the endpoint's block at it is the tip's and was mined
-    /// recently by `clock`.
+    /// The tip, refused unless the endpoint's block at that height has the tip's hash and
+    /// a recent timestamp by `clock`.
     pub(crate) async fn fresh_tip(&self, clock: &dyn Clock) -> Result<Tip, ZcashError> {
         let tip = self.tip().await?;
         let block = self.node.get(Route::Block(tip.height)).await?;
@@ -244,7 +243,7 @@ impl ZcashClient {
             {
                 return Err(ZcashError::Protocol);
             }
-            // A transaction that spends a coinbase output may have no transparent outputs, and
+            // A transaction that spends a coinbase output can't have transparent outputs, and
             // every payment built here has one. A pay-to-pubkey output needs an unlocking
             // script this adapter never signs.
             if is_key_hash && !bundle.is_coinbase() && value_zat > 0 {

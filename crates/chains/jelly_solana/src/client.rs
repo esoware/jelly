@@ -28,19 +28,14 @@ const TARGET: &str = "jelly::solana::client";
 /// A status query accepts at most this many signatures.
 const MAX_STATUS_SIGNATURES: usize = 256;
 
-/// The commitment balances, blockhashes and simulations are read at.
-///
-/// `confirmed` is a supermajority vote. Waiting for `finalized` adds about 13
-/// seconds to every number on screen, against a rollback never observed on
-/// mainnet.
+/// For everything but history. `finalized` would add about 13 seconds to every number
+/// on screen, and no `confirmed` block has ever been rolled back on mainnet.
 const READ_COMMITMENT: Commitment = Commitment::Confirmed;
 
-/// The commitment the signature walk and transaction fetches use. History is
-/// written to the database for good, so it is read only once rooted.
+/// History is written to the database for good, so it's read only once rooted.
 const HISTORY_COMMITMENT: Commitment = Commitment::Finalized;
 
-/// Base64 carries every account's owner, and the token account or mint state
-/// the build unpacks itself.
+/// Base64, so the build unpacks token account and mint state itself.
 const ACCOUNT_QUERY: AccountQuery =
     AccountQuery { encoding: Encoding::Base64, commitment: READ_COMMITMENT };
 
@@ -55,9 +50,9 @@ pub(crate) struct Tip {
 
 /// One signature's status as one endpoint saw it.
 ///
-/// An endpoint behind the tip has no status for a transaction in a block it has
-/// not reached, so its silence is judged against its own block height and never
-/// against another endpoint's.
+/// An endpoint behind the tip has no status for a transaction in a block it hasn't
+/// reached, so its silence is judged against its own block height and never against
+/// another endpoint's.
 #[derive(Debug, Clone)]
 pub(crate) struct StatusReading {
     pub(crate) status: Option<SignatureStatus>,
@@ -67,8 +62,8 @@ pub(crate) struct StatusReading {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TokenHolding {
     pub(crate) token: SolanaToken,
-    /// What the owner's associated account holds, which is the account a
-    /// transfer spends from, or `None` when the owner holds no account there.
+    /// What the owner's associated account holds, or `None` when the owner has no
+    /// account there.
     pub(crate) balance: Option<u64>,
 }
 
@@ -81,8 +76,8 @@ pub(crate) struct Holdings {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Balances {
     pub(crate) lamports: u64,
-    /// The associated token account only, because that is the account a transfer
-    /// names.
+    /// From the associated token account only, because that's the one a transfer
+    /// spends from.
     pub(crate) token_spendable: Option<u64>,
 }
 
@@ -90,11 +85,9 @@ pub(crate) struct Balances {
 pub(crate) struct BuildReads {
     pub(crate) blockhash: BlockhashInfo,
     pub(crate) balances: Balances,
-    /// The program that owns the recipient's own account, or `None` when it
-    /// does not exist.
-    ///
-    /// A wallet address is owned by the system program. Anything else is a
-    /// program account, and sending coin to one can lose it.
+    /// The program that owns the recipient's account, or `None` when it doesn't exist.
+    /// A wallet is owned by the system program, and SOL sent to any other program's
+    /// account can be lost.
     pub(crate) recipient_owner: Option<Pubkey>,
     /// Where a token transfer credits. `None` for a native transfer.
     pub(crate) destination: Option<Destination>,
@@ -107,8 +100,7 @@ pub(crate) struct OptionalReads {
     pub(crate) fee_samples: Vec<PrioritizationFee>,
 }
 
-/// Every JSON-RPC call the adapter makes, typed and decoded into this crate's
-/// own shapes.
+/// The adapter's JSON-RPC calls, decoded into this crate's own types.
 #[derive(Debug)]
 pub(crate) struct SolanaClient {
     node: Arc<dyn SolanaNode>,
@@ -133,12 +125,12 @@ impl SolanaClient {
         })
     }
 
-    /// One batch per group of owners rather than three calls per address.
+    /// One batch per group of owners, with each owner's balance and every associated
+    /// token account read together.
     ///
-    /// A token balance is read from the owner's associated account by address,
-    /// because public endpoints refuse `getTokenAccountsByOwner` without a key.
-    /// Answers are read at a fixed stride, so a group always holds whole owners
-    /// even when the configured batch size would split one.
+    /// Token accounts are read by address, because public endpoints refuse
+    /// `getTokenAccountsByOwner` without a key. Answers are read at a fixed stride, so a
+    /// group always holds whole owners, even past the configured batch size.
     pub(crate) async fn holdings(&self, owners: &[Pubkey]) -> Result<Vec<Holdings>, SolanaError> {
         let stride = SOLANA_TOKENS.len().saturating_add(1);
         let per_chunk = self.batch_size.checked_div(stride).unwrap_or(1).max(1);
@@ -163,12 +155,12 @@ impl SolanaClient {
         Ok(holdings)
     }
 
-    /// The blockhash, the payer's balances and the accounts the transfer would
-    /// credit, together, so the build can decide where tokens land.
+    /// The blockhash, the payer's balances, and the accounts the transfer could credit,
+    /// in one batch.
     ///
-    /// The recipient and its associated token account are both read, because the
-    /// recipient itself may be the token account to credit. A Token-2022 mint is
-    /// read and checked here, and an unsupported configuration refuses the build.
+    /// Both the recipient and its associated token account are read, because the
+    /// recipient may itself be the token account to credit. A Token-2022 mint is read
+    /// too, and an unsupported configuration refuses the build.
     pub(crate) async fn build_reads(&self, route: &Route) -> Result<BuildReads, SolanaError> {
         let query = CommitmentQuery { commitment: READ_COMMITMENT };
         let mut calls = vec![
@@ -223,12 +215,11 @@ impl SolanaClient {
         })
     }
 
-    /// Reads a build can do without, so failures degrade rather than propagate.
-    /// A missing rent figure becomes the compiled ceiling, and a missing fee
-    /// sample prices every level at its floor.
+    /// Reads a build can do without, so a failure only degrades the estimate. Without
+    /// them, rent falls back to the compiled ceiling and every level prices at its floor.
     ///
-    /// The fee sample is read even for a custom fee, because a quote prices every
-    /// level beside the fee the user chose.
+    /// Fee samples are read even for a custom fee, because a quote prices every level
+    /// beside the one the user chose.
     pub(crate) async fn optional_reads(&self, route: &Route) -> OptionalReads {
         let token_account_bytes = match route.leg {
             Leg::Native => None,
@@ -262,10 +253,8 @@ impl SolanaClient {
         }
     }
 
-    /// Simulated compute usage, or `None` when the simulated execution failed or
-    /// reported zero, which cannot be a real cost.
-    ///
-    /// The node replaces the blockhash and skips signature verification.
+    /// Compute units consumed in simulation, or `None` when the simulation failed or
+    /// reported zero. The node supplies the blockhash and skips signature checks.
     pub(crate) async fn simulate(
         &self,
         message: &VersionedMessage,
@@ -293,8 +282,8 @@ impl SolanaClient {
 
     /// One page of signatures per request, in request order.
     ///
-    /// The stop signature is applied locally because a provider can reject
-    /// `until` when it no longer indexes that transaction.
+    /// `until` is applied locally, because a provider can reject it once it no longer
+    /// indexes that transaction.
     pub(crate) async fn signature_pages(
         &self,
         requests: &[(&str, PageRequest)],
@@ -332,13 +321,13 @@ impl SolanaClient {
         Ok(pages)
     }
 
-    /// In request order. History is searched, because the recent-status cache
-    /// does not reach a send from minutes ago.
+    /// In request order. History is searched, because the recent-status cache doesn't
+    /// reach a send from minutes ago.
     ///
-    /// Each group shares one document with a block height read, so every status
-    /// arrives with the height of the endpoint that answered it. The height is
-    /// asked first, so an endpoint answering the two one at a time has already
-    /// reached any block the height counts by the time it is asked the status.
+    /// Each group shares a batch with a block height read, so every status arrives with
+    /// the height of the endpoint that answered it. The height is asked first, so an
+    /// endpoint that answers the two in turn has already reached that height when it
+    /// reports the status.
     pub(crate) async fn statuses(
         &self,
         signatures: &[&str],
@@ -396,14 +385,14 @@ impl SolanaClient {
         self.node.broadcast(&call).await
     }
 
-    /// One transaction, or `None` when the endpoint no longer keeps it.
+    /// One transaction, or `None` when the endpoint doesn't have it.
     ///
-    /// Each is its own request, because public endpoints refuse a batch that
-    /// carries more than one `getTransaction`.
+    /// Each is its own request, because public endpoints refuse a batch that carries
+    /// more than one `getTransaction`.
     ///
-    /// A v1 answer differs from a v0 one only by a `transactionConfig` member
-    /// this build does not read and by naming every account inline. Its
-    /// `meta.fee` already includes the priority fee.
+    /// A v1 answer differs from a v0 one only by a `transactionConfig` member this build
+    /// doesn't read and by naming every account inline. Its `meta.fee` already includes
+    /// the priority fee.
     pub(crate) async fn transaction(
         &self,
         signature: &str,
@@ -418,8 +407,8 @@ impl SolanaClient {
     }
 }
 
-/// The push registration that wakes sync whenever `account` changes. It names
-/// the account the way [`SolanaClient`] reads it.
+/// Wakes sync whenever `account` changes, with the encoding and commitment
+/// [`SolanaClient`] reads it at.
 pub(crate) fn account_subscription(account: &Pubkey) -> WsSubscription {
     WsSubscription::new("accountSubscribe", serde_json::json!([account.to_string(), ACCOUNT_QUERY]))
 }
@@ -443,8 +432,8 @@ fn holdings_at(answered: &Answered, owner: &Pubkey, base: usize) -> Result<Holdi
     Ok(Holdings { lamports: lamports.value, tokens })
 }
 
-/// A transaction with a placeholder signature, which is what a simulation with
-/// signature verification switched off needs.
+/// The message with a placeholder signature, which is enough for a simulation that
+/// skips signature checks.
 fn unsigned_wire(message: &VersionedMessage) -> Result<Vec<u8>, SolanaError> {
     let transaction =
         VersionedTransaction { signatures: vec![Signature::default()], message: message.clone() };
@@ -475,7 +464,7 @@ mod tests {
         let compiled = v0::Message::try_compile(&OWNER, &[instruction], &[], Hash::default())
             .expect("it compiles");
         let message = VersionedMessage::V0(compiled);
-        let bytes = unsigned_wire(&message).expect("it serialises");
+        let bytes = unsigned_wire(&message).expect("it serializes");
         // One signature in a shortvec, then the message.
         assert_eq!(bytes.first().copied(), Some(1));
         assert_eq!(bytes.get(1..65), Some(&[0u8; 64][..]));

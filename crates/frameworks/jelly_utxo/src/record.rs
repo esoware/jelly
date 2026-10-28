@@ -28,17 +28,16 @@ struct TxSummary {
     counterparty: Option<String>,
 }
 
-/// Classifies `tx` from the point of view of the address paying to `script_pubkey`,
-/// one of the wallet's `own_scripts`.
+/// Classifies `tx` for the watched address with `script_pubkey`, one of the wallet's
+/// `own_scripts`.
 ///
 /// Outputs are matched by the locking script behind any token prefix, so the coins
 /// an output carries along with its tokens are counted like any other.
 ///
-/// When several of the wallet's addresses pay into the transaction, each one's
-/// record is what it lost or gained, and the fee is charged to the address of its
-/// first input of the wallet's, so the records of one transaction add up to what
-/// left the wallet.
-fn summarise(
+/// When several of the wallet's addresses fund the transaction, each one's record is
+/// what it lost or gained, and the fee is charged to the owner of the wallet's first
+/// input, so the records of one transaction add up to what left the wallet.
+fn summarize(
     params: &UtxoParams,
     tx: &Transaction,
     script_pubkey: &Script,
@@ -99,7 +98,7 @@ fn summarise(
     let fee = (is_every_input_known && !tx.is_coinbase())
         .then(|| total_in.checked_sub(total_out))
         .flatten();
-    // A payment names the stranger it paid ahead of another address of the wallet's.
+    // A payment names the stranger it paid ahead of any other address of the wallet's.
     let paid = stranger.or(recipient);
 
     let (direction, amount, counterparty) = if ours_in.is_zero() {
@@ -126,13 +125,12 @@ fn summarise(
     Ok(TxSummary { direction, amount, fee, counterparty })
 }
 
-/// The transaction `tx` only pays the fee of, when it is a child of an unconfirmed
-/// parent that moves nothing but its fee.
+/// The parent `tx` pays for, when `tx` is a child that moves nothing but its own fee.
 ///
-/// That is a transaction of the wallet's alone, every input and its one output the
-/// wallet's, whose first input spends an output of a transaction still unconfirmed or
-/// confirmed in the same block as it, which only a child of an unconfirmed parent can
-/// be. A child built to speed up a send spends that send's change first.
+/// That's a transaction whose inputs and single output are all the wallet's, and
+/// whose first input spends an output of an unconfirmed transaction. A parent mined
+/// in the same block counts too, since only a child of an unconfirmed parent can share
+/// its block. A child built to speed up a send spends that send's change first.
 fn paid_for(
     params: &UtxoParams,
     tx: &Transaction,
@@ -158,15 +156,15 @@ fn paid_for(
     (parent_height.is_none() || parent_height == confirmed.map(|at| at.height)).then_some(parent)
 }
 
-/// The watched address a record is written from the point of view of, and what the
-/// pass knows of the rest of the wallet.
+/// The watched address a record is written for, and what the pass knows of the rest
+/// of the wallet.
 pub(crate) struct Viewpoint<'a> {
     pub(crate) address_id: i64,
     pub(crate) script_pubkey: &'a Script,
     /// Every watched address's script, `script_pubkey`'s among them.
     pub(crate) own_scripts: &'a [&'a Script],
     /// The confirming height of every transaction in a watched history, absent while
-    /// it is in the mempool.
+    /// it's in the mempool.
     pub(crate) heights: &'a HashMap<Txid, Option<u32>>,
 }
 
@@ -179,10 +177,10 @@ pub(crate) fn tx_record(
     tip_height: u32,
 ) -> Result<TxRecord, UtxoError> {
     let Viewpoint { address_id, script_pubkey, own_scripts, heights } = *viewpoint;
-    let summary = summarise(params, tx, script_pubkey, own_scripts, prevouts)?;
+    let summary = summarize(params, tx, script_pubkey, own_scripts, prevouts)?;
     let parent = paid_for(params, tx, own_scripts, prevouts, confirmed, heights);
-    // A speed-up moves nothing between parties, so none of its shares counts what it
-    // pays back as an amount, and its fee is all it costs.
+    // A speed-up moves nothing between parties, so its amount is zero and its fee is
+    // all it costs.
     let (direction, amount) = match parent {
         Some(_) => (TxDirection::SelfTransfer, Amount::ZERO),
         None => (summary.direction, summary.amount),
@@ -252,7 +250,7 @@ mod tests {
     ) -> TxSummary {
         let scripts: Vec<ScriptBuf> = own.iter().map(|key| key.script_pubkey()).collect();
         let scripts: Vec<&Script> = scripts.iter().map(ScriptBuf::as_script).collect();
-        summarise(params, tx, key.script_pubkey().as_script(), &scripts, prevouts).unwrap()
+        summarize(params, tx, key.script_pubkey().as_script(), &scripts, prevouts).unwrap()
     }
 
     /// Two of our addresses pay one stranger, with change to the first. Each
@@ -347,7 +345,7 @@ mod tests {
         let own = [ours.script_pubkey()];
         let own: Vec<&Script> = own.iter().map(ScriptBuf::as_script).collect();
         let summary =
-            summarise(&BITCOIN_CASH, &payment, ours.script_pubkey().as_script(), &own, &prevouts)
+            summarize(&BITCOIN_CASH, &payment, ours.script_pubkey().as_script(), &own, &prevouts)
                 .unwrap();
         assert_eq!(summary.direction, TxDirection::Incoming);
         assert_eq!(summary.amount, units(800));
@@ -359,7 +357,7 @@ mod tests {
         let spend = tx_spending(&payment, 0, &[(with_tokens(&theirs.script_pubkey()), 700)]);
         let prevouts = PrevoutMap::index([&payment]);
         let summary =
-            summarise(&BITCOIN_CASH, &spend, ours.script_pubkey().as_script(), &own, &prevouts)
+            summarize(&BITCOIN_CASH, &spend, ours.script_pubkey().as_script(), &own, &prevouts)
                 .unwrap();
         assert_eq!(summary.direction, TxDirection::Outgoing);
         assert_eq!(summary.amount, units(700));
@@ -367,7 +365,7 @@ mod tests {
 
         // On a chain without tokens the same bytes pay no address of ours.
         let on_bitcoin =
-            summarise(&BITCOIN, &payment, ours.script_pubkey().as_script(), &own, &prevouts)
+            summarize(&BITCOIN, &payment, ours.script_pubkey().as_script(), &own, &prevouts)
                 .unwrap();
         assert_eq!(on_bitcoin.amount, Amount::ZERO);
     }

@@ -8,22 +8,20 @@ pub(crate) const NATIVE: AssetId = AssetId::Native(CHAIN);
 /// endpoints.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SolanaConfig {
-    /// Signature page size. The protocol caps it at 1000.
+    /// Signatures per page. The protocol caps it at 1000.
     pub signature_page_size: u32,
-    /// Signature pages one pass may pull per address, for the forward walk and
-    /// for the backfill each.
+    /// Signature pages one pass may pull for each walked account, for its forward walk
+    /// and its backfill separately.
     ///
-    /// Every signature a pass walks past has its transaction fetched in the same
-    /// pass, so a cursor never advances over history that was not turned into
-    /// records.
+    /// A pass fetches each walked signature's transaction, one request apiece, before
+    /// the cursor moves past it, so this bounds the work a pass takes on.
     pub page_budget: u32,
-    /// Calls per variable-size batch, kept modest because providers impose
-    /// undocumented limits. A balance batch never splits one owner's reads,
-    /// and every fixed-size batch, such as the tip and the build reads,
-    /// uses at most six calls.
+    /// Calls per variable-size batch, kept modest because providers have undocumented
+    /// limits. A balance batch never splits one owner's reads, and fixed-size batches
+    /// such as the tip and the build reads use at most six calls.
     pub max_batch: u32,
-    /// The most a fee level's priority fee may cost for one transaction. A custom
-    /// fee is not clamped, because it is what the user asked for.
+    /// The most a fee level's priority fee may cost for one transaction. A custom fee
+    /// isn't held to this, because the user chose it.
     pub max_level_priority_fee_lamports: u64,
 }
 

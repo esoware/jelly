@@ -25,11 +25,11 @@ use crate::{WalletEngine, derive};
 /// The typed confirmation an irreversible key deletion requires.
 const DELETE_KEY_CONFIRMATION: &str = "DELETE";
 
-/// How many times an index allocation re-reads and re-derives after losing a
-/// race for the same address.
+/// How many times an index allocation tries, re-reading and re-deriving after each race
+/// it loses for the same address.
 const ALLOCATION_ATTEMPTS: u32 = 8;
 
-/// How long adding an address waits for the chain to say which other flavours of its
+/// How long adding an address waits for the chain to say which other flavors of its
 /// key are in use, before it returns without them.
 const SCRIPT_PROBE_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -62,8 +62,8 @@ impl From<AddressRow> for AddressRecord {
 }
 
 impl WalletEngine {
-    /// Every address of the open wallet, each re-derived and compared before it is
-    /// returned, because a row is a claim and its key is the proof.
+    /// Every address of the open wallet, each checked against its re-derived key before
+    /// it's returned.
     pub async fn list_addresses(
         &self,
         chain: Option<ChainId>,
@@ -75,7 +75,7 @@ impl WalletEngine {
     }
 
     /// The lowest free index of the chain's default family, or of the requested script
-    /// flavour's family, so a removed address is the next one handed out again.
+    /// flavor's family, so a removed address is the next one handed out again.
     pub async fn add_address(
         &self,
         chain: ChainId,
@@ -89,14 +89,14 @@ impl WalletEngine {
         }
         let family = family_for(spec, script)?;
         // TON's wallet versions share one path family, so an index is taken only by an
-        // address of the same flavour.
-        let flavour = spec.resolve_script(None, script)?;
+        // address of the same flavor.
+        let flavor = spec.resolve_script(None, script)?;
         let mut attempt: u32 = 0;
         loop {
             attempt = attempt.saturating_add(1);
             let rows = self.inner.store.list_addresses(session.wallet_id(), Some(chain)).await?;
             let used_paths =
-                rows.iter().filter(|row| row.script_kind == flavour).filter_map(|row| {
+                rows.iter().filter(|row| row.script_kind == flavor).filter_map(|row| {
                     match row.source {
                         KeySource::Derived { ref path } => Some(path),
                         KeySource::Imported { .. } | KeySource::Subaddress { .. } => None,
@@ -146,8 +146,8 @@ impl WalletEngine {
     ) -> Result<AddressRecord, CoreError> {
         let entry = session.entry(chain);
         let account = session.account_key(chain)?;
-        // A subaddress chain has no script flavours, so a requested one is refused as it
-        // would be on a path.
+        // A subaddress chain has no script flavors, so this refuses a requested one the
+        // same way a path would.
         entry.spec().resolve_script(None, script)?;
         let major = session.account();
         let mut attempt: u32 = 0;
@@ -193,8 +193,8 @@ impl WalletEngine {
     /// Imports a private key in any supported encoding. `key_password` is the
     /// keystore-v3 password and is ignored by every other format.
     ///
-    /// With no `script`, the address type the key names, as Electrum's `p2wpkh:` prefix
-    /// does, wins over the chain default, the way a path's purpose does.
+    /// With no `script`, an address type the key names, like Electrum's `p2wpkh:` prefix,
+    /// wins over the chain default, as a path's purpose does.
     pub async fn import_private_key(
         &self,
         chain: ChainId,
@@ -208,8 +208,7 @@ impl WalletEngine {
         let password =
             key_password.map(|password| SecretText::new(password.expose_secret().to_owned()));
         let table = self.inner.table;
-        // A keystore file's KDF can run for a second, which does not belong on a runtime
-        // worker.
+        // A keystore file's KDF can run for a second, too long for a runtime worker.
         let imported = blocking(move || {
             input.with_str(|input| import_key(table, chain, input, password.as_ref()))
         })
@@ -232,9 +231,9 @@ impl WalletEngine {
         Ok(AddressRecord::from(row))
     }
 
-    /// Removes an address the seed derives, with its balances and history. The seed
-    /// still holds its key, so adding the address again brings it back. So does a
-    /// standalone key that another address still holds.
+    /// Removes an address with its balances and history, as long as its key lives on in
+    /// the seed or in another address holding the same standalone key. Adding the address
+    /// again brings it back.
     pub async fn delete_address(&self, address_id: i64) -> Result<(), CoreError> {
         let session = self.require_session().await?;
         let row = self.require_row(session.wallet_id(), address_id).await?;
@@ -262,8 +261,8 @@ impl WalletEngine {
         };
         let entry = EntryId::parse(vault_entry)?;
         session.verify_password(password).await?;
-        // The rows go first, so a failed vault write leaves an entry nothing reads rather
-        // than a row whose key is gone.
+        // The rows go first, so a failed vault write leaves an entry nothing reads instead
+        // of a row whose key is gone.
         for holder in self.key_holders(session.wallet_id(), &row).await? {
             self.inner.store.delete_address(holder.id).await?;
         }
@@ -295,8 +294,7 @@ impl WalletEngine {
         Ok(Some(session.keychain().xpub_at(&account)?))
     }
 
-    /// Every row of the wallet whose key is the standalone key of `row`, `row` among
-    /// them.
+    /// Every row of the wallet sharing `row`'s standalone key, `row` included.
     async fn key_holders(
         &self,
         wallet_id: i64,
@@ -306,10 +304,10 @@ impl WalletEngine {
         Ok(rows.into_iter().filter(|other| other.source == row.source).collect())
     }
 
-    /// Adds every other script flavour of `added`'s key that the chain shows in use,
-    /// so a key another wallet used under another flavour shows its funds. It asks once,
-    /// when the key enters, and only a chain whose adapter probes for flavours is asked.
-    /// A failure is logged and never fails the address that was added.
+    /// Adds every other script flavor of `added`'s key that the chain shows in use, so
+    /// funds another wallet put under another flavor show up. It asks once, when the key
+    /// is added, and only on a chain whose adapter can probe. A failure is logged and
+    /// never fails the address that was added.
     async fn adopt_used_scripts(&self, session: &Session, added: &AddressRecord) {
         let adopting = timeout(SCRIPT_PROBE_TIMEOUT, self.try_adopt_used_scripts(session, added));
         match adopting.await {
@@ -318,12 +316,12 @@ impl WalletEngine {
                 target: "jelly::engine::address",
                 chain = added.chain.as_str(),
                 %error,
-                "could not check the other script flavours of a new key"
+                "could not check the other script flavors of a new key"
             ),
             Err(_) => tracing::warn!(
                 target: "jelly::engine::address",
                 chain = added.chain.as_str(),
-                "the check of a new key's other script flavours ran out of time"
+                "the check of a new key's other script flavors ran out of time"
             ),
         }
     }
@@ -470,8 +468,8 @@ impl WalletEngine {
         Ok(AddressRecord::from(row))
     }
 
-    /// Widens the scanner's window so a new subaddress is recognised without a rescan.
-    /// Best effort, because the chain may not be built yet.
+    /// Widens the scanner's window so a new subaddress is recognized without a rescan.
+    /// Best effort, because the chain's adapter may not be built yet.
     async fn register_subaddress(&self, chain: ChainId, major: u32, minor: u32) {
         let Ok(adapter) = self.adapter(chain) else {
             return;
@@ -489,11 +487,10 @@ impl WalletEngine {
     }
 }
 
-/// Reads a key through the chain's entry, naming a pasted seed phrase for what it is.
+/// Reads a key through the chain's entry, and reports a pasted seed phrase as one.
 ///
-/// The entries read no BIP-39, so the phrase check is here, after the entry, because
-/// a TON seed is spelled in BIP-39's words and is also a valid phrase about once in
-/// 256 tries.
+/// The phrase check only applies when the entry refuses the input, because a TON seed
+/// uses BIP-39's words and passes as a valid BIP-39 phrase about once in 256 tries.
 fn import_key(
     table: &ChainTable,
     chain: ChainId,
@@ -509,8 +506,8 @@ fn import_key(
 
 /// Chooses the derivation family from the requested script type.
 ///
-/// Encoding one path in another flavour would create addresses other wallets never scan
-/// during recovery. The shared script resolver rejects types the chain does not support.
+/// Encoding one path in another flavor would create addresses other wallets never scan
+/// during recovery. `resolve_script` refuses a type the chain doesn't support.
 fn family_for(spec: &ChainSpec, script: Option<ScriptKind>) -> Result<PathTemplate, CoreError> {
     let Some(script) = script else {
         return Ok(PathTemplate::parse(spec.default_path)?);

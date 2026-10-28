@@ -22,8 +22,7 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::Rate),
-    // About $2.01 at the October 2026 price of $591. A payment spending one output costs
-    // about 0.00003 XMR at the unimportant tier, 0.00012 at normal and 0.0005 at elevated.
+    // About $2.
     high_fee: Amount::from_base_units(3_400_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
@@ -59,8 +58,8 @@ impl ChainEntry for MoneroEntry {
         include_str!("../endpoints.json")
     }
 
-    /// A `tx_payment_id` is how the recipient matches the payment, and Jelly cannot
-    /// send one.
+    /// Refuses a payment URI with a `tx_payment_id`, which the recipient needs to match
+    /// the payment and Jelly can't send.
     fn validate_address(&self, value: &str) -> Result<Address, AddressError> {
         let Some(uri) = payment_uri(SPEC.uri_scheme, value) else {
             return CODEC.validate(value.trim());

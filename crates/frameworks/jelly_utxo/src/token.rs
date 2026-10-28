@@ -1,10 +1,9 @@
-//! The `CashTokens` prefix Bitcoin Cash writes in front of an output's locking
-//! script, which an output's script field carries whole.
+//! The `CashTokens` prefix Bitcoin Cash puts at the start of an output's script field,
+//! before the locking script.
 //!
-//! This build holds no tokens, so a prefix is only stepped over, to find the script
-//! the output pays.
+//! The wallet doesn't manage tokens, so it only steps over the prefix to find the
+//! locking script.
 
-/// `PREFIX_TOKEN`, the byte that opens a token prefix.
 const PREFIX_TOKEN: u8 = 0xef;
 
 const CATEGORY_BYTES: usize = 32;
@@ -59,8 +58,8 @@ mod tests {
         valid: Vec<String>,
     }
 
-    /// The `CashTokens` specification's valid prefix encodings, each followed here
-    /// by a P2PKH locking script, which every one of them must step over exactly.
+    /// The `CashTokens` spec's valid prefix encodings, each followed by a P2PKH
+    /// locking script that it must step over exactly.
     #[test]
     fn every_published_prefix_is_stepped_over_to_the_script_behind_it() {
         let file: File = serde_json::from_str(VECTORS).unwrap();
@@ -83,8 +82,8 @@ mod tests {
         locking_script: String,
     }
 
-    /// The token output of a transaction Bitcoin Cash mined, decoded the way the
-    /// sync pass decodes every transaction.
+    /// A token output from a mined Bitcoin Cash transaction, decoded the way a sync
+    /// pass decodes transactions.
     #[test]
     fn a_mainnet_token_output_steps_over_to_its_p2pkh_script() {
         let file: Mainnet = serde_json::from_str(MAINNET).unwrap();

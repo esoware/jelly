@@ -15,7 +15,7 @@ use crate::common::{CHAIN, OWNER, RECIPIENT};
 const SECRET: &str = "2d8f68944bdbfbc0769542fba8fc2d2a3de67393334471624364c7006da2aa54";
 
 /// BIP-84 publishes the WIF for `m/84'/0'/0'/0/0` of the all-abandon phrase. Zcash kept
-/// Bitcoin's version byte, so it is a Zcash key too.
+/// Bitcoin's version byte, so it's a Zcash key too.
 const BIP84_WIF: &str = "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d";
 
 const P2PKH: Option<ScriptKind> = Some(ScriptKind::P2pkh);
@@ -183,8 +183,8 @@ fn an_uncompressed_wif_is_refused_and_another_networks_wif_is_not_read() {
     let uncompressed = uncompressed_wif(&secret, 0x80);
     assert!(matches!(ENTRY.import_key(&uncompressed, None), Err(KeyError::UncompressedKey)));
     assert_eq!(ENTRY.recognize_key(&uncompressed), Some("Bitcoin WIF key"));
-    // Litecoin's, Dogecoin's, and Electrum 3.0's segwit version bytes name another
-    // network's key, which the table attributes to the chain that reads it.
+    // Litecoin's, Dogecoin's, and Electrum 3.0's segwit version bytes mark another chain's
+    // key, so Zcash leaves it for that chain to recognize.
     for version in [0xb0, 0x9e, 0x81, 0x82] {
         let wif = wif_encode(&secret, version);
         assert!(

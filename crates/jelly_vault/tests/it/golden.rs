@@ -1,17 +1,16 @@
 //! A committed vault file that this build must still open.
 //!
 //! Every other test in this crate writes and reads with the same code, so none of them
-//! can see drift. This fixture only decrypts if the Argon2id parameter encoding, the
-//! HKDF salt, keying material, and info strings, the key commitment, the AEAD
-//! associated data, the canonical header MAC message, and the payload encoding are all
-//! unchanged since it was recorded. Regenerating it instead of fixing the drift defeats
-//! the point.
+//! can catch format drift. This file only opens if the Argon2id parameter encoding, the
+//! HKDF salt, keying material, and info strings, the key commitment, the AEAD associated
+//! data, the canonical header MAC message, and the payload encoding are all unchanged
+//! since it was recorded. Don't regenerate it to make drift go away.
 //!
-//! It is written at [`Argon2Params::MINIMUM`] so the suite stays fast. The parameters
-//! live in the header and exercise the same code at any value, and `src/kdf.rs` pins
-//! the shipped baseline.
+//! It's written at [`Argon2Params::MINIMUM`] to keep the suite fast. The parameters live
+//! in the header, so any value runs the same code, and `src/kdf.rs` pins the shipped
+//! baseline.
 //!
-//! Record a new fixture after a deliberate format change with this command.
+//! After a deliberate format change, record a new fixture with this command.
 //!
 //! ```text
 //! cargo test -p jelly_vault --test it regenerate_golden -- --ignored
@@ -36,8 +35,7 @@ use crate::common::{blob, ids_of_kind};
 const WALLET_ID: &str = "jelly-golden-wallet";
 const PASSWORD: &str = "correct horse battery staple";
 
-/// What the fixture holds, by kind. Ids are random at write time, so the fixture is
-/// addressed by kind rather than by id.
+/// What the fixture holds. Ids are random at write time, so entries are looked up by kind.
 const CONTENTS: [(BlobKind, BlobContent, u8, usize); 5] = [
     (BlobKind::SeedEntropy, BlobContent::SeedEntropy, 0x11, 32),
     (BlobKind::PrivateKey, BlobContent::PrivateKey(KeyKind::Secp256k1), 0x22, 32),
@@ -69,8 +67,6 @@ fn staged(wallet_id: &str) -> Result<TempVault, Box<dyn Error>> {
     Ok(fixture)
 }
 
-/// Every other test here reads what this writes, so recording is a separate,
-/// deliberate run.
 #[test]
 #[ignore = "records a new fixture; run with --ignored after a deliberate format change"]
 fn regenerate_golden() {
@@ -148,8 +144,8 @@ fn the_committed_vault_needs_both_of_its_factors() {
     assert!(matches!(fixture.vault().unlock(&password(PASSWORD)), Err(VaultError::Corrupt { .. })));
 }
 
-/// A rewrite under the same factors produces a different file that also opens, so the
-/// fixture is not frozen by something the writer no longer does.
+/// Rewriting the fixture under the same factors gives a different file that still opens,
+/// so today's writer and the recorded format agree.
 #[test]
 fn the_committed_vault_can_be_rewritten_and_reopened() {
     let fixture = staged(WALLET_ID).unwrap();

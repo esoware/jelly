@@ -1,6 +1,3 @@
-//! The chain adapter over `jelly_electrum` for transport and the engine for
-//! transactions. Each chain enters as its [`UtxoParams`] table.
-
 mod bump;
 mod child_paying;
 mod client;
@@ -41,8 +38,7 @@ use crate::params::UtxoParams;
 
 const TARGET: &str = "jelly::utxo::adapter";
 
-/// Short enough that a recovered endpoint is re-registered well inside one poll
-/// interval, long enough that a dead one is not hammered.
+/// Resubscribes well within a poll interval without hammering a dead server.
 const WATCH_RETRY: Duration = Duration::from_secs(5);
 
 /// One UTXO chain over a rotating pool of Electrum servers.
@@ -55,7 +51,7 @@ pub struct UtxoAdapter {
     state: RwLock<ChainState>,
     claims: OutpointClaims,
     fee_cache: FeeCache,
-    /// Held for a whole pass, which is what makes `sync` single-flight.
+    /// Held through a whole pass or watch-set change, so `sync` is single-flight.
     pass: Mutex<()>,
     is_blocked: AtomicBool,
 }
@@ -72,11 +68,10 @@ impl fmt::Debug for UtxoAdapter {
 }
 
 impl UtxoAdapter {
-    /// `fee_api` is the fee service a quote prefers over the Electrum server's own
-    /// estimator. Without one the quote falls back to what the server itself can say.
+    /// A quote prefers `fee_api`, when there is one, over the Electrum server's own
+    /// estimates.
     ///
-    /// A pool on the wrong chain or with no endpoints is a configuration error, so
-    /// it fails here rather than at runtime.
+    /// Fails on a pool for another chain or one with no endpoints.
     pub fn new(
         params: &UtxoParams,
         pool: Arc<Pool<ElectrumClient>>,
@@ -106,7 +101,6 @@ impl UtxoAdapter {
         })
     }
 
-    /// The claims built-but-unbroadcast transactions hold on their coins.
     #[cfg(feature = "test-util")]
     pub(crate) const fn claims(&self) -> &OutpointClaims {
         &self.claims
@@ -123,17 +117,16 @@ impl UtxoAdapter {
         Ok(())
     }
 
-    /// Stored state that reads back unreadable blocks every later operation, since
-    /// its pending bookkeeping cannot be rebuilt from history.
+    /// Unreadable stored state blocks every later operation, since its pending
+    /// bookkeeping can't be rebuilt from history.
     fn block_if_unreadable(&self, error: &UtxoError) {
         if matches!(error, UtxoError::UnreadableState) {
             self.is_blocked.store(true, Ordering::Release);
         }
     }
 
-    /// Replaces the watch set with `addresses`, after reading the stored cursors of
-    /// the ones it did not hold, so a set with one that does not read back is refused
-    /// whole.
+    /// Replaces the watch set with `addresses`. The stored cursors of newly watched
+    /// addresses are read first, and one that doesn't decode refuses the whole set.
     async fn admit(&self, addresses: &[WatchedAddress]) -> Result<(), UtxoError> {
         self.ensure_readable()?;
         let resolved = watched::resolve(&self.params, addresses)?;
@@ -175,14 +168,12 @@ impl UtxoAdapter {
         }
     }
 
-    /// The spendable sets of `sources`, pooled, and the tip, read under one guard
-    /// so a build cannot price against one pass's coins and another's height.
+    /// The spendable coins of `sources` and the tip, read under one lock so a build
+    /// can't mix one pass's coins with another pass's height.
     ///
-    /// Until a pass this session has reported on an address, its coins come from
-    /// its stored cursor and the tip is left for the plan to fetch, so a send
-    /// right after unlock is not priced against an empty wallet. Their spentness is
-    /// as stale as the pass that stored the cursor, which is the same claim a pass
-    /// makes.
+    /// An address no pass has reported on this session takes its coins from its
+    /// stored cursor, and the tip is left for the plan to fetch, so a send right after
+    /// unlock isn't priced against an empty wallet.
     async fn snapshot(&self, sources: &[Watched]) -> Result<(Vec<Utxo>, Option<u32>), UtxoError> {
         let (mut coins, unreported, tip) = {
             let state = self.state.read();
@@ -235,8 +226,7 @@ impl UtxoAdapter {
         let rate = fee::rate_of(&request.fee, &fee_context)?;
         let plan = self.plan(sources, request).await?;
         let built = send::build(&fee_context, &plan, rate)?;
-        // The claim keeps a second build from selecting one of these coins and
-        // producing two transactions that cannot both confirm.
+        // Keeps a second build from spending these coins in a conflicting transaction.
         self.claims.claim(built.payload.unsigned_txid(), &built.payload.outpoints())?;
         send::unsigned(&built, &fee_context, 0)
     }
@@ -263,11 +253,11 @@ impl ChainAdapter for UtxoAdapter {
         self.admit(addresses).await.map_err(|error| error.into_chain_error(self.params.chain))
     }
 
-    /// Single-flight per instance, so a second call waits for the running pass
-    /// rather than starting another.
+    /// Single-flight: a second call waits for the running pass instead of starting
+    /// another.
     ///
-    /// The pass is bounded by the engine's `deadline`. Nothing is persisted or
-    /// published after it runs out, and a cut pass keeps the previous state.
+    /// The pass stops at `deadline`. A cut pass persists and publishes nothing more,
+    /// and the in-memory state stays as the last full pass left it.
     async fn sync(
         &self,
         deadline: Deadline,
@@ -301,11 +291,10 @@ impl ChainAdapter for UtxoAdapter {
         Ok(outcome.progress)
     }
 
-    /// Returns on an Electrum notification, whose content is never trusted.
-    /// Listener failures back off here while polling remains the fallback.
+    /// Returns on any Electrum notification without trusting its content. A failed
+    /// listener backs off and retries, and polling covers the gap.
     ///
-    /// The pool already logs a walk that found no endpoint, so only a failed
-    /// subscription is logged here.
+    /// Only a failed subscription is logged here, since the pool logs its own failures.
     async fn wait_activity(&self) {
         loop {
             let scripts: Vec<bitcoin::ScriptBuf> =
@@ -339,8 +328,8 @@ impl ChainAdapter for UtxoAdapter {
 
     /// One attempt against one endpoint.
     ///
-    /// There is nothing to record first, because the coins were claimed when the
-    /// transaction was built and stay claimed until a pass sees them spent.
+    /// Nothing needs recording first. The build claimed the coins, and they stay
+    /// claimed until a pass sees them spent.
     async fn broadcast(&self, tx: &SignedTx) -> Result<TxId, ChainError> {
         self.deliver(tx).await.map_err(|error| error.into_chain_error(self.params.chain))
     }
@@ -356,10 +345,8 @@ impl ChainAdapter for UtxoAdapter {
 
 #[async_trait]
 impl PendingTracker for UtxoAdapter {
-    /// Releases the claim of a transaction that will not be broadcast. A broadcast
-    /// one keeps its claim until a pass sees its coins spent, so a discarded
-    /// replacement hands the coins it took over back to the transaction it would
-    /// have replaced.
+    /// Releases the claim of a transaction that won't be broadcast. A discarded
+    /// replacement hands its coins back to the transaction it would have replaced.
     async fn discard(&self, tx: &UnsignedTx) -> Result<(), ChainError> {
         let payload = send::payload_of(&self.params, tx)
             .map_err(|error| error.into_chain_error(self.params.chain))?;

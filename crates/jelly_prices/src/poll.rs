@@ -54,19 +54,18 @@ pub(crate) struct PassReport {
 }
 
 impl PassReport {
-    /// True when the pass failed outright, or got an answer that priced nothing,
-    /// which backs the feed off. A provider that answers about the wrong pair is
-    /// as much an outage as one that does not answer.
+    /// True when the pass failed outright or got an answer that priced nothing, either of
+    /// which backs the feed off. A provider that answers about the wrong pair is as much
+    /// an outage as one that doesn't answer.
     ///
-    /// A pass held back by a rest, or with no ticker configured, is not a
-    /// failure.
+    /// A pass held back by a rest, or with no ticker configured, isn't a failure.
     pub(crate) const fn is_failure(&self) -> bool {
         self.quoted == 0 && (matches!(self.outcome, PassOutcome::Failed) || self.rejected > 0)
     }
 }
 
-/// Fills a [`PriceFeed`] and owns all polling state without a lock, because
-/// there is exactly one poller and it belongs to one task.
+/// Fills a [`PriceFeed`] and owns all polling state without a lock, because there's
+/// exactly one poller and it belongs to one task.
 #[derive(Debug)]
 pub struct PricePoller {
     feed: PriceFeed,
@@ -75,7 +74,7 @@ pub struct PricePoller {
     fetch: Arc<dyn Fetch>,
     clock: Arc<dyn Clock>,
     schedule: Schedule,
-    /// Before this the provider must not be touched.
+    /// The provider isn't asked again before this.
     resting_until: Deadline,
 }
 
@@ -109,7 +108,7 @@ impl PricePoller {
                         (PassOutcome::Answered, quotes, None)
                     }
                     Err(error) => {
-                        // Honours a `Retry-After`, so the provider is not asked again
+                        // Honors a `Retry-After`, so the provider isn't asked again
                         // until it said it would be ready, however often the feed polls.
                         let retry_after = error.retry_after(now_unix_secs);
                         if let Some(wait) = retry_after {
@@ -156,9 +155,9 @@ impl PricePoller {
             let report = match self.poll_once().await {
                 Ok(report) => report,
                 Err(error) => {
-                    tracing::warn!(target: TARGET, %error, "the price pass did not run");
-                    // A pass that never reached a request is still a failed one,
-                    // so the schedule backs off rather than retrying at cadence.
+                    tracing::warn!(target: TARGET, %error, "the price pass didn't run");
+                    // A pass that never reached its request still counts as failed, so
+                    // the schedule backs off.
                     PassReport { outcome: PassOutcome::Failed, ..PassReport::default() }
                 }
             };
@@ -203,7 +202,7 @@ fn log_rejections(quotes: &Quotes) {
             target: TARGET,
             ticker = rejected.ticker.as_str(),
             reason = rejected.reason.as_str(),
-            "a quote was not usable"
+            "a quote wasn't usable"
         );
     }
     for unrated in &quotes.unrated {
@@ -211,7 +210,7 @@ fn log_rejections(quotes: &Quotes) {
             target: TARGET,
             currency = unrated.currency.as_str(),
             reason = unrated.reason.as_str(),
-            "a rate was not usable"
+            "a rate wasn't usable"
         );
     }
 }
@@ -243,8 +242,8 @@ fn log_pass(report: &PassReport) {
 
 /// Sleeps out the cadence, returning early only when the feed is switched off.
 ///
-/// A repeated `true` does not shorten the wait. Switching off ends it, so
-/// turning prices back on polls at once. False once the sender is gone.
+/// A repeated `true` doesn't shorten the wait. Switching off ends it, so turning prices
+/// back on polls at once. False once the sender is gone.
 async fn wait_out(delay: Duration, enabled: &mut watch::Receiver<bool>) -> bool {
     tokio::select! {
         () = sleep(delay) => true,
@@ -435,7 +434,7 @@ mod tests {
         let second = harness.poller.poll_once().await.expect("the clock is sane");
         assert_eq!(second.outcome, PassOutcome::Resting);
         assert!(!second.is_failure(), "waiting is not failing");
-        assert_eq!(harness.fetch.count(), 0, "the wait was not honoured");
+        assert_eq!(harness.fetch.count(), 0, "the wait was not honored");
 
         harness.clock.advance(Duration::from_secs(600));
         let third = harness.poller.poll_once().await.expect("the clock is sane");
@@ -634,7 +633,7 @@ mod tests {
         for _ in 0..8u8 {
             yield_now().await;
         }
-        assert_eq!(fetch.count(), 2, "the provider's wait was not honoured");
+        assert_eq!(fetch.count(), 2, "the provider's wait was not honored");
         assert!(feed.snapshot().is_empty(), "a resting feed served a price older than a day");
         assert!(feed.subscribe().borrow().rates().is_empty(), "a day-old rate was kept");
 

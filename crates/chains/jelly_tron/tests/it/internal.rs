@@ -122,7 +122,7 @@ impl ContractCall {
     }
 
     /// What `gettransactionbyid` answers, which names the sender and no block,
-    /// fee or internal transfer.
+    /// fee, or internal transfer.
     fn held(&self) -> String {
         format!(
             r#"{{"ret":[{{"contractRet":"{}"}}],"txID":"{}",
@@ -247,7 +247,7 @@ async fn an_internal_transfers_parent_is_found_beyond_the_first_sender_history_p
     assert_eq!(fake.count(Route::InternalHistory), 0);
 }
 
-/// The sender history pages the search for `parent` asked for.
+/// The sender history pages read while searching for a step's parent transaction.
 fn parent_pages(fake: &FakeNode) -> usize {
     fake.calls().iter().filter(|call| call.query.contains("only_from=true")).count()
 }
@@ -391,7 +391,7 @@ async fn every_trx_movement_of_one_transaction_nets_into_one_record() {
 
 #[tokio::test]
 async fn a_rejected_step_and_the_steps_of_a_failed_transaction_move_nothing() {
-    // An operator's payout that reverted, listed with a step the indexer did not
+    // An operator's payout that reverted, listed with a step the indexer didn't
     // mark rejected.
     let refund = Step::paid(PAYER_HEX, TRX_OWNER_HEX, 1_000_000);
     let mut reverted = ContractCall::new(PAYOUT, OPERATOR_HEX);
@@ -494,8 +494,8 @@ async fn the_internal_stream_backfills_and_resumes_between_its_budget_and_its_fr
         records(&second.drain()).into_iter().map(|record| record.txid.value().to_owned()).collect();
     assert_eq!(reported, vec![p5.txid.clone(), p4.txid.clone()]);
 
-    // Past the news, the walk left short of its frontier still brings the stream
-    // back, and it reads the row between there and the frontier.
+    // Once the news window has passed, the forward walk that was cut short still
+    // makes the stream due, and it reads the one row left before the frontier.
     harness.clock.advance(Duration::from_secs(61));
     harness.fake.forget_calls();
     let third = FakeEventSink::new();

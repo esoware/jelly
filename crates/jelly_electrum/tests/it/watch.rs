@@ -9,8 +9,8 @@ use tokio::time::timeout;
 
 use crate::common::script;
 
-/// A `blockchain.headers.subscribe` answer built from the genesis header, which
-/// is the one header the fake can always produce.
+/// A `blockchain.headers.subscribe` answer built from the genesis header, the one
+/// header the fake always has.
 fn tip_answer() -> Answer {
     Answer::Result(format!(r#"{{"height":100,"hex":"{}"}}"#, bitcoin_genesis_header()))
 }
@@ -42,8 +42,8 @@ async fn a_server_push_wakes_a_waiting_watch() {
         async move { client.watch(&[]).await }
     });
 
-    // The fake delivers queued pushes with the next answer, so any request
-    // flushes the notification, and the counter keeps the wake race-free.
+    // The fake sends queued pushes with its next answer, so any request flushes this
+    // one. The counter keeps the wake race-free.
     fake.push_notification(Method::HeadersSubscribe, r#"[{"height":101}]"#);
     client.tip_height().await.expect("a request that flushes the push");
 
@@ -111,7 +111,7 @@ async fn a_dead_socket_fails_the_watch_and_the_next_call_reregisters() {
     // The next call re-dials underneath and registers afresh.
     let registrations_before = fake.calls_to(Method::HeadersSubscribe).len();
     client.watch(&[]).await.expect("the re-registration resolves");
-    assert!(fake.sockets_opened() > sockets_before, "a fresh socket was dialled");
+    assert!(fake.sockets_opened() > sockets_before, "a fresh socket was dialed");
     assert!(
         fake.calls_to(Method::HeadersSubscribe).len() > registrations_before,
         "the tip was registered again"

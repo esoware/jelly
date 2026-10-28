@@ -1,8 +1,6 @@
-//! The JSON-RPC shapes this build sends and reads.
-//!
-//! Answer types carry only the members the adapter uses, so an endpoint cannot
-//! make the process allocate fields no caller reads. Unknown members are ignored,
-//! because a node is free to add fields.
+//! Answer types carry only the members the adapter uses, so an endpoint can't make
+//! the process allocate fields nothing reads. Unknown members are ignored, because
+//! a node is free to add fields.
 
 use alloy::primitives::{Address, B256, Bytes, U256};
 use jelly_core::wire_enum;
@@ -14,7 +12,7 @@ use crate::units;
 wire_enum! {
     pub(crate) enum BlockTag {
         Latest => "latest",
-        /// Includes the sender's executable mempool, so two sends in a row do not
+        /// Includes the sender's executable mempool, so two sends in a row don't
         /// read the same nonce.
         Pending => "pending",
     }
@@ -36,7 +34,7 @@ pub(crate) struct CallObject {
     pub(crate) input: Bytes,
 }
 
-/// A call with no calldata omits the member rather than sending `0x`, which some
+/// A call with no calldata omits the member instead of sending `0x`, which some
 /// providers read as a request to execute empty code.
 fn no_calldata(input: &Bytes) -> bool {
     input.as_ref().is_empty()
@@ -50,9 +48,10 @@ impl CallObject {
 
 /// One `eth_getLogs` filter.
 ///
-/// `topics` is positional. Element zero is the event signature, one the indexed
-/// sender and two the indexed recipient. A `null` element matches anything, and
-/// an array element is an or-set, so one window covers every watched address.
+/// `topics` is positional: element zero is the event signature and the rest are
+/// the indexed arguments in order. A `null` element matches anything, and an
+/// array element matches any of its values, so one window covers every watched
+/// address.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LogFilter {
@@ -87,7 +86,7 @@ pub(crate) struct LogEntry {
 }
 
 impl LogEntry {
-    /// The identity a duplicate is recognised by. Both members are required,
+    /// The identity a duplicate is recognized by. Both members are required,
     /// because defaulting either would collapse distinct transfers onto one key.
     pub(crate) const fn position(&self) -> Option<(B256, u64)> {
         match (self.transaction_hash, self.log_index) {
@@ -149,14 +148,14 @@ impl Receipt {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Landing {
     pub(crate) height: u64,
-    /// Absent only from a node that does not report it. A changed hash means the
-    /// inclusion was reorged.
+    /// A changed hash means the inclusion was reorged. `None` when the node
+    /// doesn't report one.
     pub(crate) block_hash: Option<B256>,
 }
 
 impl Landing {
-    /// Without block hashes only heights can be compared, which is weaker but
-    /// still catches a move.
+    /// Without a hash on both sides only heights can be compared, which is weaker
+    /// but still catches a move to another height.
     pub(crate) fn is_same(self, other: Self) -> bool {
         match (self.block_hash, other.block_hash) {
             (Some(left), Some(right)) => left == right,
@@ -174,8 +173,8 @@ pub(crate) enum Execution {
     Unknown,
 }
 
-/// `gasUsedRatio` is floating point and is not read, because no float may touch
-/// the fee path.
+/// `gasUsedRatio` is floating point, so it isn't read. No float may touch the
+/// fee path.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FeeHistory {
@@ -198,10 +197,10 @@ impl FeeHistory {
         }
     }
 
-    /// A row of zeros comes from an empty block and is dropped rather than
-    /// counted, because a chain with two empty blocks did not become free. A zero
-    /// in a busy block is a tip someone paid and stays, so every column samples
-    /// the same blocks and a lower percentile never comes out above a higher one.
+    /// A row of zeros comes from an empty block and is dropped, because a chain
+    /// with two empty blocks didn't become free. A zero in a busy block is a tip
+    /// someone paid and stays, so every column samples the same blocks and a lower
+    /// percentile never comes out above a higher one.
     pub(crate) fn column(&self, index: usize) -> Result<Vec<u128>, EvmError> {
         let Some(rows) = self.reward.as_ref() else {
             return Ok(Vec::new());
@@ -223,7 +222,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_filter_serialises_its_positional_topics_with_holes() {
+    fn a_filter_serializes_its_positional_topics_with_holes() {
         let owner: Address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".parse().expect("address");
         let filter = LogFilter {
             from_block: 10,
@@ -231,7 +230,7 @@ mod tests {
             address: vec![owner],
             topics: vec![Some(vec![B256::ZERO]), None, Some(vec![B256::ZERO])],
         };
-        let text = serde_json::to_string(&filter).expect("it serialises");
+        let text = serde_json::to_string(&filter).expect("it serializes");
         assert!(text.contains(r#""fromBlock":"0xa""#), "{text}");
         assert!(text.contains(r#""toBlock":"0x1000""#), "{text}");
         assert!(text.contains(r#""topics":[["0x00"#), "{text}");
@@ -241,7 +240,7 @@ mod tests {
     #[test]
     fn a_call_object_omits_what_it_does_not_set() {
         let to: Address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".parse().expect("address");
-        let text = serde_json::to_string(&CallObject::read(to, Vec::new())).expect("serialises");
+        let text = serde_json::to_string(&CallObject::read(to, Vec::new())).expect("serializes");
         assert!(!text.contains("from"), "{text}");
         assert!(!text.contains("value"), "{text}");
         assert!(!text.contains("input"), "{text}");

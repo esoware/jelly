@@ -18,8 +18,8 @@ use windows_numerics::Vector2;
 
 use crate::error::Win32Error;
 
-/// Windows 11 reports major version 10 like Windows 10, which cannot blur behind a window,
-/// so its first build number is what tells the two apart.
+/// Windows 11 reports major version 10 like Windows 10, which can't blur behind a window,
+/// so only its first build number tells the two apart.
 const FIRST_BACKDROP_BUILD: u32 = 22_000;
 
 pub fn is_backdrop_supported() -> bool {
@@ -29,12 +29,12 @@ pub fn is_backdrop_supported() -> bool {
 /// A tint drawn behind the window's children, over a blur of the screen behind the window
 /// while the layer is blurred.
 ///
-/// The window manager samples and blurs the screen itself, the way it does for the
-/// Windows 11 acrylic material, so the app never sees those pixels. The app draws the
-/// layer rather than the window frame, so the app decides what the page sits on while the
-/// frame's shadow and border still change with focus. It lasts as long as this value.
+/// The window manager samples and blurs the screen itself, as it does for the Windows 11
+/// acrylic material, so the app never sees those pixels. The app draws this layer, not the
+/// window frame, so it decides what the page sits on while the frame's shadow and border
+/// still follow focus. The layer lasts as long as this value.
 ///
-/// Create it and call its methods on the thread that owns the window. Windows refuses to
+/// Create it and call its methods on the thread that owns the window, since Windows won't
 /// draw into a window from any other thread.
 #[derive(Debug)]
 pub struct BackdropLayer {
@@ -70,10 +70,7 @@ impl From<Tint> for Color {
 }
 
 /// The layer starts out blurred.
-#[expect(
-    unsafe_code,
-    reason = "a window attribute, a composition target and a dispatcher queue come from Win32 calls with no safe wrapper"
-)]
+#[expect(unsafe_code, reason = "these Win32 calls have no safe wrapper")]
 pub fn attach_backdrop(
     window: &impl HasWindowHandle,
     tint: Tint,

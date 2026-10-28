@@ -11,7 +11,7 @@ workspace = true
 
 [features]
 default = []
-# The adapter's test seams and operations on what it persists and compiles in.
+# Test access to the adapter's state, its persisted blobs, and a few internals.
 # Enable only from [dev-dependencies].
 test-util = []
 
@@ -36,8 +36,8 @@ monero-wallet     = { workspace = true }
 monero-daemon-rpc = { workspace = true }
 monero-seed       = { workspace = true }
 
-# monero-address takes monero-ed25519 points, so the compressed 32-byte
-# encoding is the interchange between the two dalek generations in the tree.
+# Our key math runs on curve25519-dalek 5, and monero-address takes monero-ed25519
+# points on dalek 4, so keys cross between them as compressed 32-byte encodings.
 curve25519-dalek = { workspace = true }
 monero-ed25519   = { workspace = true }
 

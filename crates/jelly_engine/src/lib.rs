@@ -1,10 +1,9 @@
 //! Wallet session and sync engine. One engine owns a data directory and at most one
-//! unlocked session. It builds adapters, runs one sync loop per chain, and persists their
+//! unlocked session. It builds adapters, runs a sync loop per chain, and persists their
 //! events.
 //!
-//! The engine alone owns the wallet database, endpoint and TLS pin tables included. It
-//! lends out operations rather than the handle, so only a surviving engine handle can
-//! keep shutdown from checkpointing it.
+//! Only the engine holds the database handle, endpoint and TLS pin tables included, so
+//! only a surviving engine clone can keep shutdown from checkpointing it.
 
 #![deny(clippy::float_arithmetic)]
 

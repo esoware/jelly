@@ -11,10 +11,9 @@ use crate::command::{TARGET, with_services};
 use crate::error::IpcError;
 use crate::state::AppState;
 
-/// Endpoint configuration returned to the frontend.
-///
-/// `url` is the canonical write key, and `origin == Pinned` indicates pinning. Health
-/// stays internal. Use the probe command for an explicit connectivity and identity check.
+/// `url` is the canonical key the other endpoint commands take, and a pinned endpoint's
+/// `origin` is `Pinned`. Health stays in Rust, and `probe_endpoint` checks an endpoint on
+/// request.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct EndpointRecord {
@@ -51,11 +50,11 @@ pub(crate) async fn list_endpoints(
     .await
 }
 
-/// Adds or re-enables an endpoint without changing its pin. Existing defaults and overrides
-/// are not duplicated.
+/// Adds or re-enables an endpoint without changing its pin. A URL that's already listed
+/// isn't added twice.
 ///
-/// Plaintext outside loopback requires allowing insecure access. Electrum rejects plaintext
-/// even with it.
+/// Plaintext outside loopback needs `should_allow_insecure`. Electrum refuses plaintext even
+/// then.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn add_endpoint(
@@ -81,7 +80,8 @@ pub(crate) async fn add_endpoint(
     .await
 }
 
-/// Deletes an endpoint override. For a shipped endpoint, this restores its defaults.
+/// Deletes the endpoint's override, which removes a custom endpoint and restores a shipped
+/// one's defaults.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn delete_endpoint_override(
@@ -113,7 +113,7 @@ pub(crate) async fn set_endpoint_enabled(
     .await
 }
 
-/// Tries pinned endpoints first among equally healthy endpoints.
+/// A pinned endpoint is listed first and tried first among equally healthy ones.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn set_endpoint_pinned(
@@ -130,8 +130,7 @@ pub(crate) async fn set_endpoint_pinned(
     .await
 }
 
-/// Checks the endpoint's network identity where it has one. A REST helper service is only
-/// checked for an answer.
+/// Checks which network the endpoint serves. A REST service is only checked for an answer.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn probe_endpoint(
@@ -140,8 +139,7 @@ pub(crate) async fn probe_endpoint(
     url: String,
 ) -> Result<ProbeReport, IpcError> {
     with_services(&state, async move |services| {
-        // The network stays up through exit, so only the engine handle tells a probe
-        // that the app is shutting down.
+        // The network outlives shutdown, so only the engine handle says we're shutting down.
         services.engine()?;
         let endpoint = find_listed(services.network(), chain, &url)?;
         Ok(probe(services.network(), &endpoint).await)
@@ -149,11 +147,9 @@ pub(crate) async fn probe_endpoint(
     .await
 }
 
-/// The listed endpoint for `url`, refusing a URL that is not already in the list.
-///
-/// Otherwise a script in the page could probe any host it names, or enable one through the
-/// upsert behind the enable and pin commands, and reach the network through Rust while
-/// skipping the checks in `add_endpoint`.
+/// Refuses a URL that isn't already listed. Otherwise a script in the page could probe any
+/// host, or add one through the upsert behind the enable and pin commands and skip the
+/// checks in `add_endpoint`.
 fn find_listed(network: &Network, chain: ChainId, url: &str) -> Result<Endpoint, IpcError> {
     network.registry().find(chain, url).map_err(unreadable)?.ok_or_else(|| {
         IpcError::new(ErrorCode::NotFound.into(), "That endpoint is not in the list.")
@@ -168,10 +164,9 @@ fn url_failure(error: NetError) -> IpcError {
     }
 }
 
-/// Logs the redacted error and leaves the code and copy to the one conversion from
-/// `NetError`.
+/// Logs the redacted error. The code and copy come from the `NetError` conversion.
 fn unreadable(error: NetError) -> IpcError {
-    tracing::error!(target: TARGET, %error, "the endpoint registry could not be read");
+    tracing::error!(target: TARGET, %error, "the endpoint registry couldn't be read");
     IpcError::from(ChainError::from(error))
 }
 

@@ -16,8 +16,8 @@ use crate::params::CHAIN;
 /// no other wallet agrees with.
 const SUBADDRESS_PREFIX: &[u8; 8] = b"SubAddr\0";
 
-/// Monero is `CryptoNote`, not BIP-32. An account is two ed25519 scalar pairs, spend
-/// `(ks, Ks)` and view `(kv, Kv)`, and its addresses are subaddresses rather than
+/// Monero is `CryptoNote`, not BIP-32. An account is two ed25519 key pairs, spend
+/// `(ks, Ks)` and view `(kv, Kv)`, and its other addresses are subaddresses, not
 /// further derivations.
 ///
 /// Both secrets are reduced scalars wiped on drop, and the public keys are their
@@ -32,8 +32,7 @@ pub struct MoneroKeys {
 }
 
 impl MoneroKeys {
-    /// Reduces any 32 bytes to the spend scalar, then derives the view key from
-    /// it. This is the SLIP-10 bridge from the seed phrase.
+    /// Reduces any 32 bytes to the spend scalar, then derives the view key from it.
     pub fn from_spend_bytes(bytes: &[u8; 32]) -> Self {
         Self::from_spend_scalar(Scalar::from_bytes_mod_order(*bytes))
     }
@@ -50,7 +49,7 @@ impl MoneroKeys {
         })
     }
 
-    /// wallet2's 25-word English seed, which carries the spend key only. The view key is
+    /// wallet2's 25-word English seed, which carries only the spend key. The view key is
     /// recomputed from it on restore.
     pub(crate) fn to_seed_words(&self) -> Result<Zeroizing<String>, KeyError> {
         Seed::from_entropy(Language::English, Zeroizing::new(*self.spend.as_bytes()))
@@ -140,8 +139,8 @@ impl fmt::Debug for MoneroKeys {
 }
 
 /// `m = Hs("SubAddr\0" || kv || major_le || minor_le)`, what the spend key behind the
-/// address at `(major, minor)` adds to the account's. Secret, because it offsets the
-/// spend key.
+/// address at `(major, minor)` adds to the account's. It's secret, because it offsets
+/// the spend key.
 ///
 /// The view key is copied straight into a preimage sized for all of it, so no bare copy
 /// of it is left behind.

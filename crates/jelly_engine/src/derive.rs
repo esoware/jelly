@@ -8,8 +8,7 @@ use jelly_vault::EntryId;
 use crate::error::blocking;
 use crate::session::Session;
 
-/// The address a row's key produces. A row is a claim, and the key behind it is the
-/// proof.
+/// The address a row's key produces.
 pub(crate) fn expected_address(session: &Session, row: &AddressRow) -> Result<String, CoreError> {
     let entry = session.entry(row.chain);
     let spec = entry.spec();
@@ -30,7 +29,7 @@ pub(crate) fn expected_address(session: &Session, row: &AddressRow) -> Result<St
     }
 }
 
-/// The address a row claims must be the address its key produces.
+/// A row is only a claim. The address its key produces is the proof.
 fn verify_row(session: &Session, row: &AddressRow) -> Result<(), CoreError> {
     if expected_address(session, row)? == row.address {
         Ok(())
@@ -39,10 +38,8 @@ fn verify_row(session: &Session, row: &AddressRow) -> Result<(), CoreError> {
     }
 }
 
-/// Verifies a whole list on the blocking pool.
-///
-/// One row takes microseconds, but a wallet's worth is milliseconds of key derivation,
-/// which does not belong on a runtime worker.
+/// Verifies a whole list on the blocking pool. One row takes microseconds, but a
+/// wallet's worth is milliseconds of key derivation.
 pub(crate) async fn verify_rows(
     session: Arc<Session>,
     rows: Vec<AddressRow>,

@@ -11,7 +11,7 @@ fn at(mut request: TxRequest, level: FeeLevel) -> TxRequest {
     request
 }
 
-/// The fake node cannot say how full the chain is, so the normal level pays the
+/// The fake node can't say how full the chain is, so the normal level keeps the
 /// normal tier and each level pays the tier at its own position.
 fn rate(level: FeeLevel) -> Option<FeeRate> {
     let index = FeeLevel::ALL.iter().position(|each| *each == level)?;

@@ -11,11 +11,11 @@ use crate::quote::QuoteRequest;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Performs live price and candle requests.
+/// Sends live price and candle requests.
 ///
-/// Everything above this trait is pure, so a whole polling pass runs in tests
-/// without a socket. The real requests go through the [`Network`]'s shared HTTP
-/// client, so prices inherit the trust configuration and proxy of chain traffic.
+/// Tests swap in a fake, so a whole polling pass runs without a socket. The real
+/// requests go through the [`Network`]'s shared HTTP client, so prices use the same trust
+/// configuration and proxy as chain traffic.
 #[async_trait]
 pub trait Fetch: Send + Sync + fmt::Debug {
     async fn fetch_quotes(&self, request: &QuoteRequest) -> Result<String, PriceError>;

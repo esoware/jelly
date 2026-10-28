@@ -412,7 +412,7 @@ mod txs {
     /// txid for any client name it reads as a version below 3.3.4.
     ///
     /// Its `Version(QString)` drops everything up to the first slash and a
-    /// leading `v`, and stops at the first dot-separated part that is not a
+    /// leading `v`, and stops at the first dot-separated part that isn't a
     /// number.
     #[tokio::test]
     async fn fulcrum_does_not_read_the_client_name_as_an_outdated_electrum() {

@@ -52,10 +52,7 @@ fmt:
   cargo fmt --all
   pnpm fmt
 
-# A crate that fails clippy hides every crate that depends on it, so lints stay warnings
-# until the end, where build.warnings fails the run if any were reported.
-
-# Clippy with zero warnings allowed
+# Run clippy and fail on any warning
 lint *args:
   cargo clippy --workspace --all-targets --all-features --keep-going --config "build.warnings='deny'" {{args}} -- --cap-lints warn
 
@@ -67,14 +64,14 @@ lint-fix:
 deny:
   cargo deny check bans sources
 
-# A new advisory can land at any time, so this runs on a schedule and before a release rather than in ready.
+# Kept out of ready because a new advisory can fail an unchanged commit. CI runs it daily and before each release.
 
 # Check the locked crates and the npm packages the app ships against published advisories
 advisories:
   cargo deny check advisories
   pnpm audit --prod
 
-# Write target/THIRD-PARTY-NOTICES.txt, which fails if a crate or npm package the app ships has a license about.toml doesn't accept
+# Write target/THIRD-PARTY-NOTICES.txt, failing if a crate or npm package the app ships has a license about.toml doesn't accept
 notices:
   pnpm --filter jelly-wallet notices
 
@@ -82,6 +79,6 @@ notices:
 bindings:
   cargo test -p jelly --test it regenerate_bindings -- --ignored
 
-# Regenerate packages/icons/src/icons.gen.tsx after adding or removing an SVG in packages/icons/svg
+# Regenerate packages/icons/src/icons.gen.tsx from the SVGs in packages/icons/svg
 icons:
   pnpm --filter @jelly/icons generate

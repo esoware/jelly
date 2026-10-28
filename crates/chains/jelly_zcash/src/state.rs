@@ -56,7 +56,7 @@ impl Pending {
         matches!(self.stage, Stage::Sent(_))
     }
 
-    /// The same send as broadcast, which only a signed one can be.
+    /// A copy marked as broadcast. Fails unless the send is signed.
     fn sent(&self) -> Result<Self, ZcashError> {
         let signed = self.signed().ok_or(ZcashError::Internal("a Zcash send is not signed"))?;
         Ok(Self { payment: self.payment.clone(), stage: Stage::Sent(signed.clone()) })
@@ -117,8 +117,8 @@ impl States {
 
     /// Reads the stored sends of `address_ids` and the stored cursors of the `admitted`
     /// ones, which are new to the watch set. Sends of addresses outside `address_ids` are
-    /// dropped, and each admitted address holds every stored send it does not hold yet.
-    /// Anything stored that cannot be read blocks spending.
+    /// dropped, and each admitted address holds every stored send it doesn't hold yet.
+    /// Anything stored that can't be read blocks spending.
     pub(crate) async fn load(
         &self,
         address_ids: &[i64],
@@ -152,7 +152,7 @@ impl States {
     }
 
     /// The history cursor stored for `address_id`, or a fresh one before its first scan.
-    /// One that cannot be read blocks spending.
+    /// One that can't be read blocks spending.
     pub(crate) async fn cursor(&self, address_id: i64) -> Result<Cursor, ZcashError> {
         let stored = self
             .cursors
@@ -226,8 +226,8 @@ impl States {
             .ok_or(ZcashError::Invalid("Build the Zcash payment again before sending."))
     }
 
-    /// Marks every held copy of `payment` as sent, and stores the sends of each of its
-    /// sources before returning, so a failed write keeps it from ever leaving.
+    /// Marks every held copy of `payment` as sent, after storing each source's sends with
+    /// it included, so a failed write keeps it from being broadcast.
     pub(crate) async fn mark_sent(&self, payment: &Payment) -> Result<(), ZcashError> {
         self.ensure_readable()?;
         for source in &payment.sources {
@@ -323,11 +323,11 @@ fn scopes(address_ids: &[i64]) -> Vec<CursorScope> {
     address_ids.iter().copied().map(CursorScope::Address).collect()
 }
 
-/// The sends stored in `rows`, once every stored cursor in `scans` and every stored send
-/// reads.
+/// The sends stored in `rows`, refused unless every cursor in `scans` and every send
+/// decodes.
 ///
-/// Each send must be a broadcast one of its own address, whose signed transaction is
-/// its payment's and hashes to its txid.
+/// Each send must have been broadcast, name the row's address among its sources, and
+/// carry a signed transaction of its payment that hashes to its txid.
 fn restore(
     scans: &[ScanAdvance],
     rows: &[HeldReservation],

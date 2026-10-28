@@ -24,14 +24,13 @@ impl AddressCodec for SolanaCodec {
 
 /// Base58 of the 32-byte ed25519 public key.
 ///
-/// Program-derived addresses are deliberately off the curve, so no curve check is
-/// applied here or in [`address_bytes`].
+/// Program-derived addresses are off the curve by design, so neither this nor
+/// [`address_bytes`] checks the curve.
 pub(crate) fn encode(pubkey: &[u8; 32]) -> String {
     bs58::encode(pubkey).into_string()
 }
 
-/// The workspace's only Solana address decoder. It trims surrounding whitespace and
-/// refuses anything else malformed.
+/// Trims surrounding whitespace, then refuses anything that isn't 32 bytes of base58.
 fn address_bytes(value: &str) -> Result<[u8; 32], AddressError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {

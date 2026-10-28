@@ -27,10 +27,10 @@ wire_enum! {
 
 wire_enum! {
     #[cfg_attr(feature = "ipc", derive(specta::Type))]
-    /// What the network did with a transaction. A failed or replaced transaction never
-    /// contributes to a total.
+    /// What the network did with a transaction.
     pub enum TxOutcome {
         Success => "success",
+        /// It moved nothing, but it may still have paid its fee.
         Failed => "failed",
         /// Another transaction took its place, so it never ran, moved nothing, and paid
         /// nothing.
@@ -50,8 +50,8 @@ wire_enum! {
     }
 }
 
-/// What an adapter reports one address's share of a transaction as. Use `builder` so
-/// confirmation counts come from `confirmations`.
+/// One address's share of a transaction, as an adapter reports it. Build it with `builder`
+/// so the confirmation count comes from `confirmations`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct TxRecord {
@@ -62,9 +62,8 @@ pub struct TxRecord {
     pub outcome: TxOutcome,
     pub amount: Amount,
     pub fee: Option<Amount>,
-    /// What the address paid besides the fee to open a token account the transfer
-    /// needed, such as the recipient's. It is held in that account rather than spent,
-    /// and counted in the native asset.
+    /// What the address paid besides the fee to open a token account the transfer needed,
+    /// such as the recipient's, in the native asset. It's held in that account, not spent.
     pub rent: Option<Amount>,
     pub counterparty: Option<String>,
     /// The unconfirmed transaction this one spends from only to pay its fee, when it is

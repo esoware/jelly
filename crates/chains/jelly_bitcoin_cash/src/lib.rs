@@ -1,5 +1,4 @@
-//! Bitcoin Cash mainnet over the shared UTXO framework: its spec, its table, its
-//! `CashAddr` codec, its key and address entry, and its adapter build.
+//! Bitcoin Cash mainnet.
 
 #![deny(clippy::float_arithmetic)]
 mod address;

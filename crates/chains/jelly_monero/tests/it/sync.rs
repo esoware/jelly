@@ -156,7 +156,7 @@ async fn a_second_pass_reports_nothing_new_and_keeps_its_frontier() {
 
 #[tokio::test]
 async fn the_recorded_payment_is_spendable_only_past_its_lock() {
-    // Five confirmations do not clear the ten-block lock.
+    // Five confirmations don't clear the ten-block lock.
     let harness = Harness::unsynced(config()).await.unwrap();
     let height = harness.height;
     let total = Amount::from(harness.recorded.output_amount.saturating_mul(2));
@@ -466,8 +466,8 @@ async fn a_window_widened_during_a_pass_loses_no_payment_below_the_frontier() {
     );
 }
 
-/// Sets its flag when dropped, which is how a test sees a future it cannot reach
-/// being cancelled.
+/// Sets its flag when dropped, so a test can see a future it can't reach get
+/// canceled.
 struct SetOnDrop(Arc<AtomicBool>);
 
 impl Drop for SetOnDrop {

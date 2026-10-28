@@ -15,9 +15,9 @@ type HmacSha512 = Hmac<Sha512>;
 
 /// A SLIP-10 node, a 32-byte key and a 32-byte chain code, both secret.
 ///
-/// SLIP-10 defines only hardened children for ed25519. A normal component is an error
-/// rather than silently hardened, because wallets disagree on what silent hardening
-/// means and a quiet disagreement restores the wrong addresses.
+/// SLIP-10 defines only hardened children for ed25519. A normal component is an error,
+/// not silently hardened, because wallets disagree on what that would mean and the
+/// wrong guess restores the wrong addresses.
 pub(crate) struct Slip10Node {
     key: Zeroizing<[u8; 32]>,
     chain_code: Zeroizing<[u8; 32]>,
@@ -25,7 +25,7 @@ pub(crate) struct Slip10Node {
 
 impl Slip10Node {
     /// `I = HMAC-SHA512("ed25519 seed", seed)`. Every `IL` is a valid ed25519
-    /// seed, so unlike BIP-32 there is no retry loop.
+    /// seed, so unlike BIP-32 there's no retry loop.
     pub(crate) fn from_seed_bytes(seed: &[u8]) -> Result<Self, KeyError> {
         let mut mac = HmacSha512::new_from_slice(ED25519_CURVE)
             .map_err(|_| KeyError::internal("hmac key length"))?;
@@ -63,8 +63,8 @@ impl Slip10Node {
         Ok(node)
     }
 
-    /// An ed25519 seed for the RFC 8032 expansion, or a Monero spend pre-image. It is not
-    /// a scalar and must not be clamped or reduced here.
+    /// An ed25519 seed for the RFC 8032 expansion, or a Monero spend pre-image. It isn't a
+    /// scalar, so don't clamp or reduce it here.
     pub(crate) fn with_key_bytes<R>(&self, read: impl FnOnce(&[u8; 32]) -> R) -> R {
         read(&self.key)
     }

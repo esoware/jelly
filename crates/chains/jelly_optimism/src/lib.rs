@@ -1,5 +1,4 @@
-//! OP Mainnet, as the spec, the network figures, and the chain entry the EVM
-//! framework is run with.
+//! OP Mainnet.
 
 #![deny(clippy::float_arithmetic)]
 mod optimism;

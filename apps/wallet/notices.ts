@@ -52,7 +52,7 @@ const PREAMBLE = [
   "",
   "Jelly includes the third-party software below. Each section names a license, lists the components under it, and then gives the license text.",
   "",
-  "Cargo.lock in Jelly's source code pins the source of every Rust crate listed here, and pnpm-lock.yaml pins that of every npm package. Jelly's source code, which can be rebuilt against a modified version of any of these components, is at https://github.com/esoware/jelly.",
+  "Jelly's source code is at https://github.com/esoware/jelly. Its Cargo.lock pins the source of every Rust crate listed here and its pnpm-lock.yaml that of every npm package, and Jelly can be rebuilt against a modified version of any of these components.",
 ].join("\n")
 
 const walletFolder = import.meta.dirname

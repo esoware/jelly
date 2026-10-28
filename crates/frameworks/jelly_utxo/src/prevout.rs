@@ -5,8 +5,8 @@ use bitcoin::{OutPoint, Transaction, TxOut, Txid};
 /// Transaction outputs indexed by outpoint, for looking up what other
 /// transactions spend.
 ///
-/// A transaction does not carry its inputs' values or scripts, so without this a
-/// fee is unknowable and an incoming payment has no sender.
+/// A transaction doesn't carry its inputs' values or scripts, so without this a fee
+/// is unknowable and an incoming payment has no sender.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct PrevoutMap {
     known: HashMap<OutPoint, TxOut>,

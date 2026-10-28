@@ -38,12 +38,12 @@ pub(crate) struct Route {
     pub(crate) payer: Pubkey,
     pub(crate) recipient: Pubkey,
     pub(crate) leg: Leg,
-    /// True when the account that decides this transfer's shape exists and is
-    /// usable. That is the recipient's own account for a native transfer, and a
-    /// token account owned by the mint's program for a token one.
+    /// True when the account this transfer credits already exists: the recipient's own
+    /// account for a native transfer, or an open token account of the mint for a token
+    /// one.
     ///
-    /// False until the build reads say otherwise, so a transfer carries a
-    /// creation it may not need rather than lacking one it does.
+    /// False until the build reads say otherwise, so a token transfer carries a creation
+    /// it may not need rather than lacking one it does.
     pub(crate) has_destination_account: bool,
 }
 
@@ -80,8 +80,8 @@ impl Route {
         Shape { kind, is_account_creation: self.is_account_creation() }
     }
 
-    /// The accounts a prioritization-fee sample is asked about, because the whole
-    /// cluster's floor would let one unrelated hot account price a plain transfer.
+    /// The accounts a prioritization-fee sample is asked about. A cluster-wide sample
+    /// would let one unrelated hot account price a plain transfer.
     pub(crate) fn writable_accounts(&self) -> Vec<String> {
         match self.leg {
             Leg::Native => vec![self.payer.to_string(), self.recipient.to_string()],
@@ -91,16 +91,14 @@ impl Route {
         }
     }
 
-    /// The account creation comes before the transfer that credits it. It is the
-    /// idempotent variant, so a recipient account that appears between the
-    /// existence check and the transaction landing makes it a no-op instead of
-    /// failing the transfer. The transfer is the checked variant, which carries
-    /// the mint and decimals, so the token program refuses a transfer priced at
-    /// the wrong scale instead of moving the wrong amount.
+    /// Account creation uses the idempotent variant, so a recipient account that
+    /// appears before the transaction lands makes it a no-op instead of failing the
+    /// transfer. The transfer uses the checked variant, which carries the mint and
+    /// decimals, so the token program refuses an amount at the wrong scale instead of
+    /// moving it.
     ///
-    /// Both compute-budget instructions are always present, whatever the price,
-    /// so the simulation that measures the limit measures the transaction that
-    /// will be sent.
+    /// Both compute-budget instructions are always present, whatever the price, so the
+    /// simulation measures the same transaction that will be sent.
     fn instructions(
         &self,
         amount: u64,

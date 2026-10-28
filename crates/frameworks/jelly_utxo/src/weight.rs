@@ -6,8 +6,8 @@ use crate::error::UtxoError;
 use crate::params::UtxoParams;
 use crate::script::UtxoScript;
 
-/// The witness and script-signature sizes each script kind spends with, at the
-/// largest DER encoding a signature can take, so a prediction never undershoots.
+/// The script-signature and witness sizes each script kind spends with, assuming the
+/// largest signature encoding, so a prediction never undershoots.
 ///
 /// ```text
 /// | kind        | scriptSig | witness items    | input weight |
@@ -67,7 +67,7 @@ pub(crate) const fn vsize(weight: Weight) -> u64 {
     weight.to_wu().div_ceil(Weight::WITNESS_SCALE_FACTOR)
 }
 
-/// Refuses a transaction the network would not relay for its size alone.
+/// Refuses a transaction the network wouldn't relay for its size alone.
 pub(crate) fn check_standard_weight(params: &UtxoParams, weight: Weight) -> Result<(), UtxoError> {
     if weight > params.max_standard_weight {
         return Err(too_heavy(params, weight));

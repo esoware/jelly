@@ -29,9 +29,9 @@ wire_enum! {
 
 /// Whether an address without TLS is acceptable.
 ///
-/// A loopback address is always allowed, because a node on the same machine has
-/// no network to be intercepted on. Anything else needs an explicit decision by
-/// the user, which is what [`PlaintextPolicy::Allowed`] records.
+/// Loopback always is, since a node on the same machine has no network to be intercepted
+/// on. Anything else needs the user's explicit decision, which [`PlaintextPolicy::Allowed`]
+/// records.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlaintextPolicy {
     LoopbackOnly,
@@ -84,12 +84,11 @@ impl fmt::Display for UrlRejection {
     }
 }
 
-/// Canonical endpoint URL used as the key for health, pacing, connections, and stored
-/// overrides. Credentials and query parameters remain part of this identity.
+/// An endpoint keyed by its canonical URL, credentials and query included, for health,
+/// pacing, connections, and stored overrides.
 ///
-/// Use only the redacted `label` in logs, errors, and events, and `Debug` shows the label
-/// for the same reason. The host is read from that label rather than duplicated, and
-/// `port` is the label's with the scheme's default filled in.
+/// Logs, errors, and events get only the redacted `label`, and so does `Debug`. The host is
+/// read from the label, and `port` is the label's with the scheme's default filled in.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Endpoint {
     chain: ChainId,
@@ -196,14 +195,11 @@ impl Endpoint {
         (self.label.host(), self.port)
     }
 
-    /// The canonical URL with `path` appended, collapsing the slash between them, and
-    /// with `query` merged into the query the endpoint already carries. Meaningful for
-    /// the HTTP transports only.
+    /// The canonical URL with `path` appended and `query` merged into the query the
+    /// endpoint already carries. Meaningful for the HTTP transports only.
     ///
-    /// Build every address through this, so a query string that holds an API key is never
-    /// dropped. The path goes first and the query last, because a canonical URL may
-    /// already carry a query, and a path appended after it would land in the query and
-    /// send the request to the wrong route.
+    /// Build every address through this, so an API key in the query string is never
+    /// dropped and a path never lands after the query.
     pub(crate) fn join(&self, path: &str, query: &str) -> String {
         let (base, carried) = self.url.split_once('?').unwrap_or((self.url.as_str(), ""));
         let width =
@@ -247,8 +243,7 @@ impl fmt::Display for Endpoint {
 /// Canonicalizes `input` to a lowercase host, the transport's own scheme, no default
 /// port, no trailing slash, and no fragment.
 ///
-/// This and [`Endpoint::parse_with`] are the workspace's only URL canonicalization, and
-/// anything that keys on an endpoint keys on the result.
+/// Anything that keys on an endpoint keys on the result.
 pub(crate) fn canonicalize(
     input: &str,
     transport: Transport,
@@ -261,7 +256,7 @@ struct CanonicalParts {
     url: String,
     scheme: &'static str,
     host: String,
-    /// The port the canonical URL names, which is none when it is the scheme's default.
+    /// `None` when the port is the scheme's default.
     named_port: Option<u16>,
     port: u16,
     is_plaintext: bool,
@@ -284,8 +279,7 @@ fn canonical_parts(
         "http" | "ws" => true,
         _ => return Err(UrlRejection::UnsupportedScheme),
     };
-    // Electrum is TLS only, even on loopback, so the scheme decides before the
-    // plaintext policy gets a say.
+    // Electrum is TLS only, even on loopback and whatever the plaintext policy says.
     if is_plaintext && transport == Transport::ElectrumSsl {
         return Err(UrlRejection::UnsupportedScheme);
     }
@@ -336,8 +330,8 @@ fn canonical_parts(
     Ok(CanonicalParts { url, scheme, host, named_port, port, is_plaintext })
 }
 
-/// The port an address means when it names none. Electrum's `ssl` has no default, which
-/// is why an Electrum address must name its port.
+/// The port an address means when it names none. Electrum's `ssl` has no default, so an
+/// Electrum address must name its port.
 fn default_port(scheme: &str) -> Option<u16> {
     match scheme {
         "https" | "wss" => Some(443),
@@ -346,15 +340,15 @@ fn default_port(scheme: &str) -> Option<u16> {
     }
 }
 
-/// Drops the port when it is the canonical scheme's default, so two spellings
-/// of one endpoint collapse to one key.
+/// Drops the port when it's the canonical scheme's default, so two spellings of one
+/// endpoint collapse to one key.
 fn normalized_port(parsed: &Url, scheme: &str) -> Option<u16> {
     let port = parsed.port_or_known_default()?;
     if Some(port) == default_port(scheme) { None } else { Some(port) }
 }
 
-/// A name other than `localhost` can resolve anywhere however it is spelled, so only a
-/// literal loopback address counts.
+/// Any name but `localhost` could resolve anywhere, so only a literal loopback address
+/// counts.
 fn is_loopback(host: &str) -> bool {
     host == "localhost" || host.parse::<IpAddr>().is_ok_and(|address| address.is_loopback())
 }

@@ -1,5 +1,5 @@
 {
-  "_source": "GET https://api.kraken.com/0/public/Ticker?pair=<pairs>. The body of every_listed_pair_answers is a verbatim response, recorded 2026-10-02, and that of every_listed_rate_answers is one for the dollar fiat pairs, recorded 2026-10-03. The bodies of pyusd_answers_under_its_own_pair and of bitcoin_cash_and_dogecoin_answer_under_their_own_pairs, where Kraken lists Dogecoin as XDG, were recorded 2026-10-10, that of gold_tokens_use_their_own_market_prices on 2026-10-11, that of pol_answers_under_its_own_pair on 2026-10-13, and those of avax_answers_under_its_own_pair and the_tokens_answer_under_their_own_pairs on 2026-10-14. A Dogecoin, POL, Jupiter or Ondo price has nine fraction digits, and the ninth is dropped, as are the digits past the eighth of a Pepe, Pump.fun or Shiba Inu price. A rate is how many units of a currency one dollar buys, so a pair Kraken lists in dollars, such as EURUSD, is inverted. The rest are built from Kraken's published REST description, trimmed to the c field this crate reads, to pin one edge case each. An answer that keys a ticker under neither of its names costs that ticker its quote and nothing else, which is what the absent cases pin.",
+  "_source": "GET https://api.kraken.com/0/public/Ticker?pair=<pairs>. The bodies of every_listed_pair_answers (recorded 2026-10-02), every_listed_rate_answers (2026-10-03), pyusd_answers_under_its_own_pair and bitcoin_cash_and_dogecoin_answer_under_their_own_pairs (2026-10-10), gold_tokens_use_their_own_market_prices (2026-10-11), pol_answers_under_its_own_pair (2026-10-13), and avax_answers_under_its_own_pair and the_tokens_answer_under_their_own_pairs (2026-10-14) are verbatim Kraken responses. The rest are built from Kraken's published REST description, trimmed to the c field this crate reads. Kraken quotes Dogecoin, POL, Jupiter, and Ondo to nine fraction digits and Pepe, Pump.fun, and Shiba Inu to more, so those cases also check that digits past the eighth are dropped. A rate is how many units of a currency one dollar buys, so a pair Kraken quotes in dollars, such as EURUSD, is inverted.",
   "cases": [
     {
       "name": "gold_tokens_use_their_own_market_prices",
@@ -112,7 +112,7 @@
       "rates": { "jpy": "15740700000" }
     },
     {
-      "name": "a_neighbouring_pair_is_never_read_as_a_rate",
+      "name": "a_neighboring_pair_is_never_read_as_a_rate",
       "tickers": ["BTC"],
       "body": "{\"error\":[],\"result\":{\"EURUSDT\":{\"c\":[\"1.12414\",\"1000\"]},\"USDTJPY\":{\"c\":[\"157.4\",\"1000\"]}}}",
       "rejected": { "BTC": "absent" },
@@ -146,7 +146,7 @@
       "accepted": { "BTC": "11843250000000" }
     },
     {
-      "name": "a_neighbouring_pair_is_never_read_as_the_dollar_pair",
+      "name": "a_neighboring_pair_is_never_read_as_the_dollar_pair",
       "tickers": ["BTC"],
       "body": "{\"error\":[],\"result\":{\"XBTUSDT\":{\"c\":[\"118432.5\",\"0.005\"]}}}",
       "rejected": { "BTC": "absent" }

@@ -10,7 +10,7 @@ use crate::script::SpendableScript;
 /// An unconfirmed transaction a bump speeds up, with the outputs it spends.
 ///
 /// Every input's previous output was found among the funding transactions, so
-/// the fee and rate come from those transactions and not from a server's claim.
+/// the fee and rate come from those transactions, not from what a server reports.
 #[derive(Debug, Clone)]
 pub(crate) struct Original {
     txid: Txid,
@@ -24,9 +24,9 @@ pub(crate) struct Original {
 impl Original {
     /// Resolves `tx` against the transactions that funded it.
     ///
-    /// The inputs carry no confirmation height because BIP-125 rule 2 constrains
-    /// only the inputs a replacement adds, and `Origin::Ordinary`, because a
-    /// mempool already took `tx` as a spend of them, so maturity is moot.
+    /// The inputs get no confirmation height, since BIP-125 rule 2 only constrains
+    /// inputs a replacement adds, and `Origin::Ordinary`, since a mempool already
+    /// accepted `tx` spending them, so maturity is moot.
     pub(crate) fn new(tx: Transaction, funding: &[Transaction]) -> Result<Self, UtxoError> {
         let known = PrevoutMap::index(funding);
         let mut inputs = Vec::with_capacity(tx.input.len());
@@ -89,8 +89,8 @@ impl Original {
         self.tx.input.iter().map(|txin| txin.previous_output).collect()
     }
 
-    /// What every transaction a replacement evicts paid, this one and its
-    /// descendants, which BIP-125 rule 3 makes the replacement pay at least.
+    /// The total fee of everything a replacement evicts, this transaction and its
+    /// descendants. BIP-125 rule 3 makes the replacement pay at least this.
     pub(crate) fn evicted_fee(&self, descendant_fee: Amount) -> Result<Amount, UtxoError> {
         self.fee
             .checked_add(descendant_fee)

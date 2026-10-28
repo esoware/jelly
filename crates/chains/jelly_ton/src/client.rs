@@ -284,7 +284,7 @@ impl TonClient {
     }
 
     /// The balance of the jetton wallet at `wallet`, as its `get_wallet_data` reports it
-    /// at block `tip`. A wallet that does not name `owner` and `master` in TEP-74's order
+    /// at block `tip`. A wallet that doesn't name `owner` and `master` in TEP-74's order
     /// is refused.
     pub(crate) async fn jetton_balance(
         &self,

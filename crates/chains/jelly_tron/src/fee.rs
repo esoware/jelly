@@ -1,9 +1,9 @@
 //! TRON resource charges.
 //!
-//! - Bandwidth must fit entirely within the staked pool or the free pool. Otherwise the
-//!   whole cost burns TRX.
-//! - Energy uses the account's allowance first and burns TRX for the remainder.
-//! - Activating an account cannot use free bandwidth and also incurs the system-contract
+//! - Bandwidth must fit entirely in the staked pool or the free pool, or the whole cost
+//!   burns TRX.
+//! - Energy uses the account's allowance first and burns TRX for the rest.
+//! - Activating an account can't use free bandwidth and also costs the system-contract
 //!   fee.
 
 use jelly_core::Amount;
@@ -14,17 +14,15 @@ use crate::params::ChainParams;
 use crate::raw;
 use crate::shape::Resources;
 
-/// Safety margin over the measured energy.
-///
-/// The dynamic-energy surcharge can rise between the measurement and execution.
-/// `fee_limit` allows for it, and so does the TRX a token transfer has to hold
-/// before it is sent.
+/// Margin over the measured energy, since the dynamic-energy surcharge can rise
+/// before execution. Both `fee_limit` and the TRX a token transfer must hold
+/// before sending include it.
 const ENERGY_MARGIN_PERCENT: u64 = 20;
 
 /// The lowest `fee_limit` a contract call carries, 100 TRX.
 ///
-/// A limit only caps what a failing call can burn, so a generous one costs
-/// nothing on a call that succeeds.
+/// The limit only caps the burn, so a generous one costs nothing extra on a call
+/// that succeeds.
 const MIN_FEE_LIMIT_SUN: u64 = 100_000_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,13 +31,13 @@ pub(crate) enum BandwidthSource {
     Staked,
     /// Covered by the free daily allowance.
     Free,
-    /// Neither pool covered it on its own, so TRX was burned.
+    /// Neither pool covers it on its own, so TRX is burned.
     Burned,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BandwidthCost {
-    /// The serialised size plus the result allowance, times the activation rate
+    /// The serialized size plus the result allowance, times the activation rate
     /// when the transaction activates an account.
     pub(crate) points: u64,
     pub(crate) source: BandwidthSource,
@@ -74,7 +72,7 @@ impl Charge {
     }
 }
 
-/// Bandwidth for a transaction that does not activate an account.
+/// Bandwidth for a transaction that doesn't activate an account.
 fn bandwidth_cost(
     points: u64,
     resources: &Resources,
@@ -98,12 +96,11 @@ fn bandwidth_cost(
     Ok(BandwidthCost { points, source, burn_sun })
 }
 
-/// Bandwidth for a TRX transfer whose recipient has never been activated.
+/// Bandwidth for a TRX transfer to an account that doesn't exist yet.
 ///
-/// The free allowance does not cover an activation. Only staked bandwidth is
-/// tried, and the fallback is the flat `getCreateAccountFee`. The
-/// `getCreateNewAccountFeeInSystemContract` charged either way is not bandwidth
-/// and is added by [`TxCost::new`].
+/// Free bandwidth can't pay for an activation, so it's staked bandwidth or the
+/// flat `getCreateAccountFee`. The `getCreateNewAccountFeeInSystemContract`
+/// charged either way isn't bandwidth, so [`TxCost::new`] adds it.
 fn activation_cost(
     points: u64,
     resources: &Resources,
@@ -126,8 +123,8 @@ fn activation_cost(
 pub(crate) struct EnergyReading {
     /// Total energy the call needs, surcharge included.
     pub(crate) needed: u64,
-    /// The dynamic-energy surcharge inside `needed`, which rises with the
-    /// contract's recent usage and so can be higher at execution than here.
+    /// The dynamic-energy surcharge inside `needed`. It rises with the contract's
+    /// recent usage, so it can be higher at execution.
     pub(crate) penalty: u64,
 }
 
@@ -141,7 +138,8 @@ pub(crate) struct EnergyCost {
     pub(crate) burn_sun: u64,
 }
 
-/// Energy, which unlike bandwidth is drained proportionally.
+/// Unlike bandwidth, the account's energy covers what it can and TRX pays for the
+/// rest.
 fn energy_cost(
     reading: EnergyReading,
     resources: &Resources,
@@ -164,7 +162,7 @@ fn energy_cost(
 pub(crate) struct TxCost {
     pub(crate) bandwidth: BandwidthCost,
     pub(crate) energy: Option<EnergyCost>,
-    /// True when this transfer will create the recipient's account row.
+    /// True when this transfer creates the recipient's account.
     pub(crate) is_activation: bool,
     /// `getCreateNewAccountFeeInSystemContract` on an activation, and zero
     /// otherwise.
@@ -190,9 +188,8 @@ impl TxCost {
         Ok(Self { bandwidth, energy, is_activation, activation_fee_sun, burn_sun })
     }
 
-    /// What the transaction can burn once the surcharge rises by the margin
-    /// `fee_limit` allows for, which is what the balance has to hold for the call
-    /// to run out of nothing but its own limit.
+    /// The burn if energy use rises by the full margin `fee_limit` allows. The
+    /// balance has to hold this much so that only the fee limit can stop the call.
     pub(crate) fn padded_burn_sun(&self, params: &ChainParams) -> Result<u64, TronError> {
         let energy_sun = match self.energy {
             None => 0,
@@ -215,12 +212,12 @@ impl TxCost {
 
 /// The full measured requirement plus a margin, not just the shortfall.
 ///
-/// The caller's energy for the call is capped at `fee_limit` divided by the price
-/// even when staked energy pays for it, and the surcharge can rise before
-/// execution. Unused budget is not charged.
+/// A call can't use more energy than `fee_limit` divided by the price, even when
+/// staked energy pays for it, and the surcharge can rise before execution. Unused
+/// budget isn't charged.
 ///
 /// Never below [`MIN_FEE_LIMIT_SUN`], so a surcharge jump at a maintenance period
-/// cannot run the call out of energy, and never above the network's maximum.
+/// can't run the call out of energy, and never above the network's maximum.
 pub(crate) fn suggested_fee_limit(
     energy_needed: u64,
     params: &ChainParams,
@@ -265,7 +262,7 @@ mod tests {
         assert_eq!(cost.burn_sun, 0);
 
         // Each pool holds 200 of the 265 points needed, so the whole cost burns
-        // rather than being split across them.
+        // instead of being split across them.
         let cost = bandwidth_cost(265, &resources(400, 200, 0), &params).expect("a cost");
         assert_eq!(cost.source, BandwidthSource::Burned);
         assert_eq!(cost.burn_sun, 265_000);
@@ -291,8 +288,8 @@ mod tests {
         let total = TxCost::new(cost, None, true, &params).expect("a total");
         assert_eq!(total.burn_sun, 1_100_000);
 
-        // The rate is governance, so a rate above one widens what staked
-        // bandwidth has to cover.
+        // The rate is a governance parameter. Above one, staked bandwidth has to
+        // cover more.
         let dear = ChainParams { create_account_bandwidth_rate: 10, ..params };
         let cost = activation_cost(266, &resources(0, 300, 0), &dear).expect("a cost");
         assert_eq!(cost.points, 2_660);

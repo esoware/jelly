@@ -60,8 +60,8 @@ async fn a_record_round_trips_without_a_confirmation_count() {
     assert_eq!(page.next_cursor, None);
 }
 
-/// A send's own row carries the rent its review showed. A sighting that cannot tell
-/// keeps it, and one that saw what the transaction really paid replaces it.
+/// A send's own row carries the rent its review showed. A sighting that can't tell keeps
+/// it, and one that saw what the transaction really paid replaces it.
 #[tokio::test]
 async fn a_sighting_without_a_rent_keeps_the_one_stored() {
     let harness = common::harness().await.unwrap();
@@ -319,8 +319,8 @@ async fn a_write_says_whether_the_row_was_already_there() {
 /// An EVM token transfer is the owner's call to the token contract, which an indexer
 /// also lists as a native transaction that moved nothing and paid the fee.
 ///
-/// On the OP Stack an indexed row that got no fee from its receipt leaves out the L1
-/// data fee.
+/// The two fees can differ: on the OP Stack, an indexed row that got no fee from its
+/// receipt leaves out the L1 data fee.
 #[tokio::test]
 async fn a_call_to_a_token_contract_is_dropped_beside_the_token_row_that_paid_its_fee() {
     let harness = common::harness().await.unwrap();

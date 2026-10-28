@@ -15,7 +15,7 @@ struct Info {
     height: Option<u64>,
 }
 
-/// Asks monerod which network it runs, under the identity budget rather than the
+/// Asks monerod which network it runs, under the identity budget instead of the
 /// slower one the negotiated daemon's requests get.
 pub(crate) async fn identify(
     client: &HttpClient,

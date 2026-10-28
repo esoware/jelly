@@ -1,12 +1,4 @@
-//! TRON mainnet: the chain's entry, its address codec and key formats, and its adapter.
-//!
-//! Transactions are built locally and their `raw_data` bytes are kept unchanged
-//! through preview, signing and broadcast, because re-encoding the protobuf can
-//! change the txid and invalidate the signature.
-//!
-//! A send is persisted before broadcast, and after an ambiguous failure the
-//! identical bytes are retried. A rebuild is safe only once head-block time has
-//! reached the expiration and no node holds the transaction.
+//! TRON mainnet.
 
 #![deny(clippy::float_arithmetic)]
 mod abi;

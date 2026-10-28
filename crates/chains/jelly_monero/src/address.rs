@@ -5,8 +5,8 @@ use crate::entry::ENTRY;
 use crate::error::MoneroError;
 use crate::params::CHAIN;
 
-/// Encoding and decoding belong to `monero-address`. This crate owns only the key
-/// hierarchy behind them.
+/// Encoding and decoding belong to `monero-address`. This crate only owns the keys
+/// behind them.
 pub(crate) const CODEC: &dyn AddressCodec = &MoneroCodec;
 
 #[derive(Debug)]
@@ -53,7 +53,7 @@ pub(crate) enum RecipientKind {
 }
 
 impl RecipientKind {
-    /// What the preview shows, so a person can see they are paying an integrated
+    /// What the preview shows, so a person can see they're paying an integrated
     /// address.
     pub(crate) const fn label(self) -> &'static str {
         match self {
@@ -68,8 +68,8 @@ impl RecipientKind {
 /// A recipient validated by the chain entry, whose refusals carry no fragment of
 /// the input.
 ///
-/// It carries the parsed address the builder needs alongside the canonical text
-/// the preview shows, so nothing downstream re-parses or re-encodes it.
+/// It keeps the parsed address for the builder beside the canonical text for the
+/// preview, so nothing downstream re-parses or re-encodes it.
 #[derive(Debug)]
 pub(crate) struct Recipient {
     address: MoneroAddress,
@@ -78,12 +78,12 @@ pub(crate) struct Recipient {
 }
 
 impl Recipient {
-    /// The one gate. Everything this crate sends to went through here.
+    /// Every address this crate pays goes through here.
     pub(crate) fn parse(value: &str) -> Result<Self, MoneroError> {
         let validated = ENTRY.validate_address(value).map_err(MoneroError::Address)?;
         let canonical = validated.into_value();
-        // The canonical form came out of the same parser, so it parses again. A
-        // failure here would mean the two disagree, which is a bug, not input.
+        // The canonical form came out of the same parser, so a failure here is a bug,
+        // not bad input.
         let address = parse(&canonical).map_err(|_| MoneroError::Internal {
             context: "a validated monero address did not re-parse",
         })?;
@@ -108,8 +108,8 @@ impl Recipient {
         &self.canonical
     }
 
-    /// An integrated address carries an encrypted payment id, which travels in
-    /// the transaction and is worth telling a person about.
+    /// An integrated address's payment id, which travels encrypted in the transaction
+    /// and earns a warning in the preview.
     pub(crate) fn payment_id(&self) -> Option<[u8; 8]> {
         self.address.payment_id()
     }

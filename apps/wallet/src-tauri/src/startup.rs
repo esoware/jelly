@@ -7,8 +7,8 @@ use crate::{event, log, window};
 
 const TARGET: &str = "jelly::app::startup";
 
-/// Under the platform's local, non-roaming application data directory. The database
-/// and its write-ahead log must not ride a roaming profile.
+/// Under the platform's local, non-roaming application data directory. The database and
+/// its write-ahead log must stay off a roaming profile.
 const DATA_DIR: &str = "Jelly";
 
 /// Starts services in the background so the window can open first. Engine commands wait for
@@ -49,7 +49,7 @@ pub(crate) fn install(app: &App) -> Result<(), AppError> {
 }
 
 /// Stops services on the exit event while the runtime still exists. A startup still
-/// running is stopped first, so services it would have finished are never left running.
+/// running is stopped first, so it can't leave services running after exit.
 pub(crate) fn shutdown(handle: &AppHandle) {
     let state = handle.state::<AppState>();
     async_runtime::block_on(async {

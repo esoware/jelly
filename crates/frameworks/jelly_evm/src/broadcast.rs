@@ -3,8 +3,8 @@ use jelly_core::{Rejection, RejectionKind, RetryPolicy, wire_enum};
 wire_enum! {
     /// Why a node refused `eth_sendRawTransaction`.
     ///
-    /// No client uses a stable JSON-RPC code for these, so classification matches
-    /// substrings of the wordings the five clients this build meets emit.
+    /// No client gives these a stable JSON-RPC error code, so `classify` matches
+    /// substrings of each client's wording.
     pub(crate) enum BroadcastRefusal {
         /// The network already has these exact bytes, so the send is done.
         AlreadyKnown => "already_known",
@@ -18,13 +18,13 @@ wire_enum! {
         FeeTooLow => "fee_too_low",
         Oversized => "oversized",
         Reverted => "reverted",
-        /// Wording no table row matches. Kept verbatim and tried elsewhere.
+        /// Wording no row matches. It's kept verbatim and tried on another endpoint.
         Unclassified => "unclassified",
     }
 }
 
 impl BroadcastRefusal {
-    /// `Oversized` maps to `Unclassified` because the shared list has no size
+    /// `Oversized` maps to `Unclassified` because [`RejectionKind`] has no size
     /// refusal. Its [`RetryPolicy`] still says no endpoint will take it.
     pub(crate) const fn kind(self) -> RejectionKind {
         match self {
@@ -55,18 +55,19 @@ impl BroadcastRefusal {
         }
     }
 
-    /// Fallback text for a node that refused without a readable message.
+    /// Fallback detail for a refusal with no readable message. Only the log shows
+    /// it.
     pub(crate) const fn explain(self) -> &'static str {
         match self {
             Self::AlreadyKnown => "the network already has this transaction",
-            Self::NonceTooLow => "this nonce is already used; the transaction cannot confirm",
+            Self::NonceTooLow => "this nonce is already used; the transaction can't confirm",
             Self::NonceGap => {
                 "an earlier nonce is still missing, so the node did not take this one"
             }
             Self::ReplacementUnderpriced => {
                 "a replacement has to outbid what it replaces by at least a tenth"
             }
-            Self::InsufficientFunds => "the balance does not cover the value and the gas",
+            Self::InsufficientFunds => "the balance doesn't cover the value and the gas",
             Self::IntrinsicGasTooLow => "the gas limit is below what this transaction costs to run",
             Self::FeeTooLow => "the fee is below what this node relays at; raise the price",
             Self::Oversized => "the transaction is too large for the network to relay",
@@ -75,8 +76,7 @@ impl BroadcastRefusal {
         }
     }
 
-    /// Wraps the node's own wording in the shared refusal shape, falling back to
-    /// [`Self::explain`] when the node said nothing.
+    /// Keeps the node's own wording, or [`Self::explain`] when it gave none.
     pub(crate) fn into_rejection(self, message: &str) -> Rejection {
         let trimmed = message.trim();
         let detail =
@@ -147,7 +147,7 @@ impl BroadcastRefusal {
 mod tests {
     use super::*;
 
-    /// Error wordings recorded from the five clients this build meets.
+    /// Error wordings recorded from each client.
     const RECORDED: [(&str, &str, BroadcastRefusal, RejectionKind, RetryPolicy); 15] = [
         (
             "geth",

@@ -12,8 +12,8 @@ use zeroize::Zeroizing;
 use crate::address::{EvmCodec, checksummed};
 use crate::params::EvmParams;
 
-/// The one [`ChainEntry`] of every EVM network, which each chain crate fills with its
-/// own spec, network figures, codec, and shipped endpoints.
+/// The [`ChainEntry`] every EVM chain crate fills in with its own spec, params,
+/// codec, and endpoints.
 pub struct EvmEntry {
     pub spec: &'static ChainSpec,
     pub params: &'static EvmParams,
@@ -22,7 +22,7 @@ pub struct EvmEntry {
     pub default_endpoints: &'static str,
 }
 
-// The shipped endpoints are left out, because their URLs never reach a log.
+// Leaves out the endpoints so their URLs never reach a log.
 impl fmt::Debug for EvmEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EvmEntry").field("chain", &self.spec.chain).finish_non_exhaustive()
@@ -45,8 +45,8 @@ impl ChainEntry for EvmEntry {
     /// Reads a bare address or an EIP-681 payment request and returns the canonical
     /// spelling.
     ///
-    /// A parameter that only describes the payment, such as a value, is dropped, because
-    /// the send form asks for it itself.
+    /// Parameters that describe the payment, such as `value`, are dropped. The send
+    /// form asks for those itself.
     fn validate_address(&self, value: &str) -> Result<Address, AddressError> {
         let Some(uri) = payment_uri(self.spec.uri_scheme, value) else {
             return self.codec.validate(value);
@@ -58,8 +58,8 @@ impl ChainEntry for EvmEntry {
         self.codec.validate(target)
     }
 
-    /// The checksummed address `key` holds, which is the same on every EVM network. An
-    /// EVM address has no script type.
+    /// The checksummed address of `key`, the same on every EVM network. EVM has no
+    /// script types, so `script` must be `None`.
     fn address(&self, key: &KeyMaterial, script: Option<ScriptKind>) -> Result<String, KeyError> {
         let chain = self.params.chain;
         if script.is_some() {
@@ -93,8 +93,8 @@ impl ChainEntry for EvmEntry {
 /// `/` function after it.
 ///
 /// An ERC-20 `transfer` request targets the token contract and names the payee in its
-/// `address` parameter. Any other function call is refused, because its address
-/// parameter is not a payee.
+/// `address` parameter. Any other function is refused, because its `address`
+/// parameter isn't a payee.
 fn request_target<'u>(
     params: &EvmParams,
     uri: &'u PaymentUri<'_>,

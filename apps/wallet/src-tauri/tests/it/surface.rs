@@ -123,7 +123,7 @@ fn is_field_end(chars: &[char], at: usize) -> bool {
     }
 }
 
-/// Prices do not carry their scale over IPC. Rust and TypeScript must agree, or fiat values
+/// Prices don't carry their scale over IPC. Rust and TypeScript must agree, or fiat values
 /// differ by a power of ten.
 #[test]
 fn the_interface_reads_a_price_at_the_scale_rust_writes_it() {

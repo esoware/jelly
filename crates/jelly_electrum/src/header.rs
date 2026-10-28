@@ -11,8 +11,8 @@ const AUXPOW_VERSION_BIT: i32 = 1 << 8;
 /// The eighty-byte header at the front of `text`.
 ///
 /// Anything after it is refused unless the chain is merge-mined and the header's
-/// version says a proof follows. A server may also send the header without its
-/// proof, as `ElectrumX` does under a checkpoint, and that is accepted too.
+/// version says a proof follows. A merge-mined header sent without its proof, as
+/// `ElectrumX` does under a checkpoint, is accepted too.
 pub(crate) fn header_from_hex(text: &str, is_merge_mined: bool) -> Option<block::Header> {
     let bytes = hex::decode(text.trim()).ok()?;
     let (fields, proof) = bytes.split_at_checked(HEADER_BYTES)?;

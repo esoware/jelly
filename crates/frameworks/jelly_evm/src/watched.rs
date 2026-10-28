@@ -10,8 +10,8 @@ pub(crate) struct Watched {
     pub(crate) owner: Address,
 }
 
-/// All or nothing. A foreign or invalid address fails the whole set, because
-/// silently dropping it would report a confident zero balance.
+/// All or nothing. Silently dropping a foreign or invalid address would show it
+/// with a confident zero balance.
 pub(crate) fn resolve(
     chain: ChainId,
     addresses: &[WatchedAddress],

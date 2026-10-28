@@ -10,8 +10,8 @@ use crate::cursor::Stream;
 use crate::error::TronError;
 
 wire_enum! {
-    /// The operations this build performs. The spelling is the operation name
-    /// the pool records, the log line names and the error carries.
+    /// The operations we perform, spelled as the pool records them and as logs
+    /// and errors name them.
     pub enum Route {
         NowBlock => "getblock",
         Account => "getaccount",
@@ -36,8 +36,8 @@ impl Route {
     }
 
     /// A history page carries whole transactions and may be large. Everything
-    /// else is a handful of fields, and a hostile or broken endpoint must not
-    /// force a larger allocation.
+    /// else is a handful of fields, and a hostile or broken endpoint shouldn't
+    /// force a bigger allocation.
     pub(crate) const fn max_response_bytes(self) -> usize {
         if self.is_indexer() { 4_194_304 } else { 262_144 }
     }
@@ -51,10 +51,9 @@ const HISTORY_PAGE_ROWS: u32 = 50;
 
 /// One request against one endpoint.
 ///
-/// Path and query stay separate because an endpoint's own address may carry a
-/// query holding an API key. `jelly_net` merges the two, and folding the
-/// arguments into the path would overwrite that key or produce two query
-/// strings.
+/// Path and query stay separate because an endpoint's URL may carry a query
+/// holding an API key. `jelly_net` merges the two, whereas folding the arguments
+/// into the path would overwrite that key or produce two query strings.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Request {
     route: Route,
@@ -195,8 +194,8 @@ impl Request {
 
     /// One page of an indexer history stream, newest first.
     ///
-    /// The fingerprint is the opaque cursor `TronGrid` issues and goes back
-    /// verbatim, because it is already URL-safe.
+    /// The fingerprint is `TronGrid`'s opaque cursor, sent back verbatim since it's
+    /// already URL-safe.
     pub(crate) fn history(stream: Stream, address: &str, fingerprint: Option<&str>) -> Self {
         let list = match stream {
             Stream::Native => "transactions",

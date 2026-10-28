@@ -8,9 +8,8 @@ on:
 permissions:
   contents: read
 
-# Runs on main save the Rust cache that PR runs read, so only PR runs cancel each other. Each
-# commit on main gets its own group too, because GitHub drops a queued run when a newer one joins
-# its group, and a release needs CI to have passed on the tagged commit.
+# Only PR runs cancel. Main runs save the cache, and a release needs CI on its exact commit, so
+# each one gets its own group.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -40,8 +39,7 @@ jobs:
 
       - uses: $/.github/actions/setup
 
-      # The vault's keychain test needs a Secret Service, and a runner has no desktop
-      # session to provide one.
+      # The runner can't provide a Secret Service.
       - name: Start a Secret Service
         if: runner.os == 'Linux'
         run: |

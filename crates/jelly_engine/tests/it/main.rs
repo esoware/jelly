@@ -8,7 +8,7 @@ mod cursors;
 mod endpoints;
 mod events;
 mod export;
-mod flavours;
+mod flavors;
 mod imports;
 mod passphrase;
 mod shutdown;

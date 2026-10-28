@@ -107,7 +107,7 @@ fn success_breaks_the_consecutive_failure_streak() {
 }
 
 #[test]
-fn a_stored_record_decays_towards_the_baseline_by_its_own_age() {
+fn a_stored_record_decays_toward_the_baseline_by_its_own_age() {
     let fixture = fixture().expect("a health fixture");
     let now = fixture.clock.now_secs().expect("a fake clock");
     let stored = |age: i64| EndpointHealth {

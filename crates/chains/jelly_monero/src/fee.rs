@@ -29,8 +29,8 @@ impl MoneroPriority {
 /// The most a fee may pay per unit of weight, whether a node quotes it or the user
 /// chooses it.
 ///
-/// It must be at least the highest tier a level pays, which is up to 25 times the base
-/// rate, because only a rate above it is refused.
+/// It must be at least the elevated tier, up to 25 times the base rate, or an honest
+/// node's quote would be refused.
 pub(crate) const MAX_PICONERO_PER_WEIGHT: u64 = 100_000_000;
 
 /// What a request asks its fee to be.
@@ -41,8 +41,8 @@ pub(crate) enum Chosen {
     Rate(u64),
 }
 
-/// One node's fee tiers from one `get_fee_estimate` call, rather than a call per tier
-/// against a host that rate-limits, and the priority the normal level pays.
+/// One node's fee tiers from a single `get_fee_estimate` call, and the priority the
+/// normal level pays.
 #[derive(Debug, Clone)]
 pub struct FeeLadder {
     rates: [FeeRate; 3],
@@ -52,8 +52,8 @@ pub struct FeeLadder {
 
 impl FeeLadder {
     /// The unimportant, normal, and elevated piconero-per-weight rates, with the
-    /// quantisation mask monerod rounds fees up to. `None` when the node quoted a zero
-    /// rate or a zero mask, neither of which is a usable fee.
+    /// quantization mask monerod rounds fees up to. `None` for a zero rate or a zero
+    /// mask, neither of which is a usable fee.
     ///
     /// The normal level pays the normal priority until `FeeLadder::with_normal`
     /// says how full the chain is.
@@ -137,20 +137,19 @@ pub(crate) const PAYMENT_AND_CHANGE: u64 = 2;
 const _: () =
     assert!(PAYMENT_AND_CHANGE == 2, "The weight estimate is wallet2's for exactly two outputs.");
 
-/// The `extra` field of every transaction this adapter builds.
+/// The size of the `extra` field of every transaction this adapter builds.
 ///
-/// That is one transaction public key, 1 + 32 for its tag and the key, and an
-/// encrypted payment id, 1 + 1 + 1 + 8 for the nonce tag, its length, the payment
-/// id tag, and the id.
+/// That's one transaction public key, 1 + 32 for its tag and the key, and an encrypted
+/// payment id, 1 + 1 + 1 + 8 for the nonce tag, its length, the payment id tag, and the id.
 ///
-/// monero-wallet adds no additional keys to a two-output transaction whose
-/// change it can view, so paying a subaddress makes the one key `rB` and leaves
-/// the extra the same size as paying a standard address does.
+/// monero-wallet adds no additional keys to a two-output transaction whose change it
+/// can view, so paying a subaddress makes the one key `rB` and leaves the extra the
+/// same size.
 const EXTRA_SIZE: u64 = 44;
 
 /// The level or custom rate a request asked for.
 ///
-/// Another chain's custom fee is refused rather than defaulted, because it means the
+/// Another chain's fee selection is refused instead of defaulted, because it means the
 /// interface and the adapter disagree about which chain is being paid.
 pub(crate) fn chosen_fee(selection: &FeeSelection) -> Result<Chosen, MoneroError> {
     match *selection {
@@ -164,17 +163,16 @@ pub(crate) fn chosen_fee(selection: &FeeSelection) -> Result<Chosen, MoneroError
     }
 }
 
-/// wallet2's `adjust_priority`, which is what its default priority does, and so
-/// what the normal level pays.
+/// wallet2's `adjust_priority`, which its default priority runs and the normal level
+/// follows.
 ///
-/// Normal when the pool holds a full reward zone, half the block weight limit, of
+/// Normal when the pool holds a full reward zone (half the block weight limit) of
 /// transactions, or when the last ten blocks fill more than 80 percent of it, and
-/// unimportant otherwise. wallet2 counts only pool transactions paying at least
-/// the unimportant rate, which monerod answers as a binary blob even over JSON,
-/// so `pool_weight` is the whole pool's weight. That overcounts only transactions
-/// paying less than the cheapest priority, which are rare. Unlike wallet2, which
-/// falls back to unimportant, anything this cannot judge is normal, because a
-/// Monero fee cannot be bumped.
+/// unimportant otherwise. wallet2 counts only pool transactions paying at least the
+/// unimportant rate, which monerod answers as a binary blob even over JSON, so
+/// `pool_weight` is the whole pool's weight. That only overcounts the rare transaction
+/// paying less. Unlike wallet2, which falls back to unimportant, anything this can't
+/// judge is normal, because a Monero fee can't be bumped.
 pub(crate) fn automatic_priority(
     pool_weight: u64,
     block_weights: &[u64],
@@ -194,16 +192,15 @@ pub(crate) fn automatic_priority(
     if percent > FULL_PERCENT { MoneroPriority::Normal } else { MoneroPriority::Unimportant }
 }
 
-/// wallet2's `estimate_rct_tx_size` for the one shape this adapter builds.
+/// wallet2's `estimate_rct_tx_size`, from `src/wallet/wallet2.cpp`, for the one shape
+/// this adapter builds.
 ///
-/// That shape is CLSAG with Bulletproofs+ and view tags, a ring of [`RING_LEN`],
-/// one payment and its change, and an [`EXTRA_SIZE`] extra field. wallet2's
-/// `estimate_tx_weight` adds a Bulletproof clawback only past two outputs, so for
-/// this shape the weight is the size.
+/// That shape is CLSAG with Bulletproofs+ and view tags, a ring of [`RING_LEN`], one payment
+/// and its change, and an [`EXTRA_SIZE`] extra field. wallet2's `estimate_tx_weight` adds a
+/// Bulletproof clawback only past two outputs, so for this shape the weight is the size.
 ///
-/// From `src/wallet/wallet2.cpp`. This estimate never sets a fee. The fee a
-/// transaction commits to is always `SignableTransaction::necessary_fee`, from
-/// the real weight.
+/// Only quotes and input counts use this. The fee a transaction commits to is always
+/// `SignableTransaction::necessary_fee`, from the real weight.
 pub(crate) fn estimate_weight(n_inputs: usize) -> u64 {
     let inputs = u64::try_from(n_inputs).unwrap_or(u64::MAX);
     let outputs = PAYMENT_AND_CHANGE;
@@ -237,7 +234,7 @@ pub(crate) fn estimate_weight(n_inputs: usize) -> u64 {
 }
 
 /// The fee a payment spending `n_inputs` outputs would pay at this rate,
-/// quantised the way the network quantises it.
+/// quantized the way the network quantizes it.
 pub(crate) fn estimate_fee(rate: FeeRate, n_inputs: usize) -> Amount {
     Amount::from_base_units(rate.calculate_fee_from_weight(estimate_weight(n_inputs)))
 }
@@ -269,12 +266,11 @@ pub(crate) fn inputs_for(
     count.max(1)
 }
 
-/// What a transaction of the shape this request implies pays at `rate`, beside what
-/// it would pay at every level.
+/// The fee this request's transaction would pay at `rate`, and at every level.
 ///
 /// Monero prices per byte of weight, so the exact fee is fixed only once the
-/// transaction is built. The input count is the one estimated dimension, because
-/// a dearer rate can need one more input to pay for itself. A sweep's amount
+/// transaction is built. The input count is the one estimated dimension, because a
+/// dearer rate can need one more input to pay for itself, and a sweep's amount
 /// inherits the estimate.
 pub(crate) fn quote(
     config: &MoneroConfig,
@@ -331,7 +327,7 @@ mod tests {
     }
 
     #[test]
-    fn a_fee_is_quantised_up_to_the_mask() {
+    fn a_fee_is_quantized_up_to_the_mask() {
         let rate = FeeRate::new(20, 10_000).expect("a usable rate");
         let weight = estimate_weight(1);
         let fee = estimate_fee(rate, 1);

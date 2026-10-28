@@ -1,6 +1,6 @@
 //! The port an adapter talks to, and the shipped node behind it.
 //!
-//! The port is typed in `monero-wallet`'s own vocabulary, so there is no untyped
+//! The port is typed in `monero-wallet`'s own vocabulary, so there's no untyped
 //! call layer to decode.
 
 use std::fmt;
@@ -21,11 +21,11 @@ use crate::fee::FeeLadder;
 use crate::params::{CHAIN, check_chain};
 
 /// An object-safe node interface, so adapter tests can run offline. The
-/// library's `Provides*` traits return `impl Trait` and cannot be trait objects.
+/// library's `Provides*` traits return `impl Trait` and can't be trait objects.
 ///
 /// Ring selection stays on one endpoint, because combining nodes' ring answers
 /// could reveal the real input. A transaction's bytes and every question about it go
-/// to that endpoint too, and to another only once it cannot be reached.
+/// to that endpoint too, and to another only once it can't be reached.
 #[async_trait]
 pub trait MoneroNode: Send + Sync + fmt::Debug {
     async fn tip_height(&self) -> Result<u64, MoneroError>;
@@ -62,9 +62,8 @@ pub trait MoneroNode: Send + Sync + fmt::Debug {
     /// Whether `endpoint`, or for `None` whichever node of the pool answers, holds
     /// this transaction, in a block or in its pool.
     ///
-    /// This is the only way to tell a send still in flight from one every mempool
-    /// has forgotten, because a pooled transaction is in no block and cannot be
-    /// found by scanning.
+    /// Scanning only sees blocks, so this is the only way to tell a send still in a
+    /// mempool from one every mempool has forgotten.
     async fn is_known(&self, endpoint: Option<&str>, txid: [u8; 32]) -> Result<bool, MoneroError>;
 }
 
@@ -82,7 +81,7 @@ impl fmt::Debug for PooledNode {
 
 impl PooledNode {
     /// A pool on another chain or with no endpoints is a configuration mistake, so
-    /// it fails here rather than at runtime.
+    /// it fails here instead of at runtime.
     pub(crate) fn new(pool: Arc<Pool<DaemonEndpoint>>) -> Result<Self, MoneroError> {
         check_chain(pool.chain())?;
         if pool.endpoints().is_empty() {
@@ -175,8 +174,8 @@ impl MoneroNode for PooledNode {
 
 /// Broadcasts through `endpoint`, the node that served the ring.
 ///
-/// Another node of the pool gets the bytes only when that one cannot be reached at
-/// all. Any answer from the ring node, a refusal included, is the answer.
+/// Another node of the pool gets the bytes only when that one can't be reached at
+/// all. Any answer from the ring node, a refusal included, is returned as is.
 pub(crate) async fn broadcast_through_ring(
     node: &dyn MoneroNode,
     endpoint: &str,

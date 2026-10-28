@@ -15,15 +15,15 @@ use crate::watched::Watched;
 /// How much of one address's native balance change this pass can account for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Explained {
-    /// The wei the address's own sends took out since the balance last judged,
+    /// The wei the address's own sends took out since the last judged balance:
     /// their fees and whatever native value they paid to another address.
     Spent(u128),
-    /// Something accounts for the change without saying by how much, so no
-    /// remainder can be told apart from it.
+    /// Something accounts for the change without saying how much, so no remainder
+    /// can be told apart from it.
     Wholly,
-    /// The indexer did not finish looking at this address, so a remainder now may
-    /// be a transfer it reports later. The change is judged on a later pass,
-    /// against the balance the last judged pass kept.
+    /// Not enough is known yet, such as a send with no receipt or an indexer read
+    /// that didn't finish. The change is judged on a later pass, against the last
+    /// judged balance.
     Deferred,
 }
 
@@ -39,14 +39,14 @@ impl Explained {
     }
 }
 
-/// What the sends a balance newly holds took out of it, given the account nonce
-/// the last judged balance was read at and the one this balance was read at.
+/// What the sends mined between two balance reads took out, given the account
+/// nonce at the last judged balance and at this one.
 ///
-/// Only one transaction per nonce can confirm, so a nonce some receipt answered
-/// for counts that one and its rivals count nothing. A nonce whose sends have no
-/// receipt yet defers the judgement, because the balance holds what it spent and
-/// no node has said how much. A nonce this wallet never sent from explains
-/// nothing, so a payment out from elsewhere is still recorded.
+/// Only one transaction per nonce can confirm, so where a receipt answered for a
+/// nonce, that send counts and its rivals count nothing. A nonce whose sends have
+/// no receipt yet defers the judgment, because the balance already reflects what
+/// it spent and no node has said how much. A nonce this wallet never sent from
+/// explains nothing, so a payment out from elsewhere is still recorded.
 fn spent_between(spends: &[Spend], address_id: i64, nonces: Range<u64>) -> Explained {
     let mut by_nonce: BTreeMap<u64, Option<Explained>> = BTreeMap::new();
     for spend in spends {
@@ -63,9 +63,9 @@ fn spent_between(spends: &[Spend], address_id: i64, nonces: Range<u64>) -> Expla
         .fold(Explained::Spent(0), |total, spent| total.plus(spent.unwrap_or(Explained::Deferred)))
 }
 
-/// One address's answers to the balance read. An entry the node would not
-/// answer, or answered with a number too wide for its unit, is `None`, an unknown
-/// balance rather than a zero one.
+/// One address's answers to the balance read. An entry the node wouldn't answer,
+/// or answered with a number too wide for its unit, is `None`, an unknown balance
+/// rather than a zero one.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct Sheet {
     pub(super) native: Option<u128>,
@@ -104,8 +104,8 @@ pub(super) async fn read_sheets(
         .collect())
 }
 
-/// A contract can answer any word, so one too wide for its unit costs that one
-/// entry, like an entry the node would not answer, and not the pass.
+/// A contract can answer any word. One too wide for its unit leaves that entry
+/// unknown, like one the node wouldn't answer, instead of failing the pass.
 fn narrowed<T>(word: Option<U256>, narrow: impl FnOnce(U256) -> Result<T, EvmError>) -> Option<T> {
     narrow(word?)
         .inspect_err(|error| {
@@ -115,8 +115,7 @@ fn narrowed<T>(word: Option<U256>, narrow: impl FnOnce(U256) -> Result<T, EvmErr
 }
 
 /// A native change that neither the address's own sends nor the indexer's rows
-/// explain, which is recorded as a balance delta with an unknown outcome rather
-/// than as a decoded transaction.
+/// explain. It's recorded as a balance delta with an unknown outcome.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Unexplained {
     pub(super) entry: Watched,
@@ -157,7 +156,7 @@ pub(super) fn balances(
             let own = match (cursor.native_nonce, nonce) {
                 (_, None) => Explained::Deferred,
                 // A cursor that kept no nonce has nothing to net the balance
-                // against, so it is taken as it stands.
+                // against, so it's taken as it stands.
                 (None, Some(_)) => Explained::Wholly,
                 // A node behind the one the balance was last judged on.
                 (Some(judged), Some(now)) if now < judged => Explained::Deferred,

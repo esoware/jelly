@@ -21,12 +21,12 @@ const TARGET: &str = "jelly::app::window";
 
 pub(crate) const MAIN_WINDOW: &str = "main";
 
-// A window without a backdrop layer shows `--color-canvas` from `styles/tokens.css`
+// `--color-canvas` from `styles/tokens.css`. A window without a backdrop layer shows it
 // before the page paints and wherever a resize runs ahead of the page.
 const CANVAS: Color = Color(0x18, 0x18, 0x18, 0xff);
 
-/// How soon after a crashed page is reloaded another crash leaves it blank instead, so a
-/// page that crashes while it loads is not reloaded forever.
+/// A crash this soon after a reload leaves the page blank, so a page that crashes while it
+/// loads isn't reloaded forever.
 #[cfg(windows)]
 const CRASH_RELOAD_COOLDOWN: Duration = Duration::from_secs(10);
 
@@ -34,9 +34,9 @@ wire_enum! {
     #[derive(Type)]
     /// What fills the window behind the page.
     pub(crate) enum WindowBackdrop {
-        /// The window is transparent over a layer the app draws, either a blur of the
-        /// screen behind the window under a tint or the plain canvas, so the page leaves
-        /// its canvas unpainted.
+        /// The window is transparent over a layer the app draws, either a tinted blur of
+        /// what's behind the window or the plain canvas. The page leaves its canvas
+        /// unpainted.
         Composed => "composed",
         /// The window paints the canvas, and so does the page.
         Solid => "solid",
@@ -62,8 +62,8 @@ pub(crate) const WINDOW_CONTROLS: WindowControls =
 /// Builds the main window in code, so it can refuse navigation, new windows, and downloads.
 ///
 /// The content security policy stops fetches and subresources, but not a top-level
-/// navigation, `window.open`, or a download. The handlers attached here refuse all three,
-/// so a script that gets into the page still has no way to reach the network or the disk.
+/// navigation, `window.open`, or a download. Refusing those too leaves a script that gets
+/// into the page no way to reach the network or the disk.
 pub(crate) fn open_main(app: &App) -> Result<(), AppError> {
     let config = app.config();
     let window_config = config
@@ -138,7 +138,7 @@ fn reload_after_crash(window: &WebviewWindow) -> Result<(), AppError> {
             match reloader.reload() {
                 Ok(()) => tracing::warn!(target: TARGET, "the page crashed and was reloaded"),
                 Err(error) => {
-                    tracing::warn!(target: TARGET, %error, "the page crashed and could not be reloaded");
+                    tracing::warn!(target: TARGET, %error, "the page crashed and couldn't be reloaded");
                 }
             }
         });
@@ -160,8 +160,8 @@ pub(crate) const fn apply_backdrop(
 ///
 /// Production pages load from `tauri://localhost`, or on Windows from
 /// `http://tauri.localhost`, since the window leaves `useHttpsScheme` off. The webview
-/// serves no other scheme on those hosts, and `tauri.localhost` on a scheme it does not
-/// serve is a loopback socket. Development pages load from the Vite server.
+/// serves no other scheme on those hosts, and `tauri.localhost` on any other scheme is a
+/// loopback socket. Development pages load from the Vite server.
 fn is_app_origin(url: &Url, dev_url: Option<&Url>) -> bool {
     match url.scheme() {
         "tauri" => !cfg!(windows) && url.host_str() == Some("localhost") && url.port().is_none(),

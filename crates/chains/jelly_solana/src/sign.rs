@@ -8,18 +8,18 @@ use crate::config::CHAIN;
 use crate::error::SolanaError;
 use crate::payload::SolanaPayload;
 
-/// The largest transaction the network moves, set by the IPv6 MTU. A larger one
-/// is refused everywhere, so it is checked before the user approves anything.
+/// The largest transaction the network moves, set by the IPv6 MTU. A larger one is
+/// refused everywhere, so it's checked before the user approves anything.
 const MAX_TRANSACTION_BYTES: usize = 1232;
 
-/// What one signature and its length prefix add to a serialised message.
+/// What one signature and its length prefix add to a serialized message.
 pub(crate) const SIGNATURE_OVERHEAD_BYTES: usize = 65;
 
-/// Signs the payload's message bytes, which are the signing preimage, so the
-/// signature covers exactly what the preview decoded.
+/// Signs the payload's message bytes, which are the signing preimage, so the signature
+/// covers exactly what the preview decoded.
 ///
-/// Ed25519 signing is deterministic, so re-signing the same payload yields the
-/// same transaction rather than a second one.
+/// Ed25519 signing is deterministic, so re-signing the same payload yields the same
+/// transaction, not a second one.
 pub(crate) fn sign(payload: &SolanaPayload, key: &KeyMaterial) -> Result<SignedTx, SolanaError> {
     if key.kind() != KeyKind::Ed25519Seed {
         return Err(SolanaError::WrongKeyKind { got: key.kind() });
@@ -74,8 +74,8 @@ mod tests {
 
     use super::*;
 
-    /// Fixed seeds over fixed messages, produced by an implementation this crate
-    /// does not link. RFC 8032 signing is deterministic, so these are exact.
+    /// Fixed seeds over fixed messages, produced by an implementation this crate doesn't
+    /// link. RFC 8032 signing is deterministic, so these are exact.
     const VECTORS: &str = include_str!("../tests/vectors/signing.json");
 
     #[derive(Debug, Deserialize)]
@@ -96,8 +96,8 @@ mod tests {
         KeyMaterial::new(KeyKind::Ed25519Seed, Zeroizing::new(seed.to_vec()))
     }
 
-    /// The signer this crate signs with is the workspace's own, checked here
-    /// against the vectors and the upstream keypair.
+    /// This crate signs with the workspace's own signer, checked here against the
+    /// vectors and the upstream keypair.
     #[test]
     fn every_pinned_signature_matches_the_signer_this_crate_uses_and_the_reference_signer() {
         let vectors: Vectors = serde_json::from_str(VECTORS).expect("the vector file parses");

@@ -11,8 +11,8 @@ use crate::legacy::is_legacy;
 use crate::params::UtxoParams;
 use crate::wif::WifFormat;
 
-/// The one [`ChainEntry`] of every UTXO chain, which each chain crate fills with its
-/// own spec, table, key format, and shipped endpoints.
+/// The [`ChainEntry`] every UTXO chain uses, filled in by each chain crate with its
+/// spec, table, key format, and shipped endpoints.
 pub struct UtxoEntry {
     pub spec: &'static ChainSpec,
     pub params: &'static UtxoParams,
@@ -24,7 +24,7 @@ pub struct UtxoEntry {
     pub default_endpoints: &'static str,
 }
 
-// The shipped endpoints are left out, because their URLs never reach a log.
+// Leaves out the shipped endpoints so their URLs never reach a log.
 impl fmt::Debug for UtxoEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("UtxoEntry").field("chain", &self.spec.chain).finish_non_exhaustive()
@@ -45,7 +45,7 @@ impl ChainEntry for UtxoEntry {
     }
 
     /// On a chain whose scheme is the address prefix, an address after the scheme keeps
-    /// it. A legacy address has no prefix of its own, so it is read bare.
+    /// it. A legacy address has no prefix of its own, so it's read bare.
     fn validate_address(&self, value: &str) -> Result<Address, AddressError> {
         let trimmed = value.trim();
         let target = request_target(self.spec, trimmed)?;
@@ -55,7 +55,7 @@ impl ChainEntry for UtxoEntry {
         self.params.codec.validate(target)
     }
 
-    /// `None` takes the chain's default flavour.
+    /// `None` takes the chain's default flavor.
     fn address(&self, key: &KeyMaterial, script: Option<ScriptKind>) -> Result<String, KeyError> {
         let resolved = self
             .spec
@@ -91,13 +91,13 @@ impl UtxoEntry {
     }
 }
 
-/// The address a BIP-21 payment request for the chain pays, or `value` itself when it is
-/// no such request.
+/// The address a BIP-21 payment request for the chain pays, or `value` itself when it
+/// isn't one.
 ///
-/// A parameter that only describes the payment, such as an amount or a label, is
-/// dropped, because the send form asks for those itself. BIP-21 voids a request with a
-/// `req-` parameter the client does not understand, so one refuses the whole request,
-/// and dropping parameters never produces a payment its recipient cannot match.
+/// Parameters like an amount or a label are dropped, since the send form asks for those
+/// itself. BIP-21 voids a request with a `req-` parameter the client doesn't
+/// understand, so any `req-` parameter refuses the whole request, and dropping the rest
+/// can never produce a payment the recipient can't match.
 fn request_target<'a>(spec: &ChainSpec, value: &'a str) -> Result<&'a str, AddressError> {
     let Some(uri) = payment_uri(spec.uri_scheme, value) else {
         return Ok(value);
@@ -116,7 +116,7 @@ fn request_target<'a>(spec: &ChainSpec, value: &'a str) -> Result<&'a str, Addre
 /// `target` with the scheme in front, when the user wrote the two together.
 ///
 /// A position the codec reports then counts from where the user's text does. A `//`
-/// between the two is not part of any address, so that form yields the bare payload.
+/// between the two isn't part of any address, so that form yields the bare payload.
 fn with_scheme<'a>(trimmed: &'a str, target: &'a str) -> &'a str {
     let address = trimmed.split_once('?').map_or(trimmed, |(address, _)| address);
     match address.split_once(':') {

@@ -33,9 +33,8 @@ fn the_entry_serves_its_own_spec_codec_and_endpoints() {
     ));
 }
 
-/// The scanner watches only the wallet's own account, so Monero holds no standalone
-/// keys, and naming its formats would send a user pasting one elsewhere to a chain that
-/// cannot take it.
+/// The scanner watches only the wallet's own account, so Monero can't import a key.
+/// Recognizing one would steer a user who pasted it toward a chain that can't take it.
 #[test]
 fn monero_reads_and_recognizes_no_key() {
     let account = hd_account(0).unwrap();

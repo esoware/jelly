@@ -1,8 +1,8 @@
-//! No test in this crate opens a socket.
+//! No test here opens a socket.
 //!
-//! The seam is [`MoneroNode`], and everything above it is the shipped
-//! [`MoneroAdapter`], including the scan, the reorganisation walk, ring selection,
-//! signing, and in-flight follow-up.
+//! The tests fake [`MoneroNode`] and run the shipped [`MoneroAdapter`] on top of it, so
+//! scanning, reorganization handling, ring selection, signing, and in-flight follow-up are
+//! all the real code.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::error::Error;
@@ -44,8 +44,8 @@ use zeroize::Zeroizing;
 
 pub(crate) type Fallible<T> = Result<T, Box<dyn Error>>;
 
-/// The endpoint the fake answers as. Two operations are pinned to an endpoint, so
-/// a test can prove one transaction's whole ring came from one node.
+/// The endpoint the fake serves its distribution from, so a test can check that a
+/// transaction's whole ring came from that one node.
 pub(crate) const ENDPOINT: &str = "https://node.invalid:18081";
 
 /// How [`ENDPOINT`] appears in a failure.
@@ -59,15 +59,14 @@ const OUTPUTS_PER_BLOCK: u64 = 4;
 
 /// Empty blocks the harness serves after the recorded one.
 ///
-/// Decoy selection samples an output age from a gamma distribution with a median
-/// of about two days and rejects a sample past the newest spendable output, so a
-/// chain has to span more than that for a ring to be selectable at all. The
-/// recorded block is near the genesis of its chain, so everything above it is
-/// synthetic.
+/// Decoy selection draws output ages with a median of about a day and a half and
+/// rejects any older than the chain, so a shorter chain runs out of tries before it
+/// fills a ring. The recorded block is near its chain's genesis, so everything above
+/// it is synthetic.
 pub(crate) const CHAIN_BLOCKS: u64 = 3_000;
 
-/// The per-weight rates the fake quotes for the three tiers the levels pay, which are
-/// mainnet's multipliers.
+/// Per-weight rates for the unimportant, normal, and elevated tiers, in mainnet's
+/// 1:4:16 ratio.
 pub(crate) const RATES: [u64; 3] = [1, 4, 16];
 
 /// Ring size for CLSAG with Bulletproofs+, fixed by consensus since hardfork 15.
@@ -159,8 +158,8 @@ pub(crate) fn owned_in(
 
 /// A point nobody holds the key to, for a decoy or a key image the fake serves.
 ///
-/// `biased_hash` clears the cofactor, so the result is torsion free and never the
-/// identity, which is what the library requires of a ring member.
+/// `biased_hash` clears the cofactor, so the result is torsion free and not the
+/// identity, as the library requires of a ring member.
 pub(crate) fn unowned_point(tag: u8, index: u64) -> Point {
     let mut seed = [tag; 32];
     for (slot, byte) in seed.iter_mut().zip(index.to_le_bytes()) {
@@ -169,11 +168,11 @@ pub(crate) fn unowned_point(tag: u8, index: u64) -> Point {
     Point::biased_hash(seed)
 }
 
-/// Builds a chain of blocks that link to each other, so the adapter's
-/// reorganisation check has something real to check.
+/// Builds blocks that link to each other, so the adapter's reorganization check has
+/// real hashes to compare.
 ///
-/// A block that cannot be built is reported by [`ChainBuilder::finish`], so the
-/// steps chain without a check each.
+/// A block that can't be built fails [`ChainBuilder::finish`], so the steps chain
+/// without a check after each one.
 #[derive(Debug)]
 pub(crate) struct ChainBuilder {
     previous: [u8; 32],
@@ -195,8 +194,8 @@ impl ChainBuilder {
         self
     }
 
-    /// Appends `count` blocks with no transactions. `salt` is what makes two
-    /// chains at the same heights differ.
+    /// Appends `count` blocks with no transactions. `salt` makes two chains at the
+    /// same heights differ.
     #[must_use]
     pub(crate) fn run(mut self, from: u64, count: u64, salt: u8) -> Self {
         for offset in 0..count {
@@ -322,8 +321,8 @@ pub(crate) struct FakeNode {
     /// Whether a request naming an endpoint fails to connect, as a node that went down
     /// does.
     is_named_unreachable: Mutex<bool>,
-    /// Positions the node answers no ring member for, as a reorganisation that took
-    /// those outputs away leaves them.
+    /// Positions the node returns no ring member for, as if a reorganization removed
+    /// those outputs.
     missing_members: Mutex<HashSet<u64>>,
     /// Ring requests time out until the node has served this many distributions.
     rings_time_out_until: AtomicUsize,
@@ -361,8 +360,8 @@ impl FakeNode {
         }
     }
 
-    /// Replaces the chain the node serves. Heights not present are absent, which
-    /// is what a request past the tip gets.
+    /// Replaces the chain the node serves. A height it doesn't hold comes back with no
+    /// block, as a height past the tip does.
     pub(crate) fn serve(&self, blocks: Vec<ScannableBlock>) {
         let mut guard = self.blocks.lock();
         guard.clear();
@@ -375,8 +374,8 @@ impl FakeNode {
         *self.tip.lock() = tip;
     }
 
-    /// Registers an output the wallet really owns, so the ring the library builds
-    /// contains the output actually being spent, which it checks byte for byte.
+    /// Registers an output the wallet owns, so a ring request returns its real key and
+    /// commitment, which the library checks byte for byte.
     pub(crate) fn register_real(&self, output: &WalletOutput) {
         self.real_outputs
             .lock()
@@ -421,9 +420,8 @@ impl FakeNode {
         *self.distribution.lock() = (0..DISTRIBUTION_BLOCKS).map(outputs_through).collect();
     }
 
-    /// Ring requests time out until the node has served `count` distributions, as at a
-    /// node that dropped after serving one, until the pool answers from a node that is
-    /// up.
+    /// Ring requests time out until the node has served `count` distributions, as if
+    /// the node behind each earlier distribution went down.
     pub(crate) fn time_out_rings_until_distribution(&self, count: usize) {
         self.rings_time_out_until.store(count, Ordering::SeqCst);
     }
@@ -448,8 +446,7 @@ impl FakeNode {
         self.distribution_calls.load(Ordering::SeqCst)
     }
 
-    /// Every block every request has been answered with, counting a block once
-    /// for each time it was sent.
+    /// Blocks sent across all requests, counting a block again each time it's resent.
     pub(crate) fn blocks_served(&self) -> usize {
         self.blocks_served.load(Ordering::SeqCst)
     }
@@ -686,8 +683,8 @@ impl Harness {
     }
 }
 
-/// A second adapter over the harness's node, clock and cursor store, watching the
-/// primary address of `account`, which is what an unlock after a lock is.
+/// A second adapter over the harness's node, clock, and cursor store, watching the
+/// primary address of `account`, as an unlock after a lock would build.
 pub(crate) async fn reopen(
     harness: &Harness,
     account: MoneroAccount,
@@ -800,8 +797,8 @@ impl MoneroNode for HookedNode {
     }
 }
 
-/// An adapter for the fixture account over `node`, born at the recorded block and
-/// watching the primary address.
+/// An adapter for the fixture account over `node`, restoring from the recorded block
+/// and watching the primary address.
 pub(crate) async fn fixture_adapter(
     node: Arc<dyn MoneroNode>,
     cursors: Arc<dyn CursorStore>,

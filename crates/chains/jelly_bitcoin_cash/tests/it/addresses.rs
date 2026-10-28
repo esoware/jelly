@@ -65,7 +65,7 @@ fn valid_addresses_canonicalise_to_themselves() {
         let address = ENTRY.validate_address(case).unwrap();
         assert_eq!(address.value(), case);
         assert_eq!(address.chain(), ChainId::BitcoinCash);
-        // Surrounding whitespace is the caller's paste, not part of the value.
+        // Whitespace around a paste isn't part of the address.
         let padded = format!("  {case}  ");
         assert_eq!(ENTRY.validate_address(&padded).unwrap().value(), case);
     }
@@ -81,7 +81,7 @@ fn invalid_addresses_are_refused() {
 }
 
 #[test]
-fn the_codec_reports_the_flavour_a_path_derived() {
+fn the_codec_reports_the_flavor_a_path_derived() {
     for text in ["m/44'/145'/0'/0/0", "m/44'/0'/0'/0/0"] {
         let address = address_at(ENTRY, text, None).unwrap();
         assert_eq!(ENTRY.codec().script_kind(&address), Some(ScriptKind::P2pkh), "{text}");
@@ -89,8 +89,8 @@ fn the_codec_reports_the_flavour_a_path_derived() {
     }
 }
 
-/// The specification's legacy translations, each a legacy address that pays the script
-/// its `CashAddr` translation pays, which is written back as that translation.
+/// The specification's legacy translations. Each legacy address pays the same script as
+/// its `CashAddr` form, and that script reads back as the `CashAddr` form.
 #[test]
 fn a_legacy_address_pays_the_script_of_its_published_cashaddr_translation() {
     let file: Translations = serde_json::from_str(CASHADDR_JSON).unwrap();
@@ -108,10 +108,9 @@ fn a_legacy_address_pays_the_script_of_its_published_cashaddr_translation() {
     }
 }
 
-/// Bitcoin Cash has no segwit, so P2PKH is the only flavour and a segwit path is
-/// refused rather than downgraded.
+/// A segwit path is refused, not downgraded to P2PKH.
 #[test]
-fn p2pkh_is_the_only_flavour() {
+fn p2pkh_is_the_only_flavor() {
     assert_eq!(SPEC.default_script, Some(ScriptKind::P2pkh));
     assert!(matches!(
         address_at(ENTRY, "m/84'/145'/0'/0/0", None),
@@ -132,7 +131,7 @@ fn payment_uris_yield_the_address_they_pay() {
             case.uri
         );
     }
-    // A legacy address after the scheme has no prefix of its own, so it is read bare.
+    // A legacy address has no prefix of its own, so the scheme is dropped.
     let legacy = "1BpEi6DfDAUFd7GtittLSdBeYJvcoaVggu";
     assert_eq!(
         ENTRY.validate_address(&format!("bitcoincash:{legacy}?amount=1")).unwrap().value(),
@@ -153,8 +152,8 @@ fn payment_uris_refuse_what_jelly_cannot_send() {
     }
 }
 
-/// The scheme is the `CashAddr` prefix, so it stays on the address, and a position the
-/// codec reports counts from where the user's text does, request or not.
+/// The scheme doubles as the `CashAddr` prefix and stays on the address, so an error
+/// position counts from the start of the user's text, payment request or not.
 #[test]
 fn a_reported_position_counts_from_the_users_text() {
     let malformed = Err(AddressError::Malformed { chain: ChainId::BitcoinCash, position: 53 });

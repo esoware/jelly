@@ -1,9 +1,7 @@
-//! An in-memory Electrum server. Only `[dev-dependencies]` enable the
-//! `test-util` feature.
+//! An in-memory Electrum server.
 //!
-//! It speaks the real wire protocol over a duplex pipe, so an offline test
-//! exercises the same framing, batching, reconnection, and decoding a TLS socket
-//! would.
+//! It speaks the real wire protocol over a duplex pipe, so an offline test exercises the
+//! same framing, batching, reconnection, and decoding a TLS socket would.
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::mem::take;
@@ -40,8 +38,7 @@ pub fn bitcoin_genesis() -> BlockHash {
     genesis_block(Network::Bitcoin).block_hash()
 }
 
-/// Bitcoin as this crate's tests know it, by block zero alone. A table that names a
-/// checkpoint too belongs to a chain crate.
+/// Bitcoin by block zero alone, without the checkpoint its chain crate adds.
 pub fn bitcoin_chain() -> ElectrumChain {
     ElectrumChain { genesis: bitcoin_genesis(), checkpoint: None, is_merge_mined: false }
 }
@@ -52,7 +49,7 @@ pub fn bitcoin_genesis_header() -> String {
     serialize_hex(&genesis_block(Network::Bitcoin).header)
 }
 
-/// The same header with a different nonce, so it hashes to a chain that is not
+/// The same header with a different nonce, so it hashes to a chain that isn't
 /// Bitcoin.
 pub fn foreign_genesis_header() -> String {
     serialize_hex(&foreign_header())
@@ -71,8 +68,8 @@ pub fn endpoint_label() -> EndpointLabel {
     EndpointLabel::new("ssl", "electrum.invalid", Some(50002))
 }
 
-/// The hex scripthash a request about `script` carries as its first parameter, which
-/// is what [`Answer::Keyed`] looks a history or unspent request up by.
+/// The hex scripthash a request about `script` carries as its first parameter, and the
+/// key [`Answer::Keyed`] looks it up by.
 pub fn script_hash(script: &Script) -> String {
     ElectrumScriptHash::of(script).to_string()
 }
@@ -87,11 +84,11 @@ fn foreign_header() -> block::Header {
 pub enum Answer {
     /// The `result` member, verbatim JSON. Every element of a batch gets it.
     Result(String),
-    /// One `result` per batch element. A list shorter than the batch produces a
-    /// short answer, which is how the length check is exercised.
+    /// One `result` per batch element. A list shorter than the batch gives a short
+    /// answer, for testing the length check.
     Each(Vec<String>),
     /// One `result` per batch element, looked up by the element's first parameter,
-    /// so the answer does not depend on what else the batch asked for. An element
+    /// so the answer doesn't depend on what else the batch asked for. An element
     /// whose key is missing gets no reply, which makes a short answer.
     Keyed(BTreeMap<String, String>),
     /// A JSON-RPC error object on every element.

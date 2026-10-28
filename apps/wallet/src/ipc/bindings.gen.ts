@@ -6,35 +6,28 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	listWallets: () => typedError<WalletRecord[], IpcError>(__TAURI_INVOKE("list_wallets")),
-	/**
-	 *  The phrase in the answer crosses the boundary once. Every later read is a
-	 *  re-authenticated export.
-	 */
 	createSeedWallet: (name: string, color: WalletColor, password: string, words: PhraseWords, passphrase: PassphraseInput) => typedError<CreatedWallet, IpcError>(__TAURI_INVOKE("create_seed_wallet", { name, color, password, words, passphrase })),
 	importSeedWallet: (name: string, color: WalletColor, password: string, phrase: string, passphrase: PassphraseInput) => typedError<null, IpcError>(__TAURI_INVOKE("import_seed_wallet", { name, color, password, phrase, passphrase })),
-	/**  Any wallet already open is locked first, because the engine keeps one session. */
+	/**  Locks any wallet already open first, since the engine holds one session. */
 	unlockWallet: (walletId: number, password: string, passphrase: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("unlock_wallet", { walletId, password, passphrase })),
 	lockWallet: () => typedError<null, IpcError>(__TAURI_INVOKE("lock_wallet")),
 	changePassword: (currentPassword: string, newPassword: string) => typedError<null, IpcError>(__TAURI_INVOKE("change_password", { currentPassword, newPassword })),
 	updateWallet: (walletId: number, name: string, color: WalletColor) => typedError<null, IpcError>(__TAURI_INVOKE("update_wallet", { walletId, name, color })),
 	/**  Irreversible. `confirmation` is the wallet's own name. */
 	deleteWallet: (walletId: number, password: string, confirmation: string) => typedError<null, IpcError>(__TAURI_INVOKE("delete_wallet", { walletId, password, confirmation })),
-	/**
-	 *  Advisory only. Anything irreversible re-reads the real state rather than trusting
-	 *  this.
-	 */
+	/**  Advisory only. Anything irreversible checks the real state itself. */
 	getLockState: () => typedError<LockState, IpcError>(__TAURI_INVOKE("get_lock_state")),
 	/**
-	 *  Resets the auto-lock countdown. No other command does, so the interface calls this
-	 *  for user input.
+	 *  Resets the auto-lock countdown. No other command does, so the frontend calls this on
+	 *  user input.
 	 */
 	touchSession: () => typedError<null, IpcError>(__TAURI_INVOKE("touch_session")),
 	listAddresses: (chain: ChainId) => typedError<AddressRecord[], IpcError>(__TAURI_INVOKE("list_addresses", { chain })),
-	/**  Opens only a built-in address explorer after validating the address. */
+	/**  Opens the chain's built-in address explorer, and only for a valid address. */
 	openAddressExplorer: (chain: ChainId, address: string) => typedError<null, IpcError>(__TAURI_INVOKE("open_address_explorer", { chain, address })),
 	/**
-	 *  Derives the lowest free address using the requested script type or the chain's
-	 *  default path.
+	 *  Derives the lowest free index on the requested script's path, or on the chain's default
+	 *  path.
 	 */
 	addAddress: (chain: ChainId, script: 
 /**  BIP-86 taproot. */
@@ -54,7 +47,7 @@ export const commands = {
 "p2sh_p2wpkh" | 
 /**  BIP-44 legacy. */
 "p2pkh" | "ton_v5r1" | "ton_v4r2" | "ton_v3r2" | null, label: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("add_address_at", { chain, path, script, label })),
-	/**  Creates a standalone key in the vault. The seed phrase cannot restore it. */
+	/**  Creates a standalone key in the vault. The seed phrase can't restore it. */
 	createImportedAddress: (chain: ChainId, script: 
 /**  BIP-86 taproot. */
 "p2tr" | 
@@ -64,10 +57,7 @@ export const commands = {
 "p2sh_p2wpkh" | 
 /**  BIP-44 legacy. */
 "p2pkh" | "ton_v5r1" | "ton_v4r2" | "ton_v3r2" | null, label: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("create_imported_address", { chain, script, label })),
-	/**
-	 *  The key password is the keystore-v3 password and is ignored by every other import
-	 *  format.
-	 */
+	/**  `key_password` is the keystore-v3 password. Every other format ignores it. */
 	importPrivateKey: (chain: ChainId, input: string, keyPassword: string | null, script: 
 /**  BIP-86 taproot. */
 "p2tr" | 
@@ -79,32 +69,32 @@ export const commands = {
 "p2pkh" | "ton_v5r1" | "ton_v4r2" | "ton_v3r2" | null, label: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("import_private_key", { chain, input, keyPassword, script, label })),
 	setAddressLabel: (addressId: number, label: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("set_address_label", { addressId, label })),
 	/**
-	 *  Removes an address the seed derives, with its balances and history. Adding it again
-	 *  re-derives it.
+	 *  Removes an address with its balances and history. Refused for the last address on a
+	 *  standalone key, which only `delete_key` removes.
 	 */
 	deleteAddress: (addressId: number) => typedError<null, IpcError>(__TAURI_INVOKE("delete_address", { addressId })),
-	/**  Permanently deletes a standalone key and its address. */
+	/**  Permanently deletes a standalone key and every address it holds. */
 	deleteKey: (addressId: number, password: string, confirmation: string) => typedError<null, IpcError>(__TAURI_INVOKE("delete_key", { addressId, password, confirmation })),
-	/**  Returns the canonical address without accessing keys or the network. */
+	/**  Returns the canonical spelling without touching keys or the network. */
 	validateAddress: (chain: ChainId, value: string) => typedError<string, IpcError>(__TAURI_INVOKE("validate_address", { chain, value })),
 	getXpub: (path: DerivationPath) => typedError<string, IpcError>(__TAURI_INVOKE("get_xpub", { path })),
 	getXpubForAddress: (addressId: number) => typedError<string | null, IpcError>(__TAURI_INVOKE("get_xpub_for_address", { addressId })),
-	/**  The open wallet's address book, in chain then address order. */
+	/**  The open wallet's address book, sorted by chain, then address. */
 	listContacts: () => typedError<ContactRecord[], IpcError>(__TAURI_INVOKE("list_contacts")),
 	/**
-	 *  Refuses an address the chain does not accept and saves the canonical spelling of one
-	 *  it does.
+	 *  Refuses an address the chain doesn't accept, and saves the canonical spelling of one it
+	 *  does.
 	 */
 	addContact: (chain: ChainId, address: string, name: string, note: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("add_contact", { chain, address, name, note })),
-	/**  The contact keeps the chain it was saved for. */
+	/**  The contact keeps its chain, and the new address is checked against it. */
 	updateContact: (contactId: number, address: string, name: string, note: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("update_contact", { contactId, address, name, note })),
 	deleteContact: (contactId: number) => typedError<null, IpcError>(__TAURI_INVOKE("delete_contact", { contactId })),
 	/**
-	 *  Requires the wallet password even during an open session.
+	 *  Takes the wallet password even while the wallet is open.
 	 * 
-	 *  The phrase crosses IPC as a plain string that cannot be wiped, so the export commands
-	 *  sit behind their own capability. The frontend must protect the window while it shows
-	 *  the phrase and keep it out of query caches.
+	 *  The phrase crosses IPC as a string we can't wipe, so the exports sit behind their own
+	 *  capability. The frontend must protect the window while it shows the phrase and keep it
+	 *  out of query caches.
 	 */
 	exportSeedPhrase: (password: string) => typedError<string, IpcError>(__TAURI_INVOKE("export_seed_phrase", { password })),
 	exportSeedPassphrase: (password: string) => typedError<string, IpcError>(__TAURI_INVOKE("export_seed_passphrase", { password })),
@@ -112,8 +102,8 @@ export const commands = {
 	exportAccountSeed: (chain: ChainId, password: string) => typedError<string, IpcError>(__TAURI_INVOKE("export_account_seed", { chain, password })),
 	exportPrivateKey: (addressId: number, password: string) => typedError<string, IpcError>(__TAURI_INVOKE("export_private_key", { addressId, password })),
 	/**
-	 *  Requests capture protection while a secret is visible. The revealing component disables
-	 *  it on cleanup.
+	 *  Turns screen capture protection on while a secret is visible. The component that shows
+	 *  the secret turns it off on cleanup.
 	 */
 	setSecretScreen: (isProtected: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("set_secret_screen", { isProtected })),
 	/**  Prices the request's fee selection without building a transaction or reserving funds. */
@@ -126,9 +116,10 @@ export const commands = {
 	 */
 	submitTx: (pendingId: PendingTxId, password: string, previewDigest: PreviewDigest) => typedError<TxId, IpcError>(__TAURI_INVOKE("submit_tx", { pendingId, password, previewDigest })),
 	/**
-	 *  Prices a fee bump at `fee` without reserving funds: a replacement, or on a chain whose
-	 *  nodes relay none, a child that spends the send's change. An automatic fee meets the
-	 *  network's minimum for the bump.
+	 *  Prices a fee bump at `fee` without reserving funds.
+	 * 
+	 *  The bump is a replacement, or a child spending the send's change on a chain whose nodes
+	 *  don't relay replacements. A fee level is raised to the network's minimum for the bump.
 	 */
 	quoteBump: (txid: TxId, fee: FeeSelection) => typedError<FeeQuote, IpcError>(__TAURI_INVOKE("quote_bump", { txid, fee })),
 	/**
@@ -137,7 +128,7 @@ export const commands = {
 	 */
 	bumpFee: (txid: TxId, fee: FeeSelection) => typedError<PreparedTx, IpcError>(__TAURI_INVOKE("bump_fee", { txid, fee })),
 	/**
-	 *  Prices a cancel at `fee` without reserving funds. An automatic fee meets the network's
+	 *  Prices a cancel at `fee` without reserving funds. A fee level is raised to the network's
 	 *  replacement minimum.
 	 */
 	quoteCancel: (txid: TxId, fee: FeeSelection) => typedError<FeeQuote, IpcError>(__TAURI_INVOKE("quote_cancel", { txid, fee })),
@@ -150,66 +141,62 @@ export const commands = {
 	deletePendingTx: (pendingId: PendingTxId) => typedError<null, IpcError>(__TAURI_INVOKE("delete_pending_tx", { pendingId })),
 	/**  Returns one keyset page of the matching transactions. */
 	listTxs: (query: TxQuery) => typedError<TxPage, IpcError>(__TAURI_INVOKE("list_txs", { query })),
-	/**  Opens only a built-in transaction explorer in the system's default browser. */
+	/**  Opens the chain's built-in transaction explorer, and only for a plain txid. */
 	openTxExplorer: (txid: TxId) => typedError<null, IpcError>(__TAURI_INVOKE("open_tx_explorer", { txid })),
 	listBalances: () => typedError<BalanceRecord[], IpcError>(__TAURI_INVOKE("list_balances")),
 	listBalanceTotals: () => typedError<AssetTotal[], IpcError>(__TAURI_INVOKE("list_balance_totals")),
 	/**
-	 *  Returns cached prices with fetch times, and none while prices are off. Wallet operations
-	 *  do not wait for price updates.
+	 *  Returns cached prices with their fetch times, and none while prices are off. Wallet
+	 *  operations don't wait for price updates.
 	 */
 	listPrices: () => typedError<PriceSnapshot, IpcError>(__TAURI_INVOKE("list_prices")),
 	/**  Empty while prices are off. Each series is added as it loads. */
 	listPriceHistory: () => typedError<PriceHistory, IpcError>(__TAURI_INVOKE("list_price_history")),
 	/**
-	 *  An asset's candles in the wallet's currency. They come from the price provider when
-	 *  first asked for and are reused while fresh. Fails while prices are off.
+	 *  An asset's candles in the wallet's currency, fetched on first request and reused while
+	 *  fresh. Fails while prices are off.
 	 */
 	getPriceChart: (asset: AssetId, interval: CandleInterval) => typedError<PriceChart, IpcError>(__TAURI_INVOKE("get_price_chart", { asset, interval })),
 	/**
-	 *  Wakes the sync loop of `chain`, or of every chain with an adapter when it is `None`,
-	 *  and returns the IDs it woke. It does not start overlapping passes.
+	 *  Wakes the sync loop of `chain`, or of every chain with an adapter when it's `None`, and
+	 *  returns the chains it woke. It never starts a pass of its own, so passes can't overlap.
 	 */
 	syncNow: (chain: "bitcoin" | "litecoin" | "dogecoin" | "bitcoin_cash" | "zcash" | "ethereum" | "arbitrum" | "base" | "optimism" | "bsc" | "polygon" | "avalanche" | "solana" | "tron" | "xrp" | "ton" | "monero" | null) => typedError<ChainId[], IpcError>(__TAURI_INVOKE("sync_now", { chain })),
 	listEnabledChains: () => typedError<ChainId[], IpcError>(__TAURI_INVOKE("list_enabled_chains")),
 	setChainEnabled: (chain: ChainId, isEnabled: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("set_chain_enabled", { chain, isEnabled })),
 	/**  `None` restores the shipped interval for the chain. */
 	setPollInterval: (chain: ChainId, pollSecs: number | null) => typedError<null, IpcError>(__TAURI_INVOKE("set_poll_interval", { chain, pollSecs })),
-	/**
-	 *  Sets the block the chain's scan starts from. `None` clears it, so the scan starts from
-	 *  block zero.
-	 */
+	/**  Sets the block the chain's scan starts from. `None` starts it from block zero. */
 	setRestoreHeight: (chain: ChainId, height: number | null) => typedError<null, IpcError>(__TAURI_INVOKE("set_restore_height", { chain, height })),
 	/**  Includes disabled endpoints, pinned first, then custom, then shipped. */
 	listEndpoints: (chain: ChainId) => typedError<EndpointRecord[], IpcError>(__TAURI_INVOKE("list_endpoints", { chain })),
 	/**
-	 *  Adds or re-enables an endpoint without changing its pin. Existing defaults and overrides
-	 *  are not duplicated.
+	 *  Adds or re-enables an endpoint without changing its pin. A URL that's already listed
+	 *  isn't added twice.
 	 * 
-	 *  Plaintext outside loopback requires allowing insecure access. Electrum rejects plaintext
-	 *  even with it.
+	 *  Plaintext outside loopback needs `should_allow_insecure`. Electrum refuses plaintext even
+	 *  then.
 	 */
 	addEndpoint: (chain: ChainId, url: string, shouldAllowInsecure: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("add_endpoint", { chain, url, shouldAllowInsecure })),
-	/**  Deletes an endpoint override. For a shipped endpoint, this restores its defaults. */
+	/**
+	 *  Deletes the endpoint's override, which removes a custom endpoint and restores a shipped
+	 *  one's defaults.
+	 */
 	deleteEndpointOverride: (chain: ChainId, url: string) => typedError<null, IpcError>(__TAURI_INVOKE("delete_endpoint_override", { chain, url })),
 	setEndpointEnabled: (chain: ChainId, url: string, isEnabled: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("set_endpoint_enabled", { chain, url, isEnabled })),
-	/**  Tries pinned endpoints first among equally healthy endpoints. */
+	/**  A pinned endpoint is listed first and tried first among equally healthy ones. */
 	setEndpointPinned: (chain: ChainId, url: string, isPinned: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("set_endpoint_pinned", { chain, url, isPinned })),
-	/**
-	 *  Checks the endpoint's network identity where it has one. A REST helper service is only
-	 *  checked for an answer.
-	 */
+	/**  Checks which network the endpoint serves. A REST service is only checked for an answer. */
 	probeEndpoint: (chain: ChainId, url: string) => typedError<ProbeReport, IpcError>(__TAURI_INVOKE("probe_endpoint", { chain, url })),
-	/**  Returns API key presence, never key values. */
 	getSettings: () => typedError<AppSettings, IpcError>(__TAURI_INVOKE("get_settings")),
-	/**  `None` removes the EVM history API key. Other chain operations do not need it. */
+	/**  `None` removes the key. Only indexed EVM history uses it. */
 	setEtherscanApiKey: (key: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("set_etherscan_api_key", { key })),
 	setTrongridApiKey: (key: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("set_trongrid_api_key", { key })),
-	/**  Zero disables auto-lock. Changes apply to the current session. */
+	/**  Zero turns auto-lock off. The change applies to the open session too. */
 	setAutoLockMinutes: (minutes: number) => typedError<null, IpcError>(__TAURI_INVOKE("set_auto_lock_minutes", { minutes })),
 	/**
-	 *  Pauses or resumes polling without stopping the price-feed task. Also enters amounts in
-	 *  fiat when the feed comes on and in units when it goes off.
+	 *  Pauses or resumes price polling without stopping its task. Turning the feed on also
+	 *  switches amount entry to fiat, and turning it off switches it to units.
 	 */
 	setPriceFeedEnabled: (isEnabled: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("set_price_feed_enabled", { isEnabled })),
 	setPriceChartEnabled: (isEnabled: boolean) => typedError<null, IpcError>(__TAURI_INVOKE("set_price_chart_enabled", { isEnabled })),
@@ -217,12 +204,12 @@ export const commands = {
 	setFiatCurrency: (currency: FiatCurrency) => typedError<null, IpcError>(__TAURI_INVOKE("set_fiat_currency", { currency })),
 	setAmountEntry: (entry: AmountEntry) => typedError<null, IpcError>(__TAURI_INVOKE("set_amount_entry", { entry })),
 	/**
-	 *  Validates and saves the proxy before applying it. Prices use it immediately, even while
-	 *  locked. The engine debounces adapter rebuilds to update chain connections.
+	 *  Validates and saves the proxy, then applies it. Prices switch to it at once, even while
+	 *  locked, and chain connections follow after a debounced adapter rebuild.
 	 */
 	setProxy: (proxy: { kind: "system" } | { kind: "socks5h"; url: string } | { kind: "http"; url: string } | null) => typedError<null, IpcError>(__TAURI_INVOKE("set_proxy", { proxy })),
 	/**
-	 *  Saves the backdrop and applies it to the window at once. A window that cannot blur
+	 *  Saves the backdrop and applies it to the window at once. A window that can't blur
 	 *  behind itself stays solid whatever is saved.
 	 */
 	setBackdrop: (backdrop: BackdropSetting) => typedError<null, IpcError>(__TAURI_INVOKE("set_backdrop", { backdrop })),
@@ -231,18 +218,20 @@ export const commands = {
 	 *  puts the coin back.
 	 */
 	setShownAsset: (asset: AssetId) => typedError<null, IpcError>(__TAURI_INVOKE("set_shown_asset", { asset })),
-	/**  Works before the engine starts, and touches no database, vault, or network. */
+	/**  Works before the engine starts and touches no database, vault, or network. */
 	getAppVersion: () => typedError<string, IpcError>(__TAURI_INVOKE("get_app_version")),
 	getDataDir: () => typedError<string, IpcError>(__TAURI_INVOKE("get_data_dir")),
-	/**  Reports startup failures independently of commands that wait for the engine. */
+	/**  Answers at once, unlike the commands that wait for startup. */
 	getStartupStatus: () => typedError<StartupStatus, IpcError>(__TAURI_INVOKE("get_startup_status")),
-	/**  Saves a replacement proxy without starting networking. Reopen Jelly afterward. */
+	/**
+	 *  Saves a replacement proxy without starting networking. It takes effect once Jelly is
+	 *  reopened.
+	 */
 	repairProxy: (proxy: { kind: "system" } | { kind: "socks5h"; url: string } | { kind: "http"; url: string } | null) => typedError<null, IpcError>(__TAURI_INVOKE("repair_proxy", { proxy })),
 	getPlatform: () => typedError<Platform, IpcError>(__TAURI_INVOKE("get_platform")),
 	getWindowBackdrop: () => typedError<WindowBackdrop, IpcError>(__TAURI_INVOKE("get_window_backdrop")),
 	getWindowControls: () => typedError<WindowControls, IpcError>(__TAURI_INVOKE("get_window_controls")),
 	listChainMetadata: () => typedError<ChainMeta[], IpcError>(__TAURI_INVOKE("list_chain_metadata")),
-	/**  Includes the decimals used to display amounts. */
 	listAssetMetadata: () => typedError<AssetMeta[], IpcError>(__TAURI_INVOKE("list_asset_metadata")),
 };
 
@@ -274,8 +263,7 @@ export type AddressRecord = {
  *  An asset quantity in base units. The asset supplies its decimals through
  *  `AssetId::decimals`.
  * 
- *  Arithmetic methods state their overflow behavior. There are no `Add` or `Sub`
- *  implementations.
+ *  There's no `Add` or `Sub`, so every arithmetic method names its overflow behavior.
  */
 export type Amount = string;
 
@@ -286,10 +274,7 @@ export type AmountEntry =
 /**  The asset's own units. */
 "units";
 
-/**
- *  Application settings as the interface sees them, with whether each API key is set
- *  but never the key.
- */
+/**  The settings as the frontend sees them: whether each API key is set, never the key. */
 export type AppSettings = {
 	autoLockMinutes: number,
 	hasEtherscanApiKey: boolean,
@@ -321,10 +306,7 @@ export type AssetHistory = {
  */
 export type AssetId = { kind: "native"; value: ChainId } | { kind: "token"; value: TokenId };
 
-/**
- *  Asset scale, symbol, and name used by the frontend. Contract addresses remain on
- *  `TokenId` for chain adapters.
- */
+/**  What the frontend shows for an asset. Contract addresses stay in Rust on `TokenId`. */
 export type AssetMeta = {
 	asset: AssetId,
 	chain: ChainId,
@@ -360,8 +342,8 @@ export type BalanceChanged = null;
  *  One address's balance in one asset. The interface reads the address itself from its
  *  own record.
  * 
- *  The row's write time is deliberately absent. Each pass restates the balance, so its
- *  age is the chain's sync state rather than a fact about the row.
+ *  There's no write time, because each pass restates the balance, so its age is the
+ *  chain's sync state.
  */
 export type BalanceRecord = {
 	addressId: number,
@@ -385,8 +367,7 @@ export type Candle = {
 export type CandleInterval = "hour" | "day" | "week";
 
 /**
- *  The supported chains. Endpoint file names and database values use these wire
- *  strings.
+ *  The supported chains. The database and IPC use these wire strings.
  * 
  *  The wallet lists chains as declared, so the rollups that pay fees in ether follow
  *  Ethereum.
@@ -394,14 +375,14 @@ export type CandleInterval = "hour" | "day" | "week";
 export type ChainId = "bitcoin" | "litecoin" | "dogecoin" | "bitcoin_cash" | "zcash" | "ethereum" | "arbitrum" | "base" | "optimism" | "bsc" | "polygon" | "avalanche" | "solana" | "tron" | "xrp" | "ton" | "monero";
 
 /**
- *  Asset scale and symbol come from `AssetMeta`.
- *  Templates use `{index}`, `{txid}`, and `{address}` placeholders.
+ *  Scale and symbol are in `AssetMeta`. The path and explorer templates use `{index}`,
+ *  `{txid}`, and `{address}` placeholders.
  */
 export type ChainMeta = {
 	chain: ChainId,
 	name: string,
 	/**
-	 *  The chain the coin is native to, such as Ethereum on a rollup that pays fees in
+	 *  The chain the coin is native to, such as Ethereum for a rollup that pays fees in
 	 *  ether.
 	 */
 	coinChain: ChainId,
@@ -411,9 +392,9 @@ export type ChainMeta = {
 	 *  protocol fixes the fee.
 	 */
 	feeLevels: FeeLevel[],
-	/**  What a custom fee names, or `None` when the chain takes only its levels. */
+	/**  What a custom fee sets, or `None` if the chain takes no custom fee. */
 	customFee: CustomFee | null,
-	/**  Whether a send can replace the account's next nonce. */
+	/**  Whether a send can set its own nonce in place of the account's next one. */
 	canPinNonce: boolean,
 	/**  Whether a send can carry calldata in place of the generated transfer. */
 	canCarryData: boolean,
@@ -425,21 +406,21 @@ export type ChainMeta = {
 	explorerAddressUrl: string | null,
 	canBumpFee: boolean,
 	canCancel: boolean,
-	/**  Whether a send can delete its sending account, as an XRP account deletion does. */
+	/**  Whether a send can delete the sending account, as XRP's `AccountDelete` does. */
 	canDeleteAccount: boolean,
 	/**
 	 *  Whether a payment can carry a destination tag, the number a shared receiving
 	 *  account files it under.
 	 */
 	hasDestinationTags: boolean,
-	/**  Whether a payment can carry a comment, the text a recipient credits it by. */
+	/**
+	 *  Whether a payment can carry a comment, the text a shared receiving account files
+	 *  it under.
+	 */
 	hasComments: boolean,
 	hasSubaddresses: boolean,
 	canHoldStandaloneKeys: boolean,
-	/**
-	 *  Whether one send can spend the coins of several addresses at once, which only a
-	 *  UTXO chain can.
-	 */
+	/**  Whether one send can spend coins from several addresses, as only a UTXO chain can. */
 	canPoolSources: boolean,
 };
 
@@ -456,9 +437,9 @@ export type ContactRecord = {
 /**
  *  A new seed wallet and the phrase generated for it.
  * 
- *  The phrase crosses the boundary only here, because the interface has to show it
- *  before the wallet is usable. Crossing leaves copies outside its zeroizing buffer, so
- *  every later read is a re-authenticated export and the interface must not cache this.
+ *  This is the only time the phrase leaves Rust without an export, because the user has to
+ *  see it before the wallet is usable. Crossing IPC leaves copies we can't wipe, so the
+ *  frontend must not cache this, and every later read is a password-checked export.
  */
 export type CreatedWallet = {
 	wallet: WalletRecord,
@@ -489,19 +470,17 @@ export type DailyPrice = {
 };
 
 /**
- *  The wallet database could not be used, so it was moved aside and this run started
- *  from an empty one.
+ *  The wallet database couldn't be used, so it was moved aside and this run started with
+ *  an empty one.
  * 
- *  Balances and history re-sync from the chains, but wallets and their settings, chain
- *  state, addresses, contacts, endpoints, and pins remain only in the file at `moved_to`.
- *  The vault files are still in the data directory while their wallets are no longer
- *  listed, so the user has to be told, which is why this rides the startup status rather
- *  than a log line.
+ *  Balances and history re-sync, but wallets and their settings, chain state, addresses,
+ *  contacts, endpoints, and pins exist only in the file at `moved_to`. The vault files are
+ *  still there but their wallets are no longer listed, so the user has to be told.
  */
 export type DatabaseRebuilt = {
 	/**
-	 *  The old file's path as the platform displays it. It is inside the data directory,
-	 *  which the data directory command already reports.
+	 *  The old file's path for display. It's inside the data directory, which the app
+	 *  already shows.
 	 */
 	movedTo: string,
 };
@@ -517,7 +496,7 @@ export type DerivationPath = string;
  *  callers must redact it before constructing this.
  */
 export type EndpointAttempt = {
-	/**  The endpoint's label as it reads, such as `https://node.example.com:8443`. */
+	/**  The endpoint's label as text, such as `https://node.example.com:8443`. */
 	endpoint: string,
 	kind: FailureKind,
 };
@@ -529,10 +508,9 @@ export type EndpointAttempt = {
 export type EndpointOrigin = "pinned" | "user" | "default";
 
 /**
- *  Endpoint configuration returned to the frontend.
- * 
- *  `url` is the canonical write key, and `origin == Pinned` indicates pinning. Health
- *  stays internal. Use the probe command for an explicit connectivity and identity check.
+ *  `url` is the canonical key the other endpoint commands take, and a pinned endpoint's
+ *  `origin` is `Pinned`. Health stays in Rust, and `probe_endpoint` checks an endpoint on
+ *  request.
  */
 export type EndpointRecord = {
 	url: string,
@@ -563,15 +541,15 @@ export type FeeLevel = "slow" | "normal" | "fast";
 export type FeeQuote = {
 	fee: Amount,
 	/**
-	 *  The price the quote settled on as a custom fee, with every market read filled in,
-	 *  so a custom fee starts from it. Absent on a chain without custom fees.
+	 *  The quoted price as a custom fee, with every market read filled in, for a custom fee
+	 *  to start from. Absent on a chain without custom fees.
 	 */
 	custom: FeeSelection | null,
 	/**  What a send-max moves at this fee. Present only when the request is a send-max. */
 	maxAmount: Amount | null,
 	/**
 	 *  What the same transaction would pay at each of the chain's fee levels, slowest
-	 *  first. Empty on a chain whose fee is fixed, and when the market could not be read.
+	 *  first. Empty on a chain whose fee is fixed, and when the market couldn't be read.
 	 */
 	levels: LevelFee[],
 };
@@ -607,19 +585,14 @@ maxPriorityFeePerGas: string | null } |
 { kind: "total"; fee: Amount };
 
 /**
- *  A currency the wallet can show values in. Every one but the dollar is a fiat
- *  pair Kraken lists against the dollar, and stored settings use these wire strings.
+ *  A currency the wallet can show values in. Every one but the dollar has a Kraken pair
+ *  against the dollar, and stored settings use these wire strings.
  */
 export type FiatCurrency = "usd" | "eur" | "gbp" | "aud" | "cad" | "jpy" | "chf";
 
 /**
- *  Command failure returned to the frontend.
- * 
- *  `message` is user-facing prose. It must not contain secrets, raw URLs, file paths, or
- *  library error text. The frontend branches on `code` and `detail`, never on message
- *  wording.
- * 
- *  Errors are serialized only, never accepted as command arguments.
+ *  `message` is copy. It never holds a secret, a raw URL, a file path, or a library's error
+ *  text. The frontend branches on `code` and `detail`, never on the wording.
  */
 export type IpcError = {
 	code: IpcErrorCode,
@@ -630,11 +603,10 @@ export type IpcError = {
 export type IpcErrorCode = ErrorCode | ShellErrorCode;
 
 /**
- *  Typed error details for the frontend. Amounts retain their base units so the frontend
- *  can apply the asset's decimals.
+ *  Amounts stay in base units so the frontend can apply the asset's decimals.
  * 
- *  A missing adapter has no reason when the chain is switched off or the wallet's
- *  adapters are not built yet.
+ *  `NoAdapter` has no reason when the chain is switched off or the wallet's adapters aren't
+ *  built yet.
  */
 export type IpcErrorDetail = { kind: "insufficient_funds"; asset: AssetId; needed: Amount; available: Amount } | { kind: "no_adapter"; chain: ChainId; reason: SkipReason | null } | { kind: "endpoints_down"; chain: ChainId; attempts: EndpointAttempt[] } | { kind: "rejected"; rejection: RejectionKind; retry: RetryPolicy } | { kind: "protocol_too_new"; chain: ChainId; version: string } | { kind: "schema_too_new"; found: number; supported: number };
 
@@ -664,17 +636,14 @@ export type LockReason =
 "idle";
 
 /**
- *  What the interface shows about the lock.
+ *  The lock state the interface shows.
  * 
- *  Advisory, so anything irreversible re-reads the real state rather than trusting a
+ *  Advisory, so anything irreversible re-reads the real state instead of trusting a
  *  stale event.
  */
 export type LockState = { kind: "locked"; reason: LockReason } | { kind: "unlocked"; walletId: number; walletName: string };
 
-/**
- *  The passphrase a caller supplied, with the policy it implies. It arrives over IPC, so
- *  it deserializes but never serializes.
- */
+/**  The passphrase a caller supplied, with the policy it implies. */
 export type PassphraseInput = { kind: "none" } | { kind: "stored"; value: string } | { kind: "prompt"; value: string };
 
 /**  Whether a wallet uses a BIP-39 passphrase and, if so, where it lives. */
@@ -685,8 +654,8 @@ export type PassphrasePolicy = "none" |
 "prompt";
 
 /**
- *  Single-use transaction authorization. Uses 128 random bits rendered as lowercase hex.
- *  Parsing accepts either case.
+ *  Single-use transaction authorization: 128 random bits, rendered as lowercase hex and
+ *  parsed in either case.
  */
 export type PendingTxId = string;
 
@@ -695,7 +664,7 @@ export type PhraseWords = "twelve" | "twenty_four";
 
 export type Platform = "macos" | "windows" | "linux";
 
-/**  A built and authorised transaction awaiting submit, as the interface sees it. */
+/**  A built and authorized transaction awaiting submit, as the interface sees it. */
 export type PreparedTx = {
 	id: PendingTxId,
 	preview: TxPreview,
@@ -706,8 +675,8 @@ export type PreparedTx = {
  *  The digest a submit is bound to.
  * 
  *  The interface echoes the digest of the preview the user approved, and a submit that
- *  carries a different one is refused, so what was shown is what gets signed. It is not
- *  a secret, so an ordinary comparison is fine.
+ *  carries a different one is refused, so what was shown is what gets signed. It isn't a
+ *  secret, so an ordinary comparison is fine.
  */
 export type PreviewDigest = string;
 
@@ -737,8 +706,7 @@ export type PriceHistoryChanged = PriceHistory;
 /**
  *  What one asset was worth, and when the quote was taken.
  * 
- *  A price is shown with its age so a reader can judge it, until it is older
- *  than a day and is dropped.
+ *  A price is shown with its age so a reader can judge it, and dropped once a day old.
  */
 export type PriceRecord = {
 	asset: AssetId,
@@ -758,25 +726,25 @@ export type PricesChanged = PriceSnapshot;
 
 /**  Why a probe got no usable answer. The interface words each one itself. */
 export type ProbeFailure = "timed_out" | 
-/**  The connection could not be opened. */
+/**  The connection couldn't be opened. */
 "no_connection" | 
-/**  The TLS handshake failed or the certificate did not verify. */
+/**  The TLS handshake failed or the certificate didn't verify. */
 "tls" | 
 /**  The connection closed before an answer arrived. */
 "dropped" | 
 /**  The endpoint answered with an HTTP error status. */
 "http_status" | "rate_limited" | 
-/**  The endpoint answered with something this build cannot use. */
+/**  The endpoint answered with something this build can't use. */
 "bad_answer" | 
-/**  This build cannot check the endpoint, so nothing was asked. */
+/**  This build can't check the endpoint, so nothing was asked. */
 "not_probed";
 
 /**
  *  What one probe found.
  * 
- *  `Reachable` is the answer when there is no network to identify, as for the two
- *  REST transports, which are helper services. `WrongNetwork` leaves out what the host
- *  reported, because that is a raw wire value, and the log gets it instead.
+ *  `Reachable` means there was no network to identify, as for the REST helper services.
+ *  `WrongNetwork` leaves out what the host reported, a raw wire value that only the log
+ *  gets.
  */
 export type ProbeReport = { kind: "verified"; latencyMs: number } | { kind: "reachable"; latencyMs: number } | { kind: "wrong_network" } | { kind: "unreachable"; failure: ProbeFailure };
 
@@ -812,7 +780,7 @@ export type RetryPolicy =
 "already_landed";
 
 /**
- *  The flavours one key's address can take: a UTXO output script type, or the TON
+ *  The flavors one key's address can take: a UTXO output script type, or the TON
  *  wallet contract that holds the key. The same private key produces a different
  *  address for each.
  */
@@ -834,28 +802,27 @@ export type SendAmount = { kind: "exact"; value: Amount } |
 export type ShellErrorCode = 
 /**  Startup timed out before the command ran. */
 "starting" | 
-/**  The price provider did not answer, or prices are off. */
+/**  The price provider didn't answer, or prices are off. */
 "prices_unavailable" | 
 /**  The command task panicked. */
 "panic";
 
 /**
- *  Why a chain has no adapter after a rebuild. The engine already knows which chains
- *  the wallet switched off, so a builder never reports that.
- * 
- *  The reasons are separate because each is a different problem. An empty rotation is
- *  configuration, a missing key is a permanent property of the wallet, and anything
- *  else is a failure the next rebuild retries.
+ *  Why a chain has no adapter after a rebuild. A builder never reports a chain the
+ *  wallet switched off, since the engine already knows.
  */
 export type SkipReason = 
-/**  The endpoint registry offered nothing to talk to. */
+/**
+ *  The endpoint registry offered nothing to talk to, which is a configuration
+ *  problem.
+ */
 "no_endpoints" | 
 /**
- *  This wallet holds no key the chain can be scanned or spent with, and
- *  no rebuild will change that.
+ *  This wallet holds no key the chain can be scanned or spent with, and no rebuild
+ *  will change that.
  */
 "no_keys" | 
-/**  Endpoints exist but the adapter could not be constructed. */
+/**  Endpoints exist but the adapter couldn't be built. The next rebuild retries. */
 "build_failed";
 
 export type StartupChanged = StartupStatus;
@@ -870,15 +837,14 @@ export type StartupStatus = { kind: "starting" } | { kind: "ready"; rebuilt: Dat
  *  Supported token contracts and mints.
  * 
  *  Each chain's tokens sit together in chain order, and the wallet lists them as
- *  declared: other tokens first, then real world assets with the dollar coins
- *  before gold, each by market capitalization.
+ *  declared: other tokens first, then real-world assets with the dollar coins before
+ *  gold, each group by market capitalization.
  */
 export type TokenId = "link_erc20" | "wbtc_erc20" | "weth_erc20" | "uni_erc20" | "shib_erc20" | "ena_erc20" | "aave_erc20" | "ondo_erc20" | "pepe_erc20" | "arb_erc20" | "usdt_erc20" | "usdc_erc20" | "usds_erc20" | "dai_erc20" | "usdg_erc20" | "pyusd_erc20" | "xaut_erc20" | "paxg_erc20" | "link_arbitrum" | "weth_arbitrum" | "ena_arbitrum" | "arb_arbitrum" | "usdt_arbitrum" | "usdc_arbitrum" | "usds_arbitrum" | "usdg_arbitrum" | "pyusd_arbitrum" | "xaut_arbitrum" | "link_base" | "weth_base" | "ena_base" | "usdc_base" | "usds_base" | "link_optimism" | "weth_optimism" | "ena_optimism" | "op_optimism" | "usdt_optimism" | "usdc_optimism" | "usds_optimism" | "link_bep20" | "weth_bep20" | "ena_bep20" | "usdt_bep20" | "usdc_bep20" | "xaut_bep20" | "link_polygon" | "weth_polygon" | "usdt_polygon" | "usdc_polygon" | "pyusd_polygon" | "xaut_polygon" | "link_avalanche" | "weth_avalanche" | "usdt_avalanche" | "usdc_avalanche" | "usds_avalanche" | "xaut_avalanche" | "link_spl" | "wbtc_spl" | "ena_spl" | "pump_spl" | "jup_spl" | "usdt_spl" | "usdc_spl" | "usds_spl" | "usdg_spl" | "pyusd_spl" | "xaut_spl" | "paxg_spl" | "wbtc_trc20" | "usdt_trc20" | "ena_jetton" | "usdt_jetton" | "xaut_jetton";
 
 /**
- *  How an endpoint is reached. The pool takes its timeout policy from this,
- *  and the transport and the chain together pick the connector that
- *  identifies the endpoint.
+ *  How an endpoint is reached. The pool takes its timeout policy from it, and with the
+ *  chain it picks the connector, which also checks which network the endpoint serves.
  */
 export type Transport = 
 /**  Electrum protocol, newline-delimited JSON-RPC over a raw TLS socket. */
@@ -886,8 +852,8 @@ export type Transport =
 /**  JSON-RPC over HTTP(S), for EVM, Solana, XRP, and TON. */
 "http_jsonrpc" | 
 /**
- *  JSON-RPC over a websocket, for the push subscriptions the HTTP transport
- *  cannot carry, such as EVM `eth_subscribe` and Solana `*Subscribe`.
+ *  JSON-RPC over a websocket, for the push subscriptions HTTP can't carry, such as
+ *  EVM `eth_subscribe` and Solana `*Subscribe`.
  */
 "ws_jsonrpc" | 
 /**  Monero daemon RPC, a `/json_rpc` envelope plus binary sub-paths. */
@@ -914,9 +880,8 @@ export type TxDetail = {
 };
 
 /**
- *  A transaction the wallet had not recorded before. The frontend reads the wallet's view
- *  of it from the history, which already holds every address's share the event's window
- *  wrote.
+ *  A transaction the wallet hadn't recorded before. The history already holds every row
+ *  its sync batch wrote, so the frontend reads the wallet's view of it from there.
  */
 export type TxDetected = {
 	txid: TxId,
@@ -984,11 +949,10 @@ export type TxId = {
 	value: string,
 };
 
-/**
- *  What the network did with a transaction. A failed or replaced transaction never
- *  contributes to a total.
- */
-export type TxOutcome = "success" | "failed" | 
+/**  What the network did with a transaction. */
+export type TxOutcome = "success" | 
+/**  It moved nothing, but it may still have paid its fee. */
+"failed" | 
 /**
  *  Another transaction took its place, so it never ran, moved nothing, and paid
  *  nothing.
@@ -1069,8 +1033,8 @@ export type TxRequest = {
 	amount: SendAmount,
 	fee: FeeSelection,
 	/**
-	 *  Replaces the sending account's next nonce. Only a chain whose spec allows it takes
-	 *  one.
+	 *  Used instead of the sending account's next nonce. Only a chain whose spec allows it
+	 *  takes one.
 	 */
 	nonce: number | null,
 	/**
@@ -1105,13 +1069,13 @@ export type TxWarningKind = "dust_output" |
 /**  A second transaction that pays the fee of an unconfirmed one. */
 "child_pays" | "estimated" | "other";
 
-/**  Opaque sRGB stored as lowercase #rrggbb. Display balancing does not change the saved color. */
+/**
+ *  Opaque sRGB stored as lowercase `#rrggbb`. Display balancing doesn't change the saved
+ *  color.
+ */
 export type WalletColor = string;
 
-/**
- *  One wallet as the interface sees it, with its passphrase policy and the chains it has
- *  switched on.
- */
+/**  One wallet as the interface sees it. */
 export type WalletRecord = {
 	id: number,
 	name: string,
@@ -1125,9 +1089,9 @@ export type WalletRecord = {
 /**  What fills the window behind the page. */
 export type WindowBackdrop = 
 /**
- *  The window is transparent over a layer the app draws, either a blur of the
- *  screen behind the window under a tint or the plain canvas, so the page leaves
- *  its canvas unpainted.
+ *  The window is transparent over a layer the app draws, either a tinted blur of
+ *  what's behind the window or the plain canvas. The page leaves its canvas
+ *  unpainted.
  */
 "composed" | 
 /**  The window paints the canvas, and so does the page. */

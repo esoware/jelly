@@ -74,16 +74,16 @@ async fn a_new_head_push_resolves_the_activity_listener() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_dead_websocket_is_redialled_and_reregistered() {
+async fn a_dead_websocket_is_redialed_and_reregistered() {
     let fake = subscribing_fake();
     let adapter = adapter(&fake).unwrap();
     timeout(Duration::from_secs(30), adapter.wait_activity()).await.unwrap();
     assert_eq!(fake.sockets_opened(), 1);
 
-    // Drop the socket the way a provider's idle timeout does. The next wait
-    // re-registers on a fresh socket and resolves as a fresh registration.
+    // Drop the socket the way a provider's idle timeout does. The next wait registers
+    // again on a fresh socket and resolves at once, as the first one did.
     fake.hang_up_sockets();
     timeout(Duration::from_secs(60), adapter.wait_activity()).await.unwrap();
-    assert_eq!(fake.sockets_opened(), 2, "a fresh socket was dialled");
+    assert_eq!(fake.sockets_opened(), 2, "a fresh socket was dialed");
     assert_eq!(fake.calls_to("eth_subscribe").len(), 2, "the subscription was registered again");
 }

@@ -17,8 +17,7 @@ use crate::common::{
     sats, watched,
 };
 
-/// Above Bitcoin's 10 sat/vB long-term rate, so a build adds no coin it does not
-/// need.
+/// Above Bitcoin's 10 sat/vB long-term rate, so a build adds no coin it doesn't need.
 const RATE: &str = "12";
 const PAYMENT_SAT: u64 = 120_000;
 

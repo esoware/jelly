@@ -1,8 +1,8 @@
-//! Operations on what the adapter persists and compiles in. Only
+//! Test access to the adapter's state, its persisted blobs, and a few internals. Only
 //! `[dev-dependencies]` enable the `test-util` feature.
 //!
-//! A test reaches the scan blob and the sends in flight through these rather than
-//! through the scope, stream and slot they are stored under.
+//! A test reaches the scan blob and the sends in flight through these instead of the
+//! scope, stream, and slot they're stored under.
 
 use jelly_core::{Amount, CoreError, CursorBytes, CursorScope, CursorStore, Rejection};
 use monero_interface::FeeRate;

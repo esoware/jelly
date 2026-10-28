@@ -6,13 +6,12 @@ const TERMINATOR: u8 = b'\n';
 
 /// One JSON-RPC message off the wire. A server push is a message with no `id`.
 ///
-/// A `result` that is present and null stays `Some(null)`, because it is an
-/// answer. Folding it into `None` would make the line read as malformed and
-/// retire the socket with every request in flight.
+/// A `result` that is present but null stays `Some(null)`. Folding it into `None` would
+/// make the line look malformed and retire the socket with every request in flight.
 pub(crate) type Message = JsonRpcResponse<Box<RawValue>>;
 
 /// A whole line. A batch is answered with an array and everything else with an
-/// object, so the first non-space byte decides without a speculative parse.
+/// object, so the first non-space byte decides without a trial parse.
 #[derive(Debug)]
 pub(crate) enum Frame {
     Single(Message),
@@ -29,13 +28,13 @@ pub(crate) fn parse_frame(line: &[u8]) -> Result<Frame, serde_json::Error> {
 
 /// Splits a byte stream into newline-delimited frames.
 ///
-/// The limit bounds the unterminated tail, so several complete lines in one read
-/// are fine and an endless line is treated as an attack.
+/// The limit applies only to the unterminated tail, so many complete lines in one read
+/// are fine but an endless line isn't.
 #[derive(Debug)]
 pub(crate) struct FrameReader {
     buffer: Vec<u8>,
-    /// How much of the front of `buffer` is known to hold no newline, so a line
-    /// that arrives over many reads is scanned once rather than once per read.
+    /// How much of `buffer` is known to hold no newline, so a line arriving over many
+    /// reads is scanned only once.
     scanned_bytes: usize,
     limit_bytes: usize,
 }

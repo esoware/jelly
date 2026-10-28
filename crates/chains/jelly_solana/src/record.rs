@@ -1,8 +1,8 @@
 //! Amounts come from the metadata's balance deltas, which cover inner and
 //! multi-instruction transfers.
 //!
-//! Instructions name counterparties, mark a record as decoded rather than
-//! balance-only, and name the lamports that opened token accounts.
+//! Parsed instructions name the counterparty, mark a record as decoded rather than
+//! balance-only, and show which lamports opened token accounts.
 
 use jelly_core::{
     Amount, AssetId, TxDetection, TxDirection, TxId, TxOutcome, TxRecord, TxRecordBuilder,
@@ -30,7 +30,7 @@ struct Seen<'a> {
     signature: &'a str,
     address: &'a str,
     address_id: i64,
-    /// The fee, which only the fee payer paid.
+    /// Set only for the fee payer.
     fee: Option<Amount>,
     tip_slot: u64,
 }
@@ -56,8 +56,7 @@ pub(crate) fn of_transaction(
     };
 
     if metadata.err.is_some() {
-        // A failed transaction moved nothing and still cost the fee payer the
-        // fee. It never contributes to a total.
+        // A failed transaction moved nothing but still cost the fee payer the fee.
         if !is_fee_payer {
             return Vec::new();
         }
@@ -87,8 +86,8 @@ pub(crate) fn of_transaction(
 }
 
 impl Seen<'_> {
-    /// The record carries the rent the address paid to open accounts of the token,
-    /// zero included, so it replaces the figure a send's review estimated.
+    /// Carries the rent the address paid to open accounts of the token, zero included,
+    /// so it replaces the figure a send's preview estimated.
     fn token_record(&self, token: SolanaToken) -> Option<TxRecord> {
         let mint = token.mint().to_string();
         let delta = token_delta(self.metadata, self.address, &mint);
@@ -112,13 +111,13 @@ impl Seen<'_> {
         Some(record)
     }
 
-    /// The fee payer of a transaction that moved no token this build tracks still
-    /// gets a record, because the fee left the account and a history without it does
-    /// not add up.
+    /// The fee payer of a transaction that moved no token this build tracks still gets
+    /// a record, because the fee left the account and the history wouldn't add up
+    /// without it.
     ///
-    /// The rent `token_records` carry, such as for a recipient's new token account,
-    /// is what moving the tokens took and no SOL transfer, so an account it opened is
-    /// no party to any other SOL the address moved.
+    /// Rent that `token_records` carry, such as for a recipient's new token account,
+    /// belongs to moving the tokens. It's added back to the SOL delta, and the accounts
+    /// it opened are never named as the SOL counterparty.
     fn native_record(&self, token_records: &[TxRecord]) -> Option<TxRecord> {
         let keys = &self.tx.transaction.message.account_keys;
         let index = keys.iter().position(|key| key.pubkey == self.address)?;
@@ -166,9 +165,9 @@ impl Seen<'_> {
         Some(record)
     }
 
-    /// Each account of `mint` that the transaction opened, which holds the token after
-    /// it and did not before, with the lamports the address paid into it. They count
-    /// only as far as the account kept them.
+    /// Each account of `mint` the transaction opened, meaning it holds the token after
+    /// and didn't before, with the lamports the address paid into it, up to what the
+    /// account kept.
     fn opened_accounts(&self, mint: &str) -> impl Iterator<Item = (&str, u64)> {
         let keys = &self.tx.transaction.message.account_keys;
         let metadata = self.metadata;

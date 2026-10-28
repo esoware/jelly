@@ -61,8 +61,8 @@ pub(crate) fn decode(raw: &[u8]) -> Result<Transaction, ZcashError> {
         return Err(ZcashError::Protocol);
     }
     let mut remaining = raw;
-    // A v5 transaction carries its own branch id, and of an earlier version only the txid and
-    // the bundles are read, neither of which depends on the branch.
+    // A v5 transaction carries its own branch id. From an earlier version we only read the
+    // txid and the bundles, and neither depends on the branch.
     let tx =
         Transaction::read(&mut remaining, BranchId::Sprout).map_err(|_| ZcashError::Protocol)?;
     if !remaining.is_empty() {
@@ -71,8 +71,8 @@ pub(crate) fn decode(raw: &[u8]) -> Result<Transaction, ZcashError> {
     Ok(tx)
 }
 
-/// The transaction `raw` holds, refused unless `payment` is valid and `raw` is a signed
-/// transaction of exactly it. Callers read only whether it was refused.
+/// Decodes `raw`, refusing it unless `payment` is valid and `raw` is exactly that payment,
+/// signed. Callers only look at whether it was refused.
 pub(crate) fn validate_signed(payment: &Payment, raw: &[u8]) -> Result<Transaction, ZcashError> {
     payment.validate()?;
     let tx = decode(raw)?;
@@ -108,8 +108,8 @@ struct Signer {
     pubkey: [u8; 33],
 }
 
-/// The signer of each of `payment`'s sources from `keys`, which follows them, refusing
-/// a key that does not own its source.
+/// Pairs each of `payment`'s sources with its key from `keys`, which is in source order,
+/// and refuses a key that doesn't own its source.
 fn signers(payment: &Payment, keys: &[KeyMaterial]) -> Result<Vec<Signer>, ZcashError> {
     if keys.len() != payment.sources.len()
         || keys.iter().any(|key| key.kind() != KeyKind::Secp256k1)
@@ -144,11 +144,11 @@ fn outputs(payment: &Payment) -> Result<Vec<TxOut>, ZcashError> {
     Ok(outputs)
 }
 
-/// Signs every input of `payment` with the key of the source its coin is at.
+/// Signs each input of `payment` with the key of the source that holds its coin.
 ///
-/// `payment` is one `Payment::decode` accepted, and it must still show as `approved`.
-/// `keys` follows the payment's sources, and a key that does not own its source is
-/// refused before anything is signed.
+/// `payment` must have passed `Payment::decode` and still match `approved`. `keys` is in
+/// source order, and a key that doesn't own its source is refused before anything is
+/// signed.
 pub(crate) fn sign(
     payment: &Payment,
     approved: &TxPreview,

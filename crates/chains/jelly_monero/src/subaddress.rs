@@ -3,7 +3,7 @@ use zeroize::Zeroize;
 
 /// One address of this wallet, by its account and its index in that account.
 ///
-/// `SubaddressIndex` cannot represent `(0, 0)`, the account's primary address.
+/// `SubaddressIndex` can't represent `(0, 0)`, the wallet's primary address.
 /// This orders by account and then by index, so an account's lowest address
 /// comes first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Zeroize)]

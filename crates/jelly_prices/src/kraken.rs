@@ -12,8 +12,8 @@ use serde::{
 use crate::error::PriceError;
 use crate::ticker::Ticker;
 
-/// The one host the feed reaches, over TLS. The request URL and the log label
-/// are built from this same literal, so they cannot disagree.
+/// The only host the feed reaches, over TLS. Request URLs and the log label are both
+/// built from this, so they can't disagree.
 pub(crate) const HOST: &str = "api.kraken.com";
 
 pub(crate) const HEADERS: &[(&str, &str)] = &[("accept", "application/json")];
@@ -36,8 +36,8 @@ pub(crate) enum Listed {
 
 /// One market Kraken lists against the dollar, and how to read it.
 ///
-/// Kraken refuses the whole request if it names any pair Kraken does not list, so
-/// the pair tables must name only listed pairs.
+/// Kraken refuses a whole request that names any pair it doesn't list, so the pair tables
+/// must name only listed pairs.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Pair {
     /// Kraken's own name for the pair, which a request asks for.
@@ -108,8 +108,7 @@ pub(crate) struct RatePair {
 }
 
 impl RatePair {
-    /// The dollar itself has none. These six are every fiat currency Kraken trades
-    /// against the dollar.
+    /// `None` for the dollar itself.
     pub(crate) const fn of(currency: FiatCurrency) -> Option<Self> {
         let (canonical, alternative, listed) = match currency {
             FiatCurrency::Usd => return None,
@@ -144,8 +143,8 @@ struct Envelope<T> {
 
 /// The result of one answer, keyed by pair name.
 ///
-/// An empty result beside a reported error is a refusal, and beside no error it
-/// is an answer that priced nothing.
+/// An empty result beside a reported error is a refusal, and beside no error it's an
+/// answer that priced nothing.
 pub(crate) fn result<T: DeserializeOwned>(body: &str) -> Result<BTreeMap<String, T>, PriceError> {
     let Envelope { error, result } = serde_json::from_str::<Envelope<T>>(body)?;
     if result.is_empty() && !error.is_empty() {

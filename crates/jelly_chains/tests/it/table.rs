@@ -20,14 +20,14 @@ const MONERO_SEED: &str = "vary ambush western rafts session laboratory jerseys 
 /// The PBKDF2 test vector of the Web3 Secret Storage Definition.
 const KEYSTORE: &str = r#"{"crypto":{"cipher":"aes-128-ctr","cipherparams":{"iv":"6087dab2f9fdbbfaddc31a909735c1e6"},"ciphertext":"5318b4d5bcd28de64ee5559e671353e16f075ecae9f99c7a79a38af5f869aa46","kdf":"pbkdf2","kdfparams":{"c":262144,"dklen":32,"prf":"hmac-sha256","salt":"ae3cd4e7013836a3df6bd7241b12db061dbe2c6785853cce422d148a624ce0bd"},"mac":"517ead924a9d0dc3124507e3393d175ce3ff7c1e96529c6c555ce9e51205e9b2"},"id":"3198bc9c-6672-5ab3-d995-4942343ae5b6","version":3}"#;
 
-/// The address [`HEX_KEY`] has on `chain`, in the chain's default script flavour.
+/// The address [`HEX_KEY`] has on `chain`, in the chain's default script flavor.
 fn hex_address(chain: ChainId) -> Result<String, KeyError> {
     let imported = chains().import_key(chain, HEX_KEY, None)?;
     let script = chains().spec(chain).resolve_script(None, imported.named_script)?;
     chains().entry(chain).address(&imported.material, script)
 }
 
-/// An address on `chain` in its default script flavour, made without an import, which a
+/// An address on `chain` in its default script flavor, made without an import, which a
 /// chain that holds no standalone keys refuses.
 fn default_address(chain: ChainId) -> Result<String, KeyError> {
     let spec = chains().spec(chain);
@@ -92,8 +92,8 @@ fn a_key_of_another_chain_names_the_format_it_is_in() {
     }
 }
 
-/// Monero holds no standalone keys, so naming its seed would send the user to a chain
-/// that cannot take it.
+/// Monero holds no standalone keys, so naming its seed would send the user to a chain that
+/// can't take it.
 #[test]
 fn a_monero_seed_is_named_as_no_chains_key() {
     for chain in [ChainId::Bitcoin, ChainId::Solana, ChainId::Monero] {

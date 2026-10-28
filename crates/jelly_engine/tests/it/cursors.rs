@@ -31,7 +31,7 @@ async fn a_secret_cursor_round_trips_through_the_vault() {
     settled(&harness.engine).await.unwrap();
     assert!(is_holding(cursors.load_scan(WALLET, SECRET).await.unwrap(), b"scan state"));
 
-    // A second write replaces rather than accumulating.
+    // A second write replaces the first.
     cursors.advance(WALLET, SECRET, CursorBytes::copied(b"further along")).await.unwrap();
     settled(&harness.engine).await.unwrap();
     assert!(is_holding(cursors.load_scan(WALLET, SECRET).await.unwrap(), b"further along"));
@@ -148,8 +148,8 @@ async fn a_reservation_is_durable_before_it_returns() {
     assert_eq!(rows.len(), 1, "a reservation is a row before the call returns");
     assert!(rows.first().is_some_and(|row| row.payload.with_bytes(|read| read == b"nonce 7")));
 
-    // A reservation the wallet database refuses is an error the caller sees,
-    // which is what stops the send that was about to go out.
+    // The caller sees a refused reservation as an error, which stops the send that was
+    // about to go out.
     let refused =
         cursors.reserve(CursorScope::Address(987_654), PLAIN_SLOT, CursorBytes::copied(b"x")).await;
     assert!(matches!(refused, Err(CoreError::NotFound { entity: "address", .. })), "{refused:?}");
@@ -185,7 +185,7 @@ async fn a_refused_window_advances_no_cursor() {
     let sink = test_util::event_sink(&harness.engine);
     let mut events = harness.engine.subscribe();
 
-    // The database refuses a balance for an address the wallet does not have, and the
+    // The database refuses a balance for an address the wallet doesn't have, and the
     // transaction row and the cursor in the same window go down with it. The window's
     // progress is published whether or not the write landed, so it marks the attempt.
     sink.emit(WalletEvent::BalanceChanged(BalanceUpdate {

@@ -4,7 +4,6 @@ use jelly_core::{AssetId, ChainId};
 
 pub(crate) const CHAIN: ChainId = ChainId::Tron;
 
-/// TRON's native asset, and the one place its scale and symbol come from.
 pub(crate) const TRX: AssetId = AssetId::Native(CHAIN);
 
 /// Tuning for one [`crate::TronAdapter`]. The defaults suit a keyless `TronGrid`
@@ -14,18 +13,18 @@ pub(crate) const TRX: AssetId = AssetId::Native(CHAIN);
 /// inside [`crate::PooledNode`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TronConfig {
-    /// Validity window stamped into a built transaction, measured from the head
-    /// block's own time.
+    /// How long a built transaction stays valid, counted from the head block's
+    /// time.
     ///
-    /// TRON's `createtransaction` uses 60 seconds, which is tight when a person
-    /// reads a preview first. The protocol ceiling is 24 hours, and a short
-    /// window keeps an abandoned transaction from staying a liability.
+    /// TRON's `createtransaction` uses 60 seconds, which is tight when someone
+    /// reads a preview first. The protocol allows up to 24 hours, but a short
+    /// window means an abandoned transaction can't land long after.
     pub expiration: Duration,
-    /// Pages walked down from the newest per stream per pass while catching up to
-    /// the last transaction this wallet reported.
+    /// Pages read per stream per pass, newest first, while catching up to the last
+    /// transaction reported.
     pub forward_pages: u32,
-    /// Pages walked into older history per stream per pass, so a long history
-    /// fills in over successive passes instead of hammering a public endpoint.
+    /// Pages of older history read per stream per pass, so a long history fills in
+    /// over several passes instead of hammering a public endpoint.
     pub backfill_pages: u32,
 }
 
@@ -36,8 +35,7 @@ impl Default for TronConfig {
 }
 
 impl TronConfig {
-    /// At least one, because a stream never read from the top would never notice
-    /// a new transaction.
+    /// At least one, or a stream would never notice a new transaction.
     pub(crate) fn forward_budget(&self) -> u32 {
         self.forward_pages.max(1)
     }

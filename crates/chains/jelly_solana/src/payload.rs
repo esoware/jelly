@@ -10,17 +10,17 @@
 //! ..      asset key, ascii, as jelly_core spells it
 //! ..      length of the recipient, u8
 //! ..      recipient address, base58 ascii
-//! ..      the serialised message, to the end
+//! ..      the serialized message, to the end
 //! ```
 //!
-//! The trailing bytes are exactly the ed25519 signing preimage. They are carried
-//! rather than rebuilt, because a message recompiled from an intent could differ
-//! by a byte and the signature would cover something the user never saw.
+//! The trailing bytes are exactly the ed25519 signing preimage. They're carried rather
+//! than rebuilt, because a message recompiled from an intent could differ by a byte,
+//! and the signature would cover something the user never saw.
 //!
-//! The fields in front are what a transaction cannot state about itself. The
-//! height is when this transaction stops being able to land, the one moment a
-//! rebuild is provably safe. The asset, amount and recipient are what a history
-//! record says, and signing and follow-up need them without the network.
+//! The fields in front are what a transaction can't state about itself. Past the
+//! height, the transaction can no longer land, so a rebuild is provably safe. Signing
+//! and follow-up need the asset, amount, and recipient for the history record without
+//! a network read.
 
 use jelly_core::{AssetId, TxPayload};
 use solana_message::VersionedMessage;
@@ -94,8 +94,8 @@ impl SolanaPayload {
 
         let asset = AssetId::parse_key(&asset_key)
             .ok_or_else(|| SolanaError::payload("the asset is not one this build knows"))?;
-        // A payload naming another chain's asset was not written here and must
-        // not be signed here.
+        // A payload naming another chain's asset wasn't written here and mustn't be
+        // signed here.
         token::asset_token(asset)?;
 
         // Trailing bytes are a corrupted payload, never something to ignore.
@@ -154,7 +154,7 @@ fn push_text(bytes: &mut Vec<u8>, text: &str) {
     bytes.extend_from_slice(text.as_bytes());
 }
 
-/// A forward-only reader, so no length is ever taken on trust.
+/// Every read is a checked split, so no length is taken on trust.
 struct Reader<'a> {
     rest: &'a [u8],
 }

@@ -69,10 +69,7 @@ wire_enums![
     SkipReason,
 ];
 
-#[expect(
-    clippy::expect_used,
-    reason = "a fixture helper outside a #[test] body is still test code and must fail loudly"
-)]
+#[expect(clippy::expect_used, reason = "test helper")]
 fn check<T: WireEnum>() {
     let all = T::all();
     assert!(!all.is_empty(), "{} has no variants", T::NAME);

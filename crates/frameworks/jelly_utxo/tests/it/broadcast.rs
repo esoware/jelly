@@ -87,7 +87,7 @@ async fn cores_reject_strings_are_classified_with_what_may_be_done_next() {
 }
 
 #[tokio::test]
-async fn an_unrecognised_refusal_is_not_guessed_at() {
+async fn an_unrecognized_refusal_is_not_guessed_at() {
     for params in CHAINS {
         let (harness, _wallet, tx) = signed(&params).await.unwrap();
         refuse(&harness, "the server is having a bad day");

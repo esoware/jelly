@@ -10,14 +10,11 @@ use crate::error::NetError;
 /// What a connector found out about the network behind an endpoint.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Identity {
-    /// This host serves the network the chain expects, with a short
-    /// human-readable statement of what it reported.
+    /// The host serves the expected network. `detail` says what it reported, for the log.
     Confirmed { detail: String },
-    /// This transport has no network identity to check, so reaching it is all
-    /// there is to know.
+    /// The transport has no network identity to check.
     Unchecked,
-    /// The host serves a different network. It is disqualified for the rest of
-    /// the session rather than allowed to poison sync state.
+    /// The host serves another network, so the pool disqualifies it for the session.
     Mismatch { expected: String, found: String },
 }
 
@@ -27,41 +24,35 @@ impl Identity {
     }
 }
 
-/// The budget for the one request an identity check sends, so a slow answer
-/// cannot spend a whole attempt.
+/// Bounds the one request an identity check sends, so a slow answer can't spend a whole
+/// attempt.
 pub const IDENTITY_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Builds whatever a chain talks to an endpoint through, such as an HTTP handle, an
+/// Opens whatever a chain talks to an endpoint through, such as an HTTP handle, an
 /// Electrum socket, or an RPC client.
 ///
-/// The pool bounds each method with what is left of the attempt, and [`crate::probe()`]
-/// bounds both with the probe's budget, so an inner timeout such as [`IDENTITY_TIMEOUT`]
-/// only stops one step from spending the whole attempt.
+/// The pool bounds each method by what's left of the attempt, and [`crate::probe()`] by
+/// the probe's budget. An inner timeout such as [`IDENTITY_TIMEOUT`] only keeps one step
+/// from using up the rest.
 #[async_trait]
 pub trait Connect<C>: Send + Sync + fmt::Debug {
     async fn connect(&self, endpoint: &Endpoint) -> Result<Arc<C>, NetError>;
 
-    /// Asks the endpoint which network it serves, once per endpoint per session before
-    /// its first request. An [`Identity::Mismatch`] disqualifies the endpoint for the
-    /// rest of the session.
+    /// Asks which network the endpoint serves, once per session before its first request.
+    /// An [`Identity::Mismatch`] disqualifies the endpoint for the rest of the session.
     async fn identify(&self, endpoint: &Endpoint, connection: &C) -> Result<Identity, NetError>;
 }
 
-/// A chain's own answer to which network an endpoint serves.
-///
-/// [`crate::HttpConnector`] and [`crate::WsConnector`] reach every chain, so they hold
-/// no network facts. The chain's crate supplies the question and the expected answer
-/// here, and the connector runs it as its [`Connect::identify`].
+/// A chain's check of which network an endpoint serves, which the shared
+/// [`crate::HttpConnector`] and [`crate::WsConnector`] run as their [`Connect::identify`].
 #[async_trait]
 pub trait IdentityCheck<C>: Send + Sync + fmt::Debug {
     async fn identify(&self, endpoint: &Endpoint, connection: &C) -> Result<Identity, NetError>;
 }
 
-/// The check for the two REST transports, which are helper services with no network
-/// to identify.
+/// The check for the REST helper services, which serve no network to identify.
 ///
-/// It sends nothing, because there is nothing to compare and the first real request
-/// shows whether the host is up.
+/// It sends nothing. The first real request shows whether the host is up.
 #[derive(Debug, Clone, Copy)]
 pub struct NoIdentity;
 

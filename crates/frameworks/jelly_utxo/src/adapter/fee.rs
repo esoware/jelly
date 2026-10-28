@@ -19,16 +19,15 @@ pub(crate) struct FeeContext {
     /// The rate each fee level pays, in [`FeeLevel::ALL`] order, never below the relay
     /// floor or the table's wallet floor, and never below a slower level's.
     levels: [FeeRate; 3],
-    /// The slow level's rate as the reading found it, floored at the relay floor only,
-    /// so a custom rate is judged slow against what the network takes rather than
-    /// against what this wallet pays.
+    /// The slow reading floored only at the relay floor, so a custom rate is judged
+    /// slow against what the network takes, not what this wallet pays.
     pub(crate) slow_market: FeeRate,
-    /// The compiled minimum relay fee, or the network's reported floor when it is
+    /// The compiled minimum relay fee, or the network's reported floor when it's
     /// higher.
     pub(crate) relay_floor: FeeRate,
-    /// The table the reading was taken for, with the incremental relay fee a node
-    /// reported folded in. Only a replacement reads that fee, and it has to clear
-    /// what the node charges, because Core's default is only a floor.
+    /// The table the reading was taken for, with any higher incremental relay fee a
+    /// node reported folded in, since a replacement has to clear what the node
+    /// charges.
     pub(crate) params: UtxoParams,
 }
 
@@ -80,15 +79,14 @@ async fn bid(params: &UtxoParams, auction: &Auction, client: &UtxoClient) -> Fee
         Some(api) => match api.recommended().await {
             Ok(fees) => Some(fees),
             Err(error) => {
-                tracing::debug!(target: TARGET, chain, %error, "the fee service did not answer");
+                tracing::debug!(target: TARGET, chain, %error, "the fee service didn't answer");
                 None
             }
         },
     };
 
-    // A server that answered speaks for the nodes a send is broadcast to, so when
-    // it states no floor the compiled minimum stands rather than the fee service's
-    // view of some other node.
+    // A send is broadcast to this server, so if it answered without a floor, the
+    // compiled minimum beats the fee service's view of some other node.
     let floor = observed
         .map(|info| info.relay_floor().unwrap_or(FeeRate::ZERO))
         .or_else(|| recommended?.minimum);
@@ -101,11 +99,10 @@ async fn bid(params: &UtxoParams, auction: &Auction, client: &UtxoClient) -> Fee
         return settle([fees.hour, fees.half_hour, fees.fastest]);
     }
 
-    // Economical follows the mempool down, which a send that can be replaced
-    // recovers from when it guesses low. Bitcoin Core's wallet estimates
-    // economically only for a send that signals replaceability, so a send that
-    // cannot be replaced is estimated conservatively, as Litecoin Core's wallet,
-    // which does not signal, estimates it.
+    // Economical estimates follow the mempool down, and only a replaceable send can
+    // recover from a low guess. Bitcoin Core's wallet estimates economically only
+    // when it signals replaceability, and Litecoin Core's, which doesn't signal,
+    // estimates conservatively.
     let mode = if params.bump_method == Some(BumpMethod::Replace) {
         EstimationMode::Economical
     } else {
@@ -159,8 +156,7 @@ struct Reading {
 }
 
 impl FeeCache {
-    /// The guard is held across the fetch so a burst of quotes makes one round
-    /// trip rather than one each.
+    /// Holds the lock across the fetch so a burst of quotes makes one round trip.
     pub(crate) async fn get(
         &self,
         params: &UtxoParams,
@@ -183,12 +179,11 @@ impl FeeCache {
     }
 }
 
-/// What the transaction would pay at `rate`, and what a send-max would move.
+/// The fee at `rate`, and what a send-max would move.
 ///
-/// The real transaction is built, so the quote shows the fee that would actually
-/// be paid. For a fixed amount the balance cannot cover, the fee is priced from a
-/// one-input, two-output transaction from the address change returns to instead,
-/// so the fee still shows while the amount is wrong.
+/// Builds the real transaction, so the fee is the one that would be paid. When the
+/// balance can't cover a fixed amount, it prices a one-input, two-output transaction
+/// from the change address instead, so a fee still shows while the amount is too high.
 fn price(
     plan: &Plan,
     fee_context: &FeeContext,
@@ -208,8 +203,7 @@ fn price(
     }
 }
 
-/// What the transaction would pay at `rate`, beside what it would pay at each of the
-/// table's levels.
+/// The fee at `rate` and at each of the table's levels.
 pub(crate) fn quote(
     plan: &Plan,
     fee_context: &FeeContext,
@@ -224,8 +218,8 @@ pub(crate) fn quote(
 
 /// What `fee_at` charges at each of the table's levels.
 ///
-/// A level the transaction cannot be built at, such as one whose fee a send-max cannot
-/// cover, is left out rather than failing the quote of the level the user is on.
+/// A level that can't be built, such as one a send-max can't cover, is left out
+/// instead of failing the whole quote.
 pub(crate) fn level_fees(
     fee_context: &FeeContext,
     fee_at: impl Fn(FeeRate) -> Result<Amount, UtxoError>,
@@ -262,8 +256,8 @@ pub(crate) fn rate_of(
 
 /// The rate a bump at `selection` pays.
 ///
-/// A level pays its rate, or the bump's floor when the original already pays more, as
-/// Bitcoin Core prices a bump. A custom rate is the user's own and is not raised.
+/// A level pays its rate or the bump's floor, whichever is higher, as Bitcoin Core
+/// prices a bump. A custom rate is never raised.
 pub(crate) fn bump_rate_of(
     selection: &FeeSelection,
     fee_context: &FeeContext,

@@ -14,15 +14,15 @@ use crate::record::{Confirmed, Viewpoint, tx_record};
 use crate::script::SpendableScript;
 use crate::unspent::{Funding, RefusedUnspent, verified_unspents};
 
-/// One address the pass looks at. The pass works in scripts and reports by
-/// `address_id`, so the address string is not carried.
+/// One address a pass watches. The pass works in scripts and reports by
+/// `address_id`, so it doesn't need the address string.
 #[derive(Debug, Clone)]
 pub(crate) struct WatchedScript<'a> {
     pub(crate) address_id: i64,
     pub(crate) script: &'a SpendableScript,
     /// What the last successful pass left behind, when there was one.
     pub(crate) cursor: Option<SyncCursor>,
-    /// The mempool transactions of this address an earlier pass this session
+    /// This address's mempool transactions that an earlier pass this session
     /// decoded.
     pub(crate) pending: &'a [PendingTx],
 }
@@ -34,9 +34,10 @@ impl WatchedScript<'_> {
     }
 }
 
-/// A mempool transaction of one address's history, kept between passes. A
-/// replacement has to outbid the descendants it would evict, and a later pass
-/// settles one that a conflicting transaction replaced.
+/// A mempool transaction in one address's history, kept between passes.
+///
+/// A replacement can then outbid the descendants it would evict, and a later pass can settle
+/// one that a conflicting transaction replaced.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PendingTx {
     pub(crate) txid: Txid,
@@ -54,8 +55,8 @@ impl From<&PendingTx> for CursorPending {
 }
 
 impl PendingTx {
-    /// The record it settles into once mined. A transaction cannot change, so
-    /// what this session decoded is reported again at its height.
+    /// The record it settles into once mined. A transaction can't change, so what
+    /// this session decoded is reported again at its height.
     fn confirmed(&self, at: Confirmed, tip_height: u32) -> TxRecord {
         let record = &self.record;
         let mut builder = TxRecord::builder(
@@ -83,8 +84,8 @@ impl PendingTx {
 enum Step<'a> {
     /// Download and classify it.
     Decode,
-    /// A mempool transaction this session decoded has been mined, so it is
-    /// reported again at its height without downloading it.
+    /// A mempool transaction this session decoded has been mined, so it's reported
+    /// again at its height without downloading it.
     Confirm(&'a PendingTx),
     /// Still in the mempool, as this session decoded it.
     Pending(&'a PendingTx),
@@ -92,9 +93,9 @@ enum Step<'a> {
     Unchanged,
 }
 
-/// A mempool entry this session has not decoded is downloaded even when the
-/// cursor saw it, because a replacement has to know every pending transaction it
-/// would evict.
+/// A mempool entry this session hasn't decoded is downloaded even when the cursor
+/// saw it, because a replacement has to know every pending transaction it would
+/// evict.
 fn step<'a>(entry: &WatchedScript<'a>, item: &HistoryEntry) -> Step<'a> {
     let is_committed = entry
         .cursor
@@ -116,17 +117,16 @@ pub(crate) struct AddressPass {
     pub(crate) coins: Vec<Utxo>,
     pub(crate) records: Vec<TxRecord>,
     pub(crate) cursor: SyncCursor,
-    /// The history digest had not moved, so nothing was refetched and nothing was
-    /// reclassified.
+    /// The history hadn't moved, so nothing was refetched or reclassified.
     pub(crate) is_unchanged: bool,
-    /// Unspent entries the server's own transactions did not bear out. They are
-    /// dropped rather than spent, and kept so the adapter can log them.
+    /// Unspent entries the server's own transactions didn't bear out. They're never
+    /// spent, and kept here so the adapter can log them.
     pub(crate) refused: Vec<RefusedUnspent>,
-    /// The history as this pass read it, which confirmation depths come from
-    /// whether or not it moved.
+    /// The history as this pass read it. Confirmation depths come from it whether
+    /// or not it moved.
     pub(crate) history: Vec<HistoryEntry>,
-    /// Its mempool transactions, decoded by this pass or, when the history has
-    /// not moved, carried in from the last one.
+    /// Its mempool transactions, decoded by this pass or, when the history hasn't
+    /// moved, carried in from the last one.
     pub(crate) pending: Vec<PendingTx>,
 }
 
@@ -137,8 +137,8 @@ pub(crate) struct PassOutcome {
 }
 
 impl PassOutcome {
-    /// The terminal progress the engine publishes. Adapters emit intermediate
-    /// progress only, and this is what they hand back.
+    /// The terminal progress, which the adapter hands back for the engine to
+    /// publish. Adapters emit only intermediate progress.
     pub(crate) fn progress(&self, params: &UtxoParams) -> ChainSyncProgress {
         let tip = u64::from(self.tip_height);
         ChainSyncProgress::new(params.chain)
@@ -146,8 +146,7 @@ impl PassOutcome {
             .with_heights(Some(tip), Some(tip))
     }
 
-    /// Every outpoint the pass saw unspent, which is what an outpoint claim is
-    /// reconciled against.
+    /// Every outpoint the pass saw unspent, for reconciling outpoint claims.
     pub(crate) fn live_outpoints(&self) -> Vec<OutPoint> {
         self.addresses.iter().flat_map(|address| address.coins.iter().map(Utxo::outpoint)).collect()
     }
@@ -171,8 +170,8 @@ pub(crate) async fn sync_pass(
 struct ServerView {
     tip_height: u32,
     histories: Vec<Vec<HistoryEntry>>,
-    /// The unspent sets of the addresses whose history moved, by watch index.
-    /// Presence is what marks an entry as changed.
+    /// The unspent sets of the addresses whose history moved, by watch index. An
+    /// address counts as changed exactly when it has an entry here.
     unspents: BTreeMap<usize, Vec<Unspent>>,
     txs: BTreeMap<Txid, Transaction>,
     /// The members of `txs` served as a Litecoin `HogEx`.
@@ -182,14 +181,13 @@ struct ServerView {
 }
 
 impl ServerView {
-    /// The tip and every history first, then for the addresses whose history
-    /// moved, the unspent sets, the transactions no earlier pass reported where
-    /// they are now, the parents needed to price those, and the headers that date
-    /// them.
+    /// Fetches the tip and every history, then, for the addresses whose history
+    /// moved, the unspent sets, the transactions not yet reported at their current
+    /// height, the parents needed to price those, and the headers that date them.
     ///
-    /// A transaction never changes once it has a txid, so one the cursor saw at
-    /// the same height is not downloaded again. An empty batch sends no request,
-    /// so an empty watch set costs one round trip.
+    /// A transaction never changes once it has a txid, so one the cursor saw at the
+    /// same height isn't downloaded again. An empty batch sends no request, so an
+    /// empty watch set costs one round trip.
     async fn fetch(
         client: &ElectrumClient,
         watched: &[WatchedScript<'_>],
@@ -199,9 +197,9 @@ impl ServerView {
             watched.iter().map(|entry| entry.script.script_buf().clone()).collect();
         let histories = client.histories(&scripts).await?;
 
-        // A history holding a mempool transaction this session has not decoded is
-        // fetched even when its cursor matches, because a replacement has to know
-        // every pending transaction it would evict.
+        // A history with a mempool transaction this session hasn't decoded is
+        // refetched even when its cursor matches, so a replacement knows every
+        // pending transaction it would evict.
         let changed: Vec<usize> = watched
             .iter()
             .enumerate()
@@ -220,8 +218,8 @@ impl ServerView {
             .map(|(index, _)| index)
             .collect();
 
-        // The unspent sets come first, so a coin whose funding transaction is
-        // newer than the history read is still verified in this pass.
+        // The unspent sets are read before the transactions, so a coin funded after
+        // the history read is still verified in this pass.
         let changed_scripts: Vec<ScriptBuf> = changed
             .iter()
             .filter_map(|index| watched.get(*index))
@@ -291,15 +289,15 @@ fn reconcile(
     Ok(PassOutcome { tip_height: view.tip_height, addresses })
 }
 
-/// An address whose history has not moved, carried over from its cursor with
+/// An address whose history hasn't moved, carried over from its cursor with
 /// nothing refetched or reclassified.
 fn restored(
     entry: &WatchedScript<'_>,
     cursor: &SyncCursor,
     history: Vec<HistoryEntry>,
 ) -> AddressPass {
-    // A pass cut after it advanced the cursor can have left a pending
-    // transaction behind that the history no longer holds.
+    // A pass cut short after advancing the cursor can leave behind a pending
+    // transaction the history no longer holds.
     let pending = entry
         .pending
         .iter()
@@ -321,7 +319,7 @@ fn restored(
 }
 
 /// The confirming height of every transaction any watched history names, absent while
-/// it is in the mempool. A transaction one history already shows mined counts as
+/// it's in the mempool. A transaction that any one history shows mined counts as
 /// mined.
 fn heights_of(histories: &[Vec<HistoryEntry>]) -> HashMap<Txid, Option<u32>> {
     let mut heights: HashMap<Txid, Option<u32>> = HashMap::new();
@@ -344,10 +342,9 @@ struct Read<'a> {
     heights: &'a HashMap<Txid, Option<u32>>,
 }
 
-/// An address whose history moved, with its unspent set verified and every
-/// history entry this session has not reported where it is now classified.
-///
-/// Whatever it left pending that is among `read.replaced` is settled.
+/// An address whose history moved. Its unspent set is verified, every history entry
+/// not yet reported at its current height is classified, and whatever it left
+/// pending that's in `read.replaced` is settled.
 fn refreshed(
     params: &UtxoParams,
     entry: &WatchedScript<'_>,
@@ -414,11 +411,11 @@ fn refreshed(
     })
 }
 
-/// What the last pass to report `entry` left pending, as this session decoded it
-/// and as its cursor recorded it.
+/// What the last pass to report `entry` left pending, from both this session's
+/// decoded transactions and its cursor.
 ///
-/// After a restart the cursor is all there is, and a pass cut after advancing the
-/// cursor leaves it ahead of this session.
+/// After a restart only the cursor has them, and a pass cut short after advancing
+/// the cursor leaves it ahead of this session.
 fn left_pending(entry: &WatchedScript<'_>) -> Vec<CursorPending> {
     let mut left: BTreeMap<Txid, CursorPending> =
         entry.cursor.iter().flat_map(SyncCursor::pending).map(|tx| (tx.txid, tx.clone())).collect();
@@ -430,10 +427,10 @@ fn left_pending(entry: &WatchedScript<'_>) -> Vec<CursorPending> {
 
 /// The transactions an earlier pass left pending that can never confirm.
 ///
-/// Those are each one a transaction this pass downloaded conflicts with, and
-/// each one spending an output of one of those, at whichever watched address it
-/// was left. Only a transaction gone from every history counts, because a server
-/// that still lists one has not seen it replaced.
+/// That's each one that conflicts with a transaction this pass downloaded, and each
+/// one that spends an output of a replaced one, at whichever watched address it was
+/// left. Only a transaction gone from every history counts, since a server that still
+/// lists one hasn't seen it replaced.
 fn replaced_pending(
     watched: &[WatchedScript<'_>],
     histories: &[Vec<HistoryEntry>],
@@ -515,8 +512,7 @@ fn wanted(
     wanted.into_iter().collect()
 }
 
-/// The heights of the blocks that confirm what a pass reports, which date the
-/// records.
+/// The heights whose headers date the records a pass reports.
 fn reported_heights(
     watched: &[WatchedScript<'_>],
     histories: &[Vec<HistoryEntry>],
@@ -535,7 +531,6 @@ fn reported_heights(
     heights.into_iter().collect()
 }
 
-/// The history the pass read for the address at `index` of the watch set.
 fn history_at(histories: &[Vec<HistoryEntry>], index: usize) -> &[HistoryEntry] {
     histories.get(index).map_or(&[], Vec::as_slice)
 }

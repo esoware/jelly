@@ -6,13 +6,12 @@ use jelly_core::{
 use jelly_electrum::ElectrumError;
 use jelly_net::{NetError, Outcome};
 
-/// No arithmetic wraps: a step whose overflow is an error reports
-/// [`UtxoError::Overflow`], and a step that clamps saturates. No variant carries
-/// a secret, only public facts about a transaction.
+/// No arithmetic wraps: a checked step reports [`UtxoError::Overflow`], and any other
+/// saturates. No variant carries a secret.
 ///
-/// Electrum and network failures are carried whole rather than flattened into a
-/// string, so the pool's classifier and the domain error read a value. Every
-/// endpoint inside is an [`EndpointLabel`], so a `Debug` print is safe to log.
+/// Electrum and network failures are kept whole, not flattened into strings, so the
+/// pool's classifier and the domain error can match on them. Every endpoint inside is
+/// an [`EndpointLabel`], so a `Debug` print is safe to log.
 #[derive(Debug, thiserror::Error)]
 pub enum UtxoError {
     #[error("insufficient funds: need {needed}, have {available}")]
@@ -100,29 +99,29 @@ pub enum UtxoError {
     Electrum(#[from] ElectrumError),
     #[error(transparent)]
     Net(NetError),
-    /// Named at every call site rather than derived, so no other failure that
-    /// happens to be a [`CoreError`] can be reported as a storage one.
+    /// Built at each call site rather than through `From`, so no other
+    /// [`CoreError`] can be reported as a storage failure.
     #[error("the cursor store failed")]
     Cursor(#[source] CoreError),
     #[error("stored UTXO state is unreadable")]
     UnreadableState,
-    /// The server answered and the answer does not add up. Anything the engine
-    /// refuses about data that arrived from an endpoint lands here, so it is
-    /// attributed to that endpoint and the walk rotates.
+    /// The server answered, but the answer doesn't add up. Any refusal of data an
+    /// endpoint served lands here, so it's blamed on that endpoint and the pool moves
+    /// on to the next.
     #[error("{endpoint}: the answer cannot be used: {source}")]
     Server {
         endpoint: EndpointLabel,
         #[source]
         source: Box<Self>,
     },
-    /// The server has no such transaction. Unreachable while the Electrum client
-    /// refuses a short batch, and still an arm rather than an assumption.
+    /// The server doesn't have the transaction. Unreachable while the Electrum
+    /// client refuses a short batch, but handled anyway.
     #[error("the server does not have {txid}")]
     UnknownTx { txid: Txid },
     /// An address form the chain's table refuses by name, such as a Litecoin MWEB
-    /// address. There is no output script to pay and no scripthash to watch, so
-    /// this is a refusal rather than a limitation of this build, and the table's
-    /// message reaches the user as written.
+    /// address. It has no output script to pay and no scripthash to watch, so it's
+    /// invalid input rather than a gap in this build, and the table's message reaches
+    /// the user as written.
     #[error("{message}")]
     RefusedAddress { message: &'static str },
     #[error("{} does not belong to {}", asset.key(), chain.display_name())]
@@ -153,13 +152,13 @@ pub enum UtxoError {
     /// no address to fund a replacement and no key to sign it.
     #[error("Transaction {txid} does not spend from this wallet.")]
     NotOurs { txid: Txid },
-    /// The last pass saw the transaction in a block, so the network could only
-    /// refuse a replacement, and refusing here saves the user approving one that
-    /// cannot land.
+    /// The last pass saw the transaction in a block. The network would refuse a
+    /// replacement, so this refuses early, before the user approves one that can't
+    /// land.
     #[error("Transaction {txid} is already confirmed.")]
     AlreadyConfirmed { txid: Txid },
     /// A replacement's recipient output pays a script with no address form, so
-    /// the planner cannot be told who to keep paying.
+    /// the planner can't be told who to keep paying.
     #[error("{txid} pays a script this build cannot name an address for")]
     UnnameableRecipient { txid: Txid },
     /// A mempool transaction a replacement would evict has no fee the last pass
@@ -181,10 +180,9 @@ impl UtxoError {
         Self::Signing { context }
     }
 
-    /// Recovers a failure of ours from a `NetError` rather than wrapping it twice,
-    /// and recovers an Electrum failure raised inside the connector too. It is a
-    /// named function rather than a `From` so every site that reclassifies is
-    /// greppable.
+    /// Unwraps a failure of ours, or an Electrum failure raised inside the connector,
+    /// from a `NetError` instead of wrapping it twice. A named function rather than a
+    /// `From`, so every site that reclassifies is greppable.
     pub(crate) fn from_net(error: NetError) -> Self {
         match error.into_source_of::<Self>() {
             Ok(inner) => inner,
@@ -195,9 +193,9 @@ impl UtxoError {
         }
     }
 
-    /// A failure about data an endpoint served, labelled with that endpoint. An
-    /// Electrum failure stays itself, so an endpoint failure has one
-    /// representation, and anything else becomes [`Self::Server`].
+    /// Labels a failure about data an endpoint served with that endpoint. An
+    /// Electrum failure stays as it is, so each endpoint failure has one
+    /// representation. Anything else becomes [`Self::Server`].
     pub(crate) fn from_server(endpoint: &EndpointLabel, error: Self) -> Self {
         if let Self::Electrum(inner) = error {
             return Self::Electrum(inner);
@@ -305,10 +303,10 @@ impl UtxoError {
         }
     }
 
-    /// What the failover walk does with this failure.
+    /// Whether the pool tries the next endpoint after this failure.
     ///
-    /// A settled refusal and a request this build will not make both stop the
-    /// walk, and anything about one server's answer rotates.
+    /// A settled refusal and a request this build won't make both stop there, and a
+    /// problem with one server's answer moves on to the next.
     const fn outcome(&self) -> Outcome {
         match *self {
             Self::Electrum(ref inner) => inner.outcome(),
@@ -363,11 +361,8 @@ impl UtxoError {
         if let Self::Electrum(ref inner) = *self { inner.rejection() } else { None }
     }
 
-    /// `chain` comes from the caller because the engine is identical across
-    /// Electrum coins.
-    ///
-    /// The match is exhaustive so a new variant fails to compile until someone
-    /// decides how the interface treats it.
+    /// Takes `chain` from the caller, since the same code serves every Electrum
+    /// chain.
     pub(crate) fn into_chain_error(self, chain: ChainId) -> ChainError {
         match self {
             Self::InsufficientFunds { needed, available } => {
@@ -435,7 +430,7 @@ impl From<UtxoError> for NetError {
     }
 }
 
-/// The classifier every read is walked with.
+/// The classifier the pool uses for every Electrum read.
 pub(crate) fn classify(error: &NetError) -> Outcome {
     error
         .source_of::<UtxoError>()

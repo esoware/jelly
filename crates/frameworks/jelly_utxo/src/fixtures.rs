@@ -19,7 +19,6 @@ use crate::test_util::{
 
 pub(crate) type Fallible<T> = Result<T, Box<dyn Error>>;
 
-/// A tip deep enough that no confirmation filter drops a fixture coin.
 pub(crate) const TIP: u32 = 800_000;
 
 /// A height a hundred blocks below [`TIP`], past the confirmation watch window.
@@ -50,7 +49,7 @@ fn utxo(key: &TestKey, seed: u8, value: u64, height: Option<u32>, origin: Origin
     )
 }
 
-/// Confirmed deep enough that no filter drops it.
+/// Confirmed at [`TIP`], so no filter drops it.
 pub(crate) fn confirmed(key: &TestKey, seed: u8, value: u64) -> Utxo {
     utxo(key, seed, value, Some(TIP), Origin::Ordinary)
 }
@@ -74,8 +73,7 @@ pub(crate) struct Scene {
 }
 
 /// The scene's table prices change at one base unit per virtual byte, or at the
-/// relay floor where that is higher, which is the rate every change figure in the
-/// tests assumes.
+/// relay floor if that's higher. Every change figure in the tests assumes that rate.
 pub(crate) fn scene(params: &UtxoParams, kind: ScriptKind) -> Fallible<Scene> {
     Ok(Scene {
         params: UtxoParams { long_term_fee_rate: ONE_PER_VB.max(params.min_relay_fee), ..*params },

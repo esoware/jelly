@@ -111,7 +111,7 @@ impl States {
 
     /// Reads the stored sends of `address_ids` and the stored cursors of the `admitted`
     /// ones, which are new to the watch set, and holds each admitted address's stored send
-    /// unless it already holds one. Anything stored that cannot be read blocks spending.
+    /// unless it already holds one. Anything stored that can't be read blocks spending.
     pub(crate) async fn load(&self, address_ids: &[i64], admitted: &[i64]) -> Result<(), XrpError> {
         self.ensure_readable()?;
         let scans = if admitted.is_empty() {
@@ -134,7 +134,7 @@ impl States {
     }
 
     /// The history cursor stored for `address_id`, or a fresh one before its first walk.
-    /// One that cannot be read blocks spending.
+    /// One that can't be read blocks spending.
     pub(crate) async fn cursor(&self, address_id: i64) -> Result<Cursor, XrpError> {
         let stored = self
             .cursors
@@ -255,8 +255,8 @@ fn scopes(address_ids: &[i64]) -> Vec<CursorScope> {
     address_ids.iter().copied().map(CursorScope::Address).collect()
 }
 
-/// The sends stored in `rows`, once every stored cursor in `scans` and every stored send
-/// reads, and each send is a broadcast one whose blob hashes to its id.
+/// The sends stored in `rows`. Fails unless every cursor in `scans` and every send reads,
+/// and each send was broadcast with a blob that hashes to its id.
 fn restore(
     scans: &[ScanAdvance],
     rows: &[HeldReservation],

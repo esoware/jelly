@@ -15,12 +15,12 @@ use crate::params::Auction;
 
 const TARGET: &str = "jelly::utxo::fee_api";
 
-/// Five numbers and their field names cannot exceed this, and a hostile endpoint
-/// must not be able to make the process allocate.
+/// Five numbers and their field names fit easily, and a hostile endpoint can't make
+/// us allocate more.
 const MAX_ANSWER_BYTES: usize = 4096;
 
-/// A quote the fee service cannot answer falls back to the Electrum estimator, so
-/// this bounds what one unresponsive request adds to a quote.
+/// Caps how long an unresponsive fee service holds up a quote before it falls back
+/// to the Electrum server.
 const FEE_API_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The fee service a quote prefers over the Electrum server's own estimator.
@@ -61,7 +61,7 @@ impl FeeApi for MempoolFeeApi {
                         tracing::debug!(
                             target: TARGET,
                             endpoint = %endpoint.label(),
-                            "the fee service lacks the preferred route; the fallback is read"
+                            "the fee service lacks the preferred route; reading the fallback"
                         );
                         read(&endpoint, fallback).await
                     }
@@ -84,7 +84,7 @@ async fn read(endpoint: &HttpEndpoint, route: &str) -> Result<RecommendedFees, N
             endpoint = %endpoint.label(),
             line = source.line(),
             column = source.column(),
-            "the recommended-fee answer does not parse"
+            "the recommended-fee answer doesn't parse"
         );
         NetError::protocol(endpoint.label(), "the recommended-fee answer is not readable")
     })
@@ -112,22 +112,22 @@ const fn classify(error: &NetError) -> Outcome {
     }
 }
 
-/// `/v1/fees/recommended` or `/v1/fees/precise` as a mempool.space-family service
-/// answers it.
+/// The answer to `/v1/fees/recommended` or `/v1/fees/precise` from a
+/// mempool.space-style service.
 ///
 /// mempool.space labels `hourFee`, `halfHourFee`, and `fastestFee` low, medium, and
-/// high priority, and Sparrow and Trezor Suite offer the same three, so they are the
-/// slow, normal, and fast levels. `minimumFee` is the service's view of the relay
-/// floor. `economyFee` is served too but not read.
+/// high priority, and Sparrow and Trezor Suite offer the same three, so they map to
+/// the slow, normal, and fast levels. `minimumFee` is the service's view of the relay
+/// floor. `economyFee` isn't read.
 ///
-/// Every field is a rate in base units per virtual byte. They arrive as JSON numbers
-/// and are read as decimal text, rounding up, so no float touches the fee path.
+/// Every field is in base units per virtual byte. The JSON numbers are read as
+/// decimal text and rounded up, so no float touches the fee path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecommendedFees {
     pub hour: FeeRate,
     pub half_hour: FeeRate,
     pub fastest: FeeRate,
-    /// Absent on services that do not report a floor.
+    /// `None` when the service doesn't report a floor.
     pub minimum: Option<FeeRate>,
 }
 
@@ -210,8 +210,8 @@ mod tests {
         assert_eq!(fees.minimum, Some(FeeRate::from_sat_per_kwu(25)));
     }
 
-    /// The litecoinspace.org answers the Litecoin file records, with the half-hour
-    /// rate and the floor each is read as.
+    /// The litecoinspace.org answers recorded in the Litecoin vector file, with the
+    /// half-hour rate and floor each should read as.
     #[test]
     fn the_recorded_litecoin_answers_read_as_their_recorded_rates() {
         let file: serde_json::Value =

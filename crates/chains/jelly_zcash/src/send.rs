@@ -37,7 +37,7 @@ struct Selection {
 pub(crate) struct Resolved {
     pub(crate) payment: Payment,
     /// What the normal level would pay over the same coins, or `None` when the coins
-    /// cannot pay it.
+    /// can't pay it.
     pub(crate) normal_fee_zat: Option<u64>,
 }
 
@@ -135,8 +135,8 @@ fn sources(watched: &[Watched], address_ids: &[i64]) -> Result<Vec<Source>, Zcas
     Ok(sources)
 }
 
-/// What the coins of every source pay, largest first, with change to `change_address`,
-/// at the ZIP 317 fee or the custom fee `chosen_zat`.
+/// Picks coins largest first, with change to `change_address`, at the ZIP 317 fee or the
+/// custom fee `chosen_zat`.
 fn select(
     mut coins: Vec<Coin>,
     amount: SendAmount,

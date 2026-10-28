@@ -10,8 +10,8 @@ use crate::entry::SPEC;
 use crate::identity::TronIdentity;
 use crate::node::PooledNode;
 
-/// The adapter over the full-node pool, with the request's `TronGrid` key, if any, held
-/// only inside the node. Construction opens no sockets.
+/// Builds the adapter over the endpoint pool. The request's `TronGrid` key, if any,
+/// is held only inside the node, and construction opens no sockets.
 pub async fn build(
     network: &Network,
     request: &BuildRequest,
@@ -27,7 +27,7 @@ pub async fn build(
 }
 
 /// Asks one endpoint which network it serves, through the connector its pool is built
-/// with, so the endpoint editor and the pool's guard cannot disagree.
+/// with, so the endpoint editor and the pool's guard can't disagree.
 pub async fn probe(network: &Network, endpoint: &Endpoint) -> ProbeReport {
     if endpoint.transport() != Transport::TronHttp {
         return ProbeReport::unused_transport(endpoint.label());

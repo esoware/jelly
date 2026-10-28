@@ -22,9 +22,8 @@ const TARGET: &str = "jelly::app::event";
 #[derive(Debug, Clone, Serialize, Type, Event)]
 pub(crate) struct BalanceChanged;
 
-/// A transaction the wallet had not recorded before. The frontend reads the wallet's view
-/// of it from the history, which already holds every address's share the event's window
-/// wrote.
+/// A transaction the wallet hadn't recorded before. The history already holds every row
+/// its sync batch wrote, so the frontend reads the wallet's view of it from there.
 #[derive(Debug, Clone, Serialize, Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct TxDetected {
@@ -55,14 +54,14 @@ pub(crate) struct PricesChanged(PriceSnapshot);
 #[derive(Debug, Clone, Serialize, Type, Event)]
 pub(crate) struct PriceHistoryChanged(PriceHistory);
 
-/// Targets the wallet window. The webview lacks `core:event:allow-emit` and cannot forge
-/// backend events.
+/// Sends to the wallet window. The page lacks `core:event:allow-emit`, so it can't forge
+/// these.
 fn emit<E>(handle: &AppHandle, event: &E)
 where
     E: Event + Serialize + Clone,
 {
     if let Err(error) = event.emit_to(handle, MAIN_WINDOW) {
-        tracing::warn!(target: TARGET, name = E::NAME, %error, "an event did not reach the window");
+        tracing::warn!(target: TARGET, name = E::NAME, %error, "an event didn't reach the window");
     }
 }
 
@@ -97,8 +96,8 @@ pub(crate) fn spawn_pumps(handle: &AppHandle, services: &Services) {
     ));
 }
 
-/// Sends the current value, then every change. Empty snapshots must also be forwarded to
-/// clear stale frontend state.
+/// Sends the current value, then every change, empty ones included so the frontend clears
+/// stale state.
 async fn bridge<T, E>(
     handle: AppHandle,
     mut values: watch::Receiver<T>,
@@ -116,7 +115,7 @@ async fn bridge<T, E>(
     }
 }
 
-/// Slow subscribers lose refresh hints rather than block sync. The store remains
+/// Falling behind loses refresh hints instead of blocking sync, and the store stays
 /// authoritative.
 async fn wallet_events(handle: AppHandle, mut events: broadcast::Receiver<WalletEvent>) {
     loop {
@@ -138,7 +137,7 @@ fn forward(handle: &AppHandle, event: WalletEvent) {
         }
         WalletEvent::TxUpdated(_) => emit(handle, &TxUpdated),
         WalletEvent::TxConfirmed(_) => emit(handle, &TxConfirmed),
-        // Sync progress has no frontend consumers.
+        // Nothing in the frontend reads sync progress.
         WalletEvent::SyncProgress(_) => {}
     }
 }

@@ -1,6 +1,3 @@
-//! Fixtures for other crates' tests. Only `[dev-dependencies]` enable the `test-util`
-//! feature.
-
 use jelly_core::{KeyError, KeyKind, KeyMaterial};
 use zeroize::Zeroizing;
 
@@ -12,8 +9,8 @@ use crate::wif;
 pub const TEST_PHRASE: &str =
     "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
-/// The BIP-39 seed of the all-abandon phrase with no passphrase, from the published
-/// BIP-39 vectors, so its keys, xpubs, and addresses are all documented values.
+/// The BIP-39 seed of the all-abandon phrase with no passphrase, the wallet BIP-84 and
+/// BIP-86 publish keys and addresses for.
 const TEST_SEED: [u8; Seed::LEN] = [
     0x5e, 0xb0, 0x0b, 0xbd, 0xdc, 0xf0, 0x69, 0x08, 0x48, 0x89, 0xa8, 0xab, 0x91, 0x55, 0x56, 0x81,
     0x65, 0xf5, 0xc4, 0x53, 0xcc, 0xb8, 0x5e, 0x70, 0x81, 0x1a, 0xae, 0xd6, 0xf6, 0xda, 0x5f, 0xc1,

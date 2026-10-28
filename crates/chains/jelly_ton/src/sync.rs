@@ -55,7 +55,7 @@ pub(crate) async fn run(
 }
 
 impl Pass<'_> {
-    /// Syncs one address and reports whether every history of it now stands at its head.
+    /// Syncs one address and reports whether all its histories are now read to their heads.
     async fn sync_address(&self, tip: u64) -> Result<bool, TonError> {
         let entry = self.entry;
         let account = self.client.account(&entry.address, tip).await?;
@@ -107,8 +107,8 @@ impl Pass<'_> {
         Ok(is_read)
     }
 
-    /// Reads one jetton wallet's balance and history. A jetton wallet that is not
-    /// deployed holds nothing.
+    /// Reads one jetton wallet's balance and history. A jetton wallet that isn't deployed
+    /// holds nothing.
     async fn sync_jetton(
         &self,
         reader: &Reader<'_>,

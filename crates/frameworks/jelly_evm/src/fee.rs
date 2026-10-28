@@ -46,7 +46,7 @@ impl FeePair {
         units::cost("max fee", self.max_fee_per_gas, gas_limit)
     }
 
-    /// The cost if the base fee does not move, at `min(cap, base + tip)` per gas.
+    /// The cost if the base fee doesn't move, at `min(cap, base + tip)` per gas.
     pub(crate) fn expected_cost_wei(
         self,
         gas_limit: u64,
@@ -100,7 +100,7 @@ impl FeePair {
 /// The tip is the median across the sampled blocks of the reward at `percentile`,
 /// scaled by `tip_pct`. The cap is the next block's base fee scaled by
 /// `base_fee_pct`, plus that tip. `MetaMask`'s floors of one to two gwei suit only
-/// Ethereum, so each network's own floor and ceiling hold the tip instead.
+/// Ethereum, so each network's own floor and ceiling bound the tip instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct LevelTuning {
     level: FeeLevel,
@@ -109,11 +109,11 @@ struct LevelTuning {
     base_fee_pct: u64,
 }
 
-/// In [`FeeLevel::ALL`] order.
+/// In [`FeeLevel::ALL`] order, which is also the order of `eth_feeHistory`'s
+/// reward columns.
 ///
-/// That is also the order `eth_feeHistory` answers the percentiles in. The
-/// percentiles rise with the level and the reward columns are sampled from the same
-/// blocks, so a faster level never comes out cheaper than a slower one.
+/// The percentiles rise with the level and every column samples the same blocks,
+/// so a faster level never comes out cheaper than a slower one.
 const LEVELS: [LevelTuning; 3] = [
     LevelTuning { level: FeeLevel::Slow, percentile: 10, tip_pct: 94, base_fee_pct: 110 },
     LevelTuning { level: FeeLevel::Normal, percentile: 20, tip_pct: 97, base_fee_pct: 120 },
@@ -220,9 +220,8 @@ const MAX_TX_GAS: u64 = 16_777_216;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct GasLimit {
     limit: u64,
-    /// What the transaction is expected to use, which is the node's unpadded
-    /// estimate. Unused gas is refunded, so this rather than the limit prices the
-    /// fee a user should expect.
+    /// The node's unpadded estimate, or the user's own limit. Unused gas is
+    /// refunded, so this, not the limit, prices the fee to expect.
     expected: u64,
     source: GasSource,
 }
@@ -237,9 +236,9 @@ impl GasLimit {
         Ok(Self { limit, expected: limit, source })
     }
 
-    /// An estimate of exactly the intrinsic gas is a transfer that runs no code,
-    /// which always uses exactly that, so it is not padded. `MetaMask` keeps such a
-    /// transfer at 21000 too.
+    /// An estimate of the 21000 intrinsic gas is a transfer that runs no code and
+    /// always uses exactly that, so it isn't padded. `MetaMask` doesn't pad one
+    /// either.
     pub(crate) fn estimated(estimate: u64, config: &EvmConfig) -> Result<Self, EvmError> {
         let gas = Self::new(estimate, GasSource::Estimated)?;
         let padding_pct = if estimate <= TRANSFER_GAS { 0 } else { config.gas_padding_pct };
@@ -269,7 +268,7 @@ impl GasLimit {
 /// any of it reaches a node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Overrides {
-    /// The level whose pair every half the request leaves automatic takes.
+    /// The level an automatic half is priced at.
     pub(crate) level: FeeLevel,
     pub(crate) gas_limit: Option<u64>,
     pub(crate) max_fee_per_gas: Option<u128>,
@@ -279,16 +278,16 @@ pub(crate) struct Overrides {
 }
 
 impl Overrides {
-    /// The price of `request` with its nonce and calldata. Another chain's selection
-    /// is refused rather than silently ignored.
+    /// The price of `request` with its nonce and calldata. Another chain's fee
+    /// selection is refused, not ignored.
     pub(crate) fn of(request: &TxRequest) -> Result<Self, EvmError> {
         let calldata =
             request.data.as_deref().map(|text| units::parse_hex("calldata", text)).transpose()?;
         Ok(Self { nonce: request.nonce, calldata, ..Self::price_of(&request.fee)? })
     }
 
-    /// Only the level, the price and the gas limit of `selection`, for a replacement,
-    /// whose nonce and calldata come from the send it replaces.
+    /// Reads only the level, the price and the gas limit of `selection`, so a
+    /// replacement can take its nonce and calldata from the send it replaces.
     pub(crate) fn price_of(selection: &FeeSelection) -> Result<Self, EvmError> {
         match *selection {
             FeeSelection::Level { level } => Ok(Self { level, ..Self::AUTOMATIC }),

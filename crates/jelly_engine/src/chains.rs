@@ -25,12 +25,11 @@ use crate::sync::{self, ChainLoop};
 /// Quiet period before an endpoint change triggers an adapter rebuild.
 const REBUILD_DEBOUNCE: Duration = Duration::from_millis(500);
 
-/// One rebuild's whole input, read once per rebuild from the chain-state rows and the
-/// settings file, so the adapter set, the poll intervals, the seeded heights and the
-/// settings all come from one moment.
+/// A rebuild's whole input, read once from the chain-state rows and the settings file so
+/// everything the rebuild publishes comes from the same moment.
 ///
-/// A set is published only into the session it was planned for, never into a later one,
-/// even of the same wallet, so the plan names that session.
+/// It names its session because a set is only ever published into the session it was
+/// planned for, never a later one of the same wallet.
 #[derive(Debug)]
 struct BuildPlan {
     request: BuildRequest,
@@ -42,8 +41,8 @@ struct BuildPlan {
 /// One chain's supervision state.
 ///
 /// `announced_tip` is the tip the last confirmation refresh counted from. The board's
-/// tip cannot stand in for it, because in-flight progress moves the board before the
-/// pass that found the block returns.
+/// tip can't stand in for it, because in-flight progress moves the board before the pass
+/// that found the block returns.
 #[derive(Debug, Default)]
 pub(crate) struct ChainSlot {
     kick: Notify,
@@ -72,7 +71,8 @@ impl ChainSlot {
     }
 }
 
-/// The passes a chain's loop has finished, so a test can wait for one rather than sleep.
+/// The passes a chain's loop has finished, so a test can wait for one instead of
+/// sleeping.
 #[cfg(any(test, feature = "test-util"))]
 #[derive(Debug, Default)]
 pub(crate) struct PassLog {
@@ -112,19 +112,18 @@ impl PassLog {
     }
 }
 
-/// Everything the engine knows about chains, including the published adapter
-/// generation, the token its supervision tasks run under, the rebuild queue, and the
-/// status board.
+/// The published adapters, the token their sync loops run under, pending rebuilds, and
+/// each chain's heights.
 #[derive(Debug, Default)]
 pub(crate) struct Chains {
     adapters: ArcSwap<AdapterSet>,
     slots: Mutex<HashMap<ChainId, Arc<ChainSlot>>>,
-    /// The token every running supervision task is under. A poll interval change replaces
-    /// it and the tasks under it while the adapter generation stays.
+    /// The parent token of the running sync loops. A poll interval change replaces it
+    /// and the loops but keeps the adapters.
     supervision: Mutex<Option<CancellationToken>>,
     /// One rebuild at a time.
     rebuild: AsyncMutex<()>,
-    /// Replaces rather than queues, so many requests collapse to the latest.
+    /// Only the latest request. A new one replaces it instead of queueing behind it.
     queued: Mutex<Option<BuildPlan>>,
     is_debounce_pending: AtomicBool,
     pub(crate) status: StatusBoard,
@@ -140,8 +139,8 @@ impl Chains {
         Arc::clone(guard.entry(chain).or_insert_with(|| Arc::new(ChainSlot::default())))
     }
 
-    /// Drops the whole generation, so nothing syncs or reports until a rebuild publishes
-    /// a new one.
+    /// Drops the adapters and stops their loops. Nothing syncs or reports until a rebuild
+    /// publishes a new set.
     pub(crate) fn retire(&self) {
         let previous = self.supervision.lock().take();
         if let Some(previous) = previous {
@@ -202,9 +201,8 @@ impl WalletEngine {
         Ok(enabled_chains(&states))
     }
 
-    /// Switches a chain on or off. The enabled set is part of the build request,
-    /// so a chain that goes away loses its adapter rather than merely losing its
-    /// supervision task.
+    /// The enabled set is part of the build request, so switching a chain off drops its
+    /// adapter, not just its sync loop.
     pub async fn set_chain_enabled(
         &self,
         chain: ChainId,
@@ -242,8 +240,7 @@ impl WalletEngine {
         Ok(())
     }
 
-    /// The birthday is part of the build request, so the adapters are rebuilt for the
-    /// new one to take effect.
+    /// The birthday is part of the build request, so this rebuilds the adapters.
     pub async fn set_restore_height(
         &self,
         chain: ChainId,
@@ -259,8 +256,8 @@ impl WalletEngine {
         Ok(())
     }
 
-    /// Wakes the sync loop of `chain`, or of every chain with an adapter.
-    /// Never spawns a pass of its own, so passes cannot stack.
+    /// Wakes the sync loop of `chain`, or of every chain with an adapter. Never spawns a
+    /// pass of its own, so passes can't stack.
     pub async fn sync_now(&self, chain: Option<ChainId>) -> Result<Vec<ChainId>, CoreError> {
         self.require_session().await?;
         let chains = match chain {
@@ -278,22 +275,23 @@ impl WalletEngine {
 
     /// Rebuilds and republishes the adapter set.
     ///
-    /// Rebuilds run one at a time. A request that arrives while one runs replaces the
+    /// Rebuilds run one at a time, and a request that arrives during one replaces any
     /// pending request, so a burst of settings changes costs one rebuild with the newest
     /// input.
     ///
-    /// A set built for a session that has since closed is dropped rather than published,
-    /// because its adapters hold that session's keys.
+    /// A set built for a session that has since closed is dropped unpublished, because
+    /// its adapters hold that session's keys.
     pub(crate) async fn rebuild_adapters(&self) -> Result<(), CoreError> {
         let plan = self.build_plan().await?;
         self.inner.chains.queued.lock().replace(plan);
-        let _serialised = self.inner.chains.rebuild.lock().await;
+        let _serialized = self.inner.chains.rebuild.lock().await;
         let queued = self.inner.chains.queued.lock().take();
         let Some(plan) = queued else {
             return Ok(());
         };
 
-        // Building must see every reservation of a send that precedes publication.
+        // The send guard is held through publication, so the build sees every reservation
+        // a send on the old set made.
         let session = plan.session.upgrade().ok_or(CoreError::Locked)?;
         let _sending = session
             .cancel
@@ -305,15 +303,15 @@ impl WalletEngine {
             .run_until_cancelled(self.inner.builder.build(&plan.request))
             .await
             .ok_or(CoreError::Locked)?;
-        // Holding the slot prevents a concurrent lock from retiring the session between
-        // the identity check and publication.
+        // Holding the slot's read guard keeps a concurrent lock from retiring the session
+        // between this check and publication.
         let current = self.inner.session.read();
         let session = current
             .as_ref()
             .filter(|session| plan.session.ptr_eq(&Arc::downgrade(session)))
             .ok_or(CoreError::Locked)?;
-        // The generation goes out before the states that describe it, so a subscriber
-        // reacting to a state always finds the adapter.
+        // The set goes out before the heights and loops that describe it, so anything
+        // reacting to their state finds the adapter.
         let set = Arc::new(set);
         self.inner.chains.adapters.store(Arc::clone(&set));
         self.seed_states(&plan, &set);
@@ -353,8 +351,8 @@ impl WalletEngine {
         });
     }
 
-    /// Seeds each chain's stored height. A chain that was asked for and came back neither
-    /// built nor skipped is a builder defect, reported rather than hidden.
+    /// Seeds each chain's stored height, and logs any requested chain the builder neither
+    /// built nor skipped, since that's a builder bug.
     fn seed_states(&self, plan: &BuildPlan, set: &AdapterSet) {
         for chain in &plan.request.chains {
             if set.outcome(*chain).is_none() {
@@ -393,10 +391,8 @@ impl WalletEngine {
         })
     }
 
-    /// Starts one supervision task per built chain of `set` under a fresh supervision
-    /// token, cancelling the previous one.
-    ///
-    /// Cancelling a supervision token stops its loops, and a new one gets fresh ones.
+    /// Starts one sync loop per built chain of `set` under a fresh supervision token,
+    /// canceling the previous token and its loops.
     fn start_sync_tasks(
         &self,
         set: &AdapterSet,

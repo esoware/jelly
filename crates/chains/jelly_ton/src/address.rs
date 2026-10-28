@@ -26,8 +26,7 @@ impl AddressCodec for TonCodec {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TonDestination {
     pub(crate) address: TonAddress,
-    /// The flag a user-friendly address carries, and `None` for a raw `0:...` address,
-    /// which carries none.
+    /// The flag a user-friendly address carries, or `None` for a raw `0:...` address.
     pub(crate) is_bounceable: Option<bool>,
     pub(crate) comment: Option<String>,
 }
@@ -120,7 +119,7 @@ mod tests {
     }
 
     #[test]
-    fn a_payment_request_keeps_its_comment_and_refuses_fields_it_cannot_honour() {
+    fn a_payment_request_keeps_its_comment_and_refuses_fields_it_cannot_honor() {
         let address = wallet_address(&[1; 32], Version::V5r1).unwrap();
         let request = format!("ton://transfer/{address}?amount=123&text=order%207");
         assert_eq!(ton_destination(&request).unwrap().comment.as_deref(), Some("order 7"));

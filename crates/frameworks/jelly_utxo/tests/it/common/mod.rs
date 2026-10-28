@@ -1,11 +1,10 @@
-//! Helpers return `Fallible` rather than panicking, so a broken fixture reports
-//! what was wrong.
+//! Helpers return `Fallible` instead of panicking, so a broken fixture says what was
+//! wrong.
 //!
-//! The adapter suites go through the shipped adapter over an in-memory Electrum
-//! server that speaks the real wire protocol, so a test exercises the same
-//! framing, batching, failover, chain guard, and cursor routing a socket would.
-//! The guard runs against each table's real block zero and checkpoint, so a
-//! foreign endpoint is refused here as it would be in production.
+//! The adapter suites drive the shipped adapter over an in-memory Electrum server that
+//! speaks the real wire protocol, so framing, batching, failover, the chain guard, and
+//! cursor routing all run as they would over a socket. The guard checks each table's
+//! real block zero and checkpoint.
 
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -46,7 +45,7 @@ pub(crate) type Fallible<T> = Result<T, Box<dyn Error>>;
 /// A tip deep enough that no confirmation filter drops a fixture coin.
 pub(crate) const TIP: u32 = 800_000;
 
-/// Where a build puts the payment and the change, which it never shuffles.
+/// A build never shuffles outputs, so the payment and change always land here.
 pub(crate) const RECIPIENT_VOUT: u32 = 0;
 pub(crate) const CHANGE_VOUT: u32 = 1;
 
@@ -54,28 +53,24 @@ pub(crate) const CHANGE_VOUT: u32 = 1;
 /// record is out of the confirmation watch window.
 pub(crate) const MINED_AT: u32 = 799_900;
 /// Not adjacent to [`MINED_AT`], because the fake answers every height with the
-/// same header and the client refuses two adjacent headers that do not chain.
+/// same header and the client refuses two adjacent headers that don't chain.
 pub(crate) const MINED_LATER: u32 = 799_950;
 pub(crate) const BLOCK_UNIX_SECONDS: u32 = 1_700_000_000;
 
-/// Litecoin's real block-zero header, consensus encoded, with version 1, no
-/// parent, the published merkle root, 2011-10-07, bits `0x1e0ffff0`, and nonce
-/// 2084524493.
-///
-/// `tests/it/chains.rs` proves it hashes to [`LITECOIN`]'s genesis.
+/// Litecoin's real block-zero header, consensus encoded. `tests/it/chains.rs` proves
+/// it hashes to [`LITECOIN`]'s genesis.
 pub(crate) const LITECOIN_BLOCK_ZERO_HEADER: &str = "010000000000000000000000000000000000000000000000000000000000000000000000d9ced4ed1130f7b7faad9be25323ffafa33232a17c3edf6cfd97bee6bafbdd97b9aa8e4ef0ff0f1ecd513f7c";
 
 /// The recorded headers the other tables prove, from `tests/vectors/headers.json`.
 /// `tests/it/chains.rs` proves each hashes to its table's block.
 const HEADERS: &str = include_str!("../../vectors/headers.json");
 
-/// One base unit per virtual byte, which a Bitcoin node on the defaults before
-/// Core 29.1 reports, which is Litecoin's own relay floor, and which sits at or
-/// above both compiled floors.
+/// One base unit per virtual byte, which a pre-29.1 Bitcoin Core node reports and
+/// Litecoin uses as its relay floor. It's at or above both compiled floors.
 const FLOOR: &str =
     r#"{"mempoolminfee":0.00001,"minrelaytxfee":0.00001,"incrementalrelayfee":0.00001}"#;
-/// Five base units per virtual byte, which is above Bitcoin's wallet floor and
-/// below Litecoin's.
+/// Five base units per virtual byte, above Bitcoin's wallet floor and below
+/// Litecoin's.
 const ESTIMATE: &str = "0.00005000";
 
 pub(crate) const BITCOIN: UtxoParams = jelly_bitcoin::PARAMS;
@@ -83,12 +78,12 @@ pub(crate) const LITECOIN: UtxoParams = jelly_litecoin::PARAMS;
 pub(crate) const BITCOIN_CASH: UtxoParams = jelly_bitcoin_cash::PARAMS;
 pub(crate) const DOGECOIN: UtxoParams = jelly_dogecoin::PARAMS;
 
-/// Every table, for a test that does not depend on the scale of amounts.
+/// Every table, for a test that doesn't depend on the scale of amounts.
 pub(crate) const TABLES: [UtxoParams; 4] = [BITCOIN, LITECOIN, BITCOIN_CASH, DOGECOIN];
 
-/// The tables a test written in sat-scale amounts and rates holds on. Dogecoin's
-/// floors are three orders of magnitude higher, so `tests/it/dogecoin.rs` runs
-/// the same flows at its own scale.
+/// The tables a test with sat-scale amounts and rates holds on. Dogecoin's floors
+/// are three orders of magnitude higher, so `tests/it/dogecoin.rs` runs the same
+/// flows at its own scale.
 pub(crate) const CHAINS: [UtxoParams; 3] = [BITCOIN, LITECOIN, BITCOIN_CASH];
 
 /// The tables whose fee levels follow a market, for a test of where a reading comes
@@ -150,8 +145,8 @@ pub(crate) fn auction(params: &UtxoParams) -> Fallible<Auction> {
     }
 }
 
-/// The script kind a test's addresses use on the chain, native segwit where the
-/// chain has it and P2PKH where it does not.
+/// The script kind a test's addresses use: native segwit where the chain has it,
+/// P2PKH where it doesn't.
 pub(crate) fn kind_of(params: &UtxoParams) -> ScriptKind {
     if params.script_kinds.contains(&ScriptKind::P2wpkh) {
         ScriptKind::P2wpkh
@@ -228,8 +223,7 @@ pub(crate) fn watched(params: &UtxoParams, id: i64, address: &str) -> WatchedAdd
     WatchedAddressBuilder::new(id, params.chain, address).build()
 }
 
-/// An explicit rate, so the number under test is the one the test wrote rather
-/// than one a fee source chose.
+/// An explicit rate, so the test sets the number instead of a fee source.
 pub(crate) fn request(params: &UtxoParams, to: &str, amount: u64, sat_per_vb: &str) -> TxRequest {
     TxRequestBuilder::new(7, to, AssetId::Native(params.chain), sats(amount))
         .fee(FeeSelection::Rate { rate: sat_per_vb.to_owned() })
@@ -244,8 +238,8 @@ pub(crate) fn drain(params: &UtxoParams, to: &str, fee: FeeSelection) -> TxReque
         .build()
 }
 
-/// The rate as the capability takes it. A rate and its decimal rendering are
-/// exact inverses, so a rate written this way is the rate that gets planned.
+/// A rate and its decimal rendering are exact inverses, so this is the rate that gets
+/// planned.
 pub(crate) fn at(rate: FeeRate) -> FeeSelection {
     FeeSelection::Rate { rate: rate.format_sat_per_vb() }
 }
@@ -366,8 +360,8 @@ impl Harness {
         Self::over(setup, Arc::new(MemoryCursorStore::new()))
     }
 
-    /// A harness over cursors an earlier one wrote, which is how a test models a
-    /// later session of the same wallet.
+    /// A harness over cursors an earlier one wrote, modeling a later session of the
+    /// same wallet.
     pub(crate) fn over(setup: Setup, cursors: Arc<MemoryCursorStore>) -> Fallible<Self> {
         Self::with_store(setup, Arc::<MemoryCursorStore>::clone(&cursors), cursors)
     }
@@ -381,10 +375,9 @@ impl Harness {
         let clock = Arc::new(FakeClock::default());
         let as_clock: Arc<dyn Clock> = Arc::<FakeClock>::clone(&clock);
         let chain = FakeChain::new();
-        // The identity probe asks for height zero and the checkpoint before anything
-        // else, in one batch, so their headers are queued ahead of the standing
-        // header a pass reads. The features answer is the cross-check the guard
-        // makes against the hash.
+        // The identity probe asks for height zero and the checkpoint in one batch
+        // before anything else, so their headers queue ahead of the standing header a
+        // pass reads. The guard checks the features answer against the hash.
         let proof: Vec<String> = [Some(&setup.genesis_hex), setup.checkpoint_hex.as_ref()]
             .into_iter()
             .flatten()
@@ -395,15 +388,14 @@ impl Harness {
             Method::ServerFeatures,
             Answer::Result(format!(r#"{{"genesis_hash":"{}"}}"#, header_hash(&setup.genesis_hex)?)),
         );
-        // Standing answers, because a failed call would put the endpoint in the
-        // pacer's cooldown, which the frozen clock never leaves. A test that wants
-        // a different reading replaces them.
+        // Standing answers, because a failed call would put the endpoint in a cooldown
+        // the frozen clock never leaves. A test that wants a different reading
+        // replaces them.
         chain.server.always(Method::MempoolInfo, Answer::Result(FLOOR.to_owned()));
         chain.server.always(Method::EstimateFee, Answer::Result(ESTIMATE.to_owned()));
 
-        // The real chain guard runs over the in-memory server against the table's
-        // own block zero, so a test can hand it a header from another chain and
-        // watch the endpoint be refused.
+        // The real chain guard, so a test can serve another chain's header and watch
+        // the endpoint be refused.
         let connector = Arc::new(chain.server.connector(params.electrum_chain()));
         let runtime = NetRuntime::with_pacing(Arc::clone(&as_clock), PacerPolicy::UNTHROTTLED);
         let endpoint = Endpoint::parse(params.chain, Transport::ElectrumSsl, ENDPOINT_URL)?;
@@ -478,8 +470,8 @@ fn header_hash(hex_text: &str) -> Fallible<String> {
 /// One address of ours, one stranger, and the two transactions that put coins on
 /// ours.
 ///
-/// Two transactions is the smallest history with a knowable fee and sender,
-/// because the funding transaction makes the payment's input value verifiable.
+/// Two transactions is the smallest history with a knowable fee and sender, since
+/// the funding transaction gives the payment's input value.
 #[derive(Debug)]
 pub(crate) struct Wallet {
     pub(crate) params: UtxoParams,
@@ -539,8 +531,7 @@ impl Ledger {
         Self::default()
     }
 
-    /// A transaction the server has but the watched address's history does not
-    /// name, which is what a parent fetch reaches for.
+    /// A transaction the server has but the history doesn't name, such as a parent.
     #[must_use]
     pub(crate) fn known(mut self, tx: &Transaction) -> Self {
         self.known.push(tx.clone());
@@ -554,8 +545,8 @@ impl Ledger {
         self
     }
 
-    /// A history entry whose transaction the server will not return, for the case
-    /// where an answer comes back shorter than the batch that asked for it.
+    /// A history entry whose transaction the server won't return, for an answer that
+    /// comes back shorter than the batch that asked for it.
     #[must_use]
     pub(crate) fn unfetchable(mut self, tx: &Transaction, height: u32) -> Self {
         self.history.push((tx.compute_txid(), i32::try_from(height).unwrap_or_default()));

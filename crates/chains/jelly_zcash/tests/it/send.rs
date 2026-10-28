@@ -111,7 +111,6 @@ async fn a_custom_fee_is_paid_as_given_between_the_zip_317_fee_and_four_times_it
     assert_eq!(u64::from(bundle.vout[1].value()), 475_000, "the change pays the custom fee");
 }
 
-/// A send-max at a custom fee leaves no change, and there is none to report dropped.
 #[tokio::test]
 async fn a_send_max_at_a_custom_fee_drops_no_change() {
     let node = Node::new().unwrap();

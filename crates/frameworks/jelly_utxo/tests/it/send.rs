@@ -93,9 +93,8 @@ async fn a_send_max_drains_the_address_and_leaves_no_change() {
     }
 }
 
-/// Bitcoin's pay-to-witness-public-key-hash dust threshold is 294, and
-/// Litecoin's is ten times that, so a thousand base units of leftover is change
-/// worth keeping on one chain and dust on the other.
+/// Bitcoin's P2WPKH dust threshold is 294 and Litecoin's is ten times that, so a
+/// thousand base units of leftover is change on one chain and dust on the other.
 #[tokio::test]
 async fn change_below_the_chains_own_dust_threshold_goes_to_the_miner() {
     let p2wpkh = test_key(&BITCOIN, ScriptKind::P2wpkh, 1).unwrap().script_pubkey();
@@ -107,9 +106,8 @@ async fn change_below_the_chains_own_dust_threshold_goes_to_the_miner() {
         let dust = params.dust_threshold(&wallet.ours.script_pubkey());
         assert!(sats(leftover) < dust, "{}", params.chain);
 
-        // A first build shows the change a payment of this shape leaves. The second
-        // asks for all of it but the leftover, below the dust threshold a change
-        // output would have to clear.
+        // A first build shows the change this payment leaves. The second pays all of
+        // it but the leftover, which is below the dust threshold.
         let probe = harness
             .adapter
             .build_tx(&harness.request(wallet.theirs.address(), PAYMENT_SAT, "2"))
@@ -201,7 +199,7 @@ async fn a_rate_below_the_relay_floor_is_refused_in_the_chains_own_unit() {
         let (harness, wallet) =
             synced(Setup::on(&params), kind_of(&params), &[FUNDING_SAT]).await.unwrap();
         // The fixture server reports a floor of one base unit per virtual byte, so
-        // half of one cannot relay anywhere.
+        // half of one can't relay anywhere.
         let error = harness
             .adapter
             .build_tx(&harness.request(wallet.theirs.address(), PAYMENT_SAT, "0.5"))
@@ -322,8 +320,8 @@ async fn only_the_wallets_own_unconfirmed_change_is_spent_before_it_confirms() {
     }
 }
 
-/// A coinbase output cannot be spent until it is 100 blocks deep, and a node
-/// refuses a transaction that spends one sooner.
+/// A coinbase output can't be spent until it's 100 blocks deep, and a node refuses a
+/// transaction that spends one sooner.
 #[tokio::test]
 async fn an_immature_coinbase_output_is_never_selected() {
     for params in CHAINS {

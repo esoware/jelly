@@ -1,5 +1,5 @@
-//! The Windows calls the shell makes for its window and webview. It is the only crate in
-//! the workspace that may use `unsafe`, which most of these calls need.
+//! The Windows calls the shell makes for its window and webview. Most of them need
+//! `unsafe`, which no other crate may use.
 
 #![cfg(windows)]
 #![deny(clippy::float_arithmetic)]

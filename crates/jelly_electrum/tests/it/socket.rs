@@ -98,8 +98,7 @@ mod lifecycle {
 
         let error = client.fee_histogram().await.expect_err("the request times out");
         assert!(matches!(error, ElectrumError::Timeout { .. }), "{error}");
-        // A socket that went silent for the whole request timeout is presumed
-        // stalled, so it is retired and the next call dials a fresh one.
+        // The timeout retired the silent socket, so the next call dials a fresh one.
         assert_eq!(client.fee_histogram().await.expect("a histogram").len(), histogram_buckets());
         assert_eq!(fake.sockets_opened(), 2);
     }
@@ -199,12 +198,11 @@ mod batching {
         assert!(matches!(error, ElectrumError::Rpc { code: -32600, .. }), "{error}");
     }
 
-    /// `electrum.blockstream.info`, one of the shipped Bitcoin endpoints, drops
-    /// the socket on a batch of more than 20.
+    /// `electrum.blockstream.info`, a shipped Bitcoin endpoint running Blockstream's
+    /// electrs, drops the socket on a batch of more than 20.
     ///
-    /// It runs Blockstream's electrs. The fake plays a server that answers at
-    /// most 20 per batch, and a sync pass asks for every watched script's history
-    /// in one call.
+    /// The fake answers at most 20 per batch, and a sync pass asks for every watched
+    /// script's history in one call.
     #[tokio::test]
     async fn a_large_request_fits_the_batch_a_shipped_server_accepts() {
         let fake = FakeElectrum::new();

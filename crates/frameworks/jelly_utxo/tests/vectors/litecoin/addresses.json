@@ -83,7 +83,7 @@
     {
       "address": "ltc1pqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqzywff7",
       "scriptPubkey": "51200000000000000000000000000000000000000000000000000000000000000000",
-      "note": "a well formed segwit version one address over an all-zero program: litecoin relays taproot, so it is paid, and no key is ever derived under the flavour"
+      "note": "a well formed segwit version one address over an all-zero program: litecoin relays taproot, so it is paid, and no key is ever derived under the flavor"
     },
     {
       "address": "ltc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqgnwq3z",

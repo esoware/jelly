@@ -125,10 +125,10 @@ pub(crate) fn stored(value: &str) -> PassphraseInput {
     PassphraseInput::Stored { value: SecretText::new(value.to_owned()) }
 }
 
-/// Everything a fake adapter records and every knob a test can turn.
+/// What a fake adapter records, and the knobs a test can turn.
 ///
-/// It lives in the builder rather than the adapter, so it survives a rebuild and
-/// a test can watch the adapter itself die with its session.
+/// It lives in the builder, not the adapter, so it survives a rebuild and a test can
+/// watch the adapter itself die with its session.
 #[derive(Debug, Default)]
 pub(crate) struct FakeState {
     syncs: AtomicU64,
@@ -153,26 +153,24 @@ pub(crate) struct FakeState {
     /// The address each pass reports a new balance and transaction for.
     emits_for: Mutex<Option<i64>>,
     pub(crate) tip: AtomicU64,
-    /// Set to make every build charge this fee instead of 1000 base units.
+    /// Makes every build charge this fee instead of 1000 base units.
     fee: Mutex<Option<Amount>>,
-    /// Set to make every build open an account for the recipient at this rent.
+    /// Makes every build open an account for the recipient at this rent.
     rent: Mutex<Option<Amount>>,
     pub(crate) bump_floor_sat_per_kwu: AtomicU64,
-    /// Set to make `broadcast` refuse with this rejection.
+    /// Makes `broadcast` refuse with this rejection.
     refusal: Mutex<Option<Rejection>>,
-    /// Set to make every preview claim this chain instead of the adapter's own,
-    /// which is what a defective adapter looks like from the engine's side.
+    /// Makes every preview claim this chain, like a buggy adapter would.
     previewed_chain: Mutex<Option<ChainId>>,
     /// An address row the next `broadcast` deletes through this engine, so the record
-    /// that follows a successful broadcast cannot be written. The broadcast takes it,
-    /// because the engine holds this state through its builder and a handle left here
-    /// would never be dropped.
+    /// after a successful broadcast can't be written. The broadcast takes the handle out,
+    /// since the engine owns this state through its builder and a handle left here would
+    /// keep the engine alive.
     delete_on_broadcast: Mutex<Option<(WalletEngine, i64)>>,
-    /// Set to make every `sign_tx` move this clock forward, the way a slow signer
-    /// spends time.
+    /// Makes every `sign_tx` move this clock forward, like a slow signer.
     sign_delay: Mutex<Option<(Arc<BreakableClock>, Duration)>>,
-    /// Set to make a `broadcast` the network accepts break this clock, so every write
-    /// after the point of no return fails.
+    /// Makes an accepted `broadcast` break this clock, so every write after the point of
+    /// no return fails.
     clock_broken_on_broadcast: Mutex<Option<Arc<BreakableClock>>>,
     /// The addresses the script probe reports in use.
     pub(crate) used_addresses: Mutex<Vec<String>>,
@@ -230,7 +228,7 @@ impl FakeState {
     /// Returns once the adapter has been handed `count` watch sets.
     pub(crate) async fn watch_sets_reach(&self, count: u64) {
         let mut handed = self.watch_sets.subscribe();
-        // The state owns the sender, so the channel cannot close during the wait.
+        // The state owns the sender, so the channel can't close during the wait.
         let _ = handed.wait_for(|&so_far| so_far >= count).await;
     }
 
@@ -247,7 +245,7 @@ impl FakeState {
 pub(crate) struct FakeAdapter {
     chain: ChainId,
     state: Arc<FakeState>,
-    /// Stands in for the key material a real adapter holds until it is dropped.
+    /// Stands in for the key material a real adapter holds until it's dropped.
     _key: KeyMaterial,
 }
 
@@ -497,8 +495,8 @@ impl FeeBump for FakeAdapter {
         })
     }
 
-    /// Refuses anything below the floor a test set, which is what a real adapter
-    /// does and what the engine relies on rather than checking itself.
+    /// Refuses anything below the floor a test set, as a real adapter does. The engine
+    /// relies on that instead of checking itself.
     async fn build_bump(&self, txid: &TxId, fee: &FeeSelection) -> Result<UnsignedTx, ChainError> {
         let floor =
             FeeRate::from_sat_per_kwu(self.state.bump_floor_sat_per_kwu.load(Ordering::SeqCst));
@@ -556,8 +554,7 @@ pub(crate) struct FakeBuilder {
     built: Mutex<BTreeMap<ChainId, Weak<FakeAdapter>>>,
     /// Every finished build's request, in order.
     requests: watch::Sender<Vec<BuildRequest>>,
-    /// Set for one build, so a test can drive what happens while a generation
-    /// is still being assembled.
+    /// Set for one build, so a test can act while that build is still in progress.
     is_holding: AtomicBool,
     started: Notify,
     release: Notify,
@@ -574,7 +571,7 @@ impl FakeBuilder {
         self.is_holding.store(true, Ordering::SeqCst);
     }
 
-    /// Returns once the held build has reached that point.
+    /// Returns once the held build is waiting for [`FakeBuilder::release`].
     pub(crate) async fn build_started(&self) {
         self.started.notified().await;
     }
@@ -603,7 +600,7 @@ impl FakeBuilder {
     /// Returns once `count` builds have finished.
     pub(crate) async fn builds_reach(&self, count: usize) {
         let mut finished = self.requests.subscribe();
-        // The builder owns the sender, so the channel cannot close during the wait.
+        // The builder owns the sender, so the channel can't close during the wait.
         let _ = finished.wait_for(|requests| requests.len() >= count).await;
     }
 
@@ -646,8 +643,8 @@ impl AdapterBuilder for FakeBuilder {
     }
 }
 
-/// Waits for the pump to rebroadcast one detected transaction, which is the
-/// signal that the batch behind it has been written.
+/// Waits for the pump to rebroadcast a detected transaction, which means the batch behind
+/// it has been written.
 pub(crate) async fn next_detected(
     events: &mut broadcast::Receiver<WalletEvent>,
 ) -> Fallible<String> {
@@ -680,10 +677,10 @@ pub(crate) fn drain(events: &mut broadcast::Receiver<WalletEvent>) -> Vec<Wallet
     drained
 }
 
-/// Every transaction announced so far, draining whatever else is queued.
+/// The txids of every `TxDetected` event queued so far, draining everything else.
 ///
-/// A sync loop publishes each pass's terminal progress straight to this channel, so an
-/// empty channel is never a safe assertion. Tests assert that nothing was detected
+/// A sync loop publishes each pass's final progress straight to this channel, so it's
+/// never safe to assert the channel is empty. Tests assert that nothing was detected
 /// instead.
 pub(crate) fn detected_so_far(events: &mut broadcast::Receiver<WalletEvent>) -> Vec<String> {
     drain(events)
@@ -698,12 +695,12 @@ pub(crate) fn detected_so_far(events: &mut broadcast::Receiver<WalletEvent>) -> 
         .collect()
 }
 
-/// Returns once everything queued into the event pump before the call has been through
-/// it, written or refused, vault cursors included.
+/// Returns once everything queued into the event pump before the call has been written
+/// or refused, vault cursors included.
 ///
-/// A window publishes its progress whether or not its write landed, and only after its
-/// vault cursors. The pump gives up on a refused window only after that, so a second
-/// marker, which cannot share the first one's window, proves that window is done.
+/// A window publishes its progress after its vault cursors, whether or not its write
+/// landed, and the pump gives up on a refused window only after that. A second marker
+/// can't share the first one's window, so seeing it proves that window is done.
 pub(crate) async fn settled(engine: &WalletEngine) -> Fallible<()> {
     let sink = test_util::event_sink(engine);
     let mut events = engine.subscribe();
@@ -718,7 +715,7 @@ pub(crate) async fn settled(engine: &WalletEngine) -> Fallible<()> {
 /// The chain the markers of [`settled`] report progress on, which no test syncs.
 const MARKER_CHAIN: ChainId = ChainId::Avalanche;
 
-/// An incoming bitcoin transaction of one base unit at `address_id`.
+/// An incoming Bitcoin transaction of one base unit at `address_id`.
 pub(crate) fn record(address_id: i64, txid: &str) -> TxRecord {
     TxRecord::builder(
         AssetId::Native(ChainId::Bitcoin),

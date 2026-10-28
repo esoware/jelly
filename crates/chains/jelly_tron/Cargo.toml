@@ -11,8 +11,8 @@ workspace = true
 
 [features]
 default = []
-# The adapter's test seams, and the fixtures both test suites share. Enable only
-# from [dev-dependencies].
+# The adapter's test seams and the fixtures shared by unit and integration tests.
+# Enable only from [dev-dependencies].
 test-util = []
 
 [dependencies]

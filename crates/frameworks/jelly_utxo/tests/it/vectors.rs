@@ -187,8 +187,7 @@ mod dust {
     }
 
     /// Litecoin's thresholds are ten times Bitcoin's, and `Script::minimal_non_dust`
-    /// would give Bitcoin's on both, which is why the rule comes from the
-    /// parameters.
+    /// would give Bitcoin's on both, so the rule has to come from the table.
     #[test]
     fn the_dust_table_matches_every_chain() {
         let file: File = load(DUST).unwrap();

@@ -1,9 +1,9 @@
 //! Per-address scan progress and pending sends, held in one map but persisted as
-//! separate blobs, so a scan write cannot overwrite a concurrent send.
+//! separate blobs, so a scan write can't overwrite a concurrent send.
 //!
-//! `persist_scan` commits with the scanned rows, and `persist_sends` is durable
-//! before a broadcast. An async mutex serialises send writes. Scan writes are
-//! already single-flight.
+//! `persist_scan` commits with the scanned rows, and `persist_sends` is durable before
+//! a broadcast. An async mutex serializes send writes. Scan writes are already
+//! single-flight.
 
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
@@ -22,10 +22,10 @@ use crate::token::{SOLANA_TOKENS, SolanaToken};
 
 const TARGET: &str = "jelly::solana::state";
 
-/// Where this adapter's signature walk records its frontier.
+/// Where the signature walks' cursors are stored.
 const SCAN_STREAM: ScanStream = ScanStream::SolanaSignatures;
 
-/// Where this adapter records the sends that have not settled yet.
+/// Where the sends that haven't settled yet are stored.
 const SENDS_SLOT: ReservationSlot = ReservationSlot::SolanaSends;
 
 const SCAN_VERSION: u8 = 1;
@@ -39,14 +39,14 @@ struct AddressState {
     /// asset key.
     token_scans: BTreeMap<String, SignatureCursor>,
     pending: Vec<Tracked>,
-    /// The first attempts still out, by signature. Never persisted, because no
-    /// attempt outlives the process.
+    /// The first attempts still out, by signature. Never persisted, because no attempt
+    /// outlives the process.
     first_attempts: BTreeMap<String, FirstAttempts>,
     is_scan_dirty: bool,
     is_sends_dirty: bool,
 }
 
-/// The first attempts at one signature that have not answered yet.
+/// The first attempts at one signature that haven't answered yet.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct FirstAttempts {
     outstanding: usize,
@@ -79,9 +79,9 @@ impl ScanWire {
 }
 
 impl SendsWire {
-    /// Only sends handed to an endpoint are written, because a signed but
-    /// unbroadcast build means nothing after a restart. `sending` is written as
-    /// sent before it is marked so.
+    /// Only sends handed to an endpoint are written, because a signed but unbroadcast
+    /// build means nothing after a restart. `sending` is written as sent before it's
+    /// marked so.
     fn encode(pending: &[Tracked], sending: Option<&str>) -> Result<Vec<u8>, SolanaError> {
         let pending = pending
             .iter()
@@ -102,8 +102,8 @@ impl SendsWire {
 pub(crate) struct States {
     cursors: Arc<dyn CursorStore>,
     map: Mutex<BTreeMap<i64, AddressState>>,
-    /// Held across composing the send blob and writing it, so two writers cannot
-    /// land out of order.
+    /// Held across composing the send blob and writing it, so two writers can't land
+    /// out of order.
     write: AsyncMutex<()>,
     is_blocked: AtomicBool,
 }
@@ -125,8 +125,9 @@ impl States {
         Ok(())
     }
 
-    /// Re-reading durable coverage replays a dropped event window without changing
-    /// the reservations and outstanding attempts already held in memory.
+    /// Reloads the scan cursors of every address in `address_ids`, so history whose
+    /// events were dropped is walked again. Sends are loaded only for addresses not
+    /// already held, so the sends and attempts in memory are kept.
     pub(crate) async fn load(&self, address_ids: &[i64]) -> Result<(), SolanaError> {
         let _writing = self.write.lock().await;
         self.ensure_readable()?;
@@ -230,10 +231,10 @@ impl States {
                 .all(|token| self.scan(address_id, Some(token)).is_complete())
     }
 
-    /// Every send a pass may act on, in address order for determinism.
+    /// The sends a pass may act on, in address order for determinism.
     ///
-    /// A send whose first attempt is still out is left to that attempt, because
-    /// bytes a pass resent meanwhile would make a refusal of it meaningless.
+    /// A send whose first attempt is still out is left to that attempt, because a
+    /// resend meanwhile would make that attempt's refusal meaningless.
     pub(crate) fn pending(&self) -> Vec<Tracked> {
         self.map
             .lock()
@@ -264,12 +265,12 @@ impl States {
         state.pending.push(entry);
     }
 
-    /// Writes a send as handed to an endpoint and then marks it so, answering
-    /// which address it belongs to.
+    /// Writes a send as handed to an endpoint, then marks it so in memory, and returns
+    /// its address.
     ///
     /// The mark follows a successful write, so a send whose record failed is never
-    /// followed up or resent. It is made before the write lock is released, so no
-    /// later writer composes a blob without it.
+    /// followed up or resent. It's made before the write lock is released, so no later
+    /// writer composes a blob without it.
     pub(crate) async fn mark_sent(&self, signature: &str) -> Result<Option<i64>, SolanaError> {
         let _writing = self.write.lock().await;
         self.ensure_readable()?;
@@ -294,10 +295,10 @@ impl States {
         Ok(Some(address_id))
     }
 
-    /// Marks a first attempt at `signature` as out until the answer drops.
+    /// Marks a first attempt at `signature` as out until the returned guard drops.
     ///
-    /// The answer knows whether the bytes may already have left another way,
-    /// through an earlier attempt or another first attempt still out.
+    /// The guard knows whether the bytes may already have left another way, through an
+    /// earlier attempt or another first attempt still out.
     pub(crate) fn first_attempt(&self, signature: &str) -> FirstAttempt<'_> {
         let mut map = self.map.lock();
         let followed = map.iter_mut().find_map(|(id, state)| {
@@ -325,11 +326,10 @@ impl States {
         }
     }
 
-    /// Stops following a send whose first attempt was refused, and answers which
-    /// address it belonged to.
+    /// Stops following a send whose first attempt was refused, and returns its address.
     ///
-    /// A refusal speaks only for its own attempt, so a send whose bytes may have
-    /// left another way is still followed.
+    /// A refusal speaks only for its own attempt, so a send whose bytes may have left
+    /// another way is still followed.
     pub(crate) fn forget_refused(&self, attempt: &FirstAttempt<'_>) -> Option<i64> {
         let address_id = attempt.address_id.filter(|_| attempt.is_alone)?;
         let mut map = self.map.lock();
@@ -346,7 +346,7 @@ impl States {
         Some(address_id)
     }
 
-    /// Stops following a send, and answers which address it belonged to.
+    /// Stops following a send, and returns its address.
     pub(crate) fn forget(&self, signature: &str) -> Option<i64> {
         let mut map = self.map.lock();
         for (id, state) in map.iter_mut() {
@@ -360,9 +360,8 @@ impl States {
         None
     }
 
-    /// Stops following every send `is_abandoned` picks that was never handed to
-    /// an endpoint. Nothing is marked for writing, because such a send was never
-    /// persisted.
+    /// Stops following every send `is_abandoned` picks that was never handed to an
+    /// endpoint. Nothing is marked for writing, because such a send was never persisted.
     pub(crate) fn forget_unsent(&self, is_abandoned: impl Fn(&Tracked) -> bool) {
         for state in self.map.lock().values_mut() {
             state.pending.retain(|held| held.is_sent || !is_abandoned(held));
@@ -392,8 +391,9 @@ impl States {
         Ok(())
     }
 
-    /// Durable once the transaction carrying this pass's rows commits, not when
-    /// this returns. Cancellation before acceptance keeps the cursor dirty.
+    /// Durable once the database transaction carrying this pass's rows commits, not
+    /// when this returns. Cancellation before the store accepts it keeps the cursor
+    /// dirty.
     pub(crate) async fn persist_scan(&self, address_id: i64) -> Result<(), SolanaError> {
         let Some(snapshot) = self.map.lock().get(&address_id).map(|state| ScanWire {
             version: SCAN_VERSION,
@@ -417,8 +417,8 @@ impl States {
         Ok(())
     }
 
-    /// Durable when this returns, so a broadcast may follow. A send nobody
-    /// recorded is a payment nobody would follow up.
+    /// Durable when this returns, so a broadcast may follow. A send nobody recorded is
+    /// a payment nobody would follow up.
     pub(crate) async fn persist_sends(&self, address_id: i64) -> Result<(), SolanaError> {
         let _writing = self.write.lock().await;
         self.ensure_readable()?;

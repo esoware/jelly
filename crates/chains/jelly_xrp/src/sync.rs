@@ -37,8 +37,8 @@ pub(crate) async fn run(
             asset: AssetId::Native(CHAIN),
             balance: Amount::from(balance_drops),
         }));
-        // The cursor is read before the held send is followed, so one that cannot be read
-        // blocks spending before anything is resubmitted.
+        // Read the cursor before following the held send, so an unreadable one blocks
+        // spending before anything is resubmitted.
         let mut cursor = states.cursor(entry.address_id).await?;
         pending::follow(client, states, entry, ledger.seq, events).await?;
         for _ in 0..PAGES_PER_PASS {

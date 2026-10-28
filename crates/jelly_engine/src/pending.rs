@@ -13,21 +13,21 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 use sha2::{Digest as _, Sha256};
 
-/// Domain string of the preview digest. Every field that follows it is
-/// length-prefixed, so no two previews can frame to the same bytes.
+/// Domain string of the preview digest. Every field after it is length-prefixed, so no
+/// two previews frame to the same bytes.
 const PREVIEW_DOMAIN: &[u8] = b"jelly-engine/v1/tx-preview";
 
-/// How long a built but unsubmitted transaction stays authorised.
+/// How long a built transaction stays submittable.
 ///
-/// An expired authorisation cannot be submitted. Its reservations are released the next
-/// time a transaction is prepared or submitted, rather than by a timer.
+/// An expired transaction's reservations are released the next time one is prepared or
+/// submitted, not by a timer.
 pub(crate) const PENDING_TTL: Duration = Duration::from_secs(300);
 
 /// The digest a submit is bound to.
 ///
 /// The interface echoes the digest of the preview the user approved, and a submit that
-/// carries a different one is refused, so what was shown is what gets signed. It is not
-/// a secret, so an ordinary comparison is fine.
+/// carries a different one is refused, so what was shown is what gets signed. It isn't a
+/// secret, so an ordinary comparison is fine.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct PreviewDigest(#[cfg_attr(feature = "ipc", specta(type = String))] [u8; Self::LEN]);
@@ -36,7 +36,7 @@ impl PreviewDigest {
     pub const LEN: usize = 32;
 
     /// The digest of `preview` as the user sees it, with `fee_warning` after its own
-    /// warnings. This and nothing else defines the binding.
+    /// warnings.
     fn of(preview: &TxPreview, fee_warning: Option<&TxWarning>) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(PREVIEW_DOMAIN);
@@ -62,8 +62,8 @@ impl PreviewDigest {
             field(&mut hasher, warning.kind.as_str().as_bytes());
             field(&mut hasher, warning.message.as_bytes());
         }
-        // Last and only when present. Everything before them is self-delimiting, and
-        // the two differ in width, so their presence alone tells two previews apart.
+        // Last, and only when present. Everything before them is self-delimiting and the
+        // two differ in width, so which ones are present is never ambiguous.
         if let Some(rent) = preview.rent {
             field(&mut hasher, &rent.base_units().to_be_bytes());
         }
@@ -74,8 +74,8 @@ impl PreviewDigest {
     }
 
     /// The exact inverse of [`Display`](fmt::Display), two lowercase hex digits per
-    /// byte. An uppercase or mixed-case echo was never handed out, so it is refused
-    /// rather than normalised.
+    /// byte. An uppercase or mixed-case echo was never handed out, so it's refused instead
+    /// of normalized.
     pub fn parse(text: &str) -> Option<Self> {
         if !text.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')) {
             return None;
@@ -120,7 +120,7 @@ fn count(hasher: &mut Sha256, value: usize) {
     hasher.update(u64::try_from(value).unwrap_or(u64::MAX).to_be_bytes());
 }
 
-/// A built and authorised transaction awaiting submit, as the interface sees it.
+/// A built and authorized transaction awaiting submit, as the interface sees it.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -130,21 +130,20 @@ pub struct PreparedTx {
     pub preview_digest: PreviewDigest,
 }
 
-/// A built transaction and everything the submit path needs to finish it.
+/// A built transaction and everything submit needs to finish it.
 ///
-/// The preview is the only copy of the chain, the asset, and the amounts, because it is
+/// The preview is the only copy of the chain, the asset, and the amounts, because it's
 /// what the digest covers and what the user approved. A second copy could disagree with
 /// what was signed.
 ///
 /// `unsigned` stays exactly as the adapter built it, because a signer may rebuild the
 /// preview from the payload and refuse one that differs. The engine's own fee warning is
-/// held beside it and joins the preview only in what the user sees and the digest covers.
+/// kept beside it and only joins the preview the user sees and the digest covers.
 ///
-/// `adapter` is the adapter that built it and holds its outpoint locks or nonce slot.
-/// Another adapter for the same chain, such as the one a rebuild puts in its place,
-/// never saw those reservations, so the transaction is only spendable while `adapter`
-/// is the published one. The handle is weak, so an authorisation never keeps a retired
-/// adapter alive.
+/// `adapter` built it and holds its outpoint locks or nonce slot. A replacement adapter,
+/// such as one a rebuild publishes, never saw those reservations, so the transaction is
+/// only spendable while `adapter` is the published one. The handle is weak so it never
+/// keeps a retired adapter alive.
 #[derive(Debug, Clone)]
 pub(crate) struct PendingTx {
     /// The rows of the preview's sources, in its order, whose keys sign it.
@@ -205,15 +204,14 @@ impl PendingTx {
     }
 }
 
-/// The authorised-but-unsent transactions of the open session.
+/// The authorized-but-unsent transactions of the open session.
 ///
-/// A token is single use. It is removed at the point of no return and never put back,
-/// so the same preview cannot reach the network twice.
+/// A token is single use. It's removed at the point of no return and never put back, so
+/// the same preview can't reach the network twice.
 #[derive(Debug, Default)]
 pub(crate) struct PendingTxs {
-    /// An empty entry proves that expiry or replacement prevented this ID from being sent.
-    /// Consumed and explicitly discarded IDs are absent, and never authorise an automatic
-    /// retry.
+    /// `None` proves that expiry or an adapter rebuild kept this ID from being sent.
+    /// Consumed and discarded IDs are absent, and never authorize an automatic retry.
     entries: Mutex<HashMap<PendingTxId, Option<PendingTx>>>,
 }
 
@@ -238,9 +236,8 @@ impl PendingTxs {
     }
 
     /// Spends the token unless it has expired or `adapter`, the one about to broadcast it,
-    /// does not hold its reservations, deciding under one lock so neither can change
-    /// between the check and the spend. A refused entry stays for [`PendingTxs::stale`]
-    /// to hand out for release.
+    /// doesn't hold its reservations. Both are checked under the same lock as the spend. A
+    /// refused entry stays for [`PendingTxs::stale`] to hand out for release.
     pub(crate) fn take_spendable(
         &self,
         id: PendingTxId,
@@ -259,8 +256,8 @@ impl PendingTxs {
         entries.remove(&id).flatten().ok_or(CoreError::UnknownPendingTx(id))
     }
 
-    /// Everything that has expired or whose reservations are not held by the published
-    /// adapter for its chain, removed.
+    /// Removes and returns every entry that has expired or whose reservations the
+    /// published adapter for its chain doesn't hold.
     pub(crate) fn stale(&self, now_millis: u64, adapters: &AdapterSet) -> Vec<PendingTx> {
         self.entries
             .lock()
@@ -278,8 +275,8 @@ impl PendingTxs {
             .collect()
     }
 
-    /// Used on lock, where the adapters holding the matching reservations are dropped
-    /// with the session, so there is nothing to release.
+    /// Called on lock, where the adapters holding the reservations drop with the session,
+    /// so there's nothing to release.
     pub(crate) fn clear(&self) {
         self.entries.lock().clear();
     }
@@ -354,7 +351,7 @@ mod tests {
         deserialize(&text.to_uppercase()).unwrap_err();
     }
 
-    /// One digest off the wire, through the impl the interface's echo travels.
+    /// Deserializes a digest the way the interface's echo arrives.
     fn deserialize(text: &str) -> Result<PreviewDigest, ValueError> {
         PreviewDigest::deserialize(StrDeserializer::<ValueError>::new(text))
     }

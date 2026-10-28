@@ -8,7 +8,7 @@ use jelly_core::{
     ChainId, Clock, FailureKind, PinStore, ProxySetting, Transport,
     test_util::{FakeClock, MemoryPinStore},
 };
-use jelly_net::{Dialler, Endpoint, HttpClient, HttpRequest, NetError};
+use jelly_net::{Dialer, Endpoint, HttpClient, HttpRequest, NetError};
 use parking_lot::Mutex;
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::net::{TcpListener, TcpStream};
@@ -28,13 +28,13 @@ fn target() -> Result<Endpoint, NetError> {
     )
 }
 
-fn dialler(proxy: ProxySetting) -> Result<Dialler, NetError> {
+fn dialer(proxy: ProxySetting) -> Result<Dialer, NetError> {
     let pins: Arc<dyn PinStore> = Arc::new(MemoryPinStore::new());
     let clock: Arc<dyn Clock> = Arc::new(FakeClock::default());
-    Dialler::pinned(pins, clock, ChainId::Bitcoin, Some(proxy), Duration::from_secs(5))
+    Dialer::pinned(pins, clock, ChainId::Bitcoin, Some(proxy), Duration::from_secs(5))
 }
 
-/// Everything one fake proxy read from the dialler.
+/// Everything one fake proxy read from the dialer.
 type Seen = Arc<Mutex<Vec<u8>>>;
 
 async fn listener() -> io::Result<(SocketAddr, TcpListener)> {
@@ -64,7 +64,7 @@ fn socks_proxy(listener: TcpListener, seen: Seen) -> JoinHandle<io::Result<()>> 
     })
 }
 
-/// An HTTP proxy that accepts a CONNECT tunnel and records the request head.
+/// An HTTP proxy that answers one CONNECT with `status` and records the request head.
 fn http_proxy(
     listener: TcpListener,
     seen: Seen,
@@ -85,8 +85,8 @@ async fn a_socks_proxy_is_handed_the_target_as_a_name() {
     let proxy_task = socks_proxy(listening, Arc::clone(&seen));
 
     let proxy = ProxySetting::Socks5h { url: format!("socks5h://{address}") };
-    let error = dialler(proxy)
-        .expect("a pinned dialler")
+    let error = dialer(proxy)
+        .expect("a pinned dialer")
         .connect(&target().expect("an electrum endpoint"))
         .await
         .expect_err("the fake proxy drops the socket before any tls");
@@ -116,8 +116,8 @@ async fn a_socks_proxy_address_with_credentials_authenticates_with_them() {
     });
 
     let proxy = ProxySetting::Socks5h { url: format!("socks5h://tor:circuit@{address}") };
-    let _ = dialler(proxy)
-        .expect("a pinned dialler")
+    let _ = dialer(proxy)
+        .expect("a pinned dialer")
         .connect(&target().expect("an electrum endpoint"))
         .await
         .expect_err("the fake proxy drops the socket after authenticating");
@@ -139,8 +139,8 @@ async fn an_http_proxy_is_asked_to_tunnel_to_the_target_by_name() {
         http_proxy(listening, Arc::clone(&seen), "HTTP/1.1 200 Connection established\r\n\r\n");
 
     let proxy = ProxySetting::Http { url: format!("http://{address}") };
-    let _ = dialler(proxy)
-        .expect("a pinned dialler")
+    let _ = dialer(proxy)
+        .expect("a pinned dialer")
         .connect(&target().expect("an electrum endpoint"))
         .await
         .expect_err("the fake proxy drops the socket before any tls");
@@ -165,11 +165,11 @@ async fn a_silent_proxy_runs_out_of_the_connect_budget() {
     let pins: Arc<dyn PinStore> = Arc::new(MemoryPinStore::new());
     let clock: Arc<dyn Clock> = Arc::new(FakeClock::default());
     let proxy = ProxySetting::Socks5h { url: format!("socks5h://{address}") };
-    let dialler =
-        Dialler::pinned(pins, clock, ChainId::Bitcoin, Some(proxy), Duration::from_millis(150))
-            .expect("a pinned dialler");
+    let dialer =
+        Dialer::pinned(pins, clock, ChainId::Bitcoin, Some(proxy), Duration::from_millis(150))
+            .expect("a pinned dialer");
 
-    let error = dialler
+    let error = dialer
         .connect(&target().expect("an electrum endpoint"))
         .await
         .expect_err("the proxy never answered the greeting");
@@ -185,8 +185,8 @@ async fn a_refused_tunnel_fails_rather_than_reaching_the_target_directly() {
     let proxy_task = http_proxy(listening, Arc::clone(&seen), "HTTP/1.1 403 Forbidden\r\n\r\n");
 
     let proxy = ProxySetting::Http { url: format!("http://{address}") };
-    let error = dialler(proxy)
-        .expect("a pinned dialler")
+    let error = dialer(proxy)
+        .expect("a pinned dialer")
         .connect(&target().expect("an electrum endpoint"))
         .await
         .expect_err("the proxy refused the tunnel");
@@ -229,7 +229,7 @@ fn socks_target_recorder(listener: TcpListener) -> JoinHandle<io::Result<(u8, Ve
 /// `ProxySetting::Socks5h` promises that the proxy resolves every name.
 ///
 /// A user who types the common `socks5://` spelling into that route must not have the
-/// HTTP client resolve hostnames locally, which the raw-socket dialler already refuses to
+/// HTTP client resolve hostnames locally, which the raw-socket dialer already refuses to
 /// do.
 #[tokio::test]
 async fn a_socks5h_route_spelled_socks5_leaves_name_resolution_to_the_proxy() {
@@ -277,8 +277,8 @@ async fn an_http_proxy_is_asked_for_an_ipv6_target_in_brackets() {
         Endpoint::parse(ChainId::Bitcoin, Transport::ElectrumSsl, "ssl://[2001:db8::1]:50002")
             .expect("an ipv6 electrum endpoint");
     let proxy = ProxySetting::Http { url: format!("http://{address}") };
-    let _ = dialler(proxy)
-        .expect("a pinned dialler")
+    let _ = dialer(proxy)
+        .expect("a pinned dialer")
         .connect(&target)
         .await
         .expect_err("the fake proxy drops the socket before any tls");
@@ -302,8 +302,8 @@ async fn a_socks_proxy_address_without_a_scheme_reaches_the_proxy_from_a_raw_soc
 
     let proxy = ProxySetting::Socks5h { url: address.to_string() };
     HttpClient::new(Some(&proxy)).expect("the shared http client takes the address");
-    let error = dialler(proxy)
-        .expect("a pinned dialler")
+    let error = dialer(proxy)
+        .expect("a pinned dialer")
         .connect(&target().expect("an electrum endpoint"))
         .await
         .expect_err("the fake proxy drops the socket before any tls");
@@ -321,10 +321,10 @@ async fn a_socks_proxy_address_without_a_scheme_reaches_the_proxy_from_a_raw_soc
 /// An `https://` proxy never sees its credentials in the clear.
 ///
 /// That address asks for TLS to the proxy, which is how the shared HTTP client reaches
-/// it. The raw-socket dialler follows the same setting, so it must not send the tunnel
+/// it. The raw-socket dialer follows the same setting, so it must not send the tunnel
 /// request, with the proxy credentials in it, to that proxy in plaintext.
 #[tokio::test]
-async fn the_raw_socket_dialler_never_sends_an_https_proxy_its_credentials_in_plaintext() {
+async fn the_raw_socket_dialer_never_sends_an_https_proxy_its_credentials_in_plaintext() {
     let (address, listening) = listener().await.expect("a loopback port");
     let seen: Seen = Arc::new(Mutex::new(Vec::new()));
     let recorder = Arc::clone(&seen);
@@ -349,8 +349,8 @@ async fn the_raw_socket_dialler_never_sends_an_https_proxy_its_credentials_in_pl
 
     let proxy = ProxySetting::Http { url: format!("https://user:secret@{address}") };
     HttpClient::new(Some(&proxy)).expect("the shared http client takes an https proxy");
-    let _ = dialler(proxy)
-        .expect("a pinned dialler")
+    let _ = dialer(proxy)
+        .expect("a pinned dialer")
         .connect(&target().expect("an electrum endpoint"))
         .await
         .expect_err("the fake proxy closes the socket");
@@ -367,7 +367,7 @@ async fn the_raw_socket_dialler_never_sends_an_https_proxy_its_credentials_in_pl
 
 /// A route the user chose is never silently dropped.
 ///
-/// An HTTP proxy address whose scheme the shared client cannot speak, here a mistyped
+/// An HTTP proxy address whose scheme the shared client can't speak, here a mistyped
 /// `http`, must fail the request rather than send it straight to the endpoint from the
 /// user's own address.
 #[tokio::test]
@@ -418,8 +418,8 @@ async fn an_http_proxy_address_with_credentials_authenticates_with_them() {
     );
 
     let proxy = ProxySetting::Http { url: format!("http://user:secret@{address}") };
-    let _ = dialler(proxy)
-        .expect("a pinned dialler")
+    let _ = dialer(proxy)
+        .expect("a pinned dialer")
         .connect(&target().expect("an electrum endpoint"))
         .await
         .expect_err("the fake proxy refuses the tunnel");

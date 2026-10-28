@@ -64,7 +64,7 @@ pub(crate) fn ton_wallet(pubkey: &[u8; 32], version: Version) -> Result<TonWalle
     .map_err(|_| KeyError::internal("ton wallet state init"))
 }
 
-/// A wallet's own address is written non-bounceable, because the wallet is not deployed
+/// A wallet's own address is written non-bounceable, because the wallet isn't deployed
 /// until its first send, and a bounceable transfer to it would return to the sender.
 pub(crate) fn wallet_address(pubkey: &[u8; 32], version: Version) -> Result<String, KeyError> {
     Ok(non_bounceable(&ton_wallet(pubkey, version)?.address))

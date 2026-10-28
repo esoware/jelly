@@ -1,12 +1,11 @@
-//! Pending Monero sends. Input reservations are persisted before broadcast and
-//! kept on a transport failure, resending the identical signed bytes is safe,
-//! and a rebuild must not select reserved inputs.
+//! Sends in flight. Their inputs are reserved before broadcast and stay reserved
+//! through a transport failure, so a rebuild never selects them. Resending the
+//! identical signed bytes is always safe.
 //!
-//! Only an on-chain key image proves a spend. Follow-up continues while the node
-//! that served the ring holds the transaction. A send displaced by a conflicting
-//! spend, or refused everywhere when it is resent, is reported failed at once.
-//! Otherwise failure with no fee is reported only once that node no longer holds it
-//! and its block budget has run out.
+//! Only a key image on chain proves a spend. A send displaced by a conflicting spend,
+//! or refused everywhere when it's resent, is reported failed at once. Otherwise it's
+//! reported failed, with no fee, only once its ring node no longer holds it and its
+//! block budget has run out.
 
 use std::fmt;
 
@@ -17,11 +16,11 @@ use crate::params::{ASSET, piconero};
 use crate::state::ScanState;
 use crate::subaddress::Subaddress;
 
-/// A transaction this wallet broadcast whose fate is not yet known.
+/// A transaction this wallet broadcast whose fate isn't known yet.
 ///
-/// Its inputs are reserved, not spent, because only an on-chain key image proves
-/// a spend. Reserving them makes a rebuild safe, since a second transaction
-/// spending different outputs could land alongside this one and pay twice.
+/// Its inputs are reserved, not spent, because only a key image on chain proves a
+/// spend. Reserving them makes a rebuild safe, since a second transaction spending
+/// different outputs could land alongside this one and pay twice.
 #[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
 pub(crate) struct InFlight {
     pub txid: [u8; 32],
@@ -106,8 +105,8 @@ pub(crate) enum Settled {
 
 /// Reads the chain's verdict out of what the scan recorded.
 ///
-/// Nothing is asked of a node here, because a spend is only proven by a key
-/// image appearing on chain, which the scan sees.
+/// No node is asked, because only a key image on chain proves a spend, and the
+/// scan sees those.
 pub(crate) fn settled(state: &ScanState, send: &InFlight) -> Option<Settled> {
     let mut landed = None;
     for image in &send.key_images {
@@ -124,9 +123,9 @@ pub(crate) fn settled(state: &ScanState, send: &InFlight) -> Option<Settled> {
 /// True once the send's block budget has run out. The caller also checks that the
 /// node it was sent to no longer holds it.
 ///
-/// Monero transactions do not expire, since one stays valid as long as its key
-/// images are unspent. Gone is an observation rather than a protocol fact, and the
-/// budget turns a run of observations into a decision.
+/// Monero transactions don't expire, since one stays valid as long as its key
+/// images are unspent. Gone is an observation, not a protocol fact, and the budget
+/// turns a run of observations into a decision.
 pub(crate) const fn is_out_of_budget(send: &InFlight, tip_height: u64, budget_blocks: u64) -> bool {
     tip_height.saturating_sub(send.sent_at_height) >= budget_blocks
 }
@@ -209,7 +208,7 @@ mod tests {
         assert_eq!(record.timestamp, Some(1_700_000_500));
     }
 
-    /// A clock that cannot be read is not a date, so the record carries none and
+    /// A clock that can't be read gives no date, so the record carries none and
     /// the store times the row it writes.
     #[test]
     fn a_failed_record_with_no_clock_reading_carries_no_timestamp() {

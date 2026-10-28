@@ -25,8 +25,8 @@ use crate::vault_file::{AeadBlock, HkdfBlock, KdfBlock, VaultFile, associated_da
 /// A locked vault. Holds no key material and does no I/O until a method is called.
 ///
 /// Methods that touch the file block, because the KDF takes hundreds of milliseconds by
-/// design and each write seals and renames the whole file. Callers on an async runtime
-/// own the `spawn_blocking`.
+/// design and each write seals and renames the whole file. Async callers run them in
+/// `spawn_blocking`.
 #[derive(Debug, Clone)]
 pub struct Vault {
     path: PathBuf,
@@ -47,8 +47,7 @@ impl Vault {
         Self { path: path.into(), wallet_id: wallet_id.into(), store, kdf_params }
     }
 
-    /// Whether the file or its staged copy is there. Says nothing about whether either
-    /// opens. Only [`Vault::unlock`] answers that.
+    /// Whether the file or its staged copy exists, not whether either opens.
     fn has_file(&self) -> bool {
         self.path.is_file() || self.staged_path().is_file()
     }
@@ -60,11 +59,11 @@ impl Vault {
     }
 
     /// Refuses to overwrite an existing file, its staged copy, or the keychain master
-    /// key. Clobbering the file destroys the wallet, and a key with no file at this path
-    /// may still be the only key for a copy that was moved or backed up elsewhere.
+    /// key. A key with no file at this path may still be the only key for a copy that was
+    /// moved or backed up elsewhere.
     ///
-    /// Keychain provisioning is serialized within this process. The application enforces
-    /// a single instance, since the platform keychain has no create-if-absent operation.
+    /// The platform keychain has no create-if-absent, so provisioning is serialized within
+    /// this process and the app runs as a single instance.
     pub fn create(&self, password: &VaultPassword) -> Result<UnlockedVault, VaultError> {
         static PROVISIONING: Mutex<()> = Mutex::new(());
         let _provisioning = PROVISIONING.lock();
@@ -78,10 +77,9 @@ impl Vault {
         let master = MasterKey::generate()?;
         self.store.put(&self.wallet_id, &master)?;
         let unlocked = self.provision(&master, password).inspect_err(|_| {
-            // The key was put just above and no file holds it, so nothing else can need
-            // it.
+            // No file was sealed under the key just put, so nothing needs it.
             if let Err(cleanup_error) = self.store.delete(&self.wallet_id) {
-                tracing::warn!(error = %cleanup_error, "could not remove the orphaned master key");
+                tracing::warn!(error = %cleanup_error, "couldn't remove the orphaned master key");
             }
         })?;
         tracing::info!("vault created");
@@ -93,11 +91,11 @@ impl Vault {
     /// 1. Parse the file and verify its wallet id.
     /// 2. Load the keychain master key.
     /// 3. Verify the password-independent header MAC. Failure means corruption.
-    /// 4. Compare the password commitment. Failure means wrong password.
+    /// 4. Compare the password commitment. Failure means a wrong password.
     /// 5. Decrypt with AEAD. Failure now means corruption.
     ///
     /// Any KDF parameter below the handle's is raised to it, and none is ever lowered. A
-    /// failed upgrade does not block an otherwise valid unlock.
+    /// failed upgrade doesn't fail an otherwise valid unlock.
     pub fn unlock(&self, password: &VaultPassword) -> Result<UnlockedVault, VaultError> {
         let bytes = fs::read(&self.path).map_err(|error| {
             if error.kind() == ErrorKind::NotFound {
@@ -126,9 +124,9 @@ impl Vault {
 
         let cipher = Box::new(SessionCipher::new(&derived.aead_key));
         let aad = associated_data(&self.wallet_id)?;
-        let plaintext = cipher.open(&file.aead.nonce, &aad, &file.ciphertext).ok_or_else(|| {
-            VaultError::corrupt("the ciphertext does not open under a proven key")
-        })?;
+        let plaintext = cipher
+            .open(&file.aead.nonce, &aad, &file.ciphertext)
+            .ok_or_else(|| VaultError::corrupt("the ciphertext doesn't open under a proven key"))?;
         let entries = payload::decode(&plaintext)?;
         drop(plaintext);
 
@@ -148,15 +146,16 @@ impl Vault {
         if raised != kdf_params {
             match session.rekey(password, raised) {
                 Ok(()) => tracing::info!("vault kdf parameters upgraded"),
-                Err(error) => tracing::warn!(%error, "could not upgrade the vault kdf parameters"),
+                Err(error) => tracing::warn!(%error, "couldn't upgrade the vault kdf parameters"),
             }
         }
         Ok(session)
     }
 
-    /// The staged copy still verifies the password after the original file is removed.
-    /// Once its master key is gone, only cleanup remains. A missing file alone never
-    /// authorizes deleting a key that could belong to a moved vault.
+    /// Checks `password` before [`Vault::destroy`]. If an interrupted destroy already
+    /// removed the file, the staged copy checks it instead, and once the master key is
+    /// gone too, only cleanup remains. A missing file alone never authorizes deleting a key
+    /// that could belong to a moved vault.
     pub fn authorize_destruction(&self, password: &VaultPassword) -> Result<(), VaultError> {
         let refusal = match self.unlock(password) {
             Ok(vault) => {
@@ -185,10 +184,9 @@ impl Vault {
     }
 
     /// Removes the vault file and its keychain master key. The caller must first pass
-    /// [`Vault::authorize_destruction`] or [`UnlockedVault::verify_password`], unless it
-    /// is rolling back a creation that did not complete. The staged copy is synced before
-    /// either destructive step, survives either one failing, and is removed only after
-    /// both factors are gone.
+    /// [`Vault::authorize_destruction`] or [`UnlockedVault::verify_password`], unless it's
+    /// rolling back an unfinished creation. A synced staged copy outlives both removals, so
+    /// a failure partway through leaves something to authorize the retry.
     pub fn destroy(&self) -> Result<(), VaultError> {
         let staged = self.staged_path();
         match fs::read(&self.path) {
@@ -238,11 +236,11 @@ pub struct UnlockedVault {
 ///
 /// The cipher and the header MAC key are boxed. An [`UnlockedVault`] is returned by
 /// value, and a move is a memcpy, so an inline key would leave an unwiped copy at every
-/// address the session has had. Behind a box each key keeps one address.
+/// address the session has had.
 struct SessionKeys {
     cipher: Box<SessionCipher>,
     mac_key: SecretBox<[u8; KEY_LEN]>,
-    /// Not secret, because the same value is in the header.
+    /// Not secret, since the header holds the same value.
     commitment: [u8; COMMITMENT_LEN],
     kdf_params: Argon2Params,
     kdf_salt: [u8; KDF_SALT_LEN],
@@ -250,7 +248,7 @@ struct SessionKeys {
 }
 
 impl SessionKeys {
-    /// Both factors under new salts, for a new file or a rekey.
+    /// Both factors under fresh salts, for a new file or a rekey.
     fn derive(
         master: &MasterKey,
         password: &VaultPassword,
@@ -297,7 +295,7 @@ impl UnlockedVault {
     }
 
     /// Consuming `self` drops every key and decrypted secret, so no handle can read one
-    /// afterwards.
+    /// afterward.
     pub fn lock(self) {
         drop(self);
     }
@@ -363,7 +361,7 @@ impl UnlockedVault {
         }
     }
 
-    /// Takes ownership, so the secret is not copied on its way in.
+    /// Takes ownership, so the secret isn't copied on its way in.
     pub fn insert(&mut self, blob: SecretBlob) -> Result<EntryId, VaultError> {
         let id = EntryId::generate()?;
         self.entries.insert(id, blob);
@@ -373,8 +371,7 @@ impl UnlockedVault {
         Ok(id)
     }
 
-    /// A missing id leaves the vault untouched, so a failed replace is a no-op rather
-    /// than an insert.
+    /// Fails on a missing id instead of inserting.
     pub fn replace(&mut self, id: EntryId, blob: SecretBlob) -> Result<(), VaultError> {
         let slot = self.entries.get_mut(&id).ok_or(VaultError::EntryNotFound(id))?;
         let previous = mem::replace(slot, blob);
@@ -395,7 +392,7 @@ impl UnlockedVault {
     }
 
     /// Rotates the password factor with fresh salts, commitment, and nonce, and rewrites
-    /// the whole file. The keychain master key is untouched.
+    /// the whole file. The keychain master key stays the same.
     ///
     /// Parameters are raised as in [`Vault::unlock`], so a rotation never weakens a
     /// vault.

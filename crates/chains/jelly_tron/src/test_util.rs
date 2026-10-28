@@ -1,4 +1,4 @@
-//! Fixtures this crate's unit tests and integration tests share. Only
+//! Fixtures shared by this crate's unit and integration tests. Only
 //! `[dev-dependencies]` enable the `test-util` feature.
 
 use jelly_core::EndpointLabel;

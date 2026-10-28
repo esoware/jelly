@@ -67,10 +67,10 @@ fn the_compressed_flag_decides_whether_a_wif_imports() {
     assert_eq!(ENTRY.recognize_key(&uncompressed), Some(NAME));
 }
 
-/// An Electrum 3.0 segwit key reads as Bitcoin's format names it, and resolving its
-/// flavour on this chain then refuses it.
+/// An Electrum 3.0 segwit WIF imports with its P2WPKH type, which this chain then
+/// refuses.
 #[test]
-fn a_segwit_wif_names_a_flavour_the_chain_refuses() {
+fn a_segwit_wif_names_a_flavor_the_chain_refuses() {
     let wif = wif_encode(&[7u8; 32], 0x81);
     let imported = ENTRY.import_key(&wif, None).unwrap();
     assert_eq!(imported.named_script, Some(ScriptKind::P2wpkh));

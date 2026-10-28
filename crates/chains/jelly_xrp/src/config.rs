@@ -3,8 +3,8 @@ use jelly_core::ChainId;
 pub(crate) const CHAIN: ChainId = ChainId::Xrp;
 pub(crate) const MAX_DROPS: u64 = 100_000_000_000_000_000;
 pub(crate) const MAX_FEE_DROPS: u64 = 100_000;
-// An account deletion pays the owner reserve as its fee. The network has never set that
-// reserve above 5 XRP, so a server quoting more is not believed.
+// An account deletion pays the owner reserve as its fee. That reserve has been at most 5 XRP
+// for as long as deletion has existed, so a server quoting more isn't believed.
 pub(crate) const MAX_DELETION_FEE_DROPS: u64 = 5_000_000;
 pub(crate) const RIPPLE_EPOCH_UNIX_SECONDS: i64 = 946_684_800;
 // About a minute and a half of ledgers, after which the payment can no longer be included

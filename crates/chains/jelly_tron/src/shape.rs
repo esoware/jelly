@@ -1,5 +1,5 @@
-//! Decodes `/wallet` JSON, where protobuf omits default values, so a missing
-//! number reads as zero. Account existence is kept separately, because
+//! Decodes `/wallet` JSON. Protobuf omits default values, so a missing number
+//! reads as zero. Whether an account exists is tracked separately, since
 //! activating a missing account costs extra TRX.
 
 use jelly_core::wire_enum;
@@ -14,8 +14,8 @@ use crate::node::Answered;
 pub(crate) struct BlockRef {
     pub(crate) number: u64,
     pub(crate) block_id: [u8; 32],
-    /// Head block time in milliseconds. Expiry is measured against the network's
-    /// clock, not the signer's, so timing starts here.
+    /// Head block time in milliseconds. Expiry is judged by the network's clock,
+    /// not ours, so timing starts here.
     pub(crate) timestamp_millis: i64,
 }
 
@@ -69,8 +69,8 @@ impl Account {
         self.balance
     }
 
-    /// False when the address has no row at all, which is what makes a transfer
-    /// to it an activation.
+    /// False when the address has no account at all, which makes a transfer to it
+    /// an activation.
     pub(crate) const fn is_activated(&self) -> bool {
         self.address.is_some() || self.create_time.is_some() || self.balance > 0
     }
@@ -109,7 +109,7 @@ impl Resources {
     }
 }
 
-/// The governance parameter list, which is a flat array of named values.
+/// The governance parameters, a flat array of named values.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct ChainParameters {
     #[serde(rename = "chainParameter", default)]
@@ -119,7 +119,7 @@ pub(crate) struct ChainParameters {
 #[derive(Debug, Clone, Deserialize)]
 struct ChainParameter {
     key: String,
-    /// A governance parameter that is currently unset carries no value at all.
+    /// An unset parameter carries no value at all.
     #[serde(default)]
     value: Option<i64>,
 }
@@ -130,13 +130,13 @@ impl ChainParameters {
     }
 }
 
-/// What `triggerconstantcontract` answered, with the return words, the energy
-/// the call would consume and whether it executed cleanly.
+/// What `triggerconstantcontract` answered: the return words, the energy the call
+/// would use, and whether it executed cleanly.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct ConstantCall {
     #[serde(default)]
     constant_result: Vec<String>,
-    /// Total energy the call would consume, surcharge included.
+    /// Total energy the call would use, surcharge included.
     #[serde(default)]
     energy_used: u64,
     /// The dynamic-energy surcharge inside `energy_used`, charged on contracts
@@ -164,11 +164,10 @@ impl ConstantCall {
         self.energy_penalty
     }
 
-    /// The revert reason, when the call did not execute cleanly.
+    /// The revert reason, if the call didn't execute cleanly.
     ///
-    /// `result.result` stays true on a revert, because the node is reporting that
-    /// the request was well formed rather than that the contract succeeded, so
-    /// the message is the only failure signal there is.
+    /// `result.result` only says the request was well formed and stays true on a
+    /// revert, so the message is the only failure signal.
     pub(crate) fn failure(&self) -> Option<String> {
         let message = self.result.message.as_deref().unwrap_or_default();
         if self.result.result && message.is_empty() {
@@ -186,8 +185,8 @@ impl ConstantCall {
 }
 
 /// TRON returns `message` as hex for a contract revert and as plain text for a
-/// validation failure. Both are read, and anything that does not decode to
-/// printable text is kept as it arrived.
+/// validation failure. We read both, and anything that doesn't decode to printable
+/// text is kept as it arrived.
 pub(crate) fn read_message(message: &str) -> String {
     let trimmed = message.trim();
     if trimmed.len() >= 8
@@ -202,13 +201,13 @@ pub(crate) fn read_message(message: &str) -> String {
 }
 
 wire_enum! {
-    /// How TRON reports a transaction's result, in `ret.contractRet` and in a
+    /// A transaction's result, as TRON reports it in `ret.contractRet` and in a
     /// receipt's `receipt.result`.
     ///
-    /// Every outcome `Transaction.Result.contractResult` names is restated here,
-    /// and a test pins the table against the vendored enum. A word none of them
-    /// spells is [`ContractResult::Unclassified`], and only
-    /// [`ContractResult::Success`] counts as success.
+    /// Mirrors `Transaction.Result.contractResult`, and a test pins the table
+    /// against the vendored enum. Any other word is
+    /// [`ContractResult::Unclassified`], and only [`ContractResult::Success`]
+    /// counts as success.
     pub(crate) enum ContractResult {
         Default => "DEFAULT",
         Success => "SUCCESS",
@@ -243,9 +242,8 @@ impl ContractResult {
 
 /// A mined transaction's receipt.
 ///
-/// `gettransactioninfobyid` answers a bare `{}` for a transaction that has not
-/// been mined, so the block number is the only signal read and the echoed `id`
-/// is ignored.
+/// `gettransactioninfobyid` answers a bare `{}` for an unmined transaction, so the
+/// block number is the only signal read and the echoed `id` is ignored.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct TransactionInfo {
     #[serde(rename = "blockNumber", default)]

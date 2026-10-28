@@ -3,9 +3,8 @@ use jelly_core::ScriptKind;
 
 use crate::error::UtxoError;
 
-/// The output script types this framework derives, weighs, and signs. It is the share
-/// of [`ScriptKind`] that is a UTXO output script, so no other chain's flavour reaches
-/// selection or signing.
+/// The output script types this framework derives, weighs, and signs: the UTXO subset
+/// of [`ScriptKind`], so no other chain's flavor reaches selection or signing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum UtxoScript {
     P2tr,
@@ -40,11 +39,10 @@ impl From<UtxoScript> for ScriptKind {
     }
 }
 
-/// An output script this build can spend, with the script kind it spends with.
+/// An output script the wallet can spend, with its kind.
 ///
-/// The only constructor derives the kind from the script, so the pair cannot
-/// disagree. Coin selection, weight prediction, and signing all take the kind
-/// from here rather than reclassifying.
+/// The only constructor derives the kind from the script, so the two can't disagree.
+/// Coin selection, weight prediction, and signing all take the kind from here.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SpendableScript {
     script_pubkey: ScriptBuf,
@@ -52,7 +50,7 @@ pub(crate) struct SpendableScript {
 }
 
 impl SpendableScript {
-    /// Fails when the script is not one of the four forms this build signs for.
+    /// Fails unless the script is one of the four forms the wallet signs for.
     pub(crate) fn new(script_pubkey: ScriptBuf) -> Result<Self, UtxoError> {
         let kind = script_kind_of(&script_pubkey).ok_or(UtxoError::UnspendableScript)?;
         Ok(Self { script_pubkey, kind })
@@ -72,7 +70,7 @@ impl SpendableScript {
 }
 
 /// P2SH is read as BIP-49 wrapped segwit, the only P2SH a single-key wallet
-/// derives. Any other P2SH fails at signing, because its redeem script cannot be
+/// derives. Any other P2SH fails at signing, because its redeem script can't be
 /// recovered from the output script.
 fn script_kind_of(script_pubkey: &Script) -> Option<UtxoScript> {
     if script_pubkey.is_p2tr() {

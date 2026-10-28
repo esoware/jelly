@@ -34,8 +34,8 @@ statements! {
         "SELECT wallet_id, passphrase_policy, account_index FROM wallet_settings \
          WHERE wallet_id = ?1";
 
-    /// From `?4` on, each even parameter says whether the value after it is written,
-    /// which tells keeping from clearing.
+    /// From `?4` on, each even parameter says whether to write the value after it, so
+    /// keeping and clearing stay distinct.
     UPSERT_CHAIN_STATE =
         "INSERT INTO wallet_chain_state \
            (wallet_id, chain, enabled, poll_secs, restore_height, synced_height) \
@@ -67,10 +67,9 @@ pub struct NewWallet {
     pub account_index: u32,
 }
 
-/// Written once by [`crate::Store::create_wallet`] and read at every unlock.
-///
-/// Both values decide which keys the wallet derives, so neither can change. An edit
-/// would orphan every stored address.
+/// Written once by [`crate::Store::create_wallet`] and read at every unlock. Both values
+/// decide which keys the wallet derives, so changing either would orphan every stored
+/// address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WalletSettingsRow {
     pub wallet_id: i64,
@@ -78,8 +77,7 @@ pub struct WalletSettingsRow {
     pub account_index: u32,
 }
 
-/// A scan cursor derived from a view key is secret, so it lives in the vault rather than
-/// here.
+/// A scan cursor derived from a view key is secret, so it lives in the vault, not here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChainStateRow {
     pub wallet_id: i64,

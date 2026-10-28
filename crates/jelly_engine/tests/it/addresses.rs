@@ -33,8 +33,8 @@ async fn addresses_take_the_next_index_and_keep_their_script() {
     assert_eq!(path_of(&litecoin).unwrap(), "m/84'/2'/0'/0/0");
 }
 
-/// Neither chain has segwit, so each derives P2PKH under BIP-44, the paths Electron
-/// Cash and Dogecoin Core restore from the same phrase, and refuses a segwit flavour.
+/// Neither chain has segwit, so each derives P2PKH under BIP-44 and refuses a segwit
+/// flavor.
 #[tokio::test]
 async fn the_chains_without_segwit_derive_bip44_pay_to_public_key_hash() {
     let harness = harness().await.unwrap();
@@ -57,13 +57,13 @@ async fn the_chains_without_segwit_derive_bip44_pay_to_public_key_hash() {
     }
 }
 
-/// Each script flavour counts its own indices under its own purpose. An address derived
-/// under another flavour's purpose would be invisible to other wallets restoring the
+/// Each script flavor counts its own indices under its own purpose. An address derived
+/// under another flavor's purpose would be invisible to other wallets restoring the
 /// same phrase.
 #[tokio::test]
-async fn a_script_flavour_allocates_from_its_own_family() {
+async fn a_script_flavor_allocates_from_its_own_family() {
     let harness = harness().await.unwrap();
-    harness.seed_wallet("flavoured").await.unwrap();
+    harness.seed_wallet("flavored").await.unwrap();
     harness.engine.add_address(ChainId::Bitcoin, None, None).await.unwrap();
 
     let wanted = [
@@ -86,9 +86,9 @@ async fn a_script_flavour_allocates_from_its_own_family() {
 }
 
 #[tokio::test]
-async fn a_flavour_the_chain_does_not_have_is_refused() {
+async fn a_flavor_the_chain_does_not_have_is_refused() {
     let harness = harness().await.unwrap();
-    harness.seed_wallet("flavoured").await.unwrap();
+    harness.seed_wallet("flavored").await.unwrap();
 
     let refused = harness.engine.add_address(ChainId::Litecoin, Some(ScriptKind::P2tr), None).await;
     assert!(
@@ -99,7 +99,7 @@ async fn a_flavour_the_chain_does_not_have_is_refused() {
         harness.engine.add_address(ChainId::Ethereum, Some(ScriptKind::P2wpkh), None).await;
     assert!(
         matches!(refused, Err(CoreError::InvalidInput { field: "key", .. })),
-        "an account chain has no script flavours: {refused:?}"
+        "an account chain has no script flavors: {refused:?}"
     );
     let refused = harness.engine.add_address(ChainId::Monero, Some(ScriptKind::P2tr), None).await;
     assert!(
@@ -107,7 +107,6 @@ async fn a_flavour_the_chain_does_not_have_is_refused() {
         "neither does monero: {refused:?}"
     );
 
-    // Each chain accepts the same request without a flavour.
     harness.engine.add_address(ChainId::Litecoin, None, None).await.unwrap();
     harness.engine.add_address(ChainId::Ethereum, None, None).await.unwrap();
     harness.engine.add_address(ChainId::Monero, None, None).await.unwrap();
@@ -410,13 +409,13 @@ async fn a_standalone_address_has_no_xpub() {
 #[tokio::test]
 async fn labels_are_set_and_cleared() {
     let harness = harness().await.unwrap();
-    harness.seed_wallet("labelled").await.unwrap();
+    harness.seed_wallet("labeled").await.unwrap();
     let added = harness.engine.add_address(ChainId::Bitcoin, None, None).await.unwrap();
     let id = added.id;
 
-    let labelled =
+    let labeled =
         harness.engine.set_address_label(id, Some(String::from("savings"))).await.unwrap();
-    assert_eq!(labelled.label.as_deref(), Some("savings"));
+    assert_eq!(labeled.label.as_deref(), Some("savings"));
     let cleared = harness.engine.set_address_label(id, None).await.unwrap();
     assert_eq!(cleared.label, None);
 }

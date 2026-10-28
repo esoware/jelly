@@ -32,8 +32,8 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[FeeLevel::Normal],
     custom_fee: Some(CustomFee::Total),
-    // About $1.95 at the October 2026 price of $1221. A payment of up to two inputs and two
-    // outputs costs the ZIP 317 minimum of 0.0001 ZEC, and each input past that 0.00005.
+    // About $2. A payment with up to two inputs and two outputs pays the ZIP 317 minimum of
+    // 0.0001 ZEC, and each input past that adds 0.00005.
     high_fee: Amount::from_base_units(160_000),
     can_pin_nonce: false,
     can_carry_data: false,
@@ -69,9 +69,9 @@ impl ChainEntry for ZcashEntry {
         include_str!("../endpoints.json")
     }
 
-    /// ZIP-321 may leave the address out and name its payee in a single `address`
+    /// ZIP 321 lets a URI leave the address out and name its payee in a single `address`
     /// parameter instead. Any parameter beyond the payee, amount, label, and message,
-    /// such as a memo, is one the payment depends on and Jelly cannot send.
+    /// such as a memo, is one Jelly can't send, so the URI is refused.
     fn validate_address(&self, value: &str) -> Result<Address, AddressError> {
         let Some(uri) = payment_uri(SPEC.uri_scheme, value) else {
             return CODEC.validate(value.trim());
@@ -132,8 +132,8 @@ impl ChainEntry for ZcashEntry {
             if wif.version != WIF_VERSION {
                 return Err(KeyError::UnknownFormat);
             }
-            // A key's address comes from its compressed public key, and an uncompressed
-            // WIF's funds sit at the uncompressed key's address.
+            // Addresses here come from the compressed public key, but an uncompressed WIF's
+            // funds sit at the uncompressed key's address.
             if !wif.is_compressed {
                 return Err(KeyError::UncompressedKey);
             }

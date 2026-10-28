@@ -1,5 +1,5 @@
-//! The instruction rows are decoded from the bytes that will be signed rather
-//! than from the request they came from.
+//! The instruction rows are decoded from the bytes that will be signed, not from the
+//! request.
 
 use jelly_core::{Amount, TxDetail, TxPreview, TxWarning, TxWarningKind};
 use solana_message::VersionedMessage;
@@ -124,16 +124,14 @@ fn warnings(plan: &Plan) -> Vec<TxWarning> {
     warnings
 }
 
-/// A token transfer's recipient was already settled by the build, which refuses
-/// one tokens could not safely reach. Coin goes to the address itself, so these
-/// are warnings.
+/// Only for native transfers, because the build already refused any token recipient
+/// the tokens couldn't safely reach.
 ///
-/// A wallet address is owned by the system program. Lamports sent to an account
-/// any other program owns are lost unless that program can move them, and
-/// sending SOL to a token account is the classic way to lose it. A
-/// program-derived address is off the curve, and coin sent to one is recoverable
-/// only if the owning program allows it. A program can be sent coin on purpose,
-/// so neither is a refusal.
+/// A wallet address is owned by the system program. Lamports sent to an account any
+/// other program owns are lost unless that program can move them, and sending SOL to a
+/// token account is the classic way to lose it. A program-derived address is off the
+/// curve, and SOL sent to one is recoverable only if the owning program allows it.
+/// Both are warnings, not refusals, because a program can be paid on purpose.
 fn recipient_warnings(plan: &Plan, warnings: &mut Vec<TxWarning>) {
     if let Some(owner) = plan.recipient_program.filter(|owner| *owner != SYSTEM_PROGRAM) {
         warnings.push(TxWarning::new(
@@ -151,9 +149,8 @@ fn recipient_warnings(plan: &Plan, warnings: &mut Vec<TxWarning>) {
     }
 }
 
-/// Rent is no longer collected, but a transaction that would leave a nonzero
-/// balance below the rent-exempt minimum fails, and an emptied account is
-/// removed.
+/// Rent is no longer collected, but a transaction that would leave a nonzero balance
+/// below the rent-exempt minimum fails, and an emptied account is removed.
 fn rent_warnings(plan: &Plan, warnings: &mut Vec<TxWarning>) {
     let is_native = matches!(plan.route.leg, Leg::Native);
     let remainder = plan.remainder();

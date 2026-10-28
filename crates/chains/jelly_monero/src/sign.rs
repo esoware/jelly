@@ -10,12 +10,11 @@ use crate::params::{CHAIN, check_chain};
 use crate::payload::UnsignedPayload;
 use crate::subaddress::Subaddress;
 
-/// A signed transaction plus the context its first broadcast needs to reserve
-/// inputs and reach the ring-selecting node.
+/// A signed transaction plus what its first broadcast needs to reserve its inputs
+/// and reach its ring node.
 ///
-/// The key images come straight out of the signed transaction's inputs, so the
-/// wallet's own spends are tracked without deriving anything and cover every
-/// spend it makes.
+/// The key images are read straight off the signed transaction's inputs, not
+/// derived.
 pub(crate) struct Signed {
     pub tx: SignedTx,
     pub txid: [u8; 32],
@@ -24,9 +23,8 @@ pub(crate) struct Signed {
     /// The height the ring was chosen against, the newest height the build knew
     /// of. The scan's own tip can be older, right after an unlock.
     pub build_height: u64,
-    /// What the preview said would be paid. A Monero transaction does not state
-    /// its own amounts, so this is the figure a send that never lands is reported
-    /// with.
+    /// What the preview said would be paid. A Monero transaction doesn't state its
+    /// own amounts, so a send that never lands is reported with this figure.
     pub amount_piconero: u64,
     pub recipient: String,
     pub subaddress: Subaddress,
@@ -36,7 +34,7 @@ pub(crate) struct Signed {
 /// without any I/O.
 ///
 /// The ring was chosen at build time and travels inside the payload, so a payload
-/// whose ring is older than the configured window is refused rather than signed
+/// whose ring is older than the configured window is refused instead of signed
 /// against a stale view of the chain.
 pub(crate) fn sign(
     account: &MoneroAccount,
@@ -71,8 +69,8 @@ pub(crate) fn sign(
     let scalar = account.signing_key(&spend, subaddress)?;
 
     let signed = signable.sign(&mut OsRng, &scalar).map_err(|error| {
-        // The account owns the spend key, so a wrong-key failure here means
-        // the payload spends outputs of another account entirely.
+        // The key already matched this account, so a wrong-key failure here means
+        // the payload spends another account's outputs.
         if matches!(error, SendError::WrongPrivateKey) {
             MoneroError::PayloadForeignAccount
         } else {
@@ -82,7 +80,7 @@ pub(crate) fn sign(
 
     let txid = signed.hash();
     // `build_tx` refuses an amount above what Monero can represent, so this
-    // narrowing cannot lose anything. It saturates rather than carry a second
+    // narrowing can't lose anything. It saturates instead of carrying a second
     // error path into the signature.
     let amount_piconero = u64::try_from(tx.preview.amount.base_units()).unwrap_or(u64::MAX);
     Ok(Signed {

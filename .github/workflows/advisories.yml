@@ -40,7 +40,6 @@ jobs:
       - name: Check the advisories
         run: just advisories
 
-  # The job that holds the write token runs only gh, so no third-party code gets it.
   report:
     name: Open an issue
     needs: scan

@@ -1,12 +1,10 @@
-//! What each transaction of a wallet, or of one of its jetton wallets, adds to the
-//! history.
+//! Turns the transactions of a wallet and its jetton wallets into history records.
 //!
-//! A send is not over when its own transaction is. A bounceable Gram message can bounce
+//! A send isn't over when its own transaction is: a bounceable Gram message can bounce
 //! back, and a jetton transfer returns an excess or a bounce under its query id, each in a
-//! later transaction. [`Returns`] carries the sends that can still see such a return and
-//! the returns read before their send, because a walk reads history newest first, so a
-//! send's record is rewritten with what came back rather than a return reading as a
-//! receipt of its own.
+//! later transaction. The send's record is rewritten with what came back, so a return
+//! never shows as a receipt of its own. A walk reads newest first, so [`Returns`] holds
+//! both the sends still waiting for a return and the returns read before their send.
 
 use jelly_core::{Amount, AssetId, TokenId, TxDirection, TxId, TxOutcome, TxRecord};
 use serde::{Deserialize, Serialize};
@@ -18,8 +16,8 @@ use crate::error::TonError;
 use crate::jetton::{Body, INTERNAL_TRANSFER, TRANSFER, read_body};
 use crate::record::{Inbound, Tx};
 
-/// A bounce or an excess lands seconds after the send it returns, so a send waits this
-/// long for one, and a return this long for its send, before history settles them.
+/// A bounce or an excess lands seconds after its send. A send waits this long for its
+/// returns, and a return this long for its send, before history settles them.
 const RETURN_WINDOW_SECONDS: u32 = 3600;
 
 /// The jetton wallet the owner holds under one registry master.
@@ -37,8 +35,9 @@ pub(crate) struct Returns {
     orphans: Vec<Orphan>,
 }
 
-/// A send as its record stands, kept while a return can still rewrite it, and for the
-/// window after, so a walk that reads a return a second time knows it is not new.
+/// A send as its record stands. One that awaits a return is kept until the return window
+/// passes, even once everything has come back, so a walk that reads a return again knows
+/// it isn't new.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Sent {
@@ -90,7 +89,7 @@ struct Orphan {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Back {
-    /// The Gram a jetton transfer did not spend, which its last jetton wallet returns.
+    /// The Gram a jetton transfer didn't spend, which its last jetton wallet returns.
     Excess { query_id: u64 },
     /// A transfer the sender's own jetton wallet refused, bounced to the sender.
     JettonBounce { query_id: u64 },
@@ -113,7 +112,7 @@ impl Back {
 }
 
 impl Orphan {
-    /// Whether this is what came back of `part`, which nothing has returned yet.
+    /// Whether this returns `part`, which nothing has returned yet.
     fn is_return_of(&self, part: &Await) -> bool {
         part.returned_by.is_none()
             && match (self.back, &part.part) {
@@ -167,7 +166,7 @@ impl Sent {
             }
             (Part::Bounce { value_nanogram, .. }, Back::Bounce) => {
                 *amount = amount.saturating_sub(Amount::from(*value_nanogram));
-                // The bounced value is no longer paid out, and the part of it that did not
+                // The bounced value is no longer paid out, and the part of it that didn't
                 // come back is a cost.
                 *fee_nanogram = add_u64(
                     add_u64(*fee_nanogram, *value_nanogram)?.saturating_sub(refund_nanogram),
@@ -217,7 +216,7 @@ pub(crate) struct Reader<'a> {
     pub(crate) held: &'a [Held],
     pub(crate) tip: u64,
     /// The node's time, which decides whether a send is recent enough to see a return
-    /// the walk has not read yet.
+    /// the walk hasn't read yet.
     pub(crate) sync_utime: u32,
 }
 
@@ -325,9 +324,9 @@ impl Reader<'_> {
         }
     }
 
-    /// Settles what a completed walk of the owner's wallet leaves over. A wallet return
-    /// still unclaimed has no send in the history, so it is the receipt it looks like,
-    /// and anything a window old is let go.
+    /// Settles what's left after a complete walk of the owner's wallet. An unclaimed
+    /// wallet return has no send in the history, so it's a receipt after all, and
+    /// anything older than the window is dropped.
     pub(crate) fn settle(&self, returns: &mut Returns) -> Result<Vec<TxRecord>, TonError> {
         let now = self.sync_utime;
         let records = returns
@@ -340,8 +339,8 @@ impl Reader<'_> {
         Ok(records)
     }
 
-    /// A wallet return more than a window newer than `utime` belongs to no send the walk
-    /// has yet to read, so it settles as a receipt now and the cursor stays small.
+    /// A wallet return more than a window newer than `utime` can't belong to any send the
+    /// walk has yet to read, so it settles as a receipt now and the cursor stays small.
     fn expire(&self, utime: u32, returns: &mut Returns) -> Result<Vec<TxRecord>, TonError> {
         let horizon = utime.saturating_add(RETURN_WINDOW_SECONDS);
         returns
@@ -570,8 +569,7 @@ impl Reader<'_> {
         )
         .fee(Amount::from(fee_nanogram))
         .outcome(outcome)
-        // The provider does not return the containing block, so the tip at detection
-        // stands in for its height.
+        // The provider doesn't say which block, so the tip at detection stands in.
         .confirmed_at(self.tip, Some(i64::from(tx.utime)), self.tip);
         if let Some(counterparty) = counterparty {
             record = record.counterparty(non_bounceable(&counterparty));
@@ -601,8 +599,8 @@ mod tests {
 
     /// What a V5R1 wallet's send of four bounceable messages cost when all four bounced.
     ///
-    /// It is charged its own fees, the forwarding of its four messages, and what the
-    /// bounces did not bring back: 807689 + 4 * 44446 + 349443 - 104, where 104 is what
+    /// It's charged its own fees, the forwarding of its four messages, and what the
+    /// bounces didn't bring back: 807689 + 4 * 44446 + 349443 - 104, where 104 is what
     /// the four returns brought in above their own fees.
     const BOUNCED_SEND_FEE_NANOTON: u128 = 1_334_812;
 

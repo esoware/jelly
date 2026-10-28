@@ -81,7 +81,7 @@ async fn a_late_batch_for_a_deleted_address_never_lands_on_a_later_address() {
     let successor =
         common::address(&harness.store, wallet.id, ChainId::Ethereum, "0xsuccessor").await.unwrap();
 
-    // What a sync pass that started before the delete reports at its end.
+    // A sync pass that started before the delete reports this at its end.
     let stream = ScanStream::EvmLogScan;
     let late = SyncBatch {
         txs: vec![

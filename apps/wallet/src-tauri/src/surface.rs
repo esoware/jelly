@@ -46,10 +46,9 @@ jelly_events! {
 /// Shares command and event registration between the app and binding generation.
 pub(crate) fn builder() -> Builder<Wry> {
     events(commands(Builder::new()))
-        // Types serialize identically in both directions, so separate exports are
-        // unnecessary.
+        // Every type has the same shape in both directions, so one export each is enough.
         .disable_serde_phases()
-        // IPC integers other than `Amount` and `Price` must stay below 2^53. Both use
-        // decimal strings, parsed as bigint in the frontend.
+        // `Amount` and `Price` cross as decimal strings that the frontend parses as bigint,
+        // so every other IPC integer must stay below 2^53.
         .dangerously_cast_bigints_to_number()
 }

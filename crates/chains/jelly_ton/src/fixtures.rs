@@ -1,5 +1,3 @@
-//! Fixtures the unit tests share.
-
 use tonlib_core::types::TonAddress;
 
 use crate::address::ton_destination;

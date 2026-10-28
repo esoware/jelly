@@ -29,7 +29,7 @@ pub async fn build(
 }
 
 /// Asks one endpoint which network it serves, through the connector its pool is built
-/// with, so the endpoint editor and the pool's guard cannot disagree.
+/// with, so the endpoint editor and the pool's guard can't disagree.
 pub async fn probe(network: &Network, endpoint: &Endpoint) -> ProbeReport {
     let clock = network.clock().as_ref();
     match endpoint.transport() {
@@ -53,7 +53,7 @@ fn rpc_connector(network: &Network) -> HttpConnector {
 
 fn ws_connector(network: &Network) -> Result<WsConnector, NetError> {
     Ok(WsConnector::new(
-        network.ws_dialler()?,
+        network.ws_dialer()?,
         Arc::clone(network.clock()),
         Arc::new(SolanaIdentity),
     ))

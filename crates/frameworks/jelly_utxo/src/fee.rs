@@ -43,8 +43,8 @@ pub(crate) fn rate_for(fee: Amount, weight: Weight) -> Result<FeeRate, UtxoError
 /// The lowest rate whose [`fee_for`] over `weight` reaches `floor`.
 ///
 /// A replacement floor needs this rather than [`rate_for`], because a rate from a
-/// rounded-down division would not pay the fee back. Since [`fee_for`] rounds up,
-/// the answer is one more than a floored division of `floor - 1`.
+/// rounded-down division wouldn't pay the fee back. Since [`fee_for`] rounds up, the
+/// answer is one more than a floored division of `floor - 1`.
 pub(crate) fn rate_that_pays(floor: Amount, weight: Weight) -> Result<FeeRate, UtxoError> {
     let charged_wu = u128::from(weight::vsize(weight))
         .checked_mul(u128::from(Weight::WITNESS_SCALE_FACTOR))
@@ -88,7 +88,7 @@ pub(crate) fn rate_from_histogram(
 }
 
 /// The fee to create a change output now plus the projected fee to spend it
-/// later. This is the change term of the waste metric.
+/// later, the change term of the waste metric.
 pub(crate) fn cost_of_change(
     rate: FeeRate,
     long_term_rate: FeeRate,
@@ -103,13 +103,12 @@ pub(crate) fn cost_of_change(
 /// and one base unit more than spending it later at `long_term_rate` costs.
 ///
 /// A change value is already net of the fee for creating its output, so only the
-/// later spend is weighed against it, as Bitcoin Core's `min_viable_change` does.
-/// Counting the creation fee here as well would hand the miner up to one more
-/// output's fee.
+/// later spend is weighed against it, as in Bitcoin Core's `min_viable_change`.
+/// Counting the creation fee here too would hand the miner up to one more output's
+/// fee.
 ///
-/// This is the crate's one change policy. Coin selection and the replacement
-/// planner read it, the branch-and-bound window mirrors it, and a leftover below
-/// it goes to the miner.
+/// Coin selection and the replacement planner both use it, the branch-and-bound
+/// window mirrors it, and a leftover below it goes to the miner.
 pub(crate) fn change_floor(
     params: &UtxoParams,
     long_term_rate: FeeRate,
@@ -123,9 +122,9 @@ pub(crate) fn change_floor(
     Ok(viable.max(dust))
 }
 
-/// The smallest absolute fee a replacement may pay under BIP-125 rules 3 and 4,
-/// which is what every transaction it evicts paid plus the incremental relay fee
-/// over the replacement's own size.
+/// The smallest absolute fee a replacement may pay under BIP-125 rules 3 and 4:
+/// what every transaction it evicts paid, plus the incremental relay fee over the
+/// replacement's own size.
 pub(crate) fn replacement_floor(
     params: &UtxoParams,
     evicted_fee: Amount,
@@ -303,7 +302,7 @@ mod tests {
         let dust = scene.params.dust_threshold(change.script_pubkey());
         assert_eq!(dust, units(294));
 
-        // At the relay floor the dust rule dominates.
+        // At one per vB the dust rule dominates.
         let low = change_floor(&scene.params, ONE_PER_VB, change).unwrap();
         assert_eq!(low, dust);
 
@@ -346,7 +345,7 @@ mod tests {
         let floor = replacement_floor(&BITCOIN, units(1_000), weight).unwrap();
         // 141 virtual bytes at 0.1 sat/vB is 14.1, rounded up.
         assert_eq!(floor, units(1_000 + 15));
-        assert!(floor > units(1_000), "rule 3 needs a strictly higher fee");
+        assert!(floor > units(1_000), "rule 4 needs a strictly higher fee");
 
         let raised = BITCOIN.with_incremental_relay_fee(Some(kwu(2_500)));
         assert_eq!(replacement_floor(&raised, units(1_000), weight).unwrap(), units(1_000 + 1_410));
@@ -443,8 +442,8 @@ mod tests {
         );
     }
 
-    /// The Litecoin file also records what the same buckets come to under Bitcoin's
-    /// target, which is the whole reason the target is a table field.
+    /// The Litecoin file also records what the same buckets give under Bitcoin's
+    /// target, to show why the target is a table field.
     #[test]
     fn the_litecoin_histogram_clears_at_its_target_and_differs_under_bitcoins() {
         let file: Value = serde_json::from_str(LITECOIN_FEE_RATES).unwrap();

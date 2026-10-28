@@ -16,7 +16,7 @@ use crate::wallet::{Version, ton_wallet};
 const SEND_PAY_FEES_SEPARATELY: u8 = 1;
 const SEND_IGNORE_ERRORS: u8 = 2;
 const SEND_CARRY_ALL_BALANCE: u8 = 128;
-/// TEP-74's smallest notification, so the recipient's wallet sees the transfer arrive.
+/// The least a transfer can forward and still have TEP-74 notify the recipient.
 const FORWARD_NANOGRAM: u32 = 1;
 /// A text comment's root cell holds this many bytes after its 32-bit zero opcode, and
 /// each cell it references holds `COMMENT_TAIL_BYTES`.
@@ -77,9 +77,9 @@ fn internal_message(payment: &Payment) -> Result<(ArcCell, u8), TonError> {
             ref wallet, amount, query_id, attached_nanogram, ref comment, ..
         } => {
             let from = ton_destination(&payment.from).map_err(|_| INVALID_PAYMENT)?.address;
-            // The forward payload sits inline when the comment fits in what the body
-            // leaves free and in a reference otherwise, as MyTonWallet writes it. No
-            // comment is an empty inline payload, one zero bit.
+            // The forward payload goes inline when the comment fits in the body and in a
+            // reference otherwise, as MyTonWallet writes it. No comment is an empty inline
+            // payload, a single zero bit.
             let body = JettonTransferMessage {
                 query_id,
                 amount: amount.base_units().into(),

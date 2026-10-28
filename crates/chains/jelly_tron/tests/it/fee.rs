@@ -65,8 +65,8 @@ async fn a_transfer_to_a_fresh_address_quotes_the_activation_fee() {
 
 #[tokio::test]
 async fn a_transfer_that_burns_says_the_pools_fell_short() {
-    // Each pool holds fewer points than the transfer needs, so the whole cost burns
-    // rather than being split across them.
+    // Each pool holds fewer points than the transfer needs, and TRON doesn't
+    // combine them, so the whole cost burns.
     let fake = funded(100_000_000).always(Route::AccountResource, resources(400, 200, 0));
     let quote = quote(&fake, &request(TRX, RECIPIENT, 1_000_000)).await.unwrap();
     assert!(quote.fee > Amount::ZERO);

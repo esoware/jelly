@@ -1,8 +1,8 @@
-//! How domain values become columns.
+//! Every encoding here is a disk format.
 //!
-//! Every encoding here is a disk format. Closed vocabularies use [`jelly_core`]'s spelling
-//! (`as_str`/`parse`, or `key`/`parse_key` for assets), so the wire, log, and column
-//! strings are one literal. `tests/it/format.rs` pins the bytes that reach the file.
+//! Closed vocabularies use [`jelly_core`]'s spelling (`as_str`/`parse`, or `key`/`parse_key`
+//! for assets), so the wire, log, and column strings are one literal. `tests/it/format.rs`
+//! pins the bytes that reach the file.
 
 use jelly_core::Amount;
 use rusqlite::Row;
@@ -29,8 +29,8 @@ impl Column {
         Self { entity, name }
     }
 
-    /// For a value this module cannot decode itself, such as a `KeySource`, or a failure
-    /// that is not a decode.
+    /// For a value this module can't decode itself, such as a `KeySource`, or a failure
+    /// that isn't a decode.
     pub(crate) const fn name(self) -> &'static str {
         self.name
     }
@@ -56,7 +56,7 @@ pub(crate) fn optional_u64_to_db(
     value.map(|value| u64_to_db(value, column)).transpose()
 }
 
-/// A closed vocabulary stored as its `as_str` spelling.
+/// A closed vocabulary stored as its wire spelling.
 pub(crate) fn wire<T>(
     row: &Row<'_>,
     column: Column,

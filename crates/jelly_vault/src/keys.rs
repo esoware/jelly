@@ -1,8 +1,7 @@
 //! The key hierarchy of one vault file.
 //!
-//! Two factors go in, the keychain master key and the Argon2id output over the
-//! password. HKDF-SHA-256 combines them with the per-file extract salt from the
-//! header and a domain-separated `info` per output.
+//! HKDF-SHA-256 combines the keychain master key and the Argon2id hash of the password,
+//! using the header's per-file extract salt and a separate `info` for each output.
 //!
 //! ```text
 //! header mac key = HKDF(salt, ikm = master,                   info = HMAC_INFO || lp(wallet_id))
@@ -12,19 +11,18 @@
 //! lp(x)          = u64le(len(x)) || x
 //! ```
 //!
-//! The header MAC key is deliberately password-independent, so the file's integrity is
-//! provable before the password is known. That is what separates a tampered file from a
-//! wrong password.
+//! The header MAC key doesn't depend on the password, so the file's integrity can be
+//! checked before the password is, and a tampered file never reads as a wrong password.
 //!
-//! The commitment is written to the header in clear. XChaCha20-Poly1305 is not
-//! key-committing, so a ciphertext can in principle be crafted to open under more than
-//! one key. Comparing a password-derived commitment before the AEAD closes that class
-//! and makes an AEAD failure mean corruption rather than a wrong password. It reveals
-//! nothing an attacker holding the file and the master key could not already test by
-//! trial decryption, and nothing at all to an attacker holding only the file.
+//! The commitment sits in the header in the clear. XChaCha20-Poly1305 isn't
+//! key-committing, so a ciphertext could in principle be crafted to open under more than
+//! one key. Checking the commitment before the AEAD rules that out, and means an AEAD
+//! failure is corruption, not a wrong password. It tells an attacker holding the file and
+//! the master key nothing they couldn't learn by trial decryption, and tells one holding
+//! only the file nothing at all.
 //!
-//! Every `info` string below, like the domains in `vault_file.rs`, is on-disk contract.
-//! Editing one makes every existing vault undecryptable.
+//! The `info` strings below, like the domains in `vault_file.rs`, are part of the on-disk
+//! format. Changing one makes every existing vault undecryptable.
 
 use std::fmt;
 use std::mem;
@@ -56,7 +54,7 @@ const AEAD_INFO: &[u8] = b"jelly-vault/v3/aead";
 const HMAC_INFO: &[u8] = b"jelly-vault/v3/hmac";
 const COMMIT_INFO: &[u8] = b"jelly-vault/v3/commit";
 
-/// What a password unlocks, the AEAD key and the commitment proving it is the key this
+/// What a password unlocks: the AEAD key, and the commitment proving it's the key this
 /// file was sealed under.
 pub(crate) struct PasswordKeys {
     pub(crate) aead_key: Zeroizing<[u8; KEY_LEN]>,
@@ -69,8 +67,8 @@ impl fmt::Debug for PasswordKeys {
     }
 }
 
-/// The password-independent key the header tag is computed under, from the master key
-/// alone. Boxed, because an open session holds it at one address for its lifetime.
+/// The header tag's key, from the master key alone. Boxed so an open session holds it at
+/// one address for its lifetime.
 pub(crate) fn header_mac_key(
     master: &MasterKey,
     hkdf_salt: &[u8; HKDF_SALT_LEN],
@@ -81,7 +79,6 @@ pub(crate) fn header_mac_key(
     Ok(SecretBox::init_with_mut(|slot: &mut [u8; KEY_LEN]| *slot = *key))
 }
 
-/// Needs both factors. Neither the keychain entry nor the password is sufficient alone.
 pub(crate) fn password_keys(
     master: &MasterKey,
     password_hash: &[u8; KEY_LEN],
@@ -98,7 +95,7 @@ pub(crate) fn password_keys(
     })
 }
 
-/// Whether two commitments are the same, without leaking where they differ.
+/// Constant-time, so a mismatch doesn't leak where the two differ.
 #[must_use]
 pub(crate) fn commitment_matches(
     left: &[u8; COMMITMENT_LEN],
@@ -107,7 +104,7 @@ pub(crate) fn commitment_matches(
     left.ct_eq(right).into()
 }
 
-/// Eight little-endian bytes of `length`, an on-disk contract.
+/// `length` as eight little-endian bytes, part of the on-disk format.
 ///
 /// Every variable-length field in a MAC message, an HKDF `info`, or the AEAD associated
 /// data carries this prefix, so two different field sets never serialize identically.
@@ -115,8 +112,6 @@ pub(crate) fn length_prefix(length: usize) -> Result<[u8; 8], VaultError> {
     u64::try_from(length).map(u64::to_le_bytes).map_err(|_| VaultError::internal("length prefix"))
 }
 
-/// The wallet id is length-prefixed because it is the only variable-length
-/// component of the `info` string, so no two ids can produce the same bytes.
 fn expand(
     hkdf: &Hkdf<Sha256>,
     info: &'static [u8],
@@ -129,10 +124,8 @@ fn expand(
     Ok(key)
 }
 
-/// An HMAC-SHA-256 in progress over the canonical header encoding.
-///
-/// Fed field by field rather than over a materialized buffer, so the ciphertext
-/// is never copied just to be authenticated.
+/// HMAC-SHA-256 over the canonical header encoding, fed field by field so the ciphertext
+/// isn't copied just to be authenticated.
 pub(crate) struct HeaderMac(Hmac<Sha256>);
 
 impl HeaderMac {
@@ -155,8 +148,7 @@ impl HeaderMac {
         self.0.finalize().into_bytes().into()
     }
 
-    /// Constant-time comparison, delegated to the MAC so the tag is never
-    /// handed around.
+    /// Compares in constant time.
     #[must_use]
     pub(crate) fn verify(self, tag: &[u8; MAC_LEN]) -> bool {
         self.0.verify_slice(tag).is_ok()
@@ -169,8 +161,8 @@ impl fmt::Debug for HeaderMac {
     }
 }
 
-/// The AEAD of one unlocked session. Built once and held for the session.
-/// `chacha20poly1305`'s `zeroize` feature wipes the held key on drop.
+/// The AEAD of one unlocked session. The `zeroize` feature of `chacha20poly1305` wipes
+/// its key on drop.
 pub(crate) struct SessionCipher(XChaCha20Poly1305);
 
 impl SessionCipher {
@@ -178,9 +170,9 @@ impl SessionCipher {
         Self(XChaCha20Poly1305::new(key.into()))
     }
 
-    /// Seals in place. A `plaintext` without spare capacity for [`TAG_LEN`] more bytes is
-    /// refused, because appending the tag would reallocate and strand an unwipeable copy
-    /// of the plaintext in freed heap.
+    /// Seals in place. Refuses a `plaintext` without spare capacity for [`TAG_LEN`] more
+    /// bytes, since appending the tag would reallocate and strand an unwipeable copy of the
+    /// plaintext in freed heap.
     pub(crate) fn seal(
         &self,
         nonce: &[u8; NONCE_LEN],
@@ -196,7 +188,7 @@ impl SessionCipher {
         Ok(mem::take(&mut *plaintext))
     }
 
-    /// `None` when the Poly1305 tag does not verify.
+    /// `None` when the Poly1305 tag doesn't verify.
     pub(crate) fn open(
         &self,
         nonce: &[u8; NONCE_LEN],
@@ -236,9 +228,9 @@ mod tests {
         buffered
     }
 
-    /// Pins the HKDF wiring the on-disk format depends on, which is the per-file extract
-    /// salt, the input keying material layout, and an `info` of the domain constant plus
-    /// the length-prefixed wallet id.
+    /// Pins the HKDF wiring the on-disk format depends on: the per-file extract salt, the
+    /// input keying material layout, and an `info` of the domain constant plus the
+    /// length-prefixed wallet id.
     #[test]
     fn the_documented_salt_ikm_and_info_are_what_is_used() {
         let master_bytes = [0x11u8; MASTER_KEY_LEN];
@@ -307,9 +299,8 @@ mod tests {
         );
     }
 
-    /// The header tag is exactly HMAC-SHA-256 over the fed bytes under a
-    /// 32-byte key, with no framing of its own beyond the length prefixes the
-    /// caller asks for.
+    /// The header tag is plain HMAC-SHA-256 over the fed bytes, with no framing beyond the
+    /// length prefixes the caller asks for.
     #[test]
     fn the_header_tag_is_plain_hmac_sha256() {
         let key = [0x5au8; KEY_LEN];

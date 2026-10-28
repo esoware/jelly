@@ -53,7 +53,6 @@ jelly_net          = { workspace = true, features = ["test-util"] }
 jelly_solana       = { workspace = true, features = ["test-util"] }
 tokio              = { workspace = true, features = ["test-util"] }
 
-# Upstream reference implementations. Tests check the workspace's signer
-# against them.
+# Upstream reference signers the tests check ours against.
 solana-keypair = { workspace = true }
 solana-signer  = { workspace = true }

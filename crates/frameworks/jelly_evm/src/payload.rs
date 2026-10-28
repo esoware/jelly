@@ -10,11 +10,10 @@ use crate::fee::FeePair;
 use crate::params::EvmParams;
 use crate::token::TokenMeta;
 
-/// An unsigned transaction and the intent it cannot state about itself.
+/// An unsigned transaction and the intent it can't state about itself.
 ///
-/// Every consensus field lives in one [`TxEip1559`], so the preview, the
-/// signature hash and the broadcast bytes come from the same values and cannot
-/// disagree.
+/// Every consensus field lives in one [`TxEip1559`], so the preview, the signature
+/// hash, and the broadcast bytes can't disagree.
 ///
 /// The wire form is JSON so a bug report can read it. Quantities are hex strings,
 /// alloy's own representation, which round-trips exactly.
@@ -57,7 +56,6 @@ impl EvmPayload {
             .map_err(|source| EvmError::Encode { what: "transaction payload", source })
     }
 
-    /// Validating here keeps every accessor infallible.
     pub(crate) fn decode(bytes: &[u8]) -> Result<Self, EvmError> {
         serde_json::from_slice(bytes).map_err(|source| EvmError::Payload { source })
     }
@@ -74,8 +72,7 @@ impl EvmPayload {
         self.tx.nonce
     }
 
-    /// Refuses a payload whose tip is above its cap, which this build never
-    /// writes.
+    /// Refuses a payload whose tip is above its cap, which we never write.
     pub(crate) const fn fee(&self) -> Result<FeePair, EvmError> {
         FeePair::new(self.tx.max_fee_per_gas, self.tx.max_priority_fee_per_gas)
     }
@@ -122,7 +119,7 @@ impl EvmPayload {
 }
 
 /// Built in one place, so the call a gas estimate is made against and the
-/// transaction that gets signed cannot differ.
+/// transaction that gets signed can't differ.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Shape {
     pub(crate) to: Address,

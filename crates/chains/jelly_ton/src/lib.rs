@@ -1,5 +1,4 @@
-//! TON mainnet: its chain entry, address codec, native seed format, and payments of Gram
-//! and TEP-74 jettons from V5R1, V4R2, and V3R2 wallets.
+//! TON mainnet.
 
 #![deny(clippy::float_arithmetic)]
 

@@ -18,7 +18,7 @@ const BIP84_WIF: &str = "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d";
 const BIP84_ADDRESS: &str = "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu";
 
 /// The secret scalar one as an uncompressed WIF, and the P2PKH address of its
-/// uncompressed public key, which is where a legacy wallet holding it was paid.
+/// uncompressed public key, where a legacy wallet holding it was paid.
 const UNCOMPRESSED_WIF: &str = "5HpHagT65TZzG1PH3CSu63k8DbpvD8s5ip4nEB3kEsreAnchuDf";
 const UNCOMPRESSED_P2PKH: &str = "1EHNa6Q4Jz2uvNExL497mE43ikXhwF6kZm";
 
@@ -53,8 +53,8 @@ fn the_compressed_flag_decides_whether_a_wif_imports() {
     imported.material.with_bytes(|bytes| assert_eq!(bytes, key));
     assert_eq!(ENTRY.recognize_key(&compressed), Some(NAME));
 
-    // A key's addresses all come from its compressed public key, and an uncompressed
-    // WIF's funds sit at the uncompressed key's address.
+    // Jelly derives every address from the compressed key, but an uncompressed WIF's
+    // funds sit at the uncompressed key's address.
     let uncompressed = uncompressed_wif(&key, 0x80);
     assert!(matches!(ENTRY.import_key(&uncompressed, None), Err(KeyError::UncompressedKey)));
     assert_eq!(ENTRY.recognize_key(&uncompressed), Some(NAME));
@@ -126,8 +126,8 @@ fn electrum_3_version_byte_offsets_name_the_address_type() {
 #[test]
 fn a_version_byte_names_only_its_own_network() {
     let key = [7u8; 32];
-    // Bitcoin's P2PKH address byte, Electrum's multisig offset, and Litecoin's and
-    // Dogecoin's WIF bytes.
+    // Bitcoin's P2PKH address byte, an offset Electrum never assigned, and Litecoin's
+    // and Dogecoin's WIF bytes.
     for version in [0x00, 0x83, 0xb0, 0x9e] {
         let wif = wif_encode(&key, version);
         assert!(

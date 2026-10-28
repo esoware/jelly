@@ -18,8 +18,7 @@ use crate::wallet::PassphraseInput;
 /// Domain string of the passphrase verifier.
 ///
 /// Every existing wallet's verifier was computed under this exact string, so changing it
-/// makes every wallet refuse its own passphrase. The tests below pin the tag it
-/// produces.
+/// makes every wallet refuse its own passphrase.
 const VERIFIER_LABEL: &[u8] = b"jelly-engine/v1/passphrase-verifier";
 
 /// Where a new seed wallet's phrase comes from.
@@ -56,7 +55,7 @@ impl SeedKeys {
 /// What a seed wallet's vault is created with.
 pub(crate) struct SeedSecrets {
     entropy: Zeroizing<Vec<u8>>,
-    /// Only a passphrase the wallet stores rather than asks for at every unlock.
+    /// Only set when the wallet stores its passphrase instead of asking at every unlock.
     passphrase: Option<Zeroizing<String>>,
     verifier: Zeroizing<Vec<u8>>,
 }
@@ -68,9 +67,8 @@ pub(crate) struct NewSeed {
     pub(crate) keys: SeedKeys,
 }
 
-/// Turns a phrase into the phrase to hand out and everything the new wallet needs, on
-/// the blocking pool, because the PBKDF2 seed stretch and the account keys are real
-/// work.
+/// Produces the phrase to hand out and everything the new wallet needs. It runs on the
+/// blocking pool, because the PBKDF2 seed stretch and the account keys are real work.
 pub(crate) async fn derive_seed(
     source: SeedSource,
     passphrase: PassphraseInput,
@@ -101,8 +99,8 @@ pub(crate) async fn derive_seed(
     .await
 }
 
-/// Creates a wallet's vault. A seed wallet's is filled in the same blocking pass, so no
-/// caller ever sees it half-populated.
+/// Creates a seed wallet's vault and fills it in the same blocking pass, so no caller
+/// ever sees it half-populated.
 pub(crate) async fn provision(
     handle: Vault,
     password: VaultPassword,
@@ -170,12 +168,11 @@ pub(crate) fn passphrase_text(bytes: &[u8]) -> Result<Zeroizing<String>, CoreErr
         .map_err(|_| CoreError::internal_without_source("the stored passphrase is not text"))
 }
 
-/// HMAC-SHA256 of a fixed label under the expanded seed.
+/// HMAC-SHA256 of a fixed label, keyed by the expanded seed.
 ///
-/// The seed already carries the passphrase, so a tag that verifies proves the
-/// same passphrase was supplied. This exists because BIP-39 has no wrong-passphrase
-/// detection of its own, since every passphrase yields a valid seed and a disjoint
-/// wallet.
+/// BIP-39 can't detect a wrong passphrase, since every passphrase yields a valid seed and
+/// a different wallet. The seed already carries the passphrase, so a tag that verifies
+/// proves the same passphrase was supplied.
 fn verifier_tag(seed: &Seed) -> Result<Zeroizing<Vec<u8>>, CoreError> {
     let mut mac = seed.with_bytes(|bytes| Hmac::<Sha256>::new_from_slice(bytes)).map_err(|_| {
         CoreError::internal_without_source("the passphrase verifier key is the wrong length")

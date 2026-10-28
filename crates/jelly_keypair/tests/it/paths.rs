@@ -5,11 +5,10 @@ use jelly_keypair::{
 };
 use proptest::prelude::*;
 
-/// `m/44'/501'/{index}'/0'`, the path Phantom and Solflare use, with every component
-/// hardened.
+/// The path Phantom and Solflare use.
 const SOLANA_TEMPLATE: &str = "m/44'/501'/{index}'/0'";
 
-#[expect(clippy::expect_used, reason = "a fixture helper must fail loudly")]
+#[expect(clippy::expect_used, reason = "test helper")]
 fn solana() -> PathTemplate {
     PathTemplate::parse(SOLANA_TEMPLATE).expect("the template parses")
 }
@@ -48,7 +47,7 @@ fn the_account_prefix_ends_at_the_last_hardened_component() {
 }
 
 #[test]
-fn a_family_recognises_only_its_own_instances() {
+fn a_family_recognizes_only_its_own_instances() {
     let template = solana();
     assert_eq!(template.index_of(&parse_path("m/44'/501'/7'/0'").unwrap()), Some(7));
     assert_eq!(template.index_of(&parse_path("m/44'/501'/7'/0").unwrap()), None);

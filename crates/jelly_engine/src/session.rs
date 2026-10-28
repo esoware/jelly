@@ -31,9 +31,9 @@ wire_enum! {
     }
 }
 
-/// What the interface shows about the lock.
+/// The lock state the interface shows.
 ///
-/// Advisory, so anything irreversible re-reads the real state rather than trusting a
+/// Advisory, so anything irreversible re-reads the real state instead of trusting a
 /// stale event.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -70,25 +70,21 @@ impl LockState {
     }
 }
 
-/// Everything that exists only while a wallet is open.
-///
-/// The engine holds it behind a single lock. Apart from the account keys the adapters
-/// share until a lock retires them, nothing else keeps a handle on the vault or the key
-/// material, so dropping this drops every secret the session derived.
+/// Exists only while a wallet is unlocked. Nothing outside it holds the vault or keys
+/// (except adapters' account keys, until lock), so dropping it drops every secret.
 ///
 /// `last_activity_millis` advances only through [`WalletEngine::touch_session`], so
-/// neither background work nor the interface refreshing after it can hold the session
-/// open.
+/// background work and the interface's refreshes after it can't keep the session open.
 pub(crate) struct Session {
     wallet_id: i64,
     table: &'static ChainTable,
-    /// Vault writes and Argon2id reauthentication run on the blocking pool. Reads of the
+    /// Writes and Argon2id reauthentication run on the blocking pool, and reads of the
     /// decrypted payload run inline.
     ///
-    /// A reader-writer lock lets reads proceed during reauthentication, which needs only
-    /// shared access and may take hundreds of milliseconds. A write holds it exclusively,
-    /// for a whole-file rewrite or for the two Argon2id passes of a password change, and an
-    /// inline read blocks its runtime worker until the write is done.
+    /// An `RwLock` lets reads proceed during a reauthentication, which only needs shared
+    /// access but can take hundreds of milliseconds. A write (a whole-file rewrite, or a
+    /// password change's two Argon2id passes) holds it exclusively and blocks inline reads
+    /// on their runtime worker.
     vault: Arc<RwLock<UnlockedVault>>,
     keys: SeedKeys,
     last_activity_millis: AtomicU64,
@@ -162,9 +158,8 @@ impl Session {
         self.keys.account_keys.clone()
     }
 
-    /// A read of the decrypted payload the unlock already produced. No crypto and no file
-    /// access, so it runs inline, but it waits for the lock, so it blocks its runtime
-    /// worker for as long as a vault write holds it.
+    /// No crypto or I/O, so it runs inline, but it blocks while a vault write holds the
+    /// lock.
     pub(crate) fn vault_read<T>(
         &self,
         access: impl FnOnce(&UnlockedVault) -> Result<T, VaultError>,
@@ -172,8 +167,7 @@ impl Session {
         access(&self.vault.read()).map_err(CoreError::from)
     }
 
-    /// Every vault write rewrites the whole encrypted file, so none belongs on the async
-    /// runtime.
+    /// Every write rewrites the whole encrypted file, so it runs on the blocking pool.
     pub(crate) async fn vault_write<T, F>(&self, access: F) -> Result<T, CoreError>
     where
         F: FnOnce(&mut UnlockedVault) -> Result<T, VaultError> + Send + 'static,
@@ -183,8 +177,8 @@ impl Session {
         blocking(move || access(&mut vault.write())).await
     }
 
-    /// A read that re-derives the key from a password, which costs an Argon2id pass, so
-    /// it runs on the blocking pool.
+    /// A read that re-derives the key from a password. That's an Argon2id pass, so it
+    /// runs on the blocking pool.
     pub(crate) async fn vault_reauth<T, F>(&self, access: F) -> Result<T, CoreError>
     where
         F: FnOnce(&UnlockedVault) -> Result<T, VaultError> + Send + 'static,
@@ -194,21 +188,21 @@ impl Session {
         blocking(move || access(&vault.read())).await
     }
 
-    /// Re-authenticates. The check happens inside `jelly_vault`, which
-    /// re-derives the key from the password, so a caller cannot skip it.
+    /// The check happens inside `jelly_vault`, which re-derives the key from the
+    /// password, so a caller can't skip it.
     pub(crate) async fn verify_password(&self, password: SecretString) -> Result<(), CoreError> {
         let password = VaultPassword::new(password);
         self.vault_reauth(move |vault| vault.verify_password(&password)).await
     }
 }
 
-/// The one slot an open session lives in, with the two channels its lifetime publishes,
-/// the advisory lock state and the idle timeout the watcher obeys.
+/// Holds the open session, plus channels for the advisory lock state and the idle
+/// timeout the watcher follows.
 #[derive(Debug)]
 pub(crate) struct SessionSlot {
     current: RwLock<Option<Arc<Session>>>,
     /// Held through retirement and through creating, unlocking, editing, or deleting a
-    /// wallet. Publication outside those relies on the slot's read guard (see
+    /// wallet. Adapter publication relies on the slot's read guard instead (see
     /// `rebuild_adapters`).
     pub(crate) transition: Mutex<()>,
     state: watch::Sender<LockState>,
@@ -222,7 +216,7 @@ impl SessionSlot {
         Self { current: RwLock::new(None), transition: Mutex::new(()), state, timeout }
     }
 
-    /// The open session without the expiry check, which background work leaves to the
+    /// The open session, skipping the expiry check. Background work leaves that to the
     /// idle watcher.
     pub(crate) fn current(&self) -> Option<Arc<Session>> {
         self.read().as_ref().map(Arc::clone)
@@ -276,13 +270,11 @@ impl SessionSlot {
 /// What the idle watcher should do next.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Idle {
-    /// Nothing is open, so there is nothing left to watch.
     NoSession,
-    /// Auto-lock is off, so wait for it to be retuned.
+    /// Auto-lock is off, so wait for the timeout to change.
     Disabled,
     /// The session has this long left if nothing touches it.
     Wait(Duration),
-    /// The window has run out.
     Expired,
 }
 
@@ -296,9 +288,9 @@ impl WalletEngine {
         self.inner.session.state()
     }
 
-    /// Resets the auto-lock countdown, and nothing else does. The interface repeats its
-    /// reads after every background event, so an operation is no evidence of the user,
-    /// and the command layer calls this for user input instead.
+    /// The only thing that resets the auto-lock countdown. The interface re-reads after
+    /// every background event, so other operations don't count as user activity, and the
+    /// command layer calls this on user input instead.
     pub async fn touch_session(&self) -> Result<(), CoreError> {
         let session = self.require_session().await?;
         session.touch(self.inner.clock.as_ref());
@@ -312,11 +304,10 @@ impl WalletEngine {
         self.lock_inner(LockReason::Requested).await;
     }
 
-    /// Locks the session if it has been idle past the configured timeout, and
-    /// reports whether it did.
+    /// Locks the session if it's been idle past the timeout, and returns whether it did.
     ///
-    /// The idle watcher and every session-scoped operation go through this, so
-    /// an expired session is never usable even if the watcher is late.
+    /// The idle watcher and every session-scoped operation go through this, so an expired
+    /// session is never usable even if the watcher is late.
     pub(crate) async fn poll_auto_lock(&self) -> bool {
         if !matches!(self.idle_check(), Idle::Expired) {
             return false;
@@ -329,7 +320,7 @@ impl WalletEngine {
         true
     }
 
-    /// The open session, refusing an expired one. It marks no activity.
+    /// The open session, refusing an expired one. Doesn't count as activity.
     pub(crate) async fn require_session(&self) -> Result<Arc<Session>, CoreError> {
         if self.poll_auto_lock().await {
             return Err(CoreError::Locked);
@@ -349,8 +340,9 @@ impl WalletEngine {
         tracing::info!(target: "jelly::engine::session", wallet_id = wallet.id, "wallet unlocked");
     }
 
-    /// The caller holds the transition lock. Retirement owns the send guard even if its
-    /// awaiter is cancelled, so no later session can install before the old tasks drain.
+    /// The caller holds the transition lock. The retiring task keeps the send guard even
+    /// if this future is dropped, so no later session can install before the old tasks
+    /// drain.
     pub(crate) async fn lock_inner(&self, reason: LockReason) {
         if let Some(session) = self.inner.session.current() {
             session.cancel.cancel();
@@ -393,10 +385,8 @@ impl WalletEngine {
         if left.is_zero() { Idle::Expired } else { Idle::Wait(left) }
     }
 
-    /// The session's idle watcher.
-    ///
-    /// It runs on the engine's tracker rather than the session's, because `lock_inner` awaits
-    /// the session's tracker and this task may trigger the lock. It holds only a weak
+    /// Runs on the engine's tracker, not the session's, because it may trigger
+    /// `lock_inner`, which waits for the session's tracker to drain. It holds only a weak
     /// handle, so it never keeps the engine alive.
     fn spawn_idle_watch(&self, cancel: CancellationToken) {
         let weak = Arc::downgrade(&self.inner);

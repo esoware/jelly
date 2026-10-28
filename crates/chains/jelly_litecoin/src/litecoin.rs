@@ -14,8 +14,7 @@ use jelly_utxo::{
 /// The litoshi is abbreviated lit, as litecoinspace.org writes it.
 const FEE_RATE_UNIT: &str = "lit/vB";
 
-/// Litecoin has activated taproot, and its codec reads and pays a taproot address, but
-/// no Litecoin wallet derives a taproot key, so it is no flavour to derive under.
+/// Pays to taproot but doesn't derive it, since no other Litecoin wallet does.
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Litecoin,
     coin_name: "Litecoin",
@@ -30,9 +29,7 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::Rate),
-    // About $2.00 at the October 2026 price of $57. A 141 vB payment costs 1410 lit at the
-    // wallet's minimum of 10 lit/vB. A build refuses a fee above the 0.02 LTC fee ceiling,
-    // so no fee reaches it.
+    // About $2. The 0.02 LTC fee ceiling refuses any fee before it gets this high.
     high_fee: Amount::from_base_units(3_500_000),
     can_pin_nonce: false,
     can_carry_data: false,
@@ -50,38 +47,31 @@ pub const SPEC: ChainSpec = ChainSpec {
     needs_account_key: false,
 };
 
-/// P2PKH renders as `L` and P2SH as `M`.
-///
-/// The superseded P2SH version byte renders as `3`, and Litecoin Core still accepts it
-/// when decoding. It is Bitcoin's current P2SH byte, which is what makes a `3...` address
-/// ambiguous between the two chains.
+/// P2PKH renders as `L` and P2SH as `M`. Litecoin Core still decodes the superseded P2SH
+/// byte, which renders as `3` and is Bitcoin's P2SH byte, so a `3...` address is valid on
+/// both chains.
 const CODEC: UtxoCodec = UtxoCodec {
     chain: SPEC.chain,
     segwit_hrp: Some("ltc"),
     base58: Base58Versions { p2pkh: 0x30, p2sh: 0x32, superseded_p2sh: Some(0x05) },
 };
 
-/// Litecoin relay and consensus constants in weight units.
-///
-/// The 30000 lit/kvB dust relay fee, ten times Bitcoin's, is 7500 per kwu, and
-/// the 1000 lit/kvB minimum and incremental relay fees are 250 per kwu.
-///
-/// The network's incremental relay fee raises the compiled replacement floor when
-/// the node requires more.
+/// Rates are per kwu, a quarter of Litecoin Core's per-kvB figures: the 30000 lit/kvB
+/// dust relay fee, ten times Bitcoin's, is 7500, and the 1000 lit/kvB minimum and
+/// incremental relay fees are 250.
 pub const PARAMS: UtxoParams = UtxoParams {
     chain: SPEC.chain,
     codec: &CODEC,
     script_kinds: SPEC.script_kinds,
     fee_rate_unit: FEE_RATE_UNIT,
-    // Mined 2011-10-07.
     genesis: [
         0x12, 0xa7, 0x65, 0xe3, 0x1f, 0xfd, 0x40, 0x59, 0xba, 0xda, 0x1e, 0x25, 0x19, 0x0f, 0x6e,
         0x98, 0xc9, 0x9d, 0x97, 0x14, 0xd3, 0x34, 0xef, 0xa4, 0x1a, 0x19, 0x5a, 0x7e, 0x7e, 0x04,
         0xbf, 0xe2,
     ],
-    // The third halving's block, mined 2023-08-02, past every chain that kept
-    // Litecoin's block zero: Feathercoin, which parts from it at block one, and
-    // Litecoin Cash, which split at 1371111.
+    // The third halving (2023-08-02), after every chain that shares Litecoin's block
+    // zero: Feathercoin, which differs from block one, and Litecoin Cash, which split
+    // at 1371111.
     checkpoint: Some(KnownBlock {
         height: 2_520_000,
         hash: [
@@ -102,17 +92,16 @@ pub const PARAMS: UtxoParams = UtxoParams {
     // relay floor.
     min_tx_fee: FeeRate::from_sat_per_kwu(2_500),
     fee_market: FeeMarket::Auction(Auction {
-        // An hour, Litecoin Core's `DEFAULT_TX_CONFIRM_TARGET`, and two blocks, at
-        // two and a half minutes a block.
+        // An hour, Litecoin Core's `DEFAULT_TX_CONFIRM_TARGET`, and two blocks, at 2.5
+        // minutes a block.
         target_blocks: [24, 6, 2],
         block_vsize: 1_000_000,
         // Only the whole-number route, which every mempool.space deployment serves.
         api_route: "/v1/fees/recommended",
         api_fallback_route: None,
     }),
-    // Litecoin Core refuses a replacement unless `-mempoolreplacement` is set,
-    // which it is not by default, so a send is sped up by a child spending its
-    // change, which every node relays.
+    // Litecoin Core relays a replacement only when `-mempoolreplacement` is set, and
+    // it's off by default.
     replacement: Replacement::WhenConfigured,
     bump_method: Some(BumpMethod::ChildPaysForParent),
     sighash_fork_id: None,
@@ -121,28 +110,25 @@ pub const PARAMS: UtxoParams = UtxoParams {
     confirmation_watch_depth: 6,
     coinbase_maturity: 100,
     pegout_maturity: 6,
-    // A `3...` address is Litecoin's superseded P2SH form and shares its encoding
-    // with Bitcoin's, so the string alone cannot say which chain it belongs to,
-    // and paying the wrong one is unrecoverable.
+    // A `3...` address may be Bitcoin's, and paying the wrong chain can be
+    // unrecoverable.
     address_notes: &[AddressNote {
         prefix: "3",
         kind: TxWarningKind::AmbiguousAddress,
         message: "This legacy 3... address is valid on both Litecoin and Bitcoin. Confirm the recipient expects Litecoin before sending.",
     }],
-    // `MimbleWimble` Extension Blocks (LIP-0002 to LIP-0004, activated May 2022)
-    // are a parallel transaction domain with confidential amounts. An MWEB
-    // address is not an output script, and the extension block is invisible to
-    // Electrum's scripthash index, so a scripthash wallet can neither pay nor
-    // watch one.
+    // An MWEB address (LIP-0002 to LIP-0004) isn't an output script, and its
+    // transactions live in an extension block Electrum's scripthash index can't
+    // see, so a scripthash wallet can neither pay nor watch one.
     address_refusals: &[AddressRefusal {
         prefix: "ltcmweb",
         message: "Jelly cannot send to or scan Litecoin MWEB addresses. Use a regular Litecoin address.",
     }],
-    // A 250 vB payment at Litecoin Core's 10 lit/vB wallet floor pays 2500 lit, so
-    // this is nearly three orders of magnitude above anything normal.
+    // Nearly three orders of magnitude above a 250 vB payment at Litecoin Core's
+    // 10 lit/vB wallet floor.
     fee_ceiling: Amount::from_base_units(2_000_000),
-    // The relay floor rather than Core's higher consolidation rate, so coin
-    // selection does not overprice change.
+    // The relay floor, not Core's higher consolidation rate, so coin selection
+    // doesn't overprice change.
     long_term_fee_rate: FeeRate::from_sat_per_kwu(250),
 };
 

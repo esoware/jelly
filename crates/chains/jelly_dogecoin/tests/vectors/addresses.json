@@ -35,7 +35,7 @@
     {
       "address": "9rV1JHmsZEEeQMT5pxZV5wjQvRYZtP2eyZ",
       "script_pubkey": "a91400846c3f4a7bb38e9b422b4129bf8b191287289e87",
-      "why": "pay-to-script-hash: payable, and no single-key flavour"
+      "why": "pay-to-script-hash: payable, and no single-key flavor"
     }
   ],
   "valid": ["DBus3bamQjgJULBJtYXpEzDWQRwF5iwxgC", "9rV1JHmsZEEeQMT5pxZV5wjQvRYZtP2eyZ"],

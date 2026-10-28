@@ -6,9 +6,8 @@ use serde::{Serialize, Serializer};
 use crate::chain::ChainId;
 use crate::wire_enum;
 
-/// Redacted endpoint identity for errors, logs, events, and health records. Only scheme,
-/// host, and port remain. Userinfo, paths, and queries may contain credentials and must be
-/// removed.
+/// Redacted endpoint identity for errors, logs, events, and health records. It keeps only
+/// the scheme, host, and port, since userinfo, paths, and queries can carry credentials.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EndpointLabel {
     scheme: String,
@@ -30,7 +29,7 @@ impl EndpointLabel {
     }
 
     /// The label of a URL in whatever spelling it was stored or typed. Without a scheme
-    /// separator the whole string is taken as the authority.
+    /// separator the whole string is the authority.
     ///
     /// Any port stays inside `host` and `port` is `None`, so this label differs from a
     /// `new` label of the same endpoint that names its port separately.
@@ -83,8 +82,8 @@ wire_enum! {
 }
 
 impl FailureKind {
-    /// Whether the endpoint was never reached: it would not connect, finish TLS, or
-    /// answer in time. Every other class is an answer, however unusable.
+    /// Whether the endpoint was never reached: it wouldn't connect, finish TLS, or answer
+    /// in time. Every other class is an answer, however unusable.
     pub const fn is_unreachable(self) -> bool {
         match self {
             Self::Connect | Self::Tls | Self::Timeout | Self::Transport => true,
@@ -99,7 +98,7 @@ impl FailureKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EndpointAttempt {
-    /// The endpoint's label as it reads, such as `https://node.example.com:8443`.
+    /// The endpoint's label as text, such as `https://node.example.com:8443`.
     #[cfg_attr(feature = "ipc", specta(type = String))]
     #[serde(serialize_with = "label_text")]
     pub endpoint: EndpointLabel,
@@ -121,10 +120,10 @@ fn label_text<S: Serializer>(label: &EndpointLabel, serializer: S) -> Result<S::
 /// One endpoint the user added or flagged, as the engine stores it and the endpoint
 /// registry applies it.
 ///
-/// Both addresses can carry credentials, so `Debug` leaves them out.
+/// Both URLs can carry credentials, so `Debug` leaves them out.
 #[derive(Clone, PartialEq, Eq)]
 pub struct EndpointOverride {
-    /// The canonical URL, which is what the store holds.
+    /// The canonical URL, as the store holds it.
     pub url: String,
     /// What the user typed.
     pub display: String,
@@ -149,11 +148,11 @@ impl fmt::Debug for EndpointOverride {
     }
 }
 
-/// What is remembered about one endpoint between runs, as the network layer records it
-/// and the engine stores it.
+/// What's remembered about one endpoint between runs, as the network layer records it and
+/// the engine stores it.
 ///
-/// Nothing here depends on the monotonic clock, so the record stays meaningful across a
-/// restart. A quarantine deadline is a monotonic reading, so it is never part of it.
+/// Nothing here reads the monotonic clock, so the record stays meaningful across a
+/// restart. That's why a quarantine deadline is never part of it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EndpointHealth {
     pub score_permille: u16,
@@ -169,7 +168,7 @@ pub struct EndpointHealth {
 
 impl EndpointHealth {
     /// The score of an endpoint nothing has been heard from, and the one a stored score
-    /// decays back towards.
+    /// decays back toward.
     pub const BASELINE_PERMILLE: u16 = 750;
 }
 

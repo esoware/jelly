@@ -1,5 +1,3 @@
-//! Fixtures the unit tests share.
-
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use jelly_core::{AssetId, ChainId, TokenId};

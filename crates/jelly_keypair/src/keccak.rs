@@ -7,8 +7,8 @@ pub fn keccak256(data: &[u8]) -> [u8; 32] {
     Keccak256::digest(data).into()
 }
 
-/// The last twenty bytes of the Keccak-256 of a secp256k1 point's coordinates, which
-/// is the address body an EVM account and a TRON account share.
+/// The last twenty bytes of the Keccak-256 of a secp256k1 point's coordinates, the
+/// address body EVM and TRON accounts share.
 ///
 /// Accepts a 33-byte compressed key, a 65-byte uncompressed key, or the bare 64-byte
 /// coordinate pair.

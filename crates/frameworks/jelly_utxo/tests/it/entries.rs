@@ -1,6 +1,5 @@
-//! The four chain entries side by side. The chain table names the chain a key belongs
-//! to by asking every other entry to recognize it, so each entry must name exactly the
-//! keys of its own version byte.
+//! The chain table names a key's chain by asking every entry to recognize it, so each
+//! entry must recognize exactly the keys of its own version byte.
 
 use jelly_core::{ChainEntry, ChainId};
 
@@ -32,8 +31,8 @@ fn a_wif_imports_into_every_chain_its_version_byte_names() {
     }
 }
 
-/// Every chain that refuses a key leaves it to the chain whose format it is, so the
-/// table can say which chain that is.
+/// A chain that refuses a key leaves it unnamed, so the table can name the chain it
+/// belongs to.
 #[test]
 fn a_key_another_chain_owns_is_named_by_that_chain() {
     for (input, owner, name) in [

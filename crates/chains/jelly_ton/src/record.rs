@@ -215,15 +215,15 @@ fn phases(parser: &mut CellParser<'_>) -> Result<Phases, TonError> {
             }
             action.load_u16(16)?;
             action.load_u16(16)?;
-            // A message sent with mode 2 that fails is skipped instead of aborting the
-            // transaction, so a send that created nothing failed without aborting.
+            // With mode 2, a message that fails is skipped instead of aborting the
+            // transaction, so a send that skipped an action and created no message failed.
             action.load_u16(16)? > 0 && action.load_u16(16)? == 0
         }
         None => false,
     };
     let is_aborted = parser.load_bit()?;
     // Only `tr_phase_bounce_ok` starts with a set bit, and only it sends the inbound
-    // value back. A bounce that cannot pay for its message leaves the value credited.
+    // value back. A bounce that can't pay for its message leaves the value credited.
     let is_bounced = parser.load_bit()? && parser.load_bit()?;
     Ok(Phases { is_aborted, is_skipped, is_bounced })
 }

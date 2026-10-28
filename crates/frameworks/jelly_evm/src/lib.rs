@@ -1,10 +1,10 @@
-//! The EVM framework every EIP-155 network shares: the adapter, the address codec,
-//! the chain entry with its key import and export, and the build and probe wiring,
-//! each generic over the network's [`EvmParams`].
+//! The framework every EVM chain crate runs on. Each one plugs in with its
+//! [`EvmParams`] and [`EvmEntry`].
 //!
-//! Signed payloads carry their EIP-155 chain id to prevent cross-chain replay.
-//! Token metadata comes from the compiled-in registry, never the chain. Amounts
-//! are integer base units, narrowed with checks from the node's 256-bit values.
+//! Signed transactions carry their EIP-155 chain id, so they can't be replayed on
+//! another network. Token symbols and decimals come from the compiled-in registry,
+//! never the chain, and the node's 256-bit values are narrowed with checks into
+//! integer base units.
 
 #![deny(clippy::float_arithmetic)]
 mod abi;

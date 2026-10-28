@@ -11,15 +11,15 @@ use crate::script::SpendableScript;
 use crate::select::{Selection, SelectionRequest, select_coins};
 use crate::{fee, weight};
 
-/// One sending address, already through the table's address gate and canonical.
+/// A sending address, canonical and already through the table's address gate.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Source<'a> {
     pub(crate) address: &'a str,
     pub(crate) script: &'a SpendableScript,
 }
 
-/// The sources that `inputs` spends from, in their order, with the first one too
-/// when change returns to it. These are what a payload names and what signs it.
+/// The sources `inputs` spend from, in order, plus the first when change returns to
+/// it. The payload names these, and their keys sign it.
 pub(crate) fn participants(
     sources: &[Source<'_>],
     inputs: &[Utxo],
@@ -36,8 +36,8 @@ pub(crate) fn participants(
         .collect()
 }
 
-/// Both ends arrive already through the table's address gate and canonical, so
-/// a build reads no address.
+/// Both ends are already canonical and through the table's address gate, so a
+/// build parses no address.
 #[derive(Debug, Clone)]
 pub(crate) struct BuildRequest<'a> {
     /// The addresses whose coins pool into `coins`, in the request's order. Change
@@ -45,17 +45,16 @@ pub(crate) struct BuildRequest<'a> {
     pub(crate) sources: Vec<Source<'a>>,
     pub(crate) to: &'a str,
     pub(crate) to_script: &'a Script,
-    /// Absent exactly when the request is a send-max.
+    /// `None` for a send-max.
     pub(crate) amount: Option<Amount>,
     pub(crate) fee_rate: FeeRate,
-    /// The verified unspent sets of every source, already filtered through the
-    /// outpoint claims.
+    /// Every source's verified unspent coins, minus claimed ones.
     pub(crate) coins: &'a [Utxo],
     /// The tip the anti-fee-sniping locktime is set from, and the one a coinbase
     /// or peg-out output has to have matured by.
     pub(crate) tip_height: u32,
-    /// The rate the network is currently refusing to relay below, never under the
-    /// table's compiled floor.
+    /// The lowest rate the network currently relays, never under the table's
+    /// compiled floor.
     pub(crate) relay_floor: FeeRate,
 }
 
@@ -88,9 +87,8 @@ pub(crate) fn build_tx(
         }
     };
 
-    // A node refuses the whole transaction if one input is a coinbase or peg-out
-    // output that has not matured by the block after the tip, and an input that
-    // carries tokens would lose them.
+    // A node refuses the whole transaction if any input is an immature coinbase or
+    // peg-out output, and spending an input that carries tokens would burn them.
     let selectable: Vec<Utxo> = request
         .coins
         .iter()
@@ -111,8 +109,7 @@ pub(crate) fn build_tx(
     )?;
 
     // The recipient is output zero and change, if any, is output one. Outputs are
-    // never shuffled, so the approved preview is the transaction that gets
-    // broadcast.
+    // never shuffled.
     let mut outputs = vec![tx_out(selection.recipient_value, request.to_script.to_owned())?];
     if let Some(value) = selection.change {
         outputs.push(tx_out(value, change.script.script_buf().clone())?);
@@ -196,8 +193,8 @@ mod tests {
         assert!(tx.input.iter().all(|txin| txin.sequence.is_rbf()));
     }
 
-    /// Nothing replaces on Bitcoin Cash, so its inputs do not signal, and the
-    /// locktime is still enforced.
+    /// Bitcoin Cash has no replacement, so its inputs don't signal, but the locktime
+    /// is still enforced.
     #[test]
     fn a_bitcoin_cash_transaction_signals_no_replacement_and_keeps_its_locktime() {
         let scene = bitcoin_cash_scene().unwrap();
@@ -208,7 +205,7 @@ mod tests {
         assert!(tx.input.iter().all(|txin| txin.sequence.enables_absolute_lock_time()));
     }
 
-    /// A coin that carries tokens is never an input, so a payment cannot burn them.
+    /// A coin that carries tokens is never an input, so a payment can't burn them.
     #[test]
     fn a_coin_that_carries_tokens_is_never_spent() {
         let scene = bitcoin_cash_scene().unwrap();

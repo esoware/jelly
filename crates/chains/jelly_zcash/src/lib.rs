@@ -1,4 +1,4 @@
-//! Transparent Zcash wallet support using the Zcash consensus libraries.
+//! Zcash mainnet, transparent addresses only.
 
 #![deny(clippy::float_arithmetic)]
 

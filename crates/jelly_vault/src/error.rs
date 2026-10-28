@@ -25,16 +25,16 @@ pub enum VaultError {
     #[error("the keychain already holds a master key for this wallet")]
     KeychainOccupied,
 
-    #[error("the keychain entry for this wallet is not a {MASTER_KEY_LEN}-byte master key")]
+    #[error("the keychain entry for this wallet isn't a {MASTER_KEY_LEN}-byte master key")]
     KeychainMalformed,
 
-    #[error("the platform credential store did not initialize")]
+    #[error("the platform credential store didn't initialize")]
     KeychainUnavailable,
 
     #[error("the platform credential store refused the operation")]
     Keychain(#[source] keyring::Error),
 
-    #[error("the vault file is not readable as a vault")]
+    #[error("the vault file isn't readable as a vault")]
     Malformed(#[source] serde_json::Error),
 
     #[error("the vault file is corrupt or has been tampered with: {reason}")]
@@ -61,7 +61,7 @@ pub enum VaultError {
     #[error("this vault holds no {0} entry")]
     NoEntryOfKind(BlobKind),
 
-    #[error("vault entry {0} does not hold signing key material")]
+    #[error("vault entry {0} doesn't hold signing key material")]
     NotKeyMaterial(EntryId),
 
     #[error("io error on {path}")]
@@ -71,7 +71,7 @@ pub enum VaultError {
         source: io::Error,
     },
 
-    #[error("could not draw random bytes for the vault")]
+    #[error("couldn't draw random bytes for the vault")]
     Entropy(#[from] EntropyError),
 
     #[error("internal: {context}")]
@@ -83,7 +83,7 @@ impl VaultError {
         Self::Io { path: path.into(), source }
     }
 
-    /// An invariant this crate believes it upholds turned out not to hold.
+    /// A broken invariant inside this crate.
     pub(crate) const fn internal(context: &'static str) -> Self {
         Self::Internal { context }
     }
@@ -97,8 +97,7 @@ impl From<VaultError> for CoreError {
     fn from(error: VaultError) -> Self {
         match error {
             VaultError::WrongPassword => Self::WrongPassword,
-            // A caller that asks an entry for key material is told that no key exists
-            // under that id, whatever else the entry holds.
+            // Asking a non-key entry for key material reads as no key under that id.
             VaultError::EntryNotFound(id) | VaultError::NotKeyMaterial(id) => {
                 Self::not_found("vault entry", id.to_string())
             }

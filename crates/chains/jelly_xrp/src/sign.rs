@@ -24,7 +24,7 @@ pub(crate) fn txid(bytes: &[u8]) -> String {
     hex::encode_upper(sha512_half(TXID_PREFIX, bytes))
 }
 
-/// `payment` is a validated one, so both of its addresses read.
+/// Expects a validated `payment`, whose addresses always decode.
 fn serialize(
     payment: &Payment,
     pubkey: &[u8; 33],
@@ -40,7 +40,7 @@ fn serialize(
     // type code and then field code. That puts TransactionType (Payment 0 or AccountDelete
     // 21), Flags (tfFullyCanonicalSig), Sequence, DestinationTag, LastLedgerSequence, a
     // Payment's Amount, Fee, SigningPubKey, TxnSignature, Account, and Destination in that
-    // order. A native amount clears bit 63 and sets bit 62, which marks it positive.
+    // order. A native amount has bit 63 clear (XRP, not a token) and bit 62 set (positive).
     let (transaction_type, amount_drops) = match payment.kind {
         SendKind::Payment => (0u16, Some(payment.amount_drops)),
         SendKind::AccountDelete => (21, None),

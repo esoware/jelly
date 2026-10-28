@@ -27,7 +27,7 @@ use url::Url;
 
 use crate::connect::{Connect, Identity, IdentityCheck};
 use crate::credentials::Credentials;
-use crate::dialler::{Dialler, Socket};
+use crate::dialer::{Dialer, Socket};
 use crate::endpoint::{Endpoint, UrlRejection};
 use crate::error::NetError;
 use crate::jsonrpc::{JsonRpcRequest, JsonRpcResponse, decode_result, envelope_result};
@@ -37,20 +37,19 @@ const TARGET: &str = "jelly::net::ws";
 /// How many outgoing frames may queue before a caller waits.
 const QUEUE_DEPTH: usize = 32;
 /// How long one request waits before its socket is closed as half-answered. Every
-/// request here is a subscription or a small read, so a socket silent for this long is
-/// stalled rather than busy.
+/// request here is a subscription or a small read, so this much silence means stalled,
+/// not busy.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
-/// The write task pings on this cadence so a provider's idle timeout never
-/// fires on a socket whose only job is to wait for a rare push.
+/// The write task pings this often, so a provider's idle timeout never closes a socket
+/// that's only waiting for a rare push.
 const KEEPALIVE: Duration = Duration::from_secs(30);
 /// Subscription results and notifications are small, so anything past this is an
-/// attack rather than an answer.
+/// attack, not an answer.
 const MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
 
-/// Opens fresh byte streams to one endpoint for the life of a session. The client asks
-/// for a new stream whenever its socket is gone.
+/// Opens a fresh byte stream to one endpoint whenever the client's socket is gone.
 ///
-/// Production dials through [`Dialler`], and a test opens an in-memory pipe, so the
+/// Production dials through [`Dialer`], and a test opens an in-memory pipe, so the
 /// shipped handshake, framing, and routing run without a network.
 #[async_trait]
 pub(crate) trait WsSockets: Send + Sync + fmt::Debug {
@@ -65,9 +64,8 @@ pub(crate) trait WsSockets: Send + Sync + fmt::Debug {
 
 /// One subscription request, registered on a socket so the server starts pushing.
 ///
-/// The returned subscription id is deliberately discarded. A registration belongs to one
-/// socket, a redial registers afresh, and pushed data is never read, so there is nothing
-/// to route by id.
+/// The returned subscription id is discarded. A redial registers afresh and pushed data
+/// is never read, so there's nothing to route by id.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WsSubscription {
     method: String,
@@ -80,12 +78,12 @@ impl WsSubscription {
     }
 }
 
-/// A cached websocket endpoint handle that reconnects on its own.
+/// A cached websocket endpoint handle that redials on its own.
 ///
-/// Register subscriptions through the pool so failures affect endpoint health.
-/// Notifications carry no trusted data and only wake sync. HTTP reads verify chain
-/// identity, so a websocket backend change can cause spurious wakes but cannot supply
-/// wallet data.
+/// Register subscriptions through the pool so failures count against the endpoint's
+/// health. A push only wakes sync, which reads through pools that verify their network,
+/// so a misbehaving websocket backend can cause spurious wakes but never supply wallet
+/// data.
 pub struct WsClient {
     sockets: Arc<dyn WsSockets>,
     clock: Arc<dyn Clock>,
@@ -102,12 +100,10 @@ struct WatchState {
     registered: Vec<WsSubscription>,
     seen: u64,
     /// When the last wake was reported, on the injected clock. The floor in
-    /// [`WsClient::wait_notice`] measures from it, so a chain that pushes every block
-    /// cannot start passes faster than its floor allows.
+    /// [`WsClient::wait_notice`] counts from it.
     last_wake_millis: u64,
-    /// A fresh registration not yet reported as a wake. Anything that happened while
-    /// nothing was registered is invisible, so the first wait after registering resolves
-    /// at once and a pass covers the gap.
+    /// A registration not yet reported as a wake. Nothing was watched before it, so the
+    /// first wait after registering doesn't wait for a push and a pass covers the gap.
     is_fresh: bool,
 }
 
@@ -152,11 +148,10 @@ impl WsClient {
         decode_result(self.endpoint(), &raw)
     }
 
-    /// Registers subscriptions on the current socket, reconnecting if necessary. Setup is
-    /// bounded so the pool can penalize failures and try another endpoint.
+    /// Registers subscriptions on the current socket, redialling if needed.
     ///
-    /// Growing sets add subscriptions. Removed subscriptions remain until reconnect and can
-    /// only cause spurious wakes.
+    /// Only subscriptions not yet registered on this socket are sent. One dropped from the
+    /// set stays until the next redial and can only cause spurious wakes.
     pub async fn register(&self, subscriptions: &[WsSubscription]) -> Result<(), NetError> {
         let connection = self.connection().await?;
         let mut guard = self.watching.lock().await;
@@ -191,12 +186,12 @@ impl WsClient {
         Ok(())
     }
 
-    /// Waits for a notification from the registered socket. Fresh registrations resolve
-    /// immediately so sync covers the disconnected interval.
+    /// Waits for a push on the registered socket. After a fresh registration it doesn't
+    /// wait for one, so sync covers the time nothing was watched.
     ///
-    /// `floor` limits wake frequency and coalesces pushes during the wait. Socket errors
-    /// require registration through the pool again. Canceling retains unread notifications
-    /// for the next call.
+    /// Wakes come at most once per `floor`, and pushes inside it collapse into one wake.
+    /// After an error, register again through the pool. Canceling keeps unread pushes for
+    /// the next call.
     pub async fn wait_notice(&self, floor: Duration) -> Result<(), NetError> {
         let _waiting = self.notice_wait.lock().await;
         loop {
@@ -237,10 +232,10 @@ impl WsClient {
         }
     }
 
-    /// A live socket, dialling a fresh one when the last is gone.
+    /// A live socket, dialing a fresh one when the last is gone.
     ///
-    /// The lock is held across the dial on purpose, so concurrent callers wait for one
-    /// reconnect rather than racing to open several sockets to the same host.
+    /// The lock is held across the dial, so concurrent callers wait for one redial instead
+    /// of each opening a socket to the same host.
     async fn connection(&self) -> Result<Arc<WsConnection>, NetError> {
         let mut guard = self.connection.lock().await;
         if let Some(existing) = guard.as_ref()
@@ -270,14 +265,13 @@ fn closed(endpoint: &EndpointLabel) -> NetError {
 /// The handshake request for an endpoint's canonical URL.
 ///
 /// The canonical form drops the slash of an empty path, which the request target needs,
-/// and the URL parser puts it back. The userinfo goes out as basic credentials, decoded
-/// as the shared HTTP client decodes it, because tungstenite leaves it out of the `Host`
-/// header and sends it nowhere else.
+/// and the URL parser puts it back. The userinfo goes out as basic credentials, because
+/// tungstenite would otherwise send it nowhere.
 fn handshake_request(endpoint: &EndpointLabel, url: &str) -> Result<Request, NetError> {
     let mut parsed =
         Url::parse(url).map_err(|_| NetError::InvalidUrl { reason: UrlRejection::Unparsable })?;
     let credentials = Credentials::of(&parsed);
-    // Clearing the userinfo fails only for a URL with no host, which no endpoint is.
+    // Clearing the userinfo fails only for a URL with no host, and every endpoint has one.
     let _ = parsed.set_username("");
     let _ = parsed.set_password(None);
 
@@ -294,10 +288,9 @@ fn handshake_request(endpoint: &EndpointLabel, url: &str) -> Result<Request, Net
 
 /// One websocket over one byte stream.
 ///
-/// Requests are queued on a bounded channel and answered on a per-request oneshot. A
-/// request that times out closes the socket, so a half-answered connection is never
-/// reused. A frame with no id is a server push and bumps the counter a watcher waits
-/// on, and its content is deliberately not read.
+/// A request that times out closes the socket, so a half-answered connection is never
+/// reused. A frame with no id is a server push. It bumps the counter watchers wait on,
+/// and its content is never read.
 struct WsConnection {
     inner: Arc<Inner>,
     outgoing: mpsc::Sender<Message>,
@@ -305,8 +298,7 @@ struct WsConnection {
     tasks: [JoinHandle<()>; 2],
 }
 
-/// Both tasks are aborted here, so no reader or writer outlives the connection
-/// that owns it.
+/// Aborts both tasks, so neither the reader nor the writer outlives the connection.
 impl Drop for WsConnection {
     fn drop(&mut self) {
         self.inner.close();
@@ -367,8 +359,8 @@ impl WsConnection {
         self.inner.notices.subscribe()
     }
 
-    /// The waiter is registered before the frame goes out, so a reply cannot arrive
-    /// before there is somewhere to put it.
+    /// The waiter is registered before the frame goes out, so a reply can't arrive before
+    /// there's somewhere to put it.
     async fn call<P: Serialize + Sync>(
         &self,
         method: &str,
@@ -426,17 +418,15 @@ impl Inner {
         for reply in waiters.into_values() {
             let _ = reply.send(Err(closed(&self.endpoint)));
         }
-        // Wake every notification waiter so it observes the dead socket instead
-        // of waiting on a channel nothing will ever bump again.
+        // Wake every notification waiter so it sees the socket is dead.
         self.notices.send_modify(|count| *count = count.wrapping_add(1));
     }
 
     /// A message with no id is a server push and bumps the counter. An id nobody waits on
     /// is an answer that arrived after its caller gave up, and is dropped. Anything that
-    /// is not a JSON-RPC object returns false, which closes the socket.
+    /// isn't a JSON-RPC object returns false, which closes the socket.
     ///
-    /// A `result` of null is still an answer, so it reaches its caller, which decodes it
-    /// into its own type, an `Option` included.
+    /// A `result` of null is still an answer and reaches its caller.
     fn deliver(&self, bytes: &[u8]) -> bool {
         let Ok(envelope) = serde_json::from_slice::<JsonRpcResponse<Box<RawValue>>>(bytes) else {
             return false;
@@ -467,9 +457,7 @@ async fn read_loop(mut reader: SplitStream<Ws>, inner: Arc<Inner>, control: mpsc
                     break;
                 }
             }
-            // The write task owns the sink, so the pong goes out through its queue.
-            // Dropping it when the queue is full is fine, because the server will ping
-            // again.
+            // Dropping the pong when the queue is full is fine; the server pings again.
             Message::Ping(payload) => {
                 let _ = control.try_send(Message::Pong(payload));
             }
@@ -510,15 +498,15 @@ async fn write_loop(
     inner.close();
 }
 
-/// Dials one endpoint's byte streams through the connector's [`Dialler`].
+/// Dials one endpoint's byte streams through the connector's [`Dialer`].
 #[derive(Debug)]
-struct DialledSockets {
-    dialler: Dialler,
+struct DialedSockets {
+    dialer: Dialer,
     endpoint: Endpoint,
 }
 
 #[async_trait]
-impl WsSockets for DialledSockets {
+impl WsSockets for DialedSockets {
     fn endpoint(&self) -> &EndpointLabel {
         self.endpoint.label()
     }
@@ -528,27 +516,26 @@ impl WsSockets for DialledSockets {
     }
 
     async fn open(&self) -> Result<Box<dyn Socket>, NetError> {
-        self.dialler.connect(&self.endpoint).await
+        self.dialer.connect(&self.endpoint).await
     }
 }
 
-/// Builds websocket clients for a failover pool, and runs the chain's identity check
-/// over the socket itself, so a pool never waits on pushes from a host that serves
-/// another chain.
+/// Builds websocket clients for a pool, and runs the chain's identity check over the
+/// socket itself, so a pool never waits on pushes from a host serving another chain.
 #[derive(Debug, Clone)]
 pub struct WsConnector {
-    dialler: Dialler,
+    dialer: Dialer,
     clock: Arc<dyn Clock>,
     check: Arc<dyn IdentityCheck<WsClient>>,
 }
 
 impl WsConnector {
     pub const fn new(
-        dialler: Dialler,
+        dialer: Dialer,
         clock: Arc<dyn Clock>,
         check: Arc<dyn IdentityCheck<WsClient>>,
     ) -> Self {
-        Self { dialler, clock, check }
+        Self { dialer, clock, check }
     }
 }
 
@@ -556,7 +543,7 @@ impl WsConnector {
 impl Connect<WsClient> for WsConnector {
     async fn connect(&self, endpoint: &Endpoint) -> Result<Arc<WsClient>, NetError> {
         let sockets =
-            Arc::new(DialledSockets { dialler: self.dialler.clone(), endpoint: endpoint.clone() });
+            Arc::new(DialedSockets { dialer: self.dialer.clone(), endpoint: endpoint.clone() });
         let client = WsClient::open(sockets, Arc::clone(&self.clock)).await?;
         Ok(Arc::new(client))
     }

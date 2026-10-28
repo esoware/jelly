@@ -13,7 +13,7 @@ Each file is attested to the workflow that built it. Verify a download with `gh 
 """
 
 [git]
-# A breaking commit of any type is one that existing installs migrate for, so it leads the notes.
+# Breaking commits of any type lead the notes, since existing installs have to migrate for them.
 # Renovate ends the title of a PR that fixes a vulnerability with [SECURITY].
 commit_parsers = [
   { message = "^[a-z]+(\\([^)]*\\))?!:", group = "<!-- 0 -->Breaking changes" },

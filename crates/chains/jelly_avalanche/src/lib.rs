@@ -1,5 +1,4 @@
-//! Avalanche's C-Chain, as the spec, the network figures, and the chain entry the
-//! EVM framework is run with.
+//! Avalanche C-Chain.
 
 #![deny(clippy::float_arithmetic)]
 mod avalanche;

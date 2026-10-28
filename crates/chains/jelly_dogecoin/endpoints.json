@@ -1,6 +1,6 @@
 {
   "chain": "dogecoin",
-  "note": "Public ElectrumX servers for Dogecoin, drawn from the Komodo, Cake Wallet, and Stack Wallet lists, each verified on 2026-10-10 with server.version, a blockchain.headers.subscribe tip read, and block zero over TLS. Dogecoin is merge-mined, so these servers answer a header with its parent chain's proof of work after the eighty bytes. Servers that failed to answer or refused the connection at verification time are omitted. There is no fee API row, because Dogecoin Core's wallet pays a fixed recommended rate and the servers' estimates swing by two orders of magnitude.",
+  "note": "Public ElectrumX servers from the Komodo, Cake Wallet, and Stack Wallet lists, each checked over TLS on 2026-10-10 with server.version, a blockchain.headers.subscribe tip read, and block zero. Dogecoin is merge-mined, so these servers send a header's parent-chain proof of work after its eighty bytes. Servers that didn't answer or refused the connection were left out. There's no fee API row because Dogecoin Core's wallet pays a fixed recommended rate and server estimates swing by two orders of magnitude.",
   "endpoints": [
     {
       "url": "ssl://doge.electrum1.cipig.net:20060",

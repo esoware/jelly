@@ -13,9 +13,9 @@ use crate::error::Win32Error;
 /// history, and the developer tools, and from opening its own context menu. The page still
 /// receives every key.
 ///
-/// The webview settings that do the same apply only from the next page load, and a runtime
-/// update has broken the key setting before. These handlers run ahead of the browser for
-/// every accelerator key and every context menu, whatever the settings say.
+/// The equivalent webview settings apply only from the next page load, and a runtime update
+/// has broken the key setting before. These handlers run ahead of the browser for every
+/// accelerator key and context menu, whatever the settings say.
 #[expect(unsafe_code, reason = "the webview's COM interfaces have no safe wrapper")]
 pub fn lock_down_webview(controller: &ICoreWebView2Controller) -> Result<(), Win32Error> {
     // The handlers last as long as the webview, so their tokens are never needed.
@@ -46,8 +46,8 @@ pub fn lock_down_webview(controller: &ICoreWebView2Controller) -> Result<(), Win
     Ok(())
 }
 
-/// Calls `on_exit` each time the process rendering the page exits. The page is gone until
-/// it is reloaded.
+/// Calls `on_exit` each time the process rendering the page exits, after which the page is
+/// gone until it's reloaded.
 #[expect(unsafe_code, reason = "the webview's COM interfaces have no safe wrapper")]
 pub fn on_renderer_exit(
     controller: &ICoreWebView2Controller,

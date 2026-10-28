@@ -33,8 +33,8 @@ impl InputView for Spent {
     }
 }
 
-/// ZIP 317's block template weighs a fee at most four times the transaction's
-/// conventional fee, so a fee above that confirms no sooner and is refused as a mistake.
+/// ZIP 317's block template credits a fee only up to four times the transaction's
+/// conventional fee, so a higher one confirms no sooner and is refused as a mistake.
 pub(crate) const MAX_FEE_MULTIPLE: u64 = 4;
 
 /// What a payment whose ZIP 317 fee is `conventional_zat` pays: that fee for a level, or
@@ -63,8 +63,8 @@ pub(crate) const fn paid_fee(
 /// The ZIP 317 fee of a transaction spending `inputs` into one output for each of
 /// `outputs`, at `target_height`.
 ///
-/// Each input is sized by the script it spends, so a coin of any script but a key hash
-/// is refused rather than priced as one.
+/// Each input is sized by the script it spends, so a coin at anything but a key hash is
+/// refused.
 pub(crate) fn conventional_fee(
     target_height: u32,
     inputs: &[Coin],
@@ -115,11 +115,10 @@ mod tests {
             .collect()
     }
 
-    /// ZIP 317's own figures.
+    /// ZIP 317 charges 5,000 zatoshis per logical action, with a minimum of two.
     ///
-    /// Two grace actions, then one marginal fee per logical action, which for
-    /// transparent parts is the larger of the inputs counted in 150-byte P2PKH inputs
-    /// and the outputs counted in 34-byte P2PKH outputs.
+    /// For transparent parts the action count is the larger of the inputs counted in
+    /// 150-byte P2PKH inputs and the outputs counted in 34-byte P2PKH outputs.
     #[test]
     fn the_fee_is_zip_317s_for_the_inputs_and_outputs_it_is_given() {
         let recipient = script(RECIPIENT).unwrap();
@@ -156,8 +155,7 @@ mod tests {
         );
     }
 
-    /// A coin of a script-hash address has a redeem script ZIP 317 cannot size, so it
-    /// is refused rather than underpriced as a key-hash input.
+    /// ZIP 317 can't size a script-hash coin without its redeem script.
     #[test]
     fn a_coin_zip_317_cannot_size_is_refused_rather_than_priced_as_a_key_hash() {
         let recipient = script(RECIPIENT).unwrap();

@@ -1,8 +1,8 @@
 //! Balance reads, pending-send lookups and each round of signature pages are
 //! batched across the watch set.
 //!
-//! Local sends are followed up before history is walked, and records are emitted
-//! before cursors advance, so persisted progress never skips unreported history.
+//! This wallet's sends are followed up before history is walked, and records are
+//! emitted before cursors advance, so persisted progress never skips unreported history.
 
 use std::collections::HashSet;
 
@@ -27,10 +27,9 @@ use crate::{broadcast, record};
 
 const TARGET: &str = "jelly::solana::sync";
 
-/// The depth below the tip within which no endpoint has pruned a transaction.
-///
-/// It is about ten minutes of slots. A healthy node trails the cluster by far
-/// less, and every node keeps its ledger for far longer.
+/// The depth below the tip within which no endpoint has pruned a transaction, about
+/// ten minutes of slots. A healthy node trails the cluster by far less, and every node
+/// keeps its ledger for far longer.
 const UNPRUNED_SLOTS: u64 = 1_500;
 
 #[derive(Debug, Clone, Copy)]
@@ -65,11 +64,11 @@ pub(crate) async fn run(
     Ok(progress(inputs, watched, tip))
 }
 
-/// The share of addresses that have finished their first full history walk,
-/// because a Solana history has no floor to measure against.
+/// The share of addresses that have finished their first full history walk, because
+/// a Solana history has no floor to measure against.
 ///
-/// `synced_height` stays absent until every address has finished, because a
-/// wallet still filling in history is not synced to the tip.
+/// `synced_height` stays absent until every address has finished, because a wallet
+/// still filling in history isn't synced to the tip.
 fn progress(inputs: &PassInputs<'_>, watched: &[Watched], tip: Tip) -> ChainSyncProgress {
     let total = watched.len();
     let done = watched.iter().filter(|entry| inputs.states.is_complete(entry.address_id)).count();
@@ -106,10 +105,10 @@ async fn emit_balances(
     Ok(holdings_by_owner)
 }
 
-/// Decides the fate of every send this wallet is still following.
+/// Settles, resends, or expires each broadcast send this wallet is still following.
 ///
-/// A build that was signed, never handed to an endpoint, and can no longer be
-/// is dropped without a write, because it was never persisted.
+/// A signed build that was never sent and whose blockhash has expired is dropped
+/// without a write, because it was never persisted.
 async fn follow_up(
     inputs: &PassInputs<'_>,
     tip: Tip,
@@ -155,7 +154,7 @@ async fn follow_up(
     Ok(())
 }
 
-/// Acts on one verdict, and answers which address's state changed.
+/// Acts on one verdict, and returns the address whose state changed.
 async fn settle(
     inputs: &PassInputs<'_>,
     entry: &Tracked,
@@ -205,11 +204,11 @@ async fn settle(
     }
 }
 
-/// Resends the identical bytes with preflight skipped, because a node that has
-/// seen the transaction would refuse one that is doing fine.
+/// Resends the identical bytes with preflight skipped, because a node that has seen
+/// the transaction would refuse one that's doing fine.
 ///
-/// A failure is only logged, because a resend is a best effort on top of the
-/// node's own retries.
+/// A failure is only logged, because a resend is a best effort on top of the node's
+/// own retries.
 async fn resend(inputs: &PassInputs<'_>, entry: &Tracked) {
     let Ok(raw) = BASE64.decode(&entry.raw) else {
         tracing::warn!(
@@ -243,14 +242,13 @@ struct Target<'a> {
     account: String,
 }
 
-/// Each owner, followed by the associated account of every carried token the
-/// owner holds or whose history has not been read through yet.
+/// Each owner, followed by the associated account of every carried token the owner
+/// holds or whose history hasn't been read through yet.
 ///
-/// A node lists a signature under the accounts its transaction names, so each
-/// such account is walked beside the owner. One the owner does not hold is
-/// skipped once read, because the instruction that creates an associated account
-/// names its owner, and the first pass that finds it held walks it forward from
-/// where its cursor stopped.
+/// A node lists a signature only under the accounts its transaction names, so token
+/// accounts are walked beside the owner. An account the owner doesn't hold is skipped
+/// once its history is read, because the instruction that creates it names the owner,
+/// and the first pass that finds it held walks forward from where its cursor stopped.
 fn targets<'a>(
     inputs: &PassInputs<'_>,
     watched: &'a [Watched],
@@ -360,14 +358,14 @@ fn interleave(walks: &[Walk]) -> Vec<SignatureRow> {
 /// One fetched transaction serves the whole watch set, so a transfer between two
 /// of this wallet's addresses is fetched once and reported from both sides.
 ///
-/// Fetching stops at the deadline, and the answer is the signatures that were
-/// dealt with. A transaction the endpoint does not have is dealt with only once
-/// it is old enough to have been pruned. Below that it is one the endpoint has
-/// not rooted yet, which happens when a load-balanced pool lists a signature on
-/// one node and fetches it from another, so it is left for the next pass.
+/// Stops fetching at the deadline and returns the signatures dealt with. A transaction
+/// the endpoint doesn't have counts as dealt with only once it's old enough to have
+/// been pruned. A newer one just isn't rooted on that node yet, which
+/// happens when a load-balanced pool lists a signature on one node and fetches it from
+/// another, so it's left for the next pass.
 ///
-/// A transaction newer than the version cap fails the pass, so the walk never
-/// moves past history this build cannot read.
+/// A transaction newer than the version cap fails the pass, so no cursor moves past
+/// history this build can't read.
 async fn emit_records<'a>(
     inputs: &PassInputs<'_>,
     watched: &[Watched],

@@ -1,16 +1,14 @@
-//! Deterministic fixtures for the shared UTXO engine. Only `[dev-dependencies]`
-//! enable the `test-util` feature.
+//! Deterministic fixtures for the UTXO framework. Only `[dev-dependencies]` enable
+//! the `test-util` feature.
 //!
 //! Every key comes from one seed byte, so a test names a seed and gets the same
-//! address, script, and outpoint on every run.
+//! address, script, and outpoint on every run. Tests outside this crate read
+//! payloads, outpoint claims, and stored cursors through the functions here.
 //!
-//! A test outside this crate reads a payload, the outpoint claims, or a stored
-//! cursor through the operations here.
-//!
-//! The four tables here are copies of the chain crates' own, for this crate's unit
-//! tests, which cannot name a chain crate. Each chain crate's tests assert that its
-//! table matches its copy. Bitcoin Cash's copy reads only the legacy address forms,
-//! because `CashAddr` lives in its chain crate.
+//! The four tables are copies of the chain crates' own, since this crate's unit tests
+//! can't name a chain crate. Each chain crate's tests check that its table matches its
+//! copy. Bitcoin Cash's copy reads only legacy addresses, because `CashAddr` lives in
+//! its chain crate.
 
 use bitcoin::absolute::LockTime;
 use bitcoin::consensus::serialize;
@@ -241,7 +239,7 @@ impl FakeChain {
     }
 
     /// Each script's history, looked up by the script hash a request names, so an
-    /// answer does not depend on what else its batch asked for.
+    /// answer doesn't depend on what else its batch asked for.
     pub fn histories(&self, by_script: &[(ScriptBuf, Vec<(Txid, i32)>)]) {
         let answers = by_script
             .iter()
@@ -329,9 +327,7 @@ pub struct DecodedPayload {
     pub strategy: &'static str,
     /// Leftover handed to the miner rather than paid back as change.
     pub donated: Amount,
-    /// The transaction a replacement replaces.
     pub replaces: Option<Txid>,
-    /// The transaction a child pays for.
     pub pays_for: Option<Txid>,
     pub input_kinds: Vec<ScriptKind>,
 }
@@ -364,7 +360,7 @@ pub fn claim_owner(adapter: &UtxoAdapter, outpoint: OutPoint) -> Option<Txid> {
 }
 
 /// The script kind this build spends `address` with, or the refusal of a form it
-/// cannot spend.
+/// can't spend.
 pub fn spendable_kind(params: &UtxoParams, address: &str) -> Result<ScriptKind, UtxoError> {
     Ok(params.spendable_script(address)?.kind().into())
 }

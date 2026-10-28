@@ -187,7 +187,7 @@ fn entry_of_row(row: TxRow, tips: &BTreeMap<ChainId, u64>) -> TxEntry {
     }
 }
 
-/// A transaction as the wallet's rows of it add up.
+/// Adds up the wallet's rows of one transaction into one entry.
 ///
 /// Every row that spent records what it sent away and every row that only received
 /// records what arrived, so what reached others is the first total less the second.
@@ -306,7 +306,7 @@ mod tests {
         }
     }
 
-    /// A walk records the rent of every token movement, so most are zero.
+    /// The Solana adapter records a rent for every token movement, so most are zero.
     #[test]
     fn a_rent_of_nothing_is_no_rent_and_the_rents_of_a_group_add_up() {
         let tips = BTreeMap::new();

@@ -41,7 +41,7 @@ hex            = { workspace = true }
 proptest       = { workspace = true }
 tokio          = { workspace = true, features = ["test-util"] }
 
-# The integration tests run the shared engine over each chain crate's own table.
+# The integration tests run against each chain as its crate ships it.
 jelly_bitcoin      = { workspace = true }
 jelly_bitcoin_cash = { workspace = true }
 jelly_dogecoin     = { workspace = true }

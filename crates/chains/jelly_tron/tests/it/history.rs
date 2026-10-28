@@ -28,7 +28,7 @@ fn holding(units: u128) -> Answer {
     Answer::body(&format!(r#"{{"constant_result":["{units:064x}"],"result":{{"result":true}}}}"#))
 }
 
-/// The history pages each stream read since the last call, as native, TRC-20
+/// The history pages each stream read since the last call, as native, TRC-20,
 /// and internal.
 fn reads(harness: &Harness) -> [usize; 3] {
     let calls = harness.fake.calls();
@@ -41,8 +41,8 @@ fn txids(reported: &[TxRecord]) -> Vec<&str> {
     reported.iter().map(|record| record.txid.value()).collect()
 }
 
-/// A keyless `TronGrid` budget does not cover three history pages per address
-/// every twelve seconds, so a pass whose balances did not move leaves the indexer
+/// A keyless `TronGrid` budget doesn't cover three history pages per address
+/// every twelve seconds, so a pass whose balances didn't move leaves the indexer
 /// alone.
 #[tokio::test]
 async fn a_pass_that_sees_no_news_reads_no_history() {
@@ -94,7 +94,7 @@ async fn a_token_balance_change_is_read_in_the_pass_that_sees_it() {
     pass(&harness, &FakeEventSink::new()).await.unwrap();
     harness.fake.forget_calls();
 
-    // Five USDT base units arrive, and the TRX balance does not move.
+    // Five USDT base units arrive, and the TRX balance doesn't move.
     let paid = "d1".repeat(32);
     let row = format!(
         r#"{{"transaction_id":"{paid}","token_info":{{"address":"{USDT}"}},
@@ -114,8 +114,8 @@ async fn a_token_balance_change_is_read_in_the_pass_that_sees_it() {
     assert_eq!(reads(&harness), [0, 0, 0], "reported news is not read again");
 }
 
-/// A send of the address's own is read on every pass that reports it, landed or
-/// settled, even before any balance shows it.
+/// An address's history is read on the pass that sees its own send land, and again
+/// when it settles, even before any balance shows it.
 #[tokio::test]
 async fn an_own_send_is_read_as_it_lands_and_settles() {
     let fake = sender();
@@ -129,7 +129,7 @@ async fn an_own_send_is_read_as_it_lands_and_settles() {
     let signed = harness.adapter.sign_tx(&unsigned, &[key_material(OWNER_KEY)]).unwrap();
     harness.adapter.broadcast(&signed).await.unwrap();
 
-    // It lands one block deep, and the balance does not show it yet.
+    // It lands one block deep, and the balance doesn't show it yet.
     fake.on(
         Route::TransactionInfoById,
         Answer::body(r#"{"id":"aa","blockNumber":85304913,"fee":0}"#),
@@ -150,8 +150,8 @@ async fn an_own_send_is_read_as_it_lands_and_settles() {
     assert_eq!(reads(&harness), [0, 0, 0], "a send no longer followed is no news");
 }
 
-/// A walk still filling in, or stopped short of its frontier, is read every pass
-/// until it is done, whatever the balances say.
+/// A stream still backfilling, or whose forward walk was cut short, is read every
+/// pass until it's done, whatever the balances say.
 #[tokio::test]
 async fn an_unfinished_walk_stays_due_until_it_is_done() {
     let txid = |n: i64| format!("{n:02x}").repeat(32);
@@ -195,7 +195,7 @@ async fn an_unfinished_walk_stays_due_until_it_is_done() {
     pass(&harness, &sink).await.unwrap();
     assert_eq!(reads(&harness), [1, 1, 1]);
 
-    // Past the news, the walk left short of its frontier is still read.
+    // Once the news window has passed, the forward walk that was cut short is still read.
     harness.clock.advance(Duration::from_secs(61));
     pass(&harness, &sink).await.unwrap();
     assert_eq!(reads(&harness), [1, 0, 0]);
@@ -205,7 +205,7 @@ async fn an_unfinished_walk_stays_due_until_it_is_done() {
     assert_eq!(reads(&harness), [0, 0, 0], "caught up and nothing new");
 }
 
-/// An address the adapter has not read since it was built is read on its first
+/// An address the adapter hasn't read since it was built is read on its first
 /// pass, whatever its balances say, and so is one it stopped watching and then
 /// watched again.
 #[tokio::test]
@@ -240,8 +240,8 @@ async fn a_cold_address_is_read_on_its_first_pass() {
     assert_eq!(history_of(TRX_OWNER), 0);
 }
 
-/// What decides a read lives in memory, so a restart reads every address once,
-/// and finds what arrived while the wallet was closed.
+/// The gate that decides a read lives in memory, so a restart reads every address
+/// once and finds what arrived while the wallet was closed.
 #[tokio::test]
 async fn a_restart_reads_every_address_once() {
     let oldest =
@@ -330,8 +330,8 @@ async fn a_change_the_indexer_reports_a_pass_late_is_read_again_and_then_left_al
     assert_eq!(reads(&harness), [0, 0, 0], "reported news is not read again");
 }
 
-/// TRX staked or unstaked moves the balance with no transfer to list, so its
-/// news is let go once the window passes rather than read forever.
+/// Staking or unstaking TRX moves the balance with no transfer to list, so its
+/// news is dropped once the window passes.
 #[tokio::test]
 async fn a_move_no_transfer_explains_is_read_only_for_a_short_window() {
     let fake = quiet_history(&balances_only(TRX_OWNER));

@@ -23,11 +23,7 @@ pub async fn build(
 }
 
 /// Asks one endpoint which network it serves, through the connector the pool is built
-/// with, so the endpoint editor and the pool's guard cannot disagree.
-///
-/// The registry refuses an address on a transport the spec does not list, so only an
-/// endpoint built outside it can name another transport, and it gets the registry's own
-/// refusal.
+/// with, so the endpoint editor and the pool's guard can't disagree.
 pub async fn probe(network: &Network, endpoint: &Endpoint) -> ProbeReport {
     if endpoint.transport() == SPEC.primary_transport {
         jelly_net::probe(&blockbook(network), network.clock().as_ref(), endpoint).await

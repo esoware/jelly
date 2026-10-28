@@ -49,7 +49,7 @@ fn valid_addresses_canonicalise_to_themselves() {
         let address = ENTRY.validate_address(case).unwrap();
         assert_eq!(address.value(), case);
         assert_eq!(address.chain(), ChainId::Bitcoin);
-        // Surrounding whitespace is the caller's paste, not part of the value.
+        // Whitespace around a paste isn't part of the address.
         let padded = format!("  {case}  ");
         assert_eq!(ENTRY.validate_address(&padded).unwrap().value(), case);
     }
@@ -65,7 +65,7 @@ fn invalid_addresses_are_refused() {
 }
 
 #[test]
-fn the_codec_reports_the_flavour_a_path_derived() {
+fn the_codec_reports_the_flavor_a_path_derived() {
     for (text, kind) in [
         ("m/86'/0'/0'/0/0", ScriptKind::P2tr),
         ("m/84'/0'/0'/0/0", ScriptKind::P2wpkh),
@@ -79,7 +79,7 @@ fn the_codec_reports_the_flavour_a_path_derived() {
 }
 
 #[test]
-fn a_path_without_a_purpose_takes_the_chains_default_flavour() {
+fn a_path_without_a_purpose_takes_the_chains_default_flavor() {
     assert_eq!(SPEC.default_script, Some(ScriptKind::P2wpkh));
     assert_eq!(
         address_at(ENTRY, "m/0/0", None).unwrap(),
@@ -87,8 +87,6 @@ fn a_path_without_a_purpose_takes_the_chains_default_flavour() {
     );
 }
 
-/// BIP-84 publishes `bc1qcr8te...` as the first receive address of the all-abandon
-/// phrase, which is what a new Bitcoin address of that wallet has to be.
 #[test]
 fn the_first_default_address_is_the_published_bip84_one() {
     let first = PathTemplate::parse(SPEC.default_path).unwrap().path_at(0).unwrap();

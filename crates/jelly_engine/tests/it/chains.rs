@@ -263,7 +263,7 @@ async fn endpoint_edits_are_debounced_into_one_rebuild() {
         harness.engine.endpoints_changed();
     }
     harness.builder.builds_reach(builds.saturating_add(1)).await;
-    // A rebuild of its own for any other edit would have woken with this one.
+    // If another edit had its own rebuild, it would have run by now.
     sleep(Duration::from_millis(500)).await;
     assert_eq!(harness.builder.builds(), builds.saturating_add(1));
 }
@@ -275,9 +275,9 @@ async fn a_build_is_handed_a_cursor_store_that_reaches_the_vault() {
     harness.seed_wallet("chains").await.unwrap();
 
     let cursors = harness.builder.cursors().expect("a request was recorded");
-    // The wallet scope has no address row. Only the vault side of the port can answer
-    // for it, so a write that succeeds proves the build got the routing port rather than
-    // a database-only one.
+    // The wallet scope has no address row, so only the vault side of the port can store
+    // it. A write that succeeds proves the build got the routing port, not a
+    // database-only one.
     cursors
         .reserve(
             CursorScope::Wallet,

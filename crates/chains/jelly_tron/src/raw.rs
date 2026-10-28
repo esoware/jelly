@@ -2,10 +2,9 @@
 //! `/wallet/createtransaction` would let a public endpoint choose the bytes a
 //! person signs.
 //!
-//! Protobuf serialisation is not canonical across implementations, so the signed
+//! Protobuf serialization isn't canonical across implementations, so the signed
 //! bytes are the transaction. The payload carries them verbatim, the signed form
-//! wraps them as opaque bytes rather than re-encoding them, and the broadcast
-//! prefers `/wallet/broadcasthex`.
+//! wraps them as opaque bytes, and the broadcast prefers `/wallet/broadcasthex`.
 
 use std::time::Duration;
 
@@ -18,19 +17,19 @@ use crate::error::TronError;
 use crate::proto::protocol;
 use crate::shape::BlockRef;
 
-/// This build writes `r || s || recovery_id` with a raw recovery id, which
-/// java-tron accepts alongside the form offset by 27.
+/// `r || s || recovery_id`, with a raw `0..=3` recovery id. java-tron also accepts
+/// one offset by 27.
 pub(crate) const SIGNATURE_BYTES: usize = 65;
 
 /// java-tron reserves this many bytes per transaction for the `ret` field when it
 /// charges bandwidth (`Constant.MAX_RESULT_SIZE_IN_TX`).
 const RESULT_ALLOWANCE_BYTES: u64 = 64;
 
-/// The protocol refuses an expiration more than twenty-four hours past the head
-/// block (`Constant.MAXIMUM_TIME_UNTIL_EXPIRATION`).
+/// The protocol refuses an expiration more than 24 hours past the head block
+/// (`Constant.MAXIMUM_TIME_UNTIL_EXPIRATION`).
 pub(crate) const MAX_EXPIRATION: Duration = Duration::from_hours(24);
 
-/// A shorter window is not worth signing, because the transaction has to reach a
+/// A shorter window isn't worth signing, because the transaction has to reach a
 /// super representative and blocks are three seconds apart.
 pub(crate) const MIN_EXPIRATION: Duration = Duration::from_secs(15);
 
@@ -38,12 +37,12 @@ pub(crate) const MIN_EXPIRATION: Duration = Duration::from_secs(15);
 const MAX_TRANSACTION_BYTES: usize = 512_000;
 
 wire_enum! {
-    /// The only two contract bodies this build writes.
+    /// The only two contract bodies we build.
     ///
-    /// The spelling is the protobuf message name, which java-tron matches exactly
-    /// inside a `type_url`. A test here pins this table against the generated
-    /// enum, so a re-vendor that renumbers or renames either fails there rather
-    /// than in a broadcast.
+    /// Each spelling is the protobuf message name, which java-tron matches exactly
+    /// inside a `type_url`. A test pins this table against the generated enum, so
+    /// a re-vendor that renumbers or renames either fails there instead of in a
+    /// broadcast.
     pub(crate) enum Contract {
         Transfer => "TransferContract",
         TriggerSmartContract => "TriggerSmartContract",
@@ -77,8 +76,8 @@ impl Contract {
 
 /// TAPOS reference and timing fields in their protocol types.
 ///
-/// The reference uses the low 16 height bits and block-ID bytes 8..16. `with_fee_limit`
-/// performs the checked conversion to the protocol's signed `int64`.
+/// The reference is the low 16 bits of the height and bytes 8..16 of the block id.
+/// `with_fee_limit` does the checked conversion to the protocol's signed `int64`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Header {
     pub(crate) ref_block_bytes: [u8; 2],
@@ -91,14 +90,11 @@ pub(crate) struct Header {
 impl Header {
     /// Pins a transaction to the head block a node just reported.
     ///
-    /// The timestamp is the head block's own rather than the signer's clock, and
-    /// the expiration is measured from it. The network judges the expiration
-    /// against head-block time, so this keeps it inside the window the protocol
-    /// allows whatever the local clock says.
+    /// The timestamp and the expiration come from the head block's time, not the
+    /// local clock, because that's what the network judges expiry against.
     ///
-    /// The window is clamped to at least [`MIN_EXPIRATION`] and at most
-    /// [`MAX_EXPIRATION`], so a configuration mistake cannot build a transaction
-    /// the network refuses.
+    /// The window is clamped between [`MIN_EXPIRATION`] and [`MAX_EXPIRATION`], so
+    /// a configuration mistake can't build a transaction the network refuses.
     pub(crate) fn from_block(tip: &BlockRef, window: Duration) -> Result<Self, TronError> {
         let window_millis = i64::try_from(window.clamp(MIN_EXPIRATION, MAX_EXPIRATION).as_millis())
             .map_err(|_| TronError::Overflow { what: "an expiration window" })?;
@@ -117,12 +113,11 @@ impl Header {
         })
     }
 
-    /// Stamps `fee_limit`, the ceiling on the TRX a contract call may burn for
-    /// energy.
+    /// Stamps `fee_limit`, the most TRX a contract call may burn for energy.
     ///
     /// The protocol carries it as an `int64` and refuses anything above
-    /// `getMaxFeeLimit`, so the lower of the two bounds is checked here rather
-    /// than discovered after the user has signed.
+    /// `getMaxFeeLimit`, so the lower of the two bounds is checked here instead of
+    /// discovered after the user has signed.
     pub(crate) fn with_fee_limit(
         mut self,
         fee_limit_sun: u64,
@@ -162,7 +157,7 @@ pub(crate) fn transfer(
     Ok(encode(header, Contract::Transfer, &body))
 }
 
-/// A contract call, which this build uses only for `transfer(address,uint256)`.
+/// A contract call. We only use it for `transfer(address,uint256)`.
 pub(crate) fn trigger(
     header: &Header,
     from: &[u8; address::BODY_BYTES],
@@ -178,7 +173,7 @@ pub(crate) fn trigger(
     encode(header, Contract::TriggerSmartContract, &body)
 }
 
-/// The serialised `raw_data`, which is what gets hashed and signed.
+/// The serialized `raw_data`, which is what gets hashed and signed.
 fn encode(header: &Header, kind: Contract, body: &impl Message) -> Vec<u8> {
     let contract = protocol::transaction::Contract {
         r#type: kind.discriminant(),
@@ -207,10 +202,10 @@ pub(crate) fn txid(raw_data: &[u8]) -> [u8; 32] {
 
 /// Bandwidth points the signed transaction will consume.
 ///
-/// java-tron charges the serialised size of the whole `Transaction`, with one
+/// java-tron charges the serialized size of the whole `Transaction`, with one
 /// 65-byte signature and without `ret`, plus a flat 64-byte allowance for the
-/// result it writes back. A placeholder signature sizes it exactly, because a
-/// TRON signature always has the same length.
+/// result it writes back. A placeholder signature sizes it exactly, since a TRON
+/// signature is always the same length.
 pub(crate) fn bandwidth_points(raw_data: &[u8]) -> Result<u64, TronError> {
     let size =
         SignedWire { raw_data: raw_data.to_vec(), signature: vec![vec![0u8; SIGNATURE_BYTES]] }
@@ -233,11 +228,10 @@ pub(crate) fn signed_bytes(raw_data: &[u8], signature: &[u8; SIGNATURE_BYTES]) -
     SignedWire { raw_data: raw_data.to_vec(), signature: vec![signature.to_vec()] }.encode_to_vec()
 }
 
-/// `protocol.Transaction` with `raw_data` held as opaque bytes.
+/// `protocol.Transaction` with `raw_data` held as opaque bytes, so wrapping,
+/// unwrapping, and sizing the signed form never re-encodes the hashed bytes.
 ///
-/// Wrapping, unwrapping and sizing the signed form through this never re-encodes
-/// the bytes that were hashed. The tags are `Transaction`'s, and this build never
-/// writes `ret`.
+/// The tags match `Transaction`'s, and we never write `ret`.
 #[derive(Clone, PartialEq, Message)]
 struct SignedWire {
     #[prost(bytes = "vec", tag = "1")]
@@ -254,8 +248,7 @@ pub(crate) struct Decoded {
     pub(crate) header: Header,
 }
 
-/// The two contract bodies this build writes, each with only the fields it
-/// stamps.
+/// The two contract bodies we build, each with only the fields we set.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DecodedBody {
     Transfer {
@@ -280,9 +273,8 @@ impl DecodedBody {
 
 /// Reads a `raw_data` back into the facts it states.
 ///
-/// A contract body whose `type_url` disagrees with its discriminant, and any
-/// contract this build does not write, are refused, because a payload only ever
-/// comes from this build.
+/// A payload only ever comes from us, so a body whose `type_url` disagrees with
+/// its discriminant, or any contract we don't build, is refused.
 pub(crate) fn decode(raw_data: &[u8]) -> Result<Decoded, TronError> {
     let raw = protocol::transaction::Raw::decode(raw_data)?;
     let entry = raw.contract.first().ok_or(TronError::Foreign { detail: "no contract at all" })?;
@@ -339,11 +331,9 @@ pub(crate) fn decode(raw_data: &[u8]) -> Result<Decoded, TronError> {
     }
 }
 
-/// The `raw_data` bytes and the one signature inside a signed wire form, from a
-/// single decode.
+/// Splits a signed wire form into its `raw_data` and its one signature.
 ///
-/// This build signs exactly once, so a wire form carrying any other number of
-/// signatures was not produced here.
+/// We sign exactly once, so any other signature count means we didn't produce it.
 pub(crate) fn signed_parts(signed: &[u8]) -> Result<(Vec<u8>, [u8; SIGNATURE_BYTES]), TronError> {
     let parsed = SignedWire::decode(signed)?;
     if parsed.raw_data.is_empty() {

@@ -277,8 +277,8 @@ fn a_password_changes_nothing_about_a_plain_key() {
     assert_eq!(address_of(&imported.material).unwrap(), ADDRESS);
 }
 
-/// Another chain's key or a phrase is no Solana key. The chain table names the chain it
-/// belongs to.
+/// Another chain's key or a phrase isn't a Solana key, and naming its chain is the chain
+/// table's job.
 #[test]
 fn keys_in_other_encodings_are_not_recognized() {
     for input in [

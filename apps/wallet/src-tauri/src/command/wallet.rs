@@ -11,9 +11,9 @@ use crate::state::AppState;
 
 /// A new seed wallet and the phrase generated for it.
 ///
-/// The phrase crosses the boundary only here, because the interface has to show it
-/// before the wallet is usable. Crossing leaves copies outside its zeroizing buffer, so
-/// every later read is a re-authenticated export and the interface must not cache this.
+/// This is the only time the phrase leaves Rust without an export, because the user has to
+/// see it before the wallet is usable. Crossing IPC leaves copies we can't wipe, so the
+/// frontend must not cache this, and every later read is a password-checked export.
 #[derive(Debug, Serialize, Type)]
 pub(crate) struct CreatedWallet {
     wallet: WalletRecord,
@@ -34,8 +34,6 @@ pub(crate) async fn list_wallets(
     with_engine(&state, async move |engine| engine.list_wallets().await).await
 }
 
-/// The phrase in the answer crosses the boundary once. Every later read is a
-/// re-authenticated export.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn create_seed_wallet(
@@ -74,7 +72,7 @@ pub(crate) async fn import_seed_wallet(
     .await
 }
 
-/// Any wallet already open is locked first, because the engine keeps one session.
+/// Locks any wallet already open first, since the engine holds one session.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn unlock_wallet(
@@ -144,16 +142,15 @@ pub(crate) async fn delete_wallet(
     .await
 }
 
-/// Advisory only. Anything irreversible re-reads the real state rather than trusting
-/// this.
+/// Advisory only. Anything irreversible checks the real state itself.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn get_lock_state(state: State<'_, AppState>) -> Result<LockState, IpcError> {
     with_engine(&state, async move |engine| Ok(engine.lock_state_now())).await
 }
 
-/// Resets the auto-lock countdown. No other command does, so the interface calls this
-/// for user input.
+/// Resets the auto-lock countdown. No other command does, so the frontend calls this on
+/// user input.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn touch_session(state: State<'_, AppState>) -> Result<(), IpcError> {

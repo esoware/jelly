@@ -58,7 +58,7 @@ fn the_compressed_flag_decides_whether_a_wif_imports() {
     assert_eq!(ENTRY.recognize_key(&uncompressed), Some(NAME));
 }
 
-/// Dogecoin has no segwit, so the bytes after its version name nothing.
+/// Without segwit, the bytes just above Dogecoin's WIF version name no script type.
 #[test]
 fn dogecoins_version_byte_carries_no_script_offset() {
     let key = [7u8; 32];
@@ -73,7 +73,7 @@ fn dogecoins_version_byte_carries_no_script_offset() {
 }
 
 #[test]
-fn an_electrum_prefix_names_a_flavour_the_chain_then_resolves() {
+fn an_electrum_prefix_names_a_flavor_the_chain_then_resolves() {
     let wif = wif_encode(&[7u8; 32], 0x9e);
     let legacy = ENTRY.import_key(&format!("p2pkh:{}", wif.as_str()), None).unwrap();
     assert_eq!(legacy.named_script, Some(ScriptKind::P2pkh));
@@ -86,7 +86,8 @@ fn an_electrum_prefix_names_a_flavour_the_chain_then_resolves() {
     ));
 }
 
-/// A Bitcoin WIF belongs to Bitcoin, so the chain table can name it as one.
+/// Another chain's WIF isn't recognized here, so the chain table can name the chain it
+/// belongs to.
 #[test]
 fn a_version_byte_names_only_its_own_network() {
     let key = [7u8; 32];

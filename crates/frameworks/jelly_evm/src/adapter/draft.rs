@@ -16,8 +16,8 @@ use crate::token::TokenMeta;
 
 const TARGET: &str = "jelly::evm::adapter";
 
-/// One send as the adapter resolves it, whether the user asked for it or a
-/// replacement derived it from the send it replaces.
+/// A send to resolve, either the user's request or a replacement derived from
+/// the send it replaces.
 #[derive(Debug, Clone)]
 pub(super) struct Draft<'a> {
     pub(super) from_address_id: i64,
@@ -51,12 +51,12 @@ impl EvmAdapter {
             .ok_or(EvmError::NotWatched { address_id })
     }
 
-    /// Reads the nonce, fees, gas limit and balances, in one round trip where
-    /// possible.
+    /// Reads the nonce, balances and fees in one batch where possible, then
+    /// estimates gas.
     ///
     /// Quotes and builds share this, so the user approves the numbers the build
-    /// was priced with, and a price a reused nonce slot would refuse is refused
-    /// before it is quoted.
+    /// was priced with, and a price too low for a reused nonce slot is refused
+    /// before it's quoted.
     pub(super) async fn resolve(&self, draft: &Draft<'_>) -> Result<Plan, EvmError> {
         let overrides = &draft.overrides;
         let from = self.sender(draft.from_address_id)?;
@@ -88,8 +88,7 @@ impl EvmAdapter {
 
         let calldata = overrides.calldata.clone();
         // A recipient's code can spend more gas on a payment than on nothing, so
-        // a native send-max is estimated with the whole balance it spends nearly
-        // all of.
+        // a send-max estimates gas against the whole balance.
         let provisional = match draft.amount {
             SendAmount::Max => {
                 token.map_or(read.native_balance_wei, |_| read.token_balance.unwrap_or(0))
@@ -98,8 +97,8 @@ impl EvmAdapter {
         };
         let shape = Shape::of(token, to, provisional, calldata.as_deref());
         let gas = self.gas_limit(overrides, from, &shape, read.native_balance_wei).await?;
-        // The provisional amount is never below the one sent, so the transaction
-        // it sizes is never shorter and its fee bounds the real one.
+        // The provisional amount is never below the real one, so the sized
+        // transaction is never shorter and its L1 fee bounds the real fee.
         let data_fee_wei = if self.params.has_l1_data_fee {
             let sized = payload::transaction(self.params, nonce, gas.limit(), pair, &shape);
             self.client.l1_fee_upper_bound(sized.payload_len_for_signature()).await?
@@ -108,7 +107,7 @@ impl EvmAdapter {
         };
 
         // Calldata replaces a native transfer and attaches no coin, so the amount
-        // approved, signed and recorded is the zero the transaction carries.
+        // approved, signed and recorded is zero.
         let is_coinless_call = token.is_none() && calldata.is_some();
         let amount = match draft.amount {
             _ if is_coinless_call => Amount::ZERO,
@@ -145,9 +144,9 @@ impl EvmAdapter {
         })
     }
 
-    /// A pinned price needs the market only for its expected fee, so its fee
-    /// history is read beside the batch rather than inside it, and a node that
-    /// will not serve the history costs the estimate and nothing else.
+    /// A pinned price needs the market only for its expected fee, so the fee
+    /// history is read beside the batch instead of in it. A node that won't serve
+    /// the history then costs the estimate, not the send.
     async fn preflight(
         &self,
         from: Address,
@@ -180,8 +179,8 @@ impl EvmAdapter {
     /// The user's limit, else the node's estimate. A call the estimate says reverts
     /// is refused, because it would fail on chain and still pay for its gas.
     ///
-    /// The call's value is clamped to the balance, because some providers refuse
-    /// to estimate a transfer larger than the sender holds.
+    /// The value is clamped to the balance because some providers won't estimate a
+    /// transfer larger than the sender holds.
     async fn gas_limit(
         &self,
         overrides: &Overrides,

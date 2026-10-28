@@ -1,6 +1,6 @@
-//! A refusal arrives as HTTP 200 with a `code` member, and every node would say
-//! the same about the same bytes. So it travels as a value rather than as a
-//! network error a rotation would shop around.
+//! A refusal arrives as HTTP 200 with a `code` member. It's returned as a
+//! classified `Rejection`, not a network error, so the pool doesn't shop around
+//! bytes that other nodes would refuse too.
 
 use jelly_core::{Rejection, RejectionKind, RetryPolicy, wire_enum};
 use serde::{Deserialize, Serialize};
@@ -12,16 +12,15 @@ use crate::raw::{self, DecodedBody};
 use crate::shape::read_message;
 
 wire_enum! {
-    /// java-tron's `response_code`, spelled as it is upstream.
+    /// java-tron's `response_code`, spelled exactly as upstream.
     ///
-    /// `BANDWITH_ERROR` is misspelled in `api.proto` and must match as is, and
-    /// [`BroadcastCode::classify`] also accepts the corrected spelling some forks
-    /// use. An unknown code is [`BroadcastCode::Unclassified`], which is safe
-    /// because the wallet re-checks the transaction by txid.
+    /// `api.proto` misspells `BANDWITH_ERROR`, and [`BroadcastCode::classify`] also
+    /// accepts the corrected spelling some forks use. An unknown code is
+    /// [`BroadcastCode::Unclassified`].
     enum BroadcastCode {
         /// The node accepted the transaction.
         Success => "SUCCESS",
-        /// The signature does not verify.
+        /// The signature doesn't verify.
         SigError => "SIGERROR",
         /// The network refused the transfer as invalid, for example for a missing
         /// balance or account.
@@ -30,7 +29,7 @@ wire_enum! {
         ContractExeError => "CONTRACT_EXE_ERROR",
         /// Not enough bandwidth, and not enough TRX to pay for it either.
         BandwidthError => "BANDWITH_ERROR",
-        /// The network already has this transaction, which is a success.
+        /// The network already has this transaction, so it counts as a success.
         DupTransactionError => "DUP_TRANSACTION_ERROR",
         /// The reference block is no longer recent.
         TaposError => "TAPOS_ERROR",
@@ -44,19 +43,18 @@ wire_enum! {
         NoConnection => "NO_CONNECTION",
         /// The node has too few peers to relay.
         NotEnoughEffectiveConnection => "NOT_ENOUGH_EFFECTIVE_CONNECTION",
-        /// The node's head is too far past its last solidified block, so it takes
-        /// no transaction until it catches up.
+        /// The node's head is too far past its last solidified block, so it won't
+        /// take transactions until it catches up.
         BlockUnsolidified => "BLOCK_UNSOLIDIFIED",
         /// The node reported an unspecified error.
         OtherError => "OTHER_ERROR",
-        /// A code this build has no name for.
+        /// A code we don't recognize.
         Unclassified => "UNCLASSIFIED",
     }
 }
 
 impl BroadcastCode {
-    /// Reads one `code` member. This is the one place a TRON node's code string
-    /// is interpreted.
+    /// The only place a node's `code` string is interpreted.
     fn classify(text: &str) -> Self {
         match text.trim().to_ascii_uppercase().as_str() {
             // Spellings some forks use instead of the upstream ones.
@@ -90,9 +88,9 @@ impl BroadcastCode {
         }
     }
 
-    /// A stale reference means this attempt is dead and a rebuild is safe. A
-    /// busy, peerless or lagging node is worth asking elsewhere. Everything else
-    /// is final, because every node would refuse the transaction as written.
+    /// A stale reference means this attempt is dead and a rebuild is safe. A busy,
+    /// peerless, or lagging node is worth asking elsewhere. Anything else is final,
+    /// since every node would refuse the same bytes.
     const fn retry(self) -> RetryPolicy {
         match self {
             Self::DupTransactionError => RetryPolicy::AlreadyLanded,
@@ -112,7 +110,7 @@ impl BroadcastCode {
         }
     }
 
-    /// What this code means, in words a person reads.
+    /// What this code means, for the rejection's detail.
     const fn explain(self) -> &'static str {
         match self {
             Self::Success => "the node accepted the transaction",
@@ -137,7 +135,7 @@ impl BroadcastCode {
                 "the node is too far past its last solidified block to take transactions"
             }
             Self::OtherError => "the node reported an unspecified error",
-            Self::Unclassified => "the node reported an unrecognised error code",
+            Self::Unclassified => "the node reported an unrecognized error code",
         }
     }
 
@@ -156,17 +154,17 @@ impl BroadcastCode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BroadcastReply {
-    /// The network holds the transaction. `txid` is what the node echoed, when it
-    /// echoed one.
-    Accepted { txid: Option<String> },
-    /// The network refused, already classified.
+    /// The network holds the transaction. `txid` is the node's echo, if any.
+    Accepted {
+        txid: Option<String>,
+    },
     Refused(Rejection),
 }
 
 impl BroadcastReply {
-    /// A bare `{"result": true}` is accepted. A `code` member decides whatever
-    /// `result` says, because some gateways omit `result` on a refusal and others
-    /// set it false alongside a code that means success.
+    /// A bare `{"result": true}` is accepted. A `code` member overrides `result`,
+    /// because some gateways omit `result` on a refusal and others set it false
+    /// alongside a code that means success.
     fn read(answer: &Answered) -> Result<Self, TronError> {
         let reply: Response = answer.decode()?;
         match (reply.result, reply.code.as_deref()) {
@@ -197,8 +195,8 @@ struct Response {
     txid: Option<String>,
 }
 
-/// One attempt against one endpoint. The JSON fallback body is built here from
-/// the same signed bytes, so one place derives it.
+/// One attempt against one endpoint. The JSON fallback body is derived here from
+/// the same signed bytes.
 pub(crate) async fn deliver(
     client: &TronClient,
     signed: &[u8],
@@ -209,14 +207,14 @@ pub(crate) async fn deliver(
     BroadcastReply::read(&answer)
 }
 
-/// The JSON broadcast body, for a gateway that does not serve `broadcasthex`.
+/// The JSON broadcast body, for a gateway that doesn't serve `broadcasthex`.
 ///
-/// java-tron rebuilds the transaction from the decoded `raw_data` object and
-/// ignores `raw_data_hex`, so `raw_data` is emitted field by field from the
-/// signed bytes. It merges `parameter.value` as an object of the contract's own
-/// fields, with addresses in hex because the body carries no `visible` flag.
-/// The hex route is preferred, because a re-serialisation that differs by one
-/// varint changes the txid and invalidates the signature.
+/// java-tron rebuilds the transaction from the `raw_data` object and ignores
+/// `raw_data_hex`, so we emit `raw_data` field by field from the signed bytes, with
+/// `parameter.value` holding the contract's own fields. Addresses are hex because
+/// the body carries no `visible` flag. The hex route is preferred, since a
+/// re-encoding that differs by one varint changes the txid and breaks the
+/// signature.
 fn json_body(raw_data: &[u8], signature: &[u8; raw::SIGNATURE_BYTES]) -> Result<String, TronError> {
     let decoded = raw::decode(raw_data)?;
     let kind = decoded.body.contract();
@@ -283,9 +281,8 @@ struct JsonParameter {
     value: JsonBody,
 }
 
-/// The fields of the two contract bodies this build writes. They are all java-tron
-/// needs to re-encode the signed body, because the build leaves every other
-/// field at its default.
+/// The two contract bodies we build. java-tron needs no other fields to re-encode
+/// them, since we leave the rest at their defaults.
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 enum JsonBody {
@@ -395,10 +392,9 @@ mod tests {
             "only a success and a duplicate mean the network holds the transaction"
         );
 
-        // java-tron answers BLOCK_UNSOLIDIFIED when the node's own head is too far
-        // ahead of its solidified block. It checks that beside SERVER_BUSY and
-        // NO_CONNECTION, before it reads the transaction, so the reference block
-        // plays no part and a node that is keeping up can take the same bytes.
+        // java-tron checks BLOCK_UNSOLIDIFIED alongside SERVER_BUSY and
+        // NO_CONNECTION, before it reads the transaction, so a node that's keeping
+        // up can take the same bytes.
         let unsolidified = BroadcastCode::classify("BLOCK_UNSOLIDIFIED");
         assert_eq!(
             (unsolidified.kind(), unsolidified.retry()),

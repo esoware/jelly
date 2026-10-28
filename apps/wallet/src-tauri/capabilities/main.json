@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Main wallet window: custom titlebar, event listening, non-secret commands",
+  "description": "Main window: titlebar controls, events, clipboard writes, and the non-secret commands",
   "windows": ["main"],
   "platforms": ["windows", "macOS", "linux"],
   "permissions": [

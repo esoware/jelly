@@ -11,14 +11,13 @@ use crate::original::Original;
 use crate::params::UtxoParams;
 use crate::replacement::{ReplacementRequest, build_replacement, min_replacement_rate};
 
-/// The sources and recipient of the original, recovered from the chain so a
-/// restart loses nothing.
+/// The sources and recipient of the original, recovered from the chain so they
+/// survive a restart.
 ///
-/// The funding scripts identify the addresses it spends from. The recipient is the
-/// first output paying none of them, or the first output when every output does, and
-/// the change is the last other output paying an address of the wallet's.
-/// `plan_replacement` keeps every output except the fee source, so misidentifying
-/// change can shift which output pays the higher fee but cannot redirect funds.
+/// The recipient is the first output paying none of the addresses the original
+/// spends from, or the first output if they all do. The change is the last other
+/// output that pays the wallet. Getting the change wrong can only shift which output
+/// pays the higher fee, never redirect funds.
 #[derive(Debug, Clone)]
 pub(crate) struct Replacing {
     original: Original,
@@ -82,10 +81,8 @@ impl Replacing {
         self.descendants.count
     }
 
-    /// `extras` are coins the planner may add when the change cannot cover the
-    /// higher fee. The planner drops unconfirmed ones, which BIP-125 rule 2
-    /// forbids adding, so a chain whose default spends unconfirmed coins cannot
-    /// produce a replacement no node relays.
+    /// `extras` are coins the planner may add when the change can't cover the higher
+    /// fee. It drops unconfirmed ones, since BIP-125 rule 2 forbids adding them.
     pub(crate) fn build(
         &self,
         fee_context: &FeeContext,

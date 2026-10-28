@@ -11,7 +11,7 @@ use crate::keys::MoneroKeys;
 use crate::node::PooledNode;
 use crate::params::CHAIN;
 
-/// Building restores the persisted scan state, which is why this one awaits.
+/// Async because building restores the persisted scan state.
 pub async fn build(
     network: &Network,
     request: &BuildRequest,
@@ -37,11 +37,7 @@ pub async fn build(
 }
 
 /// Asks one endpoint which network it serves, through the connector the pool is built
-/// with, so the endpoint editor and the pool's guard cannot disagree.
-///
-/// The registry refuses an address on a transport the spec does not list, so only an
-/// endpoint built outside it can name another transport, and it gets the registry's own
-/// refusal.
+/// with, so the endpoint editor and the pool's guard can't disagree.
 pub async fn probe(network: &Network, endpoint: &Endpoint) -> ProbeReport {
     if endpoint.transport() == SPEC.primary_transport {
         jelly_net::probe(&daemon_rpc(network), network.clock().as_ref(), endpoint).await
@@ -50,8 +46,8 @@ pub async fn probe(network: &Network, endpoint: &Endpoint) -> ProbeReport {
     }
 }
 
-/// The connector's request budget is the pool's per-attempt timeout, so the two bound
-/// the same request alike.
+/// The connector's request budget is the pool's per-attempt timeout, so both bound a
+/// request the same way.
 fn daemon_rpc(network: &Network) -> MoneroConnector {
     MoneroConnector::new(
         network.http(),

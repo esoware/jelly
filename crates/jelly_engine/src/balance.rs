@@ -7,8 +7,8 @@ use crate::WalletEngine;
 /// One address's balance in one asset. The interface reads the address itself from its
 /// own record.
 ///
-/// The row's write time is deliberately absent. Each pass restates the balance, so its
-/// age is the chain's sync state rather than a fact about the row.
+/// There's no write time, because each pass restates the balance, so its age is the
+/// chain's sync state.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

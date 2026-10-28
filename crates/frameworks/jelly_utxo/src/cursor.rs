@@ -9,8 +9,8 @@ use crate::coin::{Origin, Utxo, to_u64, units};
 use crate::error::UtxoError;
 use crate::script::SpendableScript;
 
-/// The first field of every cursor. Bytes under any other version do not decode, so
-/// they read as unreadable state rather than as no cursor.
+/// The first field of every cursor. Bytes with any other version don't decode, so
+/// they read as unreadable state, not as a missing cursor.
 const CURSOR_VERSION: u32 = 6;
 
 /// The flags, txid, vout, value, and height.
@@ -44,9 +44,9 @@ pub(crate) struct CursorUtxo {
     pub(crate) has_tokens: bool,
 }
 
-/// A mempool transaction the writing pass decoded, with what a later pass needs to
-/// settle it once a conflicting transaction replaces it, even in a later session
-/// that never decoded it.
+/// A mempool transaction the writing pass decoded, with enough for a later pass to
+/// settle it if a conflicting transaction replaces it, even in a session that never
+/// decoded it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CursorPending {
     pub(crate) txid: Txid,
@@ -54,10 +54,8 @@ pub(crate) struct CursorPending {
     pub(crate) spends: Vec<OutPoint>,
 }
 
-/// What one address's sync pass remembers for the next one.
-///
-/// A cursor exists only after a successful pass, so there is no empty form. The
-/// balance is not stored because it is the sum of the coins.
+/// What one address's sync pass leaves for the next one. Only a successful pass
+/// writes one, and the balance isn't stored because it's the sum of the coins.
 ///
 /// On disk, little-endian throughout:
 ///
@@ -76,20 +74,20 @@ pub(crate) struct CursorPending {
 ///
 /// A coin's flags are bit 0 for confirmed, bit 1 for a coinbase output, bit 2 for
 /// a peg-out, bit 3 for an output of the wallet's own transaction, and bit 4 for
-/// an output that carries tokens. A history entry's height is zero while it is in
+/// an output that carries tokens. A history entry's height is zero while it's in
 /// the mempool, since no wallet's history holds the genesis block. A pending
 /// transaction's direction is 0 for incoming, 1 for outgoing, and 2 for a
 /// self-transfer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SyncCursor {
-    /// The history fingerprint the writing pass saw. It is not the protocol's
-    /// `status` hash, because servers legitimately disagree on the order of
-    /// entries within a block and a failover would invalidate every cursor.
+    /// The history fingerprint the writing pass saw. Not the protocol's `status`
+    /// hash, since servers legitimately order entries within a block differently and
+    /// a failover would invalidate every cursor.
     digest: Option<HistoryDigest>,
     coins: Vec<CursorUtxo>,
-    /// Every transaction the writing pass reported, at the height it reported
-    /// it, absent while in the mempool. A transaction never changes, so the next
-    /// pass downloads only what is new here or has moved.
+    /// Every transaction the writing pass reported, at the height it reported it,
+    /// absent while in the mempool. A transaction never changes, so the next pass
+    /// downloads only the ones that are new or have moved.
     seen: BTreeMap<Txid, Option<u32>>,
     pending: Vec<CursorPending>,
 }
@@ -136,7 +134,7 @@ impl SyncCursor {
         &self.pending
     }
 
-    /// A match means nothing about the address needs refetching.
+    /// A match means the address's history hasn't moved since the writing pass.
     pub(crate) fn matches(&self, digest: Option<HistoryDigest>) -> bool {
         self.digest == digest
     }
@@ -223,7 +221,8 @@ impl SyncCursor {
         Ok(encoded)
     }
 
-    /// Unreadable state must not be treated as an absent cursor.
+    /// `None` means unreadable state, which callers must not treat as an absent
+    /// cursor.
     pub(crate) fn decode(bytes: &[u8]) -> Option<Self> {
         let mut reader = Reader { bytes };
         if u32::from_le_bytes(reader.take::<4>()?) != CURSOR_VERSION {
@@ -235,7 +234,7 @@ impl SyncCursor {
             _ => return None,
         };
         let count = usize::try_from(u32::from_le_bytes(reader.take::<4>()?)).ok()?;
-        // Checked before anything is allocated, so a corrupt count cannot ask for
+        // Checked before anything is allocated, so a corrupt count can't ask for
         // more memory than the bytes could describe.
         if reader.remaining() < count.checked_mul(COIN_BYTES)? {
             return None;

@@ -216,8 +216,8 @@ async fn a_bsc_token_build_says_bep_20_and_uses_eighteen_decimals() {
     assert_eq!(detail(&unsigned.preview.details, "Token decimals"), "18");
 }
 
-/// USDT0 and the other issuers' own deployments read as plain erc-20 coins, and
-/// the chain id row says which network they are on.
+/// USDT0 and other issuers' own deployments read as plain ERC-20 tokens, and the
+/// chain id row says which network they're on.
 #[tokio::test]
 async fn a_polygon_token_build_names_the_chain_id_and_pays_gas_in_pol() {
     let harness = Harness::new(common::Setup::on(POLYGON)).unwrap();
@@ -473,11 +473,11 @@ async fn discarding_a_build_releases_its_nonce_slot() {
     assert_eq!(detail(&again.preview.details, "Nonce"), "5", "the slot came back");
 }
 
-/// The send form re-prepared before an earlier prepare returned.
+/// The send form prepared again before an earlier prepare returned.
 ///
-/// The earlier build is discarded after the later one took the next nonce, and the
-/// later one is sent. A node queues a transaction above a missing nonce and answers
-/// with its hash, and its pending count stays below the hole.
+/// The earlier build is discarded after the later one took the next nonce, and the later one
+/// is sent. A node queues a transaction above a nonce gap and answers with its hash, and its
+/// pending count stays below the gap.
 #[tokio::test]
 async fn a_build_discarded_below_a_sent_one_leaves_a_gap_the_next_build_fills() {
     let harness = Harness::signer(common::Setup::default(), 5).await.unwrap();

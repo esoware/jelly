@@ -6,8 +6,7 @@ pub(crate) const CHAIN: ChainId = ChainId::Ton;
 const MAINNET_ZEROSTATE_ROOT_HASH: &str = "F6OpKZKqvqeFp6CQmFomXNMfMj2EnaUSOXN+Mh+wVWk=";
 const MAINNET_ZEROSTATE_FILE_HASH: &str = "XplPz01CXAps5qeSWUtxcyBfdAo5zVb1N979KLSKD24=";
 pub(crate) const MAX_FEE_NANOGRAM: u64 = 100_000_000;
-/// The longest comment a payment request may carry. It is Jelly's own ceiling, and a
-/// payment whose comment passes it is refused.
+/// The longest comment a payment may carry. This is Jelly's own limit, not the protocol's.
 pub(crate) const MAX_COMMENT_BYTES: usize = 1024;
 
 /// Reads a `getMasterchainInfo` result. `None` means it names no network.

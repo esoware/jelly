@@ -12,22 +12,21 @@ pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Bsc,
     coin_name: "BNB",
     coin_chain: ChainId::Bsc,
-    // Ethereum's coin type rather than BNB's own, so a seed has the same address on
-    // both networks.
+    // Ethereum's coin type, not BNB's own, so a seed has the same address on both
+    // networks.
     slip44: 60,
     key_kind: KeyKind::Secp256k1,
     default_path: "m/44'/60'/0'/0/{index}",
     script_kinds: &[],
     default_script: None,
-    // Fast finality finalizes a block once the two after it carry the validators'
+    // Fast finality makes a block final once the two after it carry the validators'
     // votes, about a second and a half.
     settled_confirmations: 3,
     poll_secs: 8,
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::GasPrice),
-    // About $1.99 at the October 2026 price of $737. At the 0.05 gwei gas costs now, a plain
-    // transfer costs about 0.000001 BNB and a token transfer about 0.0000033 BNB.
+    // About $2.
     high_fee: Amount::from_base_units(2_700_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,
@@ -50,8 +49,8 @@ pub const PARAMS: EvmParams = EvmParams {
     chain_id: 56,
     request_timeout: Duration::from_secs(10),
     // Binance's own copies of LINK and ether, which its withdrawals send and the
-    // network's exchanges trade, rather than the ERC-677 LINK Chainlink's PegSwap
-    // issues for paying its oracles. ENA is Ethena's own deployment.
+    // network's exchanges trade, not the ERC-677 LINK that Chainlink's PegSwap issues
+    // to pay its oracles. ENA is Ethena's own deployment.
     tokens: &[
         TokenId::LinkBep20,
         TokenId::WethBep20,
@@ -63,15 +62,14 @@ pub const PARAMS: EvmParams = EvmParams {
     token_standard: "BEP-20",
     // One block every 0.45 seconds since the Fermi hard fork of 14 January 2026.
     block_millis: 450,
-    // A pass per block on a sub-second chain is wasteful, so a burst of heads wakes
-    // one pass.
+    // A pass per block would be wasteful at this pace.
     watch_floor: Duration::from_secs(6),
-    // More blocks than Ethereum samples, because they come many times as often.
+    // 45 seconds of blocks.
     fee_history_blocks: 100,
     // The base fee is near zero, so the tip is what gets a transaction included.
     min_priority_fee_wei: 50_000_000,
     max_priority_fee_wei: None,
-    // Past finality, to leave room for a public node that trails the one that
+    // About seven seconds, past finality, to cover a public node behind the one that
     // reported the tip.
     confirmations_target: 15,
     log_window_blocks: 1_000,

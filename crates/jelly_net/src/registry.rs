@@ -13,24 +13,22 @@ pub type ChainEntries = &'static [&'static dyn ChainEntry];
 
 const TARGET: &str = "jelly::net::registry";
 
-/// An endpoint and whether it is enabled, in configured order.
+/// An endpoint and whether it's enabled.
 ///
-/// Whether the row is pinned is [`Endpoint::origin`] and is deliberately not
-/// repeated here, so the two cannot disagree.
+/// Whether it's pinned lives only in [`Endpoint::origin`], so the two can't disagree.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EndpointStatus {
     pub endpoint: Endpoint,
     pub is_enabled: bool,
 }
 
-/// The single owner of which endpoints exist. Curated defaults and user overrides merge
-/// here, so a pool and the interface never show different lists.
+/// Merges the curated defaults with the user's overrides, so the pools and the interface
+/// see one list.
 #[derive(Debug)]
 pub struct EndpointRegistry {
     chains: ChainEntries,
-    /// Every chain's curated defaults, read once from the entries, or why its file is
-    /// unusable. All Jelly knows about where to find a chain until the user adds
-    /// endpoints, and nothing is fetched at runtime.
+    /// Each chain's curated defaults, parsed once, or why its file is unusable. Nothing is
+    /// fetched at runtime.
     defaults: HashMap<ChainId, Result<DefaultEndpoints, &'static str>>,
     overrides: RwLock<HashMap<ChainId, Vec<EndpointOverride>>>,
 }
@@ -65,8 +63,8 @@ impl EndpointRegistry {
         }
     }
 
-    /// Stored overrides retain their plaintext opt-in but must still name a transport
-    /// the chain uses.
+    /// A stored override keeps its plaintext opt-in but must still name a transport the
+    /// chain uses.
     pub fn parse_stored(&self, chain: ChainId, input: &str) -> Result<Endpoint, NetError> {
         self.parse_for_chain(chain, input, PlaintextPolicy::Allowed)
     }
@@ -87,8 +85,7 @@ impl EndpointRegistry {
         Endpoint::parse_with(chain, transport, input, plaintext)
     }
 
-    /// Replaces every chain's overrides at once, which is what a re-read of the
-    /// database means.
+    /// Replaces every chain's overrides with `rows`, skipping any that no longer parse.
     pub fn load_overrides(&self, rows: impl IntoIterator<Item = (ChainId, EndpointOverride)>) {
         let mut by_chain: HashMap<ChainId, Vec<EndpointOverride>> = HashMap::new();
         for (chain, row) in rows {
@@ -99,11 +96,11 @@ impl EndpointRegistry {
         *self.overrides.write() = by_chain;
     }
 
-    /// Every endpoint the user could reach on `chain`, disabled ones included, with
-    /// overrides merged into the shipped endpoints by canonical URL.
+    /// Every endpoint configured for `chain`, disabled ones included, with overrides
+    /// merged into the curated defaults by canonical URL.
     ///
-    /// Orders pinned endpoints first, then custom endpoints, then defaults. Order
-    /// within each group is stable. Pools apply health ranking per request.
+    /// Pinned endpoints come first, then the user's, then the defaults, each group in its
+    /// stored or shipped order. Pools rank by health per request.
     pub fn configured(&self, chain: ChainId) -> Result<Vec<EndpointStatus>, NetError> {
         let overrides = self.overrides.read();
         let rows = overrides.get(&chain).map_or(&[][..], Vec::as_slice);
@@ -120,8 +117,7 @@ impl EndpointRegistry {
                 continue;
             }
             let origin = if row.is_pinned { EndpointOrigin::Pinned } else { EndpointOrigin::User };
-            // `load_overrides` kept only rows this same call accepts, so it cannot fail
-            // here.
+            // Can't fail: `load_overrides` kept only rows this same call accepts.
             let endpoint =
                 self.parse_stored(chain, &row.url)?.with_input(&row.display).with_origin(origin);
             ordered.push((origin, index, EndpointStatus { endpoint, is_enabled: row.is_enabled }));
@@ -145,10 +141,8 @@ impl EndpointRegistry {
         Ok(ordered.into_iter().map(|(_, _, status)| status).collect())
     }
 
-    /// The endpoints a pool walks for one transport, in configured order.
-    ///
-    /// Not health order, because a pool re-reads health and sorts on every walk. A chain
-    /// with both an RPC pool and a REST pool builds each from its own call here.
+    /// The enabled endpoints for one transport, in configured order. A pool sorts them by
+    /// health itself on every walk.
     pub fn enabled(&self, chain: ChainId, transport: Transport) -> Result<Vec<Endpoint>, NetError> {
         Ok(self
             .configured(chain)?
@@ -158,13 +152,12 @@ impl EndpointRegistry {
             .collect())
     }
 
-    /// Resolves a URL the user typed to the one canonical endpoint the pools,
-    /// the health tracker and the database all key on.
+    /// Resolves a URL the user typed to the canonical endpoint the pools, the health
+    /// tracker, and the database key on.
     ///
-    /// An address already in the list resolves under that entry's own transport.
-    /// Anything else is read as the chain's primary transport, or as the websocket
-    /// transport when the scheme names it, which a chain with no websocket pool
-    /// refuses.
+    /// An address already in the list keeps its entry's transport. Anything else is read
+    /// as the chain's primary transport, or as the websocket transport when the scheme
+    /// says so, which a chain with no websocket pool refuses.
     pub fn resolve(
         &self,
         chain: ChainId,
@@ -182,9 +175,9 @@ impl EndpointRegistry {
         let wanted = self.spec(chain)?.transport_for(url);
         for row in self.configured(chain)? {
             let transport = row.endpoint.transport();
-            // Canonicalizing under a row's transport folds the scheme into that
-            // transport's own, so a websocket address would match the same host's HTTP
-            // row and the reverse. The scheme the user typed decides which they meant.
+            // Canonicalizing under a row's transport replaces the scheme with that
+            // transport's own, so a websocket address would match the same host's HTTP row
+            // and the reverse. The scheme the user typed decides which they meant.
             if (transport == Transport::WsJsonrpc) != (wanted == Transport::WsJsonrpc) {
                 continue;
             }
@@ -197,8 +190,8 @@ impl EndpointRegistry {
         Ok(None)
     }
 
-    /// Unusable rows must not prevent valid endpoints from loading. The database
-    /// loader deletes these rows; other callers still get the usable subset.
+    /// A stored row that no longer parses is logged and skipped, so it can't keep the
+    /// rest from loading. The app's database loader also deletes it.
     fn is_usable(&self, chain: ChainId, row: &EndpointOverride) -> bool {
         let Err(error) = self.parse_stored(chain, &row.url) else {
             return true;

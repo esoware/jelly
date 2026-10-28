@@ -88,7 +88,7 @@ async fn the_normal_level_pays_the_recommended_rate_without_asking_a_server() {
 
 /// A node relays down to a tenth of the recommended rate and miners include from
 /// the recommended rate, so anything between is relayed but slow, and anything
-/// below is refused before it is built.
+/// below is refused before it's built.
 #[tokio::test]
 async fn a_rate_below_the_recommendation_is_slow_and_below_the_relay_floor_is_refused() {
     let (harness, wallet) = synced(Setup::on(&DOGECOIN), KIND, &[FUNDING_KOINU]).await.unwrap();
@@ -134,8 +134,7 @@ async fn an_output_below_the_soft_dust_limit_is_never_written() {
         .await
         .expect("exactly the soft dust limit");
 
-    // Paying all but half the dust limit of what the coin holds after the fee leaves
-    // change no node would take for free.
+    // Leave half the dust limit as change, which no node would take for free.
     let (harness, wallet) = synced(Setup::on(&DOGECOIN), KIND, &[FUNDING_KOINU]).await.unwrap();
     let almost_all = FUNDING_KOINU - FEE_KOINU - DUST_KOINU.div_euclid(2);
     let unsigned = harness

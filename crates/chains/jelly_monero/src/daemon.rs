@@ -1,9 +1,8 @@
 //! One monerod endpoint over the shared HTTP client, and every call this crate
 //! makes to it.
 //!
-//! `monero-daemon-rpc` reports a failure as an `InterfaceError`, which cannot
-//! carry a [`NetError`], so this is the one place that recovers the transport's
-//! own classification from one.
+//! `monero-daemon-rpc` reports a failure as an `InterfaceError`, which can't carry
+//! a [`NetError`], so the transport stashes the real one for the caller to recover.
 
 use std::fmt;
 use std::ops::RangeInclusive;
@@ -33,8 +32,7 @@ use crate::identity;
 
 const TARGET: &str = "jelly::monero::daemon";
 
-/// Blocks of grace monerod is asked to price the fee estimate for, which is what
-/// wallet2 asks for.
+/// The `grace_blocks` wallet2 asks `get_fee_estimate` for.
 const FEE_GRACE_BLOCKS: u32 = 10;
 
 /// A response budget in bytes of data, which the library scales for JSON and
@@ -52,17 +50,16 @@ const LEGACY_MULTIPLIERS: [u64; 3] = [1, 5, 25];
 
 /// A monerod HTTP transport over the shared `jelly_net` client.
 ///
-/// The daemon protocol posts epee binary bodies to the `.bin` routes and JSON
-/// everywhere else, and answers a block request with megabytes, so the size limit
-/// the library passes is enforced as the body arrives.
+/// The daemon takes epee binary bodies on the `.bin` routes and JSON everywhere
+/// else, and can answer a block request with megabytes, so the library's size
+/// limit is enforced as the body arrives.
 #[derive(Debug, Clone)]
 struct JellyTransport {
     client: HttpClient,
     endpoint: Endpoint,
     timeout: Duration,
-    /// The last transport failure, shared by every clone. The pool needs the real
-    /// class to record endpoint health, so it is stashed here and recovered by
-    /// the caller.
+    /// The last transport failure, shared by every clone, so the caller can recover
+    /// its real class for the pool's health record.
     last_failure: Arc<Mutex<Option<NetError>>>,
 }
 
@@ -100,7 +97,7 @@ impl HttpTransport for JellyTransport {
         async move {
             #[expect(
                 clippy::case_sensitive_file_extension_comparisons,
-                reason = "an rpc route, not a file name, and monerod matches routes case-sensitively"
+                reason = "an rpc route, which monerod matches case-sensitively"
             )]
             let is_binary = route.ends_with(".bin");
             let content_type =
@@ -119,9 +116,7 @@ impl HttpTransport for JellyTransport {
     }
 }
 
-/// One monerod endpoint, negotiated and ready to serve requests.
-///
-/// This is what the failover pool caches per endpoint. The URL can carry
+/// A negotiated monerod endpoint, as the failover pool caches it. The URL can carry
 /// credentials, so `Debug` shows the label.
 pub(crate) struct DaemonEndpoint {
     daemon: MoneroDaemon<JellyTransport>,
@@ -190,8 +185,8 @@ impl DaemonEndpoint {
             .map_err(|error| self.recover_transactions_error(error))
     }
 
-    /// Asks for the pruned form, which answers whether the node holds the
-    /// transaction with a smaller response than the whole of it.
+    /// Asks for the pruned form, which answers the same question in a smaller
+    /// response.
     pub(crate) async fn is_known(&self, txid: [u8; 32]) -> Result<bool, NetError> {
         match ProvidesTransactions::pruned_transactions(&self.daemon, &[txid]).await {
             Ok(found) => Ok(!found.is_empty()),
@@ -200,17 +195,16 @@ impl DaemonEndpoint {
         }
     }
 
-    /// The tiers the levels pay as this node quotes them, none above
-    /// [`MAX_PICONERO_PER_WEIGHT`], with the priority wallet2's default would pay,
-    /// which the normal level pays.
+    /// This node's fee tiers, none above [`MAX_PICONERO_PER_WEIGHT`], and the
+    /// priority wallet2's default would pay, which the normal level pays.
     pub(crate) async fn fee_ladder(&self) -> Result<FeeLadder, NetError> {
         let params = json!({ "grace_blocks": FEE_GRACE_BLOCKS });
         let estimate: FeeEstimate =
             self.json_rpc("get_fee_estimate", &params, SMALL_ANSWER_BYTES).await?;
         let ladder = estimate.ladder(self.label())?;
-        // wallet2 falls back to the slow priority when it cannot judge congestion,
-        // but a Monero transaction cannot be replaced at a higher fee, so this
-        // falls back to normal as Feather does.
+        // wallet2 falls back to the slow priority when it can't judge congestion,
+        // but a Monero fee can't be bumped later, so fall back to normal as Feather
+        // does.
         let normal = match self.automatic_priority().await {
             Ok(priority) => priority,
             Err(error) => {
@@ -226,11 +220,11 @@ impl DaemonEndpoint {
         Ok(ladder.with_normal(normal))
     }
 
-    /// The automatic priority from the pool backlog and the last ten blocks'
-    /// weights, as wallet2 reads them.
+    /// wallet2's automatic priority, from the pool backlog and the last ten blocks'
+    /// weights.
     ///
-    /// The chain info and the pool statistics do not depend on each other, so
-    /// they are read together and only the header range waits for the height.
+    /// The chain info and the pool statistics are read together, and only the header
+    /// range waits for the height.
     async fn automatic_priority(&self) -> Result<MoneroPriority, NetError> {
         let no_params = json!({});
         let (info, pool) = join!(
@@ -272,9 +266,9 @@ impl DaemonEndpoint {
         &self,
         transaction: &Transaction,
     ) -> Result<BroadcastReply, NetError> {
-        // monerod's sanity check is an RPC-only heuristic on how the ring is spread,
-        // not a relay rule, and monero-wallet chooses rings without it and turns it
-        // off in its own client, because a sound ring can still fail it.
+        // monerod's sanity check is an RPC-only heuristic on how a ring is spread, not
+        // a relay rule. A sound ring can fail it, and monero-wallet's own client turns
+        // it off too.
         let params = json!({
             "tx_as_hex": hex::encode(transaction.serialize()),
             "do_sanity_checks": false,
@@ -300,7 +294,7 @@ impl DaemonEndpoint {
         }
     }
 
-    /// One bespoke JSON-RPC call, deserialised into a shape this crate owns.
+    /// One bespoke JSON-RPC call, deserialized into a shape this crate owns.
     async fn json_rpc<T: DeserializeOwned>(
         &self,
         method: &str,
@@ -315,7 +309,7 @@ impl DaemonEndpoint {
         serde_json::from_str(&body).map_err(|source| self.unparsed(method, &source))
     }
 
-    /// One bespoke non-JSON-RPC call, deserialised into a shape this crate owns.
+    /// One bespoke non-JSON-RPC call, deserialized into a shape this crate owns.
     async fn rpc<T: DeserializeOwned>(
         &self,
         route: &str,
@@ -349,9 +343,8 @@ impl DaemonEndpoint {
 #[derive(Debug, Clone)]
 pub(crate) struct MoneroConnector {
     client: HttpClient,
-    /// The budget for each request through an opened endpoint, not for the dial,
-    /// which the pool bounds. A scan request is slow long after the daemon was
-    /// negotiated.
+    /// The budget for each request through an opened endpoint. The pool bounds the
+    /// dial.
     request_timeout: Duration,
 }
 
@@ -381,9 +374,8 @@ impl Connect<DaemonEndpoint> for MoneroConnector {
 /// monerod's `get_fee_estimate`.
 ///
 /// `fees` is the per-priority table modern daemons answer with, and `fee` is the
-/// one base rate older ones answer with. `quantization_mask` defaults to one
-/// rather than zero, because a zero mask is not a usable fee rate and a daemon
-/// that omits the field quantises by one.
+/// one base rate older ones answer with. `quantization_mask` defaults to one, since
+/// a daemon that omits it quantizes by one and a zero mask isn't usable.
 #[derive(Debug, Deserialize)]
 struct FeeEstimate {
     status: String,
@@ -414,8 +406,8 @@ impl FeeEstimate {
                     "the node quoted fewer than three fee tiers",
                 ));
             }
-            // A daemon too old for per-priority rates. wallet2 scales the one
-            // base rate, and so does this.
+            // A daemon too old for per-priority rates. Scale its base rate the way
+            // wallet2 does.
             None => {
                 let [unimportant, normal, elevated] = LEGACY_MULTIPLIERS;
                 let scale = |multiplier: u64| {
@@ -498,7 +490,7 @@ mod tests {
         assert_eq!(
             ladder.rate(MoneroPriority::Unimportant),
             FeeRate::new(20_000, 10_000).expect("a rate"),
-            "every rate carries the daemon's quantisation mask"
+            "every rate carries the daemon's quantization mask"
         );
     }
 

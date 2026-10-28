@@ -1,4 +1,4 @@
-//! What Bitcoin Cash does that the other tables do not.
+//! What Bitcoin Cash does that the other tables don't.
 //!
 //! Its outputs can carry `CashTokens` or SLP tokens, its legacy address forms are
 //! Bitcoin's too, a checkpoint tells its servers from Bitcoin's, its signatures are
@@ -155,8 +155,8 @@ async fn a_later_session_keeps_a_coin_with_tokens_out_of_a_build() {
     );
 }
 
-/// The same bytes on a chain without tokens are a script that is not the
-/// address's, which a server listing it as the address's coin is lying about.
+/// On a chain without tokens the prefixed output isn't the address's script, so it
+/// doesn't count even when a server lists it.
 #[tokio::test]
 async fn a_token_prefix_means_nothing_on_a_chain_without_tokens() {
     let harness = Harness::new(Setup::on(&BITCOIN)).unwrap();
@@ -234,10 +234,8 @@ async fn drained_vouts(holding: &Holding, params: &UtxoParams) -> Fallible<Vec<u
     Ok(vouts)
 }
 
-/// An SLP coin is treated exactly as a `CashTokens` coin.
-///
-/// It is a plain output whose tokens only the funding transaction's first output
-/// names, and it counts toward the balance and is never spent.
+/// An SLP coin is a plain output whose tokens only its transaction's first output
+/// names. Like a `CashTokens` coin, it counts toward the balance and is never spent.
 #[tokio::test]
 async fn a_coin_an_slp_message_names_counts_toward_the_balance_and_is_never_spent() {
     let holding =
@@ -281,7 +279,7 @@ async fn a_malformed_slp_message_or_a_chain_without_slp_holds_nothing() {
     assert_eq!(drained_vouts(&bitcoin, &BITCOIN).await.unwrap(), [1, 2]);
 }
 
-/// Bitcoin Cash kept Bitcoin's version bytes, so a legacy address cannot say which
+/// Bitcoin Cash kept Bitcoin's version bytes, so a legacy address can't say which
 /// chain its owner watches. A `CashAddr` can, and a token-aware one pays the plain
 /// script.
 #[tokio::test]
@@ -334,7 +332,7 @@ async fn bitcoins_and_bitcoin_cashs_servers_are_told_apart_at_the_checkpoint() {
 }
 
 /// Every signature commits to `SIGHASH_FORKID`, and no input signals a
-/// replacement no node would honour.
+/// replacement no node would honor.
 #[tokio::test]
 async fn a_bitcoin_cash_payment_is_replay_protected_and_final_to_replacement() {
     let (harness, wallet) =

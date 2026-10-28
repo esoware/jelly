@@ -39,10 +39,10 @@ pub(crate) const USDT_WALLET: &str = "EQDg4AjfaxQBVsUFueenkKlHLhhYWrcBvCEzbEgfrT
 /// 32 zero bytes in base64, the hash of a position that names no transaction.
 pub(crate) const ZERO_HASH: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
-/// Every jetton the fake master serves, with the seed its wallets derive from.
+/// The jettons the fake masters serve, each with the byte its wallet addresses derive from.
 ///
-/// The watched owner's wallet is the seed throughout, and another owner's is that
-/// owner's hash with the seed flipped into its first byte.
+/// The watched owner's jetton wallet is that byte repeated, and another owner's is that
+/// owner's hash with the byte XOR applied to its first byte.
 const JETTONS: [(TokenId, u8); 3] =
     [(TokenId::UsdtJetton, 1), (TokenId::XautJetton, 2), (TokenId::EnaJetton, 3)];
 

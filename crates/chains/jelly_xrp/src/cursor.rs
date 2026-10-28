@@ -45,7 +45,7 @@ impl Cursor {
         Ok(CursorBytes::new(bytes))
     }
 
-    /// The first and last ledger of the range the next page reads. A walk that is not in
+    /// The first and last ledger of the range the next page reads. A walk that isn't in
     /// progress reads through the validated `tip`.
     pub(crate) fn range(&self, tip: u32) -> (u32, u32) {
         (self.next_ledger.unwrap_or(FIRST_MAINNET_LEDGER), self.last_ledger.unwrap_or(tip))
@@ -68,10 +68,11 @@ impl Cursor {
     /// Moves past the page just read of the range at `tip`, whose last row is in
     /// `reached_ledger`.
     ///
-    /// A marker means something only to the kind of server that wrote it. rippled's names the
-    /// next row it has not returned and Clio's the last row it returned, so the other kind
-    /// resuming it can skip a row. A page that reached a later ledger is resumed from that
-    /// ledger, read again in full, and only a page that finished no ledger from its marker.
+    /// A marker means something only to the kind of server that wrote it. rippled's names
+    /// the next row it hasn't returned and Clio's the last row it returned, so the other kind
+    /// resuming it can skip a row. A page that got past the range's first ledger is resumed
+    /// from the ledger it reached, which is read again in full. Only a page that finished no
+    /// ledger is resumed from its marker.
     pub(crate) fn mark_read(
         &mut self,
         marker: Option<Value>,

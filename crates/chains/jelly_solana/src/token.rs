@@ -51,9 +51,8 @@ impl SolanaToken {
         self.mint
     }
 
-    /// The program that owns the mint. It is a seed of every associated token
-    /// address, which is why an unknown mint could not be handled without
-    /// reading it.
+    /// The program that owns the mint. It's a seed of every associated token address,
+    /// so an unknown mint couldn't be handled without reading it.
     pub(crate) const fn program(self) -> Pubkey {
         if self.is_token_2022() { TOKEN_2022_PROGRAM } else { TOKEN_PROGRAM }
     }
@@ -150,12 +149,9 @@ impl SolanaToken {
         get_associated_token_address_with_program_id(owner, &self.mint, &self.program())
     }
 
-    /// What `owner` holds of this token in the account at one of its associated
-    /// addresses, or `None` when it holds no account there.
-    ///
-    /// It holds none when that account has not been created, holds only
-    /// lamports, or has been reassigned to another owner, whose tokens they then
-    /// are.
+    /// What `owner` holds of this token at one of its associated addresses, or `None`
+    /// when that account doesn't exist, holds only lamports, or was reassigned to
+    /// another owner.
     pub(crate) fn balance_of(
         self,
         owner: &Pubkey,
@@ -164,8 +160,7 @@ impl SolanaToken {
         Ok(self.held_by(owner, account)?.map(|held| held.amount))
     }
 
-    /// What a transfer can move out of `owner`'s associated account, which is the
-    /// account a transfer spends from. A frozen account moves nothing, so it
+    /// What a transfer can move out of `owner`'s associated account. A frozen account
     /// refuses the transfer.
     pub(crate) fn spendable_by(
         self,
@@ -179,14 +174,14 @@ impl SolanaToken {
         }
     }
 
-    /// Where a transfer of this token to `recipient` credits, or why it must not
-    /// be sent. `associated` is the recipient's associated address.
+    /// Where a transfer of this token to `recipient` credits, or why it mustn't be
+    /// sent. `associated` is the recipient's associated address.
     ///
     /// A recipient that is itself a token account of the mint takes the tokens
-    /// directly. Any other token account is the wrong token, and an address with
-    /// no private key that is not a token account would leave the tokens to a
-    /// program. Everything else is credited at its associated token account,
-    /// which must belong to the recipient. Either account must be able to receive.
+    /// directly, and any other token account is the wrong token. An off-curve address
+    /// that isn't a token account would leave the tokens to a program. Any other
+    /// recipient is credited at its associated token account, which must belong to it.
+    /// Either way, the account credited must be able to receive.
     pub(crate) fn destination(
         self,
         recipient: Pubkey,
@@ -223,10 +218,10 @@ impl SolanaToken {
         Ok(self.associated(account)?.filter(|held| held.owner == *owner))
     }
 
-    /// What sits at one of this token's associated addresses: nothing, or only
-    /// lamports, which is no token account yet, or a token account of this mint.
-    /// Anything else is not an account the associated-token program could have
-    /// made there, so the read is refused rather than taken as empty.
+    /// The token account of this mint at one of its associated addresses, or `None`
+    /// when there's nothing or only lamports there. The associated-token program
+    /// couldn't have made anything else there, so the read is refused rather than taken
+    /// as empty.
     fn associated(self, account: Option<&RawAccount>) -> Result<Option<TokenAccount>, SolanaError> {
         let Some(account) = account.filter(|account| account.owner != SYSTEM_PROGRAM) else {
             return Ok(None);

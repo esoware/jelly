@@ -9,11 +9,11 @@ use crate::error::VaultError;
 /// Changing it orphans every existing credential.
 pub(crate) const KEYCHAIN_SERVICE: &str = "Jelly";
 
-/// Nothing but this key goes in the OS store. The Windows Credential Manager caps a blob
-/// at 2560 bytes, and a vault payload does not belong there anyway.
+/// Only this key goes in the OS store. Windows Credential Manager caps a secret at 2560
+/// bytes, and the vault payload doesn't belong there anyway.
 pub(crate) const MASTER_KEY_LEN: usize = 32;
 
-/// The keychain-resident factor that a stolen vault file does not come with.
+/// The keychain factor, which a stolen vault file doesn't come with.
 ///
 /// Wiped on drop and deliberately not `Clone`, `Display`, or serializable.
 pub struct MasterKey(Zeroizing<[u8; MASTER_KEY_LEN]>);
@@ -35,8 +35,7 @@ impl MasterKey {
             .map_err(|_| VaultError::KeychainMalformed)
     }
 
-    /// The closure keeps every read a visible call site. The bytes must not leave it in
-    /// anything that does not zeroize.
+    /// The bytes must not leave the closure in anything that doesn't zeroize.
     pub fn with_bytes<R>(&self, read: impl FnOnce(&[u8; MASTER_KEY_LEN]) -> R) -> R {
         read(&self.0)
     }
@@ -50,15 +49,13 @@ impl fmt::Debug for MasterKey {
 
 /// One credential per wallet. Every implementor upholds these invariants.
 ///
-/// - `get` answers `Ok(None)` for a missing credential and an error for a
-///   backend failure. Collapsing the two turns a broken keychain into an
-///   apparently fresh install.
-/// - `delete` of a missing credential is `Ok(())`, because the postcondition
-///   already holds.
+/// - `get` answers `Ok(None)` for a missing credential and an error for a backend
+///   failure. Mixing the two up makes a broken keychain look like a fresh install.
+/// - `delete` of a missing credential is `Ok(())`.
 /// - `put` replaces whatever was there.
 pub trait MasterKeyStore: Send + Sync + fmt::Debug {
-    /// Probed once at startup, so a machine with no credential store fails there rather
-    /// than at the first unlock.
+    /// Called once at startup, so a machine with no credential store fails there and not
+    /// at the first unlock.
     fn check_available(&self) -> Result<(), VaultError> {
         Ok(())
     }
@@ -141,7 +138,7 @@ mod tests {
         }
     }
 
-    /// Editing either orphans every credential already in the platform store.
+    /// Changing either strands every credential already in the platform store.
     #[test]
     fn the_keychain_constants_are_pinned() {
         assert_eq!(KEYCHAIN_SERVICE, "Jelly");

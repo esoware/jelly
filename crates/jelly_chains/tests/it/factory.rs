@@ -179,8 +179,8 @@ async fn a_chain_keeps_its_adapter_when_only_its_optional_service_is_gone() {
 
     let set = harness.factory.build(&request).await;
     assert_eq!(set.built(), ChainId::ALL.to_vec());
-    // With no history endpoint the key cannot be used, so the pass falls back to
-    // walking logs.
+    // With no history endpoint the key can't be used, so the pass falls back to walking
+    // logs.
     assert!(rendered(&set, ChainId::Ethereum).unwrap().contains("indexed_history: false"));
 }
 
@@ -257,7 +257,7 @@ async fn an_egress_route_the_client_refuses_costs_every_chain() {
     assert_eq!(harness.network.proxy(), None, "the refused route was not installed");
 }
 
-/// The registry skips a row it cannot read, so the row reaches no pool.
+/// The registry skips a row it can't read, so the row reaches no pool.
 #[tokio::test]
 async fn an_unreadable_endpoint_row_costs_no_chain() {
     let harness = Harness::new().unwrap();

@@ -20,7 +20,7 @@ statements! {
     LIST = "SELECT chain, host, spki_sha256, first_seen FROM tls_pins ORDER BY chain ASC, host ASC";
 }
 
-/// Host names are case insensitive, so they are stored trimmed and lowercased.
+/// Host names are case insensitive, so they're stored trimmed and lowercased.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PinRow {
     pub chain: ChainId,

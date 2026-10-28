@@ -9,8 +9,7 @@ use crate::method::Method;
 /// What `getGenesisHash` returns on mainnet-beta. Every test cluster has its own.
 const GENESIS_HASH: &str = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
 
-/// Mainnet-beta's identity, which a node proves by reporting mainnet-beta's genesis
-/// hash.
+/// A node proves it serves mainnet-beta by reporting its genesis hash.
 #[derive(Debug, Clone, Copy)]
 pub struct SolanaIdentity;
 
@@ -27,9 +26,9 @@ impl IdentityCheck<HttpEndpoint> for SolanaIdentity {
     }
 }
 
-/// A Solana websocket serves subscriptions only and answers `getGenesisHash` with
-/// method not found, so it has no identity to check. Its pushes only wake a sync
-/// that reads over the identity-checked HTTP pool.
+/// A Solana websocket serves only subscriptions and answers `getGenesisHash` with
+/// method not found, so there's nothing to check. Its pushes only wake a sync that
+/// reads over the identity-checked HTTP pool.
 #[async_trait]
 impl IdentityCheck<WsClient> for SolanaIdentity {
     async fn identify(

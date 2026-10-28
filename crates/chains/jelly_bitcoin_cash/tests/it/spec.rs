@@ -24,7 +24,7 @@ fn the_spec_and_the_table_describe_one_chain() {
 }
 
 #[test]
-fn the_default_path_derives_the_default_flavour_at_the_chains_coin_type() {
+fn the_default_path_derives_the_default_flavor_at_the_chains_coin_type() {
     let default_script = SPEC.default_script.unwrap();
     assert!(SPEC.script_kinds.contains(&default_script));
     let first = PathTemplate::parse(SPEC.default_path).unwrap().path_at(0).unwrap();
@@ -44,8 +44,8 @@ fn the_shipped_endpoints_use_exactly_the_specs_transports() {
     assert_eq!(used, declared);
 }
 
-/// The framework's own unit tests run on a copy of this table, whose codec reads only
-/// the legacy forms because `CashAddr` lives here.
+/// The framework's own unit tests run on a copy of this table. The copy's codec reads
+/// only the legacy forms, since `CashAddr` lives in this crate.
 #[test]
 fn the_table_matches_the_frameworks_test_copy() {
     let copy = UtxoParams { codec: PARAMS.codec, ..test_util::BITCOIN_CASH };

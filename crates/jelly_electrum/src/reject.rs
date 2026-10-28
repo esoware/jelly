@@ -1,20 +1,20 @@
 use jelly_core::{Rejection, RejectionKind, RetryPolicy};
 
-/// Bitcoin Core's `sendrawtransaction` refusal strings, which Core-derived chains
-/// emit verbatim and Electrum relays mostly unchanged.
+/// Bitcoin Core's `sendrawtransaction` refusal strings, which Core-derived nodes emit
+/// verbatim and Electrum servers relay mostly unchanged.
 ///
 /// Dogecoin Core is Bitcoin Core 0.14 underneath and still refuses by priority and
 /// by a full mempool, so those older strings are here too.
 ///
-/// Since Bitcoin Core 0.12, which every chain here builds on, the `insufficient
-/// fee` reason refuses nothing but a replacement, because the relay floors have
-/// reasons of their own. Dogecoin sends that reason bare.
+/// Since Bitcoin Core 0.12, which every chain here builds on, `insufficient fee` only
+/// refuses a replacement, because the relay floors have their own reasons. Dogecoin
+/// sends that reason bare.
 ///
-/// Bitcoin Core 31's cluster mempool refuses a replacement that does not improve
-/// the feerate diagram as `replacement-failed`, and a send past its cluster limits
-/// as `too-large-cluster` where Core 30 said `too-long-mempool-chain`.
+/// Bitcoin Core 31's cluster mempool refuses a replacement that doesn't improve the
+/// feerate diagram as `replacement-failed`, and a send past its cluster limits as
+/// `too-large-cluster` where Core 30 said `too-long-mempool-chain`.
 ///
-/// Matched in order, so a specific reason precedes a general one its message also
+/// Matched in order, so a specific reason comes before a general one its message also
 /// contains.
 const CORE_REFUSALS: &[(&str, RejectionKind, RetryPolicy)] = &[
     ("txn-already-in-mempool", RejectionKind::AlreadyKnown, RetryPolicy::AlreadyLanded),
@@ -80,8 +80,8 @@ const CORE_REFUSALS: &[(&str, RejectionKind, RetryPolicy)] = &[
     ("fee exceeds maximum", RejectionKind::Unclassified, RetryPolicy::TryAnotherEndpoint),
 ];
 
-/// What a node that refused and said nothing readable is reported as, because a
-/// [`Rejection`]'s detail is never empty.
+/// The detail for a refusal with no readable reason, since a [`Rejection`]'s detail is
+/// never empty.
 const UNEXPLAINED: &str = "the node refused the transaction and gave no reason";
 
 /// Unknown text becomes `Unclassified` with `TryAnotherEndpoint`. The caller must
@@ -97,8 +97,8 @@ pub(crate) fn classify_rejection(message: &str) -> Rejection {
     }
     let lower = detail.to_ascii_lowercase();
 
-    // A refused replacement whose detail is relayed names the rule it broke, and
-    // only the feerate comparison means the rate itself was too low.
+    // A relayed replacement refusal names the rule it broke, and only the feerate
+    // comparison means the rate itself was too low.
     if lower.contains("rejecting replacement") {
         let is_underpriced = lower.contains("new feerate") || lower.contains("old feerate");
         let kind = if is_underpriced {
@@ -182,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn an_unrecognised_refusal_is_not_guessed_at() {
+    fn an_unrecognized_refusal_is_not_guessed_at() {
         let rejection = classify_rejection("the server is having a bad day");
         assert_eq!(rejection.kind, RejectionKind::Unclassified);
         assert_eq!(rejection.retry, RetryPolicy::TryAnotherEndpoint);
@@ -256,7 +256,7 @@ mod tests {
 
     /// Bitcoin Core 31's cluster mempool dropped the old feerate comparison.
     ///
-    /// A replacement whose feerate does not beat what it would evict now fails the
+    /// A replacement whose feerate doesn't beat what it would evict now fails the
     /// feerate diagram check under the `replacement-failed` reason.
     #[test]
     fn the_core_31_replacement_failed_reason_is_an_underpriced_replacement() {

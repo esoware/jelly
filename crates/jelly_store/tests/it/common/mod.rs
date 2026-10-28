@@ -110,8 +110,8 @@ pub(crate) async fn address(
     Ok(store.insert_address(new_address(wallet_id, chain, address)).await?)
 }
 
-/// A timestamp makes the record mined. Without one it is pending, and the file orders it
-/// by when it was first stored.
+/// A timestamp makes the record mined. Without one it's pending, and the file orders it by
+/// when it was first stored.
 pub(crate) fn record(address_id: i64, txid: &str, timestamp: Option<i64>) -> TxRecord {
     let builder = TxRecord::builder(
         AssetId::Native(ChainId::Bitcoin),

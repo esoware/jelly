@@ -37,8 +37,7 @@ use crate::{send, sign};
 /// interval, long enough not to hammer a dead one.
 const WATCH_RETRY: Duration = Duration::from_secs(5);
 
-/// Every push failure rotates, because no endpoint's subscription failure says
-/// anything about the next endpoint.
+/// One endpoint's subscription failure says nothing about the next.
 const fn classify_watch(_: &NetError) -> Outcome {
     Outcome::Rotate
 }
@@ -55,14 +54,14 @@ pub struct EvmAdapter {
     clock: Arc<dyn Clock>,
     watch: RwLock<Arc<[Watched]>>,
     ledger: Mutex<Ledger>,
-    /// Held for a whole pass, which makes `sync` single-flight. It carries what
-    /// one pass learned about its services to the next.
+    /// Held for a whole pass, so `sync` is single-flight, and carries what one
+    /// pass learned about its services to the next.
     pass: AsyncMutex<Carried>,
-    /// Held for a whole build, so the nonce one build picks is held in the
-    /// ledger before another build can pick it.
+    /// Held for a whole build, so a build's nonce is in the ledger before the
+    /// next build picks one.
     building: AsyncMutex<()>,
-    /// Serialises pending-set writes, so a slower write of an older snapshot
-    /// cannot overwrite a newer one.
+    /// Serializes pending-set writes, so a slow write of an older snapshot can't
+    /// overwrite a newer one.
     writing: AsyncMutex<()>,
     is_blocked: AtomicBool,
 }
@@ -114,7 +113,7 @@ impl EvmAdapter {
         Ok(())
     }
 
-    /// Stored state that does not read back blocks every later operation, so
+    /// Stored state that doesn't read back blocks every later operation, so
     /// nothing overwrites it.
     fn block_if_unreadable(&self, error: &EvmError) {
         if matches!(error, EvmError::UnreadableState) {
@@ -123,7 +122,7 @@ impl EvmAdapter {
     }
 
     /// Restores the stored sends of newly watched addresses, refusing the whole set
-    /// when one of their scan cursors or sent sets does not read back.
+    /// when one of their scan cursors or sent sets doesn't read back.
     async fn restore(&self, watched: &[Watched]) -> Result<(), EvmError> {
         let _writing = self.writing.lock().await;
         self.ensure_readable()?;
@@ -158,8 +157,8 @@ fn txid_of(txid: &TxId) -> Result<B256, EvmError> {
     txid.value().parse::<B256>().map_err(|_| EvmError::NotATxid)
 }
 
-/// `build` is fallible so an unreadable token registry is reported up front
-/// rather than on the first balance read.
+/// `build` can fail, so an unreadable token registry is reported up front
+/// instead of on the first balance read.
 #[derive(Debug)]
 pub struct EvmAdapterBuilder {
     params: &'static EvmParams,
@@ -179,8 +178,9 @@ impl EvmAdapterBuilder {
         self
     }
 
-    /// Without a history service, sync walks `eth_getLogs` for token transfers
-    /// and reads native activity off the balance.
+    /// Without a history service, sync scans `eth_getLogs` for token transfers
+    /// and infers native activity from the balance, unless the network logs
+    /// native transfers too.
     #[must_use]
     pub fn history(mut self, history: Arc<dyn HistoryApi>) -> Self {
         self.history = Some(history);
@@ -236,11 +236,10 @@ impl ChainAdapter for EvmAdapter {
 
     /// Single-flight per instance, so a second call waits for the running pass.
     ///
-    /// The history steps, log windows and indexed reads, check the deadline and
-    /// stop early with the progress they have. The tip, receipts and balances are
-    /// always read. The whole pass also runs under a timeout [`Deadline::GRACE`]
-    /// past the deadline, so a call that outlasts both is reported rather than
-    /// waited on.
+    /// Log windows and indexed reads check the deadline and stop early with the
+    /// progress they have, but the tip, receipts and balances are always read. The
+    /// whole pass also runs under a timeout [`Deadline::GRACE`] past the deadline,
+    /// so a call that outlasts both is reported instead of waited on.
     async fn sync(
         &self,
         deadline: Deadline,
@@ -278,8 +277,8 @@ impl ChainAdapter for EvmAdapter {
     /// Wakes sync on `newHeads` pushes without trusting their contents.
     ///
     /// Only the subscription goes through pool failover. The wait runs outside
-    /// the pool and is floored by the chain's cadence. Without a push pool this
-    /// never resolves.
+    /// the pool and wakes at most once per `watch_floor`. Without a push pool
+    /// this never resolves.
     async fn wait_activity(&self) {
         let Some(pushes) = self.pushes.as_ref() else {
             pending::<()>().await;
@@ -313,8 +312,8 @@ impl ChainAdapter for EvmAdapter {
         Ok(self.prepare(&Draft::of(request)?).await?)
     }
 
-    /// Makes no network call. This is the last point where the txid and the
-    /// sender are both known, so the nonce slot learns its txid here.
+    /// Makes no network call. Signing is the only step that knows both the txid
+    /// and the sender, so the nonce slot learns its txid here.
     fn sign_tx(&self, tx: &UnsignedTx, keys: &[KeyMaterial]) -> Result<SignedTx, ChainError> {
         let key = sole_key(keys)?;
         self.ensure_readable()?;
@@ -343,12 +342,12 @@ impl ChainAdapter for EvmAdapter {
 
     /// One attempt against one endpoint.
     ///
-    /// The watched set is persisted before the bytes go out, so a crash after
-    /// sending still leaves a transaction this wallet knows to ask about, and
-    /// bytes a pass can send again. When that write fails nothing is sent, and a
-    /// first attempt gives its nonce slot back. A refusal of a first attempt that
-    /// proves the transaction is in no mempool releases the slot, and anything
-    /// ambiguous keeps it.
+    /// The sender's sent set is saved before the bytes go out, so after a crash
+    /// the wallet still knows to ask about the transaction and has bytes a pass
+    /// can resend. If that write fails nothing is sent, and a first attempt gives
+    /// its nonce slot back. A refusal of a first attempt that proves the
+    /// transaction is in no mempool releases the slot, and anything ambiguous
+    /// keeps it.
     async fn broadcast(&self, tx: &SignedTx) -> Result<TxId, ChainError> {
         self.ensure_readable()?;
         if tx.chain() != self.params.chain {
@@ -364,8 +363,8 @@ impl ChainAdapter for EvmAdapter {
             (sender, was_sent)
         };
         if let Err(error) = self.persist_pending(sender).await {
-            // A retry of a send that already went out may sit in a mempool, so
-            // only a first attempt lets go of its slot.
+            // An earlier attempt may already be in a mempool, so only a first
+            // attempt gives its slot back.
             if !was_sent {
                 self.ledger.lock().release(txid);
             }
@@ -374,9 +373,9 @@ impl ChainAdapter for EvmAdapter {
 
         match send::deliver(&self.client, tx).await {
             Ok(id) => Ok(id),
-            // A refusal of a retry says nothing about the attempt before it, which
-            // may sit in a mempool or a block already. Geth answers a mined
-            // transaction sent again with nonce too low.
+            // The first attempt may already be pending or mined (geth rejects a
+            // resend of a mined tx as "nonce too low"), so this refusal says
+            // nothing about it.
             Err(EvmError::Rejected(rejection)) => {
                 let released =
                     !was_sent && self.ledger.lock().release_refused(txid, rejection.retry);

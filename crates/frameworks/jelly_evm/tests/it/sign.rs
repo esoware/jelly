@@ -31,14 +31,14 @@ async fn signer_wallet(token_units: Option<u128>) -> Fallible<Harness> {
     Ok(harness)
 }
 
-/// The native transfer the vectors pin, one coin at nonce 7 for 30 gwei over
-/// 1 gwei.
+/// The native transfer the vectors pin: one coin at nonce 7, with a 30 gwei cap and
+/// a 1 gwei tip.
 async fn native_build(harness: &Harness) -> Fallible<UnsignedTx> {
     Ok(harness.adapter.build_tx(&payment(PEER, 7)).await?)
 }
 
-/// The token transfer the vectors pin, 2.5 USDT at nonce 12 for 40 gwei over
-/// 2 gwei.
+/// The token transfer the vectors pin: 2.5 USDT at nonce 12, with a 40 gwei cap and
+/// a 2 gwei tip.
 async fn token_build(harness: &Harness) -> Fallible<UnsignedTx> {
     let mut request = pinned(PEER, usdt(), 2_500_000, 40 * GWEI, 2 * GWEI, 65_000);
     request.nonce = Some(12);

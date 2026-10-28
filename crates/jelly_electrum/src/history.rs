@@ -24,9 +24,8 @@ impl Confirmation {
         }
     }
 
-    /// The protocol's signed height, canonicalised to 0 or -1 for the two mempool
-    /// cases so servers that spell unconfirmed differently still agree on the
-    /// history digest.
+    /// The protocol's signed height, with the two mempool cases as 0 and -1 so servers
+    /// that spell unconfirmed differently still agree on the history digest.
     fn wire_height(self) -> i32 {
         match self {
             Self::Confirmed { height } => i32::try_from(height).unwrap_or(i32::MAX),
@@ -74,17 +73,14 @@ impl<'de> Deserialize<'de> for HistoryEntry {
     }
 }
 
-/// A canonical history digest that detects an unchanged address across endpoint
-/// changes.
+/// A digest of an address's history that comes out the same from every server.
 ///
-/// Electrum's status hash depends on intra-block and mempool ordering, which
-/// servers disagree on, so this sorts first. It only compares against earlier
-/// Jelly digests.
+/// Electrum's status hash depends on intra-block and mempool order, which servers
+/// disagree on, so this sorts first. It's only comparable with other Jelly digests.
 ///
-/// This is a disk format. A sync cursor stores the bytes verbatim and compares
-/// them on the next pass, so any change to [`HistoryDigest::of`], its sort key or
-/// its preimage, invalidates every stored cursor and costs each address one full
-/// pass.
+/// This is a disk format. Sync cursors store the bytes and compare them on the next pass,
+/// so any change to [`HistoryDigest::of`], its sort key or its preimage, invalidates every
+/// stored cursor and costs each address one full pass.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct HistoryDigest([u8; Self::LEN]);
 
@@ -118,7 +114,6 @@ impl HistoryDigest {
         Some(Self(Sha256::digest(preimage.as_bytes()).into()))
     }
 
-    /// A cursor stores these bytes verbatim.
     pub const fn from_bytes(bytes: [u8; Self::LEN]) -> Self {
         Self(bytes)
     }

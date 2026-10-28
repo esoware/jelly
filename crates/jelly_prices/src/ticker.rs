@@ -3,9 +3,9 @@ use jelly_core::{AssetId, wire_enum};
 wire_enum! {
     /// A base asset the wallet asks a price for, always against the US dollar.
     ///
-    /// An asset trades under the ticker its symbol names, so the instances of a coin
-    /// share a quote across chains. Wrapped ether is ether's, because Kraken lists no
-    /// market of its own for it and it redeems one for one.
+    /// An asset trades under the ticker its symbol names, so a coin's instances on
+    /// different chains share one quote. Wrapped ether uses ether's, because Kraken lists
+    /// no market of its own for it and it redeems one for one.
     pub enum Ticker {
         Btc => "BTC",
         Ltc => "LTC",

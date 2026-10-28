@@ -12,19 +12,19 @@ const TARGET: &str = "jelly::evm::pending";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum State {
-    /// Built, and holding its nonce slot so a second build cannot claim it.
-    /// Released by an explicit discard, or by the timeout. The elapsed-clock
-    /// reading is never stored, because an unsigned slot means nothing on restart.
+    /// Built, and holding its nonce slot so a second build can't claim it.
+    /// Released by an explicit discard or by the timeout. Never stored, because a
+    /// held slot means nothing after a restart.
     Held { since_millis: u64 },
-    /// Signed bytes never expire. An unsent signature releases only on explicit
-    /// discard. Once sent, it keeps its slot until a receipt, another transaction
-    /// taking the nonce, or a definite refusal settles it, because a transport
-    /// failure leaves the outcome unknown.
+    /// Signed bytes never expire, and an unsent signature is released only by an
+    /// explicit discard. Once sent, it keeps its slot until a receipt, another
+    /// transaction taking the nonce, or a definite refusal settles it, because a
+    /// transport failure leaves the outcome unknown.
     Signed { envelope: Envelope, is_sent: bool },
 }
 
-/// A signed transaction's id and the exact bytes it was broadcast as, which go out
-/// again while no node knows the transaction.
+/// A signed transaction's id and the exact bytes it was broadcast as, which are
+/// resent while no node knows the transaction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Envelope {
     pub(crate) txid: B256,
@@ -38,8 +38,8 @@ pub(crate) struct Tracked {
     pub(crate) nonce: u64,
     pub(crate) asset: AssetId,
     pub(crate) amount: Amount,
-    /// The recipient the user named, which is what a record shows as the
-    /// counterparty.
+    /// The recipient the user named, not a token contract. A record shows it as
+    /// the counterparty.
     pub(crate) to: Address,
     /// The pair this transaction pays, from which a replacement's floor is
     /// derived.
@@ -49,7 +49,7 @@ pub(crate) struct Tracked {
     pub(crate) calldata: Option<Bytes>,
     pub(crate) state: State,
     /// Set once a record has been emitted for the inclusion, and cleared when the
-    /// inclusion is reorganised away, so the record is emitted again for the block
+    /// inclusion is reorganized away, so the record is emitted again for the block
     /// it lands in next.
     pub(crate) landing: Option<Landing>,
 }
@@ -85,7 +85,6 @@ impl Tracked {
         }
     }
 
-    /// The bytes a sent transaction went out as.
     pub(crate) fn sent_bytes(&self) -> Option<&Bytes> {
         self.sent().map(|envelope| &envelope.raw)
     }
@@ -98,9 +97,9 @@ impl Tracked {
         self.from == other.from && self.nonce == other.nonce && self.fee == other.fee
     }
 
-    /// Decides here, once, what a receipt means for publishing, including a
-    /// reorged inclusion. Nothing changes until [`Ledger::land`] records it, which
-    /// happens only once the records this produced are delivered.
+    /// Works out what a receipt means for publishing, including a reorged
+    /// inclusion. It changes nothing: [`Ledger::land`] records the result, and
+    /// only once the records this produced are delivered.
     pub(crate) fn observe<'r>(&self, receipt: Option<&'r Receipt>) -> Observation<'r> {
         let found = receipt.and_then(|receipt| Some((receipt, receipt.landing()?)));
         match (self.landing, found) {
@@ -125,7 +124,7 @@ pub(crate) struct InFlight {
     pub(crate) from: Address,
 }
 
-/// The nonce slots this adapter has committed to and the sends it is watching.
+/// The nonce slots this adapter has committed to and the sends it's watching.
 ///
 /// Only one transaction per nonce can confirm, so the nonce guards against
 /// double sends. A sent slot stays held until a receipt or a definite refusal
@@ -135,8 +134,8 @@ pub(crate) struct InFlight {
 pub(crate) struct Ledger {
     entries: Vec<Tracked>,
     settled: Vec<Settled>,
-    /// Slots let go of below one the same sender still holds. A send above a
-    /// missing nonce is never mined, so the next build fills the lowest of them.
+    /// Released slots below one the same sender still holds. A send above a
+    /// missing nonce never gets mined, so the next build fills the lowest of them.
     given_back: Vec<(Address, u64)>,
 }
 
@@ -151,11 +150,11 @@ impl Ledger {
 
     /// The node's pending count covers its executable pending transactions but
     /// misses slots this adapter holds without sending, so the first free slot is
-    /// past both. A slot given back below one still held comes first, because the
+    /// past both. A released slot below a held one comes first, because the
     /// node's count stops below that gap.
     ///
-    /// Only a slot this ledger let go of counts as a gap. A node that trails the
-    /// chain answers a count below nonces already mined, and those are no gap.
+    /// Only a slot this ledger released counts as a gap. A node that trails the
+    /// chain reports a count below nonces already mined, and those aren't gaps.
     pub(crate) fn next_nonce(&self, from: Address, node_pending: u64) -> u64 {
         let holds = |nonce: u64| {
             self.entries.iter().any(|entry| entry.from == from && entry.nonce == nonce)
@@ -176,9 +175,9 @@ impl Ledger {
 
     /// The floor a build at an occupied `nonce` must clear.
     ///
-    /// Each half is the highest among everything holding the slot, taken on its
-    /// own, because a replacement has to outbid every transaction it might be
-    /// racing on both the cap and the tip.
+    /// Each half is the highest among everything holding the slot, taken
+    /// separately, because a replacement has to outbid every transaction it might
+    /// be racing on both the cap and the tip.
     pub(crate) fn replacement_floor(
         &self,
         from: Address,
@@ -236,16 +235,15 @@ impl Ledger {
     }
 
     /// Only a refusal proving the transaction is in no mempool releases the slot,
-    /// which leaves its nonce free for the rebuild. A transport failure, a
-    /// refusal another endpoint might not repeat, and a network that already has
-    /// the transaction all keep it.
+    /// which frees its nonce for the rebuild. A refusal another endpoint might not
+    /// repeat, or one saying the network already has the transaction, keeps it.
     pub(crate) fn release_refused(&mut self, txid: B256, retry: RetryPolicy) -> bool {
         matches!(retry, RetryPolicy::DidNotLand | RetryPolicy::FinalEverywhere)
             && self.release(txid)
     }
 
-    /// Lets go of the slot of a transaction that no node was sent, which leaves its
-    /// nonce free for the next build.
+    /// Releases the slot of a transaction no node holds, which frees its nonce for
+    /// the next build.
     pub(crate) fn release(&mut self, txid: B256) -> bool {
         let Some(index) = self.entries.iter().position(|entry| entry.txid() == Some(txid)) else {
             return false;
@@ -257,7 +255,7 @@ impl Ledger {
 
     /// Stops watching a send whose nonce is taken for good, by itself when
     /// `receipt` says so and by another transaction otherwise. The nonce is spent
-    /// either way, so the slot is not given back.
+    /// either way, so the slot isn't given back.
     pub(crate) fn retire(
         &mut self,
         txid: B256,
@@ -287,8 +285,9 @@ impl Ledger {
         &self.settled
     }
 
-    /// A loaded checkpoint acknowledges the record, but a receipt must also keep
-    /// explaining the balance until the judged nonce includes its spend.
+    /// Drops `from`'s settlements once a loaded checkpoint covers their records.
+    /// One with a receipt also waits until the stored native nonce is past it,
+    /// because until then it still explains the balance.
     pub(crate) fn acknowledge(
         &mut self,
         from: Address,
@@ -305,8 +304,8 @@ impl Ledger {
         self.settled.len() < before
     }
 
-    /// Remembers a slot let go of while one above it is still held, and drops the
-    /// ones nothing is held above any more, because no gap is left there.
+    /// Remembers a released slot while one above it is still held, and forgets
+    /// slots with nothing held above them any more, since they're no longer gaps.
     fn give_back(&mut self, from: Address, nonce: u64) {
         let slot = (from, nonce);
         let is_still_held = self.entries.iter().any(|entry| (entry.from, entry.nonce) == slot);
@@ -588,7 +587,7 @@ mod tests {
     }
 
     #[test]
-    fn an_inclusion_is_reported_once_and_a_reorganised_one_is_reported_again() {
+    fn an_inclusion_is_reported_once_and_a_reorganized_one_is_reported_again() {
         let txid = txid_of(8);
         let mut ledger = sent_ledger(8);
 

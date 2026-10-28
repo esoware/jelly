@@ -457,8 +457,8 @@ async fn a_short_transaction_batch_fails_the_pass_and_persists_nothing() {
     }
 }
 
-/// The two server populations share the protocol and their ports, so block zero
-/// is the only thing that tells one chain's server from the other's.
+/// Bitcoin and Litecoin servers share the protocol and the ports, so block zero is
+/// what tells them apart.
 #[tokio::test]
 async fn a_server_on_the_other_chain_is_refused_before_it_is_asked_anything_else() {
     for (params, other) in [(BITCOIN, LITECOIN), (LITECOIN, BITCOIN)] {
@@ -479,15 +479,13 @@ async fn a_server_on_the_other_chain_is_refused_before_it_is_asked_anything_else
 
 /// Feathercoin and Litecoin Cash share Litecoin's block zero.
 ///
-/// Feathercoin's chainparams assert Litecoin's genesis hash, and `ElectrumX`'s coin
-/// table records the same hash for both, whose servers listen on the same default
-/// ports.
+/// Feathercoin's chainparams assert Litecoin's genesis hash, and `ElectrumX`'s coin table
+/// records the same hash for both, whose servers listen on the same default ports.
 ///
-/// A server of either answers height zero exactly as a Litecoin server does and
-/// every later height with a block Litecoin never mined, here a block one that
-/// extends the shared block zero. It has to be refused the way a Bitcoin Cash
-/// server is refused by Bitcoin's table, or it reports its own chain's empty
-/// history for every Litecoin address.
+/// Such a server answers height zero like a Litecoin server and every later height
+/// with a block Litecoin never mined, here a block one on the shared block zero. The
+/// checkpoint has to refuse it, as Bitcoin's refuses a Bitcoin Cash server, or it
+/// reports an empty history for every Litecoin address.
 #[tokio::test]
 async fn a_server_on_a_chain_that_shares_litecoins_block_zero_is_refused_at_the_checkpoint() {
     let elsewhere = Header {

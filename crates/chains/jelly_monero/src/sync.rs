@@ -1,6 +1,3 @@
-//! Scans raw blocks locally with the view key, then resolves pending sends against the new
-//! key images. Emits balances last so they reflect the completed pass.
-
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -31,18 +28,18 @@ use crate::watched::Watched;
 
 const TARGET: &str = "jelly::monero::sync";
 
-/// How many times one pass will rewind and retry before giving up on locating a
-/// reorganisation and rescanning from the wallet birthday.
+/// How many times one pass rewinds and retries before it gives up locating a
+/// reorganization and rescans from the wallet birthday.
 ///
 /// The first rewind comes from a walk that re-read nothing, so only the ones after
 /// it probe deeper.
 const MAX_REWINDS: u32 = 5;
 
-/// Minimum block advance between two in-flight progress events.
+/// Minimum block advance between two progress events within a pass.
 const PROGRESS_EVERY_BLOCKS: u64 = 200;
 
-/// Everything one pass needs, owned by the adapter. Nothing here holds a state
-/// guard across an await.
+/// What one pass borrows from the adapter. Nothing here holds a state guard across
+/// an await.
 pub(crate) struct Pass<'a> {
     pub node: &'a Arc<dyn MoneroNode>,
     pub account: &'a Arc<MoneroAccount>,
@@ -57,14 +54,14 @@ pub(crate) struct Pass<'a> {
 
 /// One pass, bounded by the block budget and the deadline.
 ///
-/// Blocks are scanned first, so an in-flight transaction is judged against the
-/// freshest view of the chain, and the balance events go out last, so the
-/// interface is told what the pass finished with.
+/// Blocks are scanned first, so the sends in flight are judged against the newest
+/// view of the chain, and the balance events go out last, so the interface is told
+/// what the pass finished with.
 ///
-/// Balances are compared with `announced`, the spendable amount each address id
-/// was last announced with, rather than with the state the pass started from,
-/// because an unlock, a reservation, or a failed pass's receipts change a balance
-/// between passes, where no comparison inside one pass can see it.
+/// Balances are compared with `announced`, the spendable amount each address id was
+/// last announced with, not with the state the pass started from. An unlock, a
+/// reservation, or a failed pass's receipts can change a balance between passes,
+/// where no comparison within one pass would see it.
 pub(crate) async fn run(
     pass: &Pass<'_>,
     announced: &mut BTreeMap<i64, Amount>,
@@ -111,11 +108,11 @@ pub(crate) async fn run(
 /// already scanned.
 ///
 /// The first walk reads only blocks not scanned yet, because one whose parent is
-/// the last block scanned proves nothing under it changed. Once a fork shows,
-/// each retry re-reads further back, from the configured overlap and doubling,
-/// so a reorganisation deeper than the first probe is still located. A fork at
-/// the oldest block remembered, or one still not located after [`MAX_REWINDS`],
-/// may reach below anything this wallet remembers, so it rescans from the
+/// the last block scanned proves nothing under it changed. Once a fork shows, each
+/// retry re-reads further back, starting at the configured overlap and doubling,
+/// so a reorganization deeper than the first probe is still located. A fork at the
+/// oldest block remembered, or forks still turning up after [`MAX_REWINDS`], may
+/// reach below anything this wallet remembers, so the scan restarts from the
 /// birthday.
 async fn scan_to_tip(pass: &Pass<'_>, tip: u64) -> Result<(), MoneroError> {
     let first_probe = pass.config.reorg_overlap_blocks.clamp(1, REORG_WINDOW);
@@ -130,35 +127,35 @@ async fn scan_to_tip(pass: &Pass<'_>, tip: u64) -> Result<(), MoneroError> {
             tracing::warn!(
                 target: TARGET,
                 fork,
-                "a monero reorganisation is deeper than this wallet remembers; rescanning"
+                "a monero reorganization is deeper than this wallet remembers; rescanning"
             );
             pass.blobs.write_scan(pass.state).await?;
             return Ok(());
         }
         pass.state.lock().rewind_to(fork);
-        tracing::info!(target: TARGET, fork, "a monero reorganisation was located; rewinding");
+        tracing::info!(target: TARGET, fork, "a monero reorganization was located; rewinding");
         pass.blobs.write_scan(pass.state).await?;
         overlap = overlap.saturating_mul(2).clamp(first_probe, REORG_WINDOW);
     }
 }
 
-/// One forward walk. `Some(height)` is a fork located at that height, at which
-/// point nothing from the disagreeing batch has been applied.
+/// One forward walk. `Some(height)` is a fork located at that height, and nothing
+/// from the batch that disagreed has been applied.
 ///
-/// The batch prefetched ahead of the scan lives in a [`JoinSet`], so every way out
-/// of the walk, an error, a fork, or the pass being dropped, aborts it.
+/// The batch prefetched ahead of the scan lives in a [`JoinSet`], so an error, a
+/// fork, or a dropped pass aborts it.
 async fn scan_forward(pass: &Pass<'_>, tip: u64, overlap: u64) -> Result<Option<u64>, MoneroError> {
     let (restore, next, lookahead, generation) = {
         let guard = pass.state.lock();
         (guard.restore_height(), guard.next_height(), guard.lookahead(), guard.generation())
     };
-    // A tip below the last block scanned is a node that is behind or a chain
-    // that got shorter. Only a block id tells the two apart, so the walk reads
-    // the node's own tip block rather than undo anything on its word.
+    // A tip below the last block scanned means a node that's behind or a chain
+    // that got shorter. Only a block id tells the two apart, so read the node's
+    // own tip block instead of undoing anything on its word.
     let from = if next > tip.saturating_add(1) { tip } else { next };
-    // An overlap re-reads blocks already covered, and locates how deep a
-    // reorganisation reaches with the same request that does useful work. The
-    // budget is measured from the frontier, so the overlap never eats it.
+    // The overlap re-reads blocks already scanned, to find how deep a
+    // reorganization goes in the same request that fetches new ones. The budget
+    // counts from the frontier, so the overlap never eats into it.
     let start = from.saturating_sub(overlap).max(restore);
     if start > tip || pass.deadline.is_expired(pass.clock) {
         return Ok(None);
@@ -178,10 +175,9 @@ async fn scan_forward(pass: &Pass<'_>, tip: u64, overlap: u64) -> Result<Option<
         if blocks.is_empty() {
             break;
         }
-        // The frontier may only move over blocks that were actually scanned, so
-        // the batch is measured rather than assumed. Otherwise a node that answers
-        // from elsewhere or skips a height would leave unscanned blocks marked
-        // scanned.
+        // The frontier may only move over blocks actually received, so the batch
+        // is measured instead of assumed. Otherwise a node that answers short or
+        // from elsewhere would leave unscanned blocks marked scanned.
         let links = links_of(&blocks, asked_from)?;
         let batch_end = links.last().map_or(asked_from, |link| link.height);
         let frontier = batch_end.saturating_add(1);
@@ -193,9 +189,9 @@ async fn scan_forward(pass: &Pass<'_>, tip: u64, overlap: u64) -> Result<Option<
         if let Some(fork) = diverged {
             return Ok(Some(fork));
         }
-        // Blocks below the frontier were read to be checked. Everything in them
-        // is already in the state, and noting one again would forget the blocks
-        // remembered above it.
+        // Blocks below the frontier were read only to check them. They're already
+        // in the state, and noting one again would forget the blocks remembered
+        // above it.
         let checked_only = usize::try_from(next.saturating_sub(asked_from))
             .unwrap_or(usize::MAX)
             .min(blocks.len());
@@ -248,9 +244,9 @@ fn spawn_fetch(
 
 /// A scanner registered with the whole subaddress window.
 ///
-/// Subaddresses have to be registered before a block is scanned, which is why the
-/// window is a wallet-wide setting rather than a function of the watch set. An
-/// address outside it was invisible to every block already scanned.
+/// Subaddresses have to be registered before a block is scanned, so the window is a
+/// wallet-wide setting instead of following the watch set. An address outside it
+/// was invisible to every block already scanned.
 fn scanner_for(account: &MoneroAccount, lookahead: (u32, u32)) -> Scanner {
     let mut scanner = Scanner::new(account.view_pair().clone());
     let (major, minor) = lookahead;
@@ -264,10 +260,11 @@ fn scanner_for(account: &MoneroAccount, lookahead: (u32, u32)) -> Scanner {
     scanner
 }
 
-/// Scans a batch off the runtime, because scanning is CPU work on the view key.
+/// Scans a batch. The caller runs it on a blocking thread, because scanning is CPU
+/// work.
 ///
-/// A block past the hardfork ceiling surfaces as its own error, which becomes
-/// `ProtocolTooNew` so the interface can ask for an update.
+/// A block past the hardfork ceiling becomes `ProtocolTooNew`, so the interface can
+/// ask for an update.
 fn scan_blocks(
     mut scanner: Scanner,
     account: &MoneroAccount,
@@ -300,9 +297,9 @@ fn scan_blocks(
 
 /// Applies one scanned batch under a short guard and returns the events it owes.
 ///
-/// `None` when the scan was reset after the walk read `generation`, because the
-/// batch was scanned for a frontier and a window that no longer exist, and
-/// applying it would mark the cleared range scanned.
+/// `None` when the scan was reset after the walk read `generation`. The batch was
+/// scanned for a frontier and a window that no longer exist, and applying it would
+/// mark the cleared range scanned.
 fn apply(
     pass: &Pass<'_>,
     scanned: Vec<Scanned>,
@@ -326,16 +323,18 @@ fn apply(
 /// Decides each in-flight transaction's fate, resending the ones its ring node lost.
 ///
 /// The node that served a transaction's ring is the only one asked about it and the
-/// only one its bytes go to, so its origin is not spread over the pool. It is resent
-/// only once that node holds it in neither its pool nor its chain, and another node is
-/// asked only while that one cannot be reached at all. A node that cannot answer is
-/// asked again next pass. Terminal replay metadata must be durable before the scan can
-/// acknowledge it, independently of whether its inputs still require reservation.
+/// only one its bytes go to, so its origin isn't spread over the pool. Another node is
+/// asked only while that one can't be reached at all, and a node that can't answer is
+/// asked again next pass. A transaction is resent only once it's in neither the
+/// node's pool nor its chain.
+///
+/// The terminal sends are written before `settled_through` moves past them, whether or
+/// not the sends blob changed for any other reason.
 async fn follow_up(pass: &Pass<'_>, tip: u64, has_acknowledged: bool) -> Result<(), MoneroError> {
     let waiting_sends: Vec<InFlight> = pass.state.lock().in_flight_sends().cloned().collect();
     for send in waiting_sends {
-        // Bound on its own, because a guard in the condition would still be held
-        // where the branch locks the state again.
+        // Bound separately, because a guard in the match scrutinee would still be
+        // held when an arm locks the state again.
         let verdict = settled(&pass.state.lock(), &send);
         match verdict {
             Some(Settled::Landed { height }) => {
@@ -411,7 +410,7 @@ async fn follow_up(pass: &Pass<'_>, tip: u64, has_acknowledged: bool) -> Result<
 /// from them and the network deduplicates.
 ///
 /// They go through the ring node, or through the pool for `None` when the ring node
-/// could not be reached.
+/// couldn't be reached.
 async fn resend(pass: &Pass<'_>, send: &InFlight, via: Option<&str>) -> Result<(), MoneroError> {
     let Ok(transaction) = parse_signed(&send.raw) else {
         tracing::warn!(
@@ -464,10 +463,10 @@ async fn report_failed(pass: &Pass<'_>, send: &TerminalSend) {
     pass.events.emit(WalletEvent::TxDetected(send.failed_record(address_id, seen_at))).await;
 }
 
-/// Every watched address whose spendable balance differs from its last announcement.
+/// Each watched address whose spendable balance differs from its last announcement.
 ///
-/// A subaddress with no outputs left, after a reorganisation or a rescan, holds
-/// nothing, and that is announced like any other balance.
+/// A subaddress left with no outputs after a reorganization or a rescan announces
+/// zero like any other balance.
 fn balance_changes(
     watched: &Watched,
     announced: &BTreeMap<i64, Amount>,
@@ -484,8 +483,8 @@ fn balance_changes(
     updates
 }
 
-/// One batch as the chain check sees it, refusing anything that is not the
-/// consecutive run starting at `from` that was asked for.
+/// One batch as the chain check sees it, refusing anything but the consecutive run
+/// starting at `from` that was asked for.
 ///
 /// A shorter run than requested is allowed, because a node may have fewer blocks
 /// than it claimed, and the next batch resumes where this one stopped.
@@ -512,11 +511,10 @@ fn height_of(block: &ScannableBlock) -> Result<u64, MoneroError> {
         .map_err(|_| MoneroError::Internal { context: "a block height does not fit in u64" })
 }
 
-/// Progress from the wallet birthday to the chain tip, the only span a person can
-/// read as a fraction.
+/// Progress from the wallet birthday to the chain tip.
 ///
-/// A wallet that has scanned past the tip of a node that is behind claims no
-/// more of the chain than that node has.
+/// A wallet that has scanned past the tip of a node that's behind claims no more
+/// of the chain than that node has.
 fn progress_of(restore_height: u64, synced: u64, tip: u64) -> ChainSyncProgress {
     let synced = synced.min(tip);
     ChainSyncProgress::new(CHAIN)

@@ -15,10 +15,10 @@ pub(crate) const ARGON2_VERSION: Version = Version::V0x13;
 /// RFC 9106 recommends a 16-byte Argon2id salt.
 pub(crate) const KDF_SALT_LEN: usize = 16;
 
-/// The only form of password the vault accepts. Never logged or serialized.
+/// Never logged or serialized.
 ///
-/// Any password is accepted, however short. Strength is the owner's choice, and the
-/// keychain master key remains the second factor either way.
+/// Any password is accepted, even an empty one. Strength is the owner's call, and the
+/// keychain master key is a second factor either way.
 pub struct VaultPassword(SecretString);
 
 impl VaultPassword {
@@ -33,12 +33,11 @@ impl fmt::Debug for VaultPassword {
     }
 }
 
-/// Persisted in the vault header so a file written under one baseline stays openable
-/// after the baseline is raised. The header tag covers them, so editing the file cannot
-/// downgrade them.
+/// Stored in the vault header, so a file written under an older baseline still opens after
+/// the baseline is raised. The header tag covers them, so an edit can't downgrade them.
 ///
-/// Every path that runs the KDF or reads a header checks against
-/// [`Argon2Params::MINIMUM`] first, so a weaker set can be built but never used.
+/// The KDF and the header parser both check [`Argon2Params::MINIMUM`] first, so a weaker
+/// set can be built but never used.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Argon2Params {
     m_cost_kib: u32,
@@ -47,11 +46,11 @@ pub struct Argon2Params {
 }
 
 impl Argon2Params {
-    /// m=262144 KiB, t=3, p=4. This is RFC 9106 section 4's second recommended option
-    /// with four times its memory, and the shipped baseline.
+    /// The shipped baseline, m=262144 KiB, t=3, p=4. That's RFC 9106 section 4's second
+    /// recommended option with four times the memory.
     pub const RECOMMENDED: Self = Self { m_cost_kib: 262_144, t_cost: 3, p_cost: 4 };
 
-    /// The floor a file must claim before this build runs the KDF over it. This is the
+    /// The floor a file's parameters must meet before the KDF runs over it. That's the
     /// OWASP Password Storage minimum, m=19456 KiB, t=2, p=1.
     pub const MINIMUM: Self = Self { m_cost_kib: 19_456, t_cost: 2, p_cost: 1 };
 
@@ -71,8 +70,8 @@ impl Argon2Params {
         self.p_cost
     }
 
-    /// Rejects anything below the floor before the algorithm's own range check
-    /// gets a chance to accept it, naming the first axis that falls short.
+    /// Names the first axis below the floor. Argon2's own range check would accept much
+    /// weaker sets.
     pub(crate) const fn check_minimum(self) -> Result<(), VaultError> {
         let field = if self.m_cost_kib < Self::MINIMUM.m_cost_kib {
             "m_cost_kib"
@@ -86,11 +85,10 @@ impl Argon2Params {
         Err(VaultError::WeakKdfParams { field })
     }
 
-    /// This set raised, axis by axis, to at least `floor`.
+    /// Raises each axis to at least `floor`'s.
     ///
-    /// The unlock-time upgrade rewrites a file at this rather than at the handle's
-    /// parameters, so no axis is ever lowered. A handle asking for more passes over a
-    /// file with more memory gets both.
+    /// An unlock upgrades a file to this, not to the handle's parameters, so no axis is ever
+    /// lowered. A handle asking for more passes over a file with more memory gets both.
     pub(crate) fn at_least(self, floor: Self) -> Self {
         Self {
             m_cost_kib: self.m_cost_kib.max(floor.m_cost_kib),
@@ -100,11 +98,11 @@ impl Argon2Params {
     }
 }
 
-/// Argon2 borrows the `SecretString` buffer, so the password is never copied, and the
-/// output lands in a wiping buffer.
+/// Argon2 reads the password in place, so it's never copied, and the output lands in a
+/// wiping buffer.
 ///
-/// RFC 9106's secret-key and associated-data inputs are unused. The second factor is the
-/// keychain master key, mixed in at the HKDF step where it also keys the header MAC.
+/// RFC 9106's secret-key and associated-data inputs go unused. The master key comes in
+/// later, at the HKDF step.
 pub(crate) fn hash_password(
     password: &VaultPassword,
     salt: &[u8; KDF_SALT_LEN],
@@ -136,9 +134,8 @@ mod tests {
         VaultPassword::new(SecretString::from(PASSWORD))
     }
 
-    /// Pinned outputs at the two shipped parameter sets. They fix the algorithm,
-    /// version, parameter, and output-length wiring. The RFC 9106 vector in
-    /// `tests/it/vectors.rs` fixes the primitive.
+    /// Pins the algorithm, version, parameter, and output-length wiring. The RFC 9106
+    /// vector in `tests/it/vectors.rs` pins the primitive itself.
     #[test]
     fn the_output_is_pinned_at_both_shipped_parameter_sets() {
         let got = hash_password(&password(), &SALT, Argon2Params::MINIMUM).unwrap();
@@ -210,8 +207,8 @@ mod tests {
         ));
     }
 
-    /// Above the floor is not the same as valid. Argon2 also requires m >= 8p, and its
-    /// refusal is reported as its own rather than as a weak set.
+    /// Above the floor isn't the same as valid. Argon2 also requires m >= 8p, and that
+    /// refusal is reported as Argon2's, not as a weak set.
     #[test]
     fn a_set_the_algorithm_itself_refuses_is_reported_by_the_algorithm() {
         let params = Argon2Params::new(19_456, 2, 3_000);

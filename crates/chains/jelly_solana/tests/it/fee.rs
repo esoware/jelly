@@ -54,7 +54,7 @@ async fn a_quote_prices_every_level_over_the_same_compute_units() {
         ])),
     );
     let quote = harness.adapter.quote_fee(&request(PEER, native(), 1_000_000)).await.unwrap();
-    // Each price over the 540 unit limit, in micro-lamports per unit.
+    // The levels price at 1, 2, and 3 million micro-lamports a unit, over the 540 unit limit.
     let fees: Vec<Amount> = quote.levels.iter().map(|row| row.fee).collect();
     assert_eq!(
         fees,

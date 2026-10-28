@@ -1,12 +1,11 @@
 use jelly_core::{ChainId, Transport};
 use jelly_net::{Endpoint, Network, ProbeReport, probe_reachable};
 
-/// Asks one endpoint which network it serves, through the connector its chain's
-/// pool is built with, so the endpoint editor and the pool's guard cannot
-/// disagree.
+/// Asks an endpoint which network it serves, through the same connector its chain's pool
+/// uses, so the endpoint editor and the pool's check can't disagree.
 ///
-/// A REST service is only asked whether it answers, because its pool sends
-/// nothing to identify it.
+/// A REST service is only asked whether it answers, because its pool sends nothing to
+/// identify it.
 pub async fn probe(network: &Network, endpoint: &Endpoint) -> ProbeReport {
     if matches!(endpoint.transport(), Transport::FeeApi | Transport::HistoryApi) {
         return probe_reachable(&network.http(), network.clock().as_ref(), endpoint).await;

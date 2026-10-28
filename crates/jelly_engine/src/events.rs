@@ -7,12 +7,11 @@ use jelly_core::{EventSink, ScanAdvance, TxRecord, WalletEvent};
 use jelly_store::TxWrite;
 use tokio::sync::{broadcast, mpsc};
 
-/// One FIFO queue for events and cursor advances. Separate queues could let progress
-/// overtake the rows that justify it.
+/// Events and cursor advances share one FIFO queue, so progress can't overtake the rows
+/// that justify it.
 ///
-/// Every advance carries the pump's loss count from when its scope was read. Secret
-/// advances already carry their vault routing and wallet ID to reject writes after a
-/// session switch.
+/// Every advance carries the pump's loss count from when its scope was read. A secret
+/// advance also carries its wallet ID, so its write is refused after a session switch.
 #[derive(Debug)]
 pub(crate) enum Inbound {
     Event(WalletEvent),
@@ -36,9 +35,9 @@ impl Inbound {
 /// A bounded sink producers push into and a broadcast the interface subscribes to, with
 /// the pump between them. Some events go straight to the broadcast.
 ///
-/// A subscriber that falls behind loses old events rather than stalling a sync pass,
-/// which is safe because every event is an advisory refresh hint and the next pass
-/// re-reports state.
+/// A subscriber that falls behind loses old events instead of stalling a sync pass.
+/// That's safe because every event is only a refresh hint and the next pass reports
+/// state again.
 #[derive(Debug)]
 pub(crate) struct Events {
     sender: mpsc::Sender<Inbound>,
@@ -64,12 +63,11 @@ impl Events {
         )
     }
 
-    /// How many times the pump has dropped transaction rows it could not persist.
+    /// How many times the pump has dropped transaction rows it couldn't persist.
     ///
-    /// A cursor port notes it when it reads a scope. The pump refuses any advance
-    /// noted before the latest loss, because an adapter could have moved past the lost
-    /// rows on that read, while a scope read since then starts from the committed
-    /// position and finds them again.
+    /// A cursor port notes it when it reads a scope. The pump refuses any advance noted
+    /// before the latest loss, since the adapter may have moved past the lost rows. A
+    /// scope read after the loss starts from the committed position and finds them again.
     pub(crate) fn losses(&self) -> u64 {
         self.losses.load(Ordering::SeqCst)
     }
@@ -86,13 +84,10 @@ impl Events {
         }
     }
 
-    /// Queues one scan's progress behind everything already emitted.
-    ///
-    /// Waits for room rather than dropping, because losing the cursor would cost a
-    /// rescan.
+    /// Queues one scan's progress behind everything already emitted. Waits for room
+    /// instead of dropping, because losing the cursor would cost a rescan.
     pub(crate) async fn queue(&self, item: Inbound) {
-        // An error means the pump has ended, which happens only at shutdown, so there
-        // is nothing left to record.
+        // An error means the pump has stopped for shutdown.
         let _ = self.sender.send(item).await;
     }
 
@@ -124,8 +119,7 @@ pub(crate) struct EngineSink {
 #[async_trait]
 impl EventSink for EngineSink {
     async fn emit(&self, event: WalletEvent) {
-        // An error means the pump has ended, which happens only at shutdown, so there
-        // is nothing left to tell.
+        // An error means the pump has stopped for shutdown.
         let _ = self.sender.send(Inbound::Event(event)).await;
     }
 
@@ -139,11 +133,11 @@ impl EventSink for EngineSink {
     }
 }
 
-/// What a stored record is announced as. Only a row the store did not hold before
-/// is news.
+/// What a stored record is announced as. Only a row the store didn't hold before is
+/// news.
 ///
-/// The store answers once per record, so a missing answer is unreachable, and it
-/// falls back to the announcement that tells the user nothing.
+/// The store answers once per record, so `None` can't happen. It falls back to the
+/// quieter `TxUpdated`.
 pub(crate) const fn announcement(record: TxRecord, write: Option<TxWrite>) -> WalletEvent {
     match write {
         Some(TxWrite::Inserted) => WalletEvent::TxDetected(record),

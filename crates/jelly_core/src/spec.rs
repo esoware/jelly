@@ -9,13 +9,12 @@ use crate::tx::{CustomFee, FeeLevel, TxWarning, TxWarningKind};
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[expect(
     clippy::struct_excessive_bools,
-    reason = "each flag is a separate capability the engine and interface read on its own, not a state of one thing"
+    reason = "independent capabilities, not states of one thing"
 )]
 pub struct ChainSpec {
     pub chain: ChainId,
-    /// The name of the coin the chain pays fees in, which is not always the network's:
-    /// the coin on BNB Smart Chain is BNB, and a rollup's coin is ether, named Ethereum
-    /// as it is on Ethereum.
+    /// The name of the coin the chain pays fees in, which isn't always the network's: BNB
+    /// on BNB Smart Chain, and Ethereum on a rollup.
     pub coin_name: &'static str,
     /// The chain the coin is native to: the chain itself, or Ethereum on a rollup that
     /// pays fees in ether.
@@ -26,31 +25,30 @@ pub struct ChainSpec {
     /// The path family new addresses derive under, with `{index}` where the address
     /// index goes, such as `m/84'/0'/0'/0/{index}`.
     pub default_path: &'static str,
-    /// The script flavours the chain supports, empty for a chain without output scripts.
+    /// The script flavors the chain supports, if it has any.
     pub script_kinds: &'static [ScriptKind],
     pub default_script: Option<ScriptKind>,
-    /// The depth at which a transaction counts as done, where a reversal stops being a
-    /// practical concern rather than the deeper finality an exchange waits for. The
-    /// interface shows progress up to it, so a chain that settles in its first block
-    /// shows none.
+    /// The depth at which a reversal stops being a practical concern, short of the deeper
+    /// finality an exchange waits for. The interface shows progress up to it, so a chain
+    /// that settles in its first block shows none.
     pub settled_confirmations: u32,
-    /// The shipped poll interval of the sync loop. On a chain that listens for pushes it
-    /// is a safety net and can stay wide; on one that does not it is the update latency.
+    /// The sync loop's poll interval. On a chain that listens for pushes it's a safety net
+    /// and can stay wide; on one that doesn't, it's the update latency.
     pub poll_secs: u32,
-    /// The unit a fee rate is quoted in, such as `sat/vB`, or `None` when the chain does
-    /// not price fees by size.
+    /// The unit a fee rate is quoted in, such as `sat/vB`, or `None` when the chain
+    /// doesn't price fees by size.
     pub fee_rate_unit: Option<&'static str>,
-    /// The fee levels a send can pick from, slowest first. Empty on a chain whose
-    /// protocol fixes the fee, which leaves nothing to pick.
+    /// The fee levels a send can pick from, slowest first. Empty when the protocol fixes
+    /// the fee.
     pub fee_levels: &'static [FeeLevel],
     /// What a custom fee names, or `None` when the chain takes only its levels.
     pub custom_fee: Option<CustomFee>,
-    /// The fee in the chain's coin above which a preview warns that it is more than an
-    /// everyday user would pay. It is about $2 at the coin's price when it was set, or more
-    /// on a chain where an ordinary send costs that much. It is a fixed amount because a
-    /// fiat price can be switched off or stale, and a warning rather than a refusal.
+    /// The fee in the chain's coin above which a preview warns that it's more than an
+    /// everyday user would pay: about $2 when it was set, or more on a chain where an
+    /// ordinary send costs that much. It's a fixed amount because a fiat price can be
+    /// switched off or stale.
     pub high_fee: Amount,
-    /// Whether a send can replace the account's next nonce.
+    /// Whether a send can set its own nonce instead of the account's next one.
     pub can_pin_nonce: bool,
     /// Whether a send can carry calldata in place of the generated transfer.
     pub can_carry_data: bool,
@@ -61,11 +59,11 @@ pub struct ChainSpec {
     /// Every transport the chain builds a pool for, with [`ChainSpec::primary_transport`]
     /// first. The endpoint registry refuses an address on any other.
     pub transports: &'static [Transport],
-    /// What a user-typed address defaults to. The endpoint editor asks for a URL and not
-    /// a transport.
+    /// What a user-typed endpoint defaults to, since the endpoint editor asks only for a
+    /// URL.
     pub primary_transport: Transport,
     pub can_bump_fee: bool,
-    /// Whether a pending send can be cancelled by a replacement that moves nothing.
+    /// Whether a pending send can be canceled by a replacement that moves nothing.
     pub can_cancel: bool,
     /// Whether a send can delete its sending account from the ledger, paying out
     /// everything the account holds and recovering its reserve.
@@ -75,8 +73,8 @@ pub struct ChainSpec {
     pub has_destination_tags: bool,
     pub has_comments: bool,
     pub has_subaddresses: bool,
-    /// Whether the adapter needs the wallet's account key to scan, as a chain whose
-    /// receipts are only visible with a view key does.
+    /// Whether the adapter needs the wallet's account key to scan, as on a chain where
+    /// only a view key reveals incoming funds.
     pub needs_account_key: bool,
 }
 
@@ -87,14 +85,13 @@ impl ChainSpec {
         !self.needs_account_key
     }
 
-    /// The script flavour an address takes, or an error when the chain cannot produce
-    /// the requested one.
+    /// The script flavor an address takes: `requested`, else the flavor `purpose` names
+    /// when the chain's flavors derive under BIP-44 purposes, else the chain default.
     ///
-    /// `requested` wins, then `purpose`, a path's first component when it names a
-    /// BIP-44 purpose and the chain's flavours derive under purposes, then the chain
-    /// default. A chain with no script flavours answers `None`. A flavour the chain does
-    /// not support is an error, never a silent downgrade, so `m/86'` on Litecoin fails
-    /// rather than producing a P2WPKH address the user's other wallet would never show.
+    /// A chain with no script flavors answers `None` and refuses a request for one. A
+    /// flavor the chain doesn't support is an error, never a silent downgrade, so `m/86'`
+    /// on Litecoin fails instead of producing a P2WPKH address the user's other wallet
+    /// would never show.
     pub fn resolve_script(
         &self,
         purpose: Option<u32>,
@@ -120,12 +117,11 @@ impl ChainSpec {
         Ok(Some(script))
     }
 
-    /// The transport a user-typed address means on this chain: the websocket transport
-    /// when its scheme says so, and the primary transport otherwise.
+    /// The transport a user-typed endpoint means on this chain: the websocket transport for
+    /// a `ws://` or `wss://` URL, and the primary transport for anything else.
     ///
-    /// The websocket transport is the only one a URL scheme picks on its own, so `wss://`
-    /// typed into the endpoint editor becomes a subscription endpoint instead of being
-    /// folded into HTTPS.
+    /// That way `wss://` typed into the endpoint editor becomes a subscription endpoint
+    /// instead of being folded into HTTPS.
     pub fn transport_for(&self, input: &str) -> Transport {
         let is_websocket = input.trim().split_once("://").is_some_and(|(scheme, _)| {
             let scheme = scheme.trim();
@@ -134,10 +130,9 @@ impl ChainSpec {
         if is_websocket { Transport::WsJsonrpc } else { self.primary_transport }
     }
 
-    /// The warning a preview needs when its `fee` is above [`ChainSpec::high_fee`].
-    ///
-    /// It is given even when the adapter warns about the fee, because an adapter judges the
-    /// fee against its market and this judges its size.
+    /// The warning a preview needs when its `fee` is above [`ChainSpec::high_fee`], even if
+    /// the adapter already warns about the fee: the adapter judges the fee against its
+    /// market, and this judges its size.
     pub fn high_fee_warning(&self, fee: Amount) -> Option<TxWarning> {
         (fee > self.high_fee).then(|| {
             TxWarning::new(

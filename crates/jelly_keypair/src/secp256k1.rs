@@ -5,14 +5,13 @@ use jelly_core::{KeyError, KeyKind, KeyMaterial};
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, SignOnly, VerifyOnly};
 use zeroize::Zeroizing;
 
-/// The process's one signing context. No call site builds its own, so its setup happens
-/// once.
+/// The process-wide signing context, built once.
 pub fn signing_context() -> &'static Secp256k1<SignOnly> {
     static CONTEXT: OnceLock<Secp256k1<SignOnly>> = OnceLock::new();
     CONTEXT.get_or_init(Secp256k1::signing_only)
 }
 
-/// The process's verification context, needed for taproot output keys.
+/// The process-wide verification context, which taproot output keys need.
 pub fn verification_context() -> &'static Secp256k1<VerifyOnly> {
     static CONTEXT: OnceLock<Secp256k1<VerifyOnly>> = OnceLock::new();
     CONTEXT.get_or_init(Secp256k1::verification_only)
@@ -61,12 +60,12 @@ impl Secp256k1Key {
         self.public.serialize_uncompressed()
     }
 
-    /// The workspace's only recoverable-ECDSA entry point, returning `r || s || recid`
-    /// with a raw recovery id in `0..=3`, the layout TRON signatures use.
+    /// Signs `digest` as `r || s || recid` with a raw recovery id in `0..=3`, the layout
+    /// TRON signatures use.
     ///
-    /// The nonce is RFC 6979 and `s` is low. Nothing here inspects or re-hashes the
-    /// input, so the caller must know which domain produced the digest. EIP-155 and
-    /// legacy Ethereum offset the id differently, and that belongs to the chain crate.
+    /// The nonce is RFC 6979 and `s` is low. The digest is signed as given, so the caller
+    /// is responsible for its domain. EIP-155 and legacy Ethereum offset the id
+    /// differently, and that's up to the chain crate.
     pub fn sign_prehash_recoverable(&self, digest: &[u8; 32]) -> Result<[u8; 65], KeyError> {
         let signature = self.with_secret_key(|secret| {
             signing_context().sign_ecdsa_recoverable(&Message::from_digest(*digest), secret)

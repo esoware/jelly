@@ -25,8 +25,7 @@ const PAYMENT_SAT: u64 = 100_000;
 /// derive from a phrase, which its own test reads.
 const FROM_ONE_KEY: [UtxoParams; 3] = [BITCOIN, BITCOIN_CASH, DOGECOIN];
 
-/// A valid pay-to-witness-script-hash address on the chain, which this build pays
-/// but never spends from.
+/// A valid P2WSH address on the chain, which this build pays but never spends from.
 fn p2wsh(params: &UtxoParams) -> String {
     let script_pubkey = ScriptBuf::new_p2wsh(&WScriptHash::hash(&[0x51]));
     params.address_of(&script_pubkey).unwrap_or_default()
@@ -92,8 +91,7 @@ fn every_derived_litecoin_address_matches_the_cross_checked_vectors() {
         assert_eq!(
             spendable_kind(&LITECOIN, &expected).unwrap(),
             kind,
-            "the address and the script it pays agree on the script kind, which is what lets \
-             the watch set take the script kind from the script"
+            "the watch set reads the script kind off the script, so the two must agree"
         );
         assert_eq!(
             LITECOIN.address_of(script_pubkey.as_script()).as_deref(),
@@ -177,12 +175,10 @@ async fn the_form_litecoin_will_not_pay_is_refused_by_name() {
             assert!(error.to_string().contains("MWEB"), "{error}");
         }
     }
-    // A refused recipient never reaches a coin, so the wallet is untouched.
+    // A refused recipient never claims a coin.
     assert!(claimed(&harness.adapter).is_empty());
 }
 
-/// The recipient goes through the address gate before anything is planned, so a
-/// string that is no address never reaches a coin.
 #[tokio::test]
 async fn a_recipient_that_is_not_an_address_is_refused_before_a_coin_is_claimed() {
     let (harness, _wallet) =
@@ -230,8 +226,7 @@ fn the_only_script_kinds_each_chain_derives_are_the_ones_it_declares() {
     assert_eq!(
         LITECOIN.script_kinds,
         [ScriptKind::P2wpkh, ScriptKind::P2shP2wpkh, ScriptKind::P2pkh],
-        "Litecoin has activated taproot, and the codec reads and pays a taproot address, \
-         but the key layer derives no taproot key"
+        "Litecoin pays to taproot but doesn't derive it"
     );
     let pubkey = *test_key(&LITECOIN, ScriptKind::P2wpkh, 1).unwrap().pubkey();
     LITECOIN.key_address(ScriptKind::P2tr, &pubkey).unwrap_err();
@@ -273,8 +268,8 @@ async fn a_recipient_in_litecoins_ambiguous_legacy_form_is_paid_with_a_warning()
             unsigned.preview.warnings
         );
 
-        // The payment goes to that script, and the payload names the address as
-        // written rather than in the modern form.
+        // The payment goes to that script, and the payload keeps the address as
+        // written.
         let payload = payload(&unsigned).unwrap();
         assert_eq!(payload.to, legacy);
         let expected = params.script_pubkey(&legacy).unwrap();
@@ -308,16 +303,14 @@ async fn a_watch_set_row_that_does_not_resolve_fails_the_whole_set() {
             );
         }
 
-        // Paying a form is not holding one. A P2WSH address is a recipient this
-        // build pays but never an input it could sign, so it cannot be watched.
+        // This build pays P2WSH but can't sign for it, so it can't be watched.
         let error = harness
             .watch(&[wallet.address(), watched(&params, 11, &p2wsh(&params))])
             .await
             .expect_err("an address this build cannot spend from is refused");
         assert!(error.to_string().contains("cannot spend this output type"), "{chain}: {error}");
 
-        // Every refusal left the set that was already being watched exactly as it
-        // was.
+        // Every refusal left the existing watch set as it was.
         harness
             .adapter
             .build_tx(&harness.request(wallet.theirs.address(), 50_000, "2"))

@@ -1,8 +1,8 @@
 //! Speeding up a Litecoin send with a child that spends its change.
 //!
 //! Litecoin Core relays no replacement by default, so the bump is a second
-//! transaction. These tests prove what it spends, who it pays, and that its fee lifts
-//! the whole unconfirmed package, read off the chain after a restart as well.
+//! transaction. These tests check what it spends, who it pays, and that its fee lifts
+//! the whole unconfirmed package.
 
 use bitcoin::{OutPoint, Transaction};
 use jelly_core::{

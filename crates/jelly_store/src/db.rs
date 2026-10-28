@@ -1,7 +1,7 @@
-//! The database file and its connections. One writer and a separate read pool prevent
-//! reads from queuing behind batch writes.
+//! One writer and a separate read pool, so reads don't queue behind batch writes.
 //!
-//! Reads use deferred transactions so history counts and page rows share a snapshot.
+//! Each read runs in a deferred transaction, so a history count and its page rows see the
+//! same snapshot.
 
 use std::fs;
 use std::io::ErrorKind;
@@ -20,15 +20,14 @@ const DB_FILE: &str = "jelly.sqlite";
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 const JOURNAL_SIZE_LIMIT_BYTES: i64 = 67_108_864;
 const IDLE_READERS: usize = 2;
-/// Above the number of statements this crate ships, so the cache never evicts one.
+/// At least the number of statements this crate ships, so the cache never evicts one.
 const STATEMENT_CACHE_CAPACITY: usize = 64;
 
-/// Whether the opened file is the one that was there before.
+/// Whether the open had to replace an unusable file.
 ///
-/// An unusable file is moved aside rather than deleted, and `moved_to` says where. The
-/// replacement starts empty. Balances and history re-sync from the chains, but wallets and
-/// their settings, chain state, addresses, contacts, endpoints, and pins remain only in the
-/// moved-aside file.
+/// The old file is moved to `moved_to`, not deleted, and the replacement starts empty.
+/// Balances and history re-sync from the chains, but wallets, their settings and chain
+/// state, addresses, contacts, endpoints, and pins exist only in the old file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Recovered {
     No,
@@ -51,8 +50,7 @@ impl ReadPool {
             Some(connection) => connection,
             None => open_reader(&self.path)?,
         };
-        // Nothing a read scope runs writes, so the deferred transaction is released
-        // when it is dropped.
+        // Read scopes never write, so letting the drop roll the transaction back is fine.
         let outcome = connection
             .unchecked_transaction()
             .map_err(StoreError::from)
@@ -65,8 +63,8 @@ impl ReadPool {
     }
 }
 
-/// The transaction takes the write lock up front, so a scope that reads before it writes
-/// waits out `BUSY_TIMEOUT` rather than failing when its read lock cannot be upgraded.
+/// Takes the write lock up front, so a scope that reads before it writes waits out
+/// `BUSY_TIMEOUT` instead of failing when it can't upgrade its read lock.
 pub(crate) fn write<T>(
     writer: &mut Connection,
     work: impl FnOnce(&Connection) -> Result<T, StoreError>,
@@ -77,12 +75,11 @@ pub(crate) fn write<T>(
     Ok(outcome)
 }
 
-/// Checkpoints the write-ahead log and lets `SQLite` refresh its statistics. Skipping it
-/// leaves a full WAL beside the database.
+/// Lets `SQLite` refresh its statistics, then truncates the write-ahead log.
 ///
-/// Idle readers are dropped first because a live reader can hold the log open. Another
-/// process reading the file can still refuse the checkpoint. That is logged rather than
-/// raised, because the file is consistent either way and the next open replays the log.
+/// Idle readers go first, since a live reader can hold the log open. Another process
+/// reading the file can still block the checkpoint. That only logs a warning, since the
+/// file is consistent either way and the next open replays the log.
 pub(crate) fn close(writer: &Connection, readers: &ReadPool) -> Result<(), StoreError> {
     readers.idle.lock().clear();
     writer.execute_batch("PRAGMA optimize;")?;
@@ -97,8 +94,7 @@ pub(crate) fn close(writer: &Connection, readers: &ReadPool) -> Result<(), Store
     Ok(())
 }
 
-/// Opens or creates `jelly.sqlite` in `directory`, and answers with the writer, the
-/// readers, and whether the old file was usable.
+/// Opens or creates `jelly.sqlite` in `directory`, moving an unusable file aside first.
 pub(crate) fn open(
     directory: &Path,
     clock: &dyn Clock,
@@ -106,7 +102,7 @@ pub(crate) fn open(
     fs::create_dir_all(directory)
         .map_err(|error| StoreError::io("creating the data directory", error))?;
     let path = directory.join(DB_FILE);
-    // Read up front so a broken clock fails the open rather than the first write.
+    // Read now so a broken clock fails the open, not the first write.
     let now_unix_secs = clock.now_secs()?;
 
     let (writer, recovered) = match open_checked(&path) {
@@ -121,8 +117,8 @@ pub(crate) fn open(
     Ok((writer, ReadPool { idle: Mutex::new(idle), path }, recovered))
 }
 
-/// A file that fails its integrity check is `Corrupt`, the same as one `SQLite` cannot
-/// read. Every early return drops the connection, so the caller can move the file aside.
+/// A file that fails `quick_check` is `Corrupt`, just like one `SQLite` can't read. Every
+/// error path drops the connection, so the caller can move the file aside.
 fn open_checked(path: &Path) -> Result<Connection, StoreError> {
     let mut connection = open_writer(path)?;
     let check: String = connection.query_row("PRAGMA quick_check(1)", [], |row| row.get(0))?;
@@ -141,8 +137,8 @@ fn rebuild(path: &Path, now_unix_secs: i64) -> Result<(Connection, Recovered), S
         move_aside(&sidecar(path, suffix), &sidecar(&moved_to, suffix))?;
     }
     tracing::warn!(target: "jelly::store", "the wallet database was unusable and was replaced");
-    // A replacement that is itself unusable means the problem is the directory,
-    // not the file, and there is nothing left to recover to.
+    // If a fresh file fails too, the directory is the problem and another rebuild won't
+    // help.
     let connection = open_checked(path)?;
     Ok((connection, Recovered::Rebuilt { moved_to }))
 }
@@ -161,9 +157,8 @@ fn move_aside(from: &Path, to: &Path) -> Result<(), StoreError> {
     }
 }
 
-/// `synchronous = FULL` rather than the usual WAL advice of NORMAL, because a lost
-/// commit can mean a forgotten broadcast or a rewound cursor. The write volume is a
-/// handful of rows per sync pass.
+/// `synchronous = FULL`, not the usual WAL choice of NORMAL, since a lost commit can mean
+/// a forgotten broadcast or a rewound cursor. A sync pass writes only a handful of rows.
 fn open_writer(path: &Path) -> Result<Connection, StoreError> {
     let connection = Connection::open(path)
         .map_err(|error| StoreError::sqlite("opening the database", error))?;
@@ -176,8 +171,8 @@ fn open_writer(path: &Path) -> Result<Connection, StoreError> {
     Ok(connection)
 }
 
-/// `query_only` rather than a read-only handle, so the connection can still recover the
-/// write-ahead log but a bug cannot write through the pool.
+/// `query_only` instead of a read-only handle, so the connection can still recover the
+/// write-ahead log but a bug can't write through the pool.
 fn open_reader(path: &Path) -> Result<Connection, StoreError> {
     let flags = OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX;
     let connection = Connection::open_with_flags(path, flags)

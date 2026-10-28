@@ -48,9 +48,10 @@ pub(crate) async fn submit_tx(
     .await
 }
 
-/// Prices a fee bump at `fee` without reserving funds: a replacement, or on a chain whose
-/// nodes relay none, a child that spends the send's change. An automatic fee meets the
-/// network's minimum for the bump.
+/// Prices a fee bump at `fee` without reserving funds.
+///
+/// The bump is a replacement, or a child spending the send's change on a chain whose nodes
+/// don't relay replacements. A fee level is raised to the network's minimum for the bump.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn quote_bump(
@@ -73,7 +74,7 @@ pub(crate) async fn bump_fee(
     with_engine(&state, async move |engine| engine.bump_fee(&txid, &fee).await).await
 }
 
-/// Prices a cancel at `fee` without reserving funds. An automatic fee meets the network's
+/// Prices a cancel at `fee` without reserving funds. A fee level is raised to the network's
 /// replacement minimum.
 #[tauri::command]
 #[specta::specta]
@@ -117,7 +118,7 @@ pub(crate) async fn list_txs(
     with_engine(&state, async move |engine| engine.list_txs(query).await).await
 }
 
-/// Opens only a built-in transaction explorer in the system's default browser.
+/// Opens the chain's built-in transaction explorer, and only for a plain txid.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn open_tx_explorer(txid: TxId) -> Result<(), IpcError> {

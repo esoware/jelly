@@ -1,8 +1,8 @@
-//! The preview is rendered from the same [`Plan`] the transaction was built with.
+//! The preview is rendered from the same [`Plan`] the transaction was built with,
+//! so it describes the bytes that will be signed.
 //!
-//! That way it describes the bytes that will be signed. Every figure that could
-//! be wrong says so, such as a price the node did not report or a surcharge that
-//! can rise before execution.
+//! Every figure that could be wrong says so, such as a price the node didn't
+//! report or a surcharge that can rise before execution.
 
 use jelly_core::{Amount, AssetId, TxDetail, TxPreview, TxWarning, TxWarningKind};
 
@@ -114,9 +114,8 @@ fn warnings(plan: &Plan, facts: &Facts) -> Vec<TxWarning> {
         }
     }
     if matches!(facts.asset, AssetId::Token(_)) {
-        // The recipient's token balance lives in contract storage and is not read
-        // here, so the note is unconditional. A TRC-20 transfer never activates
-        // an address.
+        // A token send never reads the recipient's account, so this note always
+        // shows. A TRC-20 transfer never activates an address.
         warnings.push(TxWarning::new(
             TxWarningKind::Other,
             format!(

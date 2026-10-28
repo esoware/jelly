@@ -1,8 +1,7 @@
 use jelly_core::wire_enum;
 
 wire_enum! {
-    /// Every HTTP JSON-RPC method this crate sends, so each name is spelled only
-    /// here.
+    /// Every HTTP JSON-RPC method this crate sends, so no name is spelled twice.
     pub enum Method {
         ChainId => "eth_chainId",
         BlockNumber => "eth_blockNumber",

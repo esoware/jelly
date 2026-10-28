@@ -5,10 +5,10 @@ use zeroize::Zeroizing;
 
 use crate::error::VaultError;
 
-/// 16 OS-random bytes with no secret material, so it is safe in `SQLite`, in a log, and
+/// 16 OS-random bytes with nothing secret in them, so it's safe in `SQLite`, in a log, and
 /// over IPC.
 ///
-/// [`Display`](fmt::Display) and [`EntryId::parse`] are inverses over 32 lowercase hex
+/// [`Display`](fmt::Display) and [`EntryId::parse`] round-trip through 32 lowercase hex
 /// characters, the form the address table stores.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EntryId([u8; Self::LEN]);
@@ -63,8 +63,8 @@ wire_enum! {
 
 /// What a blob holds, with the key kind for a private key.
 ///
-/// One enum rather than a [`BlobKind`] and an optional [`KeyKind`], so a private key
-/// without a key kind, or a seed with one, cannot be built. Each variant holds what the
+/// One enum instead of a [`BlobKind`] and an optional [`KeyKind`], so a private key
+/// without a key kind, or a seed with one, can't be built. Each variant holds what the
 /// [`BlobKind`] variant of the same name documents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BlobContent {
@@ -96,11 +96,8 @@ impl BlobContent {
         }
     }
 
-    /// Rebuilds the content from its on-disk pair, or `None` for a combination this
-    /// type cannot represent.
-    ///
-    /// The match over [`BlobKind`] has no wildcard, so a new kind is a compile error
-    /// here rather than a silently unreadable entry.
+    /// Rebuilds the content from its on-disk pair, or `None` for a pair this type can't
+    /// represent.
     pub(crate) const fn from_parts(kind: BlobKind, key_kind: Option<KeyKind>) -> Option<Self> {
         match (kind, key_kind) {
             (BlobKind::SeedEntropy, None) => Some(Self::SeedEntropy),
@@ -122,8 +119,8 @@ impl BlobContent {
 
 /// One secret, wiped on drop and never serialized or printed.
 ///
-/// Deliberately not `Clone`. The vault's copy is duplicated only by the
-/// [`crate::UnlockedVault`] methods that return an owned blob, each a visible call site.
+/// Deliberately not `Clone`. Only the [`crate::UnlockedVault`] methods that return an
+/// owned blob copy one.
 pub struct SecretBlob {
     content: BlobContent,
     bytes: Zeroizing<Vec<u8>>,
@@ -152,7 +149,7 @@ impl SecretBlob {
         self.bytes.len()
     }
 
-    /// The bytes must not leave the closure in anything that does not zeroize.
+    /// The bytes must not leave the closure in anything that doesn't zeroize.
     pub fn with_bytes<R>(&self, read: impl FnOnce(&[u8]) -> R) -> R {
         read(&self.bytes)
     }

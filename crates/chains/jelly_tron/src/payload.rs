@@ -1,9 +1,8 @@
-//! The `raw_data` protobuf passed from build to signing. Preview and
-//! follow-up decode its owner, recipient, amount, asset, expiration, fee limit and
-//! block reference from it.
+//! The `raw_data` protobuf passed from build to signing, kept verbatim because
+//! re-encoding it can change the txid and break the signature.
 //!
-//! The bytes are kept verbatim, because re-encoding the protobuf can change the
-//! txid and invalidate the signature.
+//! Preview and tracking decode the owner, recipient, amount, asset, expiration,
+//! fee limit, and block reference from it.
 
 use jelly_core::{Amount, AssetId, TxPayload};
 
@@ -26,13 +25,13 @@ impl TronPayload {
         Self { raw_data }
     }
 
-    /// The bytes that are hashed, signed and broadcast.
+    /// The bytes that are hashed, signed, and broadcast.
     pub(crate) fn raw_data(&self) -> &[u8] {
         &self.raw_data
     }
 
-    /// `txID = sha256(raw_data)`, which is known before the transaction is signed
-    /// and is what makes the existence check after an ambiguous send possible.
+    /// `txID = sha256(raw_data)`. It's known before signing, which is what lets us
+    /// look the transaction up after an ambiguous send.
     pub(crate) fn txid(&self) -> [u8; 32] {
         raw::txid(&self.raw_data)
     }
@@ -67,11 +66,11 @@ impl TronPayload {
     }
 }
 
-/// A built transaction read back out of its own bytes.
+/// A built transaction read back from its own bytes.
 ///
-/// The asset is derived rather than carried. A `TransferContract` is native TRX,
-/// and a call is the token whose contract it names. A call to any other contract
-/// did not come from this build and is refused.
+/// The asset is derived, not stored: a `TransferContract` is TRX, and a call is
+/// the token whose contract it names. A call to any other contract didn't come
+/// from us and is refused.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Facts {
     pub(crate) asset: AssetId,

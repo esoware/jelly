@@ -144,8 +144,8 @@ mod walking {
         assert!(matches!(error, ElectrumError::Net(NetError::AllFailed { .. })), "{error}");
     }
 
-    /// Most public servers negotiate below 1.6, so a walk that blamed each one
-    /// for lacking `mempool.get_info` would back off the whole pool at once.
+    /// Most public servers negotiate below 1.6, so blaming each one for lacking
+    /// `mempool.get_info` would back off the whole pool at once.
     #[tokio::test(start_paused = true)]
     async fn a_server_below_the_protocol_a_method_needs_keeps_its_health() {
         let fake = FakeElectrum::new();
@@ -178,12 +178,12 @@ mod walking {
         assert!(matches!(first, ElectrumError::Net(NetError::AllFailed { .. })), "{first}");
 
         // Past the pacer's backoff, so only the disqualification can keep the
-        // endpoint out of the walk.
+        // endpoint out of rotation.
         clock.advance(Duration::from_secs(1));
         let sockets = fake.sockets_opened();
         let second = bucket_count(&pool).await.expect_err("and stays disqualified");
         assert!(matches!(second, ElectrumError::Net(NetError::NoneReady { .. })), "{second}");
-        assert_eq!(fake.sockets_opened(), sockets, "a disqualified endpoint is never dialled");
+        assert_eq!(fake.sockets_opened(), sockets, "a disqualified endpoint is never dialed");
     }
 
     #[tokio::test(start_paused = true)]

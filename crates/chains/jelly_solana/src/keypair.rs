@@ -21,7 +21,7 @@ pub(crate) enum KeyFormat {
 }
 
 impl KeyFormat {
-    /// The format's display name, as an error names it.
+    /// What key recognition and a wrong-chain error call this format.
     pub(crate) const fn name(self) -> &'static str {
         match self {
             Self::Hex32 => HEX_KEY_FORMAT,
@@ -50,7 +50,7 @@ impl Decoded {
 }
 
 /// The format `input` is written in, read from its shape and length. The public half
-/// of a keypair is not checked.
+/// of a keypair isn't checked.
 pub(crate) fn recognize(input: &str) -> Option<KeyFormat> {
     decode(input).filter(Decoded::has_key_length).map(|decoded| decoded.format)
 }
@@ -111,7 +111,7 @@ fn json(input: &str) -> Option<Decoded> {
 
 /// Accepts the 64-byte keypair or a bare 32-byte secret.
 ///
-/// The public half is never trusted. It is recomputed from the secret and the two must
+/// The public half is never trusted. It's recomputed from the secret and the two must
 /// agree, because a mismatched pair is an oracle that leaks the private scalar across
 /// two signatures.
 fn keypair_seed(raw: &[u8]) -> Result<Zeroizing<[u8; SEED_BYTES]>, KeyError> {

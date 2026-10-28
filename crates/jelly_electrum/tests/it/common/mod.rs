@@ -1,6 +1,5 @@
-//! Every helper is total. A vector that does not parse becomes `null` and an
-//! unresolved pointer becomes an empty value, so a broken fixture fails the
-//! assertion that reads it.
+//! Every helper is total. A vector that doesn't parse becomes `null` and a missing
+//! pointer an empty value, so a broken fixture fails the assertion that reads it.
 
 use bitcoin::absolute::LockTime;
 use bitcoin::transaction::Version;
@@ -90,7 +89,7 @@ pub(crate) const fn tx() -> Transaction {
 }
 
 /// The script of `1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa`, whose scripthash the
-/// protocol basics document publishes, which history.json records.
+/// protocol basics document publishes and history.json records.
 pub(crate) fn script() -> ScriptBuf {
     ScriptBuf::from_hex("76a91462e907b15cbf27d5425399ebf6f0fb50ebb88f1888ac").unwrap_or_default()
 }

@@ -37,7 +37,6 @@ impl Walk {
         }
     }
 
-    /// Takes the page the walk fetches next, or `None` once it is complete.
     pub(crate) const fn take_next(&mut self) -> Option<Position> {
         self.next.take()
     }
@@ -106,15 +105,14 @@ impl JettonCursor {
         self.is_confirmed && self.balance_lt == head_lt
     }
 
-    /// Keeps `balance` as the wallet's own data gave it when its last lt was `head_lt`.
+    /// Records `balance` as the wallet's own data gave it at `head_lt`.
     pub(crate) const fn confirm(&mut self, balance: Amount, head_lt: u64) {
         self.is_confirmed = true;
         self.balance = balance;
         self.balance_lt = head_lt;
     }
 
-    /// Keeps that the wallet held nothing when its last lt was `head_lt`, because it was
-    /// not deployed.
+    /// Records a zero balance at `head_lt` for a wallet that isn't deployed.
     pub(crate) const fn empty(&mut self, head_lt: u64) {
         self.balance = Amount::ZERO;
         self.balance_lt = head_lt;
@@ -128,7 +126,7 @@ pub(crate) enum Stream {
     Jetton(usize),
 }
 
-/// Everything sync keeps per address, so its field names are a stored format.
+/// Sync's stored state for one address, so its field names are a stored format.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Cursor {

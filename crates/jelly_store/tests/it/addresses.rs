@@ -172,9 +172,9 @@ async fn a_label_can_be_set_and_cleared() {
         .await
         .unwrap();
 
-    let labelled =
+    let labeled =
         harness.store.set_address_label(row.id, Some(String::from("savings"))).await.unwrap();
-    assert_eq!(labelled.label.as_deref(), Some("savings"));
+    assert_eq!(labeled.label.as_deref(), Some("savings"));
 
     let cleared = harness.store.set_address_label(row.id, None).await.unwrap();
     assert_eq!(cleared.label, None);

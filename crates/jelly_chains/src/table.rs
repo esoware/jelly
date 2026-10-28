@@ -2,8 +2,7 @@ use std::sync::LazyLock;
 
 use jelly_core::ChainTable;
 
-/// Every chain's entry, in [`jelly_core::ChainId::ALL`] order, which the constructor
-/// checks.
+/// Every chain's entry in [`jelly_core::ChainId::ALL`] order, which the constructor checks.
 static CHAINS: LazyLock<ChainTable> = LazyLock::new(|| {
     ChainTable::new(&[
         jelly_bitcoin::ENTRY,

@@ -1,13 +1,12 @@
-//! Every read this crate makes, typed once.
+//! Every request this crate makes, typed once.
 //!
 //! TRON's HTTP API has no batch form, so each method is one request and one
-//! decode, apart from [`TronClient::parent`], which takes at least two. A TRX quote
+//! decode, except [`TronClient::parent`], which takes at least two. A TRX quote
 //! costs four round trips and a token quote five. A pass costs one per address for
-//! the TRX balance and one more per token. When the address's history is due it also
+//! the TRX balance plus one per token. When an address's history is due, it also
 //! costs one per history page, one receipt per TRC-20 row whose block the pass
-//! has not already seen, and one parent per internal transfer whose transaction
-//! the native stream did not already report. That is why nothing here reads a
-//! value it can derive.
+//! hasn't seen, and one parent lookup per internal transfer the native stream
+//! hasn't already reported. So nothing here fetches a value it can derive.
 
 use std::sync::Arc;
 
@@ -28,10 +27,11 @@ use crate::shape::{
     TransactionRow,
 };
 
-/// The most pages of one sender's history at one block time that a parent lookup reads.
+/// The most pages of a sender's history at one block time that a parent lookup
+/// reads.
 ///
-/// They hold a thousand rows, far more than one account sends in one block, so the
-/// bound only stops an indexer whose fingerprints never run out.
+/// That's 1000 rows, far more than one account sends in a block, so the bound only
+/// stops an indexer whose fingerprints never run out.
 const PARENT_PAGES: u32 = 5;
 
 #[derive(Debug)]
@@ -44,15 +44,15 @@ impl TronClient {
         Self { node }
     }
 
-    /// The head block, which is both the tip and the TAPOS reference every
-    /// transaction pins itself to.
+    /// The head block: the tip, and the TAPOS reference every transaction pins
+    /// itself to.
     pub(crate) async fn now_block(&self) -> Result<BlockRef, TronError> {
         let answer = self.node.call(&Request::now_block()?).await?;
         let block: NowBlock = answer.decode()?;
         block.block_ref(&answer)
     }
 
-    /// The governance parameters, which set what a fee costs.
+    /// The governance parameters that set fee prices.
     pub(crate) async fn chain_parameters(&self) -> Result<ChainParams, TronError> {
         let reported: ChainParameters =
             self.node.call(&Request::chain_parameters()?).await?.decode()?;
@@ -86,11 +86,11 @@ impl TronClient {
         abi::decode_balance(word).ok_or_else(|| answer.unusable("return word"))
     }
 
-    /// The energy the real `transfer(to, amount)` would consume, as the node
-    /// measures it by executing the call read-only.
+    /// The energy `transfer(to, amount)` would use, measured by the node running
+    /// the call read-only.
     ///
-    /// `energy_used` already includes `energy_penalty`, the dynamic surcharge on
-    /// a busy contract, so nothing adds them together.
+    /// `energy_used` already includes `energy_penalty`, the dynamic surcharge on a
+    /// busy contract, so don't add them together.
     pub(crate) async fn measure_transfer(
         &self,
         owner: &str,
@@ -107,14 +107,14 @@ impl TronClient {
         Ok(EnergyReading { needed: call.energy_used(), penalty: call.energy_penalty() })
     }
 
-    /// A mined transaction's receipt, with its block, its result and the TRX it
+    /// A mined transaction's receipt, with its block, its result, and the TRX it
     /// burned.
     pub(crate) async fn transaction_info(&self, txid: &str) -> Result<TransactionInfo, TronError> {
         self.node.call(&Request::transaction_info_by_id(txid)?).await?.decode()
     }
 
-    /// Whether the network holds a transaction at all, pool included, which
-    /// decides whether an unlanded send is in flight or dead.
+    /// Whether the network holds a transaction at all, pool included, which tells
+    /// an unlanded send that's in flight from a dead one.
     pub(crate) async fn holds_transaction(&self, txid: &str) -> Result<bool, TronError> {
         let row: TransactionRow =
             self.node.call(&Request::transaction_by_id(txid)?).await?.decode()?;
@@ -132,13 +132,13 @@ impl TronClient {
         self.node.call(&request).await?.decode()
     }
 
-    /// The indexer row of the transaction an internal transfer ran in, found in
-    /// its sender's own history at the block time the transfer names, so it is
-    /// the same row the sender's native stream lists, internal transfers and all.
+    /// The indexer row of the transaction an internal transfer ran in. It's found
+    /// in the sender's history at the transfer's block time, so it's the same row,
+    /// internal transfers and all, that the sender's native stream lists.
     ///
     /// The sender comes from `gettransactionbyid`, which every full node answers
-    /// alike. A transaction no node or indexer can place within [`PARENT_PAGES`]
-    /// pages and `deadline` is unusable rather than guessed at.
+    /// alike. A row not found within [`PARENT_PAGES`] pages and `deadline` is
+    /// reported as unusable rather than guessed at.
     pub(crate) async fn parent(
         &self,
         txid: &str,

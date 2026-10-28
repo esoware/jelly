@@ -1,5 +1,3 @@
-//! Fixtures the unit tests share.
-
 use std::time::Duration;
 
 use jelly_core::Amount;
@@ -33,8 +31,8 @@ pub(crate) fn resources(free_used: u64, staked_limit: u64, energy_limit: u64) ->
         .expect("resources decode")
 }
 
-/// The compiled prices, labelled as a node's answer so no quote built on them
-/// carries the compiled-figures warning.
+/// The compiled prices, labeled as a node's answer so quotes built on them skip
+/// the compiled-figures warning.
 pub(crate) fn priced_params() -> ChainParams {
     ChainParams { is_from_chain: true, ..ChainParams::FALLBACK }
 }

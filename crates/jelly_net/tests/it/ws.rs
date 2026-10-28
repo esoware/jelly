@@ -220,7 +220,7 @@ async fn a_dead_socket_fails_the_wait_and_reregistration_dials_afresh() {
 
     // Registering again re-dials underneath and registers afresh.
     client.register(&[heads()]).await.expect("the re-registration");
-    assert_eq!(fake.sockets_opened(), 2, "a fresh socket was dialled");
+    assert_eq!(fake.sockets_opened(), 2, "a fresh socket was dialed");
     assert_eq!(fake.calls_to("eth_subscribe").len(), 2, "the set was registered again");
 }
 
@@ -282,8 +282,8 @@ async fn handshake_head(address: impl FnOnce(SocketAddr) -> String) -> io::Resul
     });
 
     let network = direct_network(&[]).map_err(io::Error::other)?;
-    let dialler = network.ws_dialler().map_err(io::Error::other)?;
-    let connector = WsConnector::new(dialler, Arc::clone(network.clock()), Arc::new(NoIdentity));
+    let dialer = network.ws_dialer().map_err(io::Error::other)?;
+    let connector = WsConnector::new(dialer, Arc::clone(network.clock()), Arc::new(NoIdentity));
     let endpoint =
         Endpoint::parse(ChainId::Ethereum, Transport::WsJsonrpc, &url).map_err(io::Error::other)?;
 

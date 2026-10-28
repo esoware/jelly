@@ -11,10 +11,10 @@ const TARGET: &str = "jelly::tron::identity";
 /// `eth_chainId` answers.
 const GENESIS_BLOCK_ID: &str = "00000000000000001ebf88508a03865c71d452e25f4d51194196a1d22b6653dc";
 
-/// Mainnet's identity, which a node proves by reporting mainnet's block zero.
+/// Checks that a node reports mainnet's block zero.
 ///
-/// TRON's HTTP API has no chain-id call, so block zero is compared instead. Nile and
-/// Shasta each have their own genesis.
+/// TRON's HTTP API has no chain-id call, and Nile and Shasta each have their own
+/// genesis.
 #[derive(Debug, Clone, Copy)]
 pub struct TronIdentity;
 

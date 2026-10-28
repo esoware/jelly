@@ -373,8 +373,8 @@ mod records {
         );
     }
 
-    /// The node answers `null` for metadata lists it did not record, which is how
-    /// older transactions arrive.
+    /// The node answers `null` for metadata lists it didn't record, which is how older
+    /// transactions arrive.
     #[tokio::test]
     async fn a_transaction_whose_metadata_lists_are_null_is_recorded() {
         let mut transaction: serde_json::Value = serde_json::from_str(TX_NATIVE_TRANSFER).unwrap();
@@ -395,11 +395,11 @@ mod records {
         );
     }
 
-    /// A signature listed at the tip cannot have been pruned.
+    /// A signature listed at the tip can't have been pruned.
     ///
-    /// A `null` for it means the endpoint that answered has not rooted it yet,
-    /// which happens when a load-balanced pool lists the signature on one node and
-    /// fetches it from another.
+    /// A `null` for it means the endpoint that answered hasn't rooted it yet, which
+    /// happens when a load-balanced pool lists the signature on one node and fetches it
+    /// from another.
     #[tokio::test]
     async fn a_transaction_not_yet_served_at_the_tip_is_recorded_once_an_endpoint_serves_it() {
         let mut transaction: serde_json::Value = serde_json::from_str(TX_NATIVE_TRANSFER).unwrap();
@@ -631,7 +631,7 @@ mod walking {
         assert_eq!(seen.len(), 30, "every signature exactly once: {seen:?}");
     }
 
-    /// A new wallet's first pass finds no history, and what arrives afterwards
+    /// A new wallet's first pass finds no history, and what arrives afterward
     /// must still be walked.
     #[tokio::test]
     async fn an_address_with_no_history_at_its_first_pass_records_what_arrives_later() {

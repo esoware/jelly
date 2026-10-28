@@ -1,17 +1,14 @@
-//! Background price feed. Wallet operations read cached prices and never wait
-//! for a provider.
+//! Background price feed from Kraken. Wallet operations read cached prices and never wait
+//! for the provider.
 //!
-//! Every asset is priced in US dollars, and a price in another currency is that
-//! dollar price times the dollar's rate in it, never a pair of the asset against
-//! that currency. Prices are integers, with excess decimals truncated, and
-//! serialize as strings of base units. A quote is stored only when the response
-//! names the ticker or currency that was requested.
+//! Every asset is priced in US dollars. A price in another currency is the dollar price
+//! times the dollar's rate in that currency, never a pair of the asset against it. Prices
+//! are integers, with excess decimals truncated, and serialize as strings of base units.
 //!
-//! Daily closes, for prices and rates alike, are loaded from Kraken's OHLC candles
-//! whenever prices are enabled, with each series that fails asked for again until it
-//! loads, and published separately from the live feed. Turning prices off withdraws
-//! the closes and the live quotes alike. A chart's candles come from the same
-//! endpoint when one is shown, and are reused while they are fresh.
+//! While prices are on, daily closes for every ticker and rate load from Kraken's OHLC
+//! candles, retrying each failed series until it loads, and publish apart from the live
+//! feed. Charts fetch candles from the same endpoint on demand and reuse them while
+//! they're fresh. Turning prices off withdraws both the live quotes and the closes.
 
 #![deny(clippy::float_arithmetic)]
 mod book;

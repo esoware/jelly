@@ -163,7 +163,7 @@ async fn a_new_route_reaches_the_shared_client_with_no_wallet_open() {
     services.shutdown().await;
 }
 
-/// Reject invalid proxies before saving them, or the next startup cannot reach settings.
+/// A proxy the client refuses is never saved, or the next startup would fail on it.
 #[tokio::test]
 async fn a_route_the_client_refuses_is_never_stored() {
     let directory = tempfile::tempdir().unwrap();

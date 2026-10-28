@@ -97,7 +97,7 @@ async fn every_vocabulary_is_stored_as_the_string_the_workspace_speaks() {
         })
         .await
         .unwrap();
-    // A reservation lands in the same table under its own label.
+    // A reservation lands in the same table under its own namespace.
     harness
         .store
         .reserve(

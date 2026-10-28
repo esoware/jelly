@@ -16,8 +16,8 @@ const MAX_RESPONSE_BYTES: usize = 4_000_000;
 #[async_trait]
 pub trait XrpNode: Send + Sync + fmt::Debug {
     /// Returns the bare `result` object of a JSON-RPC call. An `actNotFound` from
-    /// `account_info` or a `txnNotFound` from `tx` comes back as `Ok`, because callers read
-    /// it as an answer, while `account_tx` always answers with a history.
+    /// `account_info` or a `txnNotFound` from `tx` comes back as `Ok`, since callers read it
+    /// as an answer. `account_tx` must always answer with a history.
     async fn call(&self, method: Method, params: Value) -> Result<Value, XrpError>;
     /// Submits a signed blob in a single attempt and returns the submit result, which
     /// carries `engine_result`.
@@ -78,11 +78,11 @@ fn answer(method: Method, params: &Value, mut response: Value) -> Result<Value, 
     {
         return Err("XRP request refused");
     }
-    // `XrpClient::history` checks the range again for any `XrpNode`. Checking it here as
-    // well makes a server without the full history a transport failure, so the pool
-    // rotates to another. That includes one answering `actNotFound`, because history
-    // outlives an account: rippled and Clio both list a deleted account's transactions,
-    // and nothing for one that never existed.
+    // `XrpClient::history` checks the range too, for any `XrpNode`. Checking it here as well
+    // makes a server without the full history a transport failure, so the pool rotates
+    // past it. That includes one answering `actNotFound`, since history outlives an
+    // account: rippled and Clio both list a deleted account's transactions, and an empty
+    // list for one that never existed.
     if method == Method::AccountTx {
         let wanted = params
             .get("ledger_index_min")

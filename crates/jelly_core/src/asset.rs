@@ -8,8 +8,8 @@ wire_enum! {
     /// Supported token contracts and mints.
     ///
     /// Each chain's tokens sit together in chain order, and the wallet lists them as
-    /// declared: other tokens first, then real world assets with the dollar coins
-    /// before gold, each by market capitalization.
+    /// declared: other tokens first, then real-world assets with the dollar coins before
+    /// gold, each group by market capitalization.
     pub enum TokenId {
         LinkErc20 => "link_erc20",
         WbtcErc20 => "wbtc_erc20",
@@ -165,10 +165,9 @@ impl TokenId {
         }
     }
 
-    /// Tether's own omnichain instances, `USDT0` and `XAUt0`, read as the coins
-    /// they stand for. So do bridged copies, such as Avalanche's `LINK.e` and the
-    /// ether Binance issues on BNB Smart Chain as `ETH`, which reads as WETH like
-    /// every other network's.
+    /// Tether's omnichain `USDT0` and `XAUt0` and bridged copies such as Avalanche's
+    /// `LINK.e` take the symbol of the coin they stand for. The ether Binance issues on BNB
+    /// Smart Chain as `ETH` reads as WETH, like every other network's.
     pub const fn symbol(self) -> &'static str {
         match self {
             Self::LinkErc20
@@ -240,7 +239,7 @@ impl TokenId {
         }
     }
 
-    /// User-facing token name. It is the same on every chain.
+    /// The same on every chain.
     pub const fn display_name(self) -> &'static str {
         match self {
             Self::LinkErc20
@@ -314,7 +313,7 @@ impl TokenId {
         }
     }
 
-    /// Backed by something held off chain: a dollar coin or a gold token.
+    /// A dollar coin or a gold token.
     pub(crate) const fn is_real_world_asset(self) -> bool {
         match self {
             Self::UsdtErc20
@@ -395,8 +394,7 @@ impl TokenId {
         }
     }
 
-    /// The Binance-Peg instances carry 18 decimals, unlike their Ethereum
-    /// originals.
+    /// Binance-Peg USDT and USDC carry 18 decimals, unlike their Ethereum originals.
     pub const fn decimals(self) -> u8 {
         match self {
             Self::LinkErc20
@@ -509,7 +507,7 @@ impl TokenId {
             Self::PyusdArbitrum => "0x46850aD61C2B7d64d08c9C754F45254596696984",
             Self::XautArbitrum => "0x40461291347e1eCbb09499F3371D3f17f10d7159",
             Self::LinkBase => "0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196",
-            // The OP Stack predeploys WETH at the same address on every OP Stack network.
+            // Every OP Stack network predeploys WETH at this address.
             Self::WethBase | Self::WethOptimism => "0x4200000000000000000000000000000000000006",
             Self::UsdcBase => "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
             Self::UsdsBase => "0x820C137fa70C8691f0e44Dc420a5e53c168921Dc",
@@ -604,8 +602,7 @@ impl AssetId {
         }
     }
 
-    /// Stable `<kind>:<name>` identity. It is what the store's `asset` columns hold and
-    /// the only flat spelling of an asset.
+    /// The stable `<kind>:<name>` string the store's `asset` columns hold.
     pub fn key(self) -> String {
         match self {
             Self::Native(chain) => format!("native:{}", chain.as_str()),
@@ -816,7 +813,7 @@ mod tests {
         }
     }
 
-    /// The network the coin is held on is the C-Chain, one of three chains AVAX lives on.
+    /// AVAX lives on three chains, and the wallet holds it on the C-Chain.
     #[test]
     fn the_c_chain_coin_is_avax() {
         let coin = AssetId::Native(ChainId::Avalanche);

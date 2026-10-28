@@ -12,16 +12,15 @@ use crate::keccak::keccak_address_bytes;
 use crate::secp256k1::Secp256k1Key;
 use crate::secret_hex::hex_body;
 
-/// Caps the memory a hostile file can demand. geth's defaults need 256 MiB, so a 1 GiB
-/// ceiling accepts every real document.
+/// Caps the memory a hostile file can demand. geth's default needs 256 MiB, so 1 GiB
+/// leaves room for any real document.
 const MAX_SCRYPT_MEMORY_BYTES: u64 = 1 << 30;
 
 /// Caps the time a hostile file can demand, counted as `128 * n * r * p`, the bytes the
 /// mixing passes touch.
 ///
-/// `p` repeats the whole `n * r` pass, so the ceiling covers the product. Bounding memory
-/// alone allows `n = 2, r = p = 65536`, hours of work that the scrypt crate's own check
-/// cannot refuse because `r * p` overflows before it is compared.
+/// The memory cap alone allows `n = 2, r = p = 65536`, hours of work that the scrypt
+/// crate's own check can't refuse, because its `r * p` overflows first.
 const MAX_SCRYPT_WORK_BYTES: u64 = 1 << 30;
 
 /// The same cap for PBKDF2, whose work is its round count once per 32-byte output block.
@@ -75,8 +74,8 @@ struct Pbkdf2Params {
     salt: String,
 }
 
-/// A structural sniff, so format detection can tell a Web3 Secret Storage v3
-/// document from other key text without validating it.
+/// Tells a Web3 Secret Storage v3 document from other key text by its shape, without
+/// validating it.
 pub(crate) fn is_keystore_v3(input: &str) -> bool {
     let trimmed = input.trim_start();
     trimmed.starts_with('{') && (trimmed.contains("\"crypto\"") || trimmed.contains("\"Crypto\""))
@@ -85,7 +84,7 @@ pub(crate) fn is_keystore_v3(input: &str) -> bool {
 /// Decrypts a Web3 Secret Storage v3 document into the secp256k1 key it holds.
 ///
 /// A MAC mismatch is [`KeyError::WrongPassword`] whether the password was wrong or the
-/// file was altered, because the MAC covers the derived key and the ciphertext together.
+/// file was altered, since the MAC can't tell the two apart.
 pub(crate) fn decrypt_keystore_v3(
     json: &str,
     password: &SecretText,
@@ -125,8 +124,7 @@ pub(crate) fn decrypt_keystore_v3(
     }
     let key = Secp256k1Key::from_secret_bytes(&plain)?;
 
-    // The address field is advisory. When present and well formed, it checks that the
-    // document holds the key it claims.
+    // The address field is optional, but a well-formed one must match the key.
     if let Some(claimed) = document.address.as_deref().map(hex_body)
         && claimed.len() == 40
     {
@@ -362,12 +360,12 @@ mod tests {
     }
 
     #[test]
-    fn a_capitalised_crypto_key_is_accepted() {
+    fn a_capitalized_crypto_key_is_accepted() {
         let suite = vectors();
-        let capitalised = suite.pbkdf2.replace(r#""crypto":"#, r#""Crypto":"#);
-        assert!(is_keystore_v3(&capitalised));
+        let capitalized = suite.pbkdf2.replace(r#""crypto":"#, r#""Crypto":"#);
+        assert!(is_keystore_v3(&capitalized));
         let key =
-            decrypt_keystore_v3(&capitalised, &secret_text(&suite.password)).expect("decrypt");
+            decrypt_keystore_v3(&capitalized, &secret_text(&suite.password)).expect("decrypt");
         assert_eq!(key.with_secret_bytes(|secret| hex::encode(secret)), suite.secret);
     }
 }

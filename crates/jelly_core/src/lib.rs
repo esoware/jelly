@@ -1,5 +1,4 @@
-//! Shared types and contracts. The only operating system reads here are the clock and the
-//! entropy source, so every crate draws both through one path.
+//! Shared types and contracts. Every crate reads the clock and OS entropy through here.
 
 #![deny(clippy::float_arithmetic)]
 

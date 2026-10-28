@@ -1,16 +1,16 @@
 //! Decodes the optional `/v1` indexer history, which a plain full node answers
-//! with 404. A history failure does not stop balance sync, which uses the
-//! `/wallet` routes.
+//! with 404. A history failure doesn't stop balance sync, which uses the `/wallet`
+//! routes.
 //!
-//! Non-transfer contracts and tokens this wallet does not carry, unsolicited ones
-//! included, are ignored, and so is a token transfer of nothing. Anyone can make a
-//! TRC-20 contract log one between any two addresses, as a `transferFrom` of zero
-//! from the victim to a lookalike of an address it pays, which is how the
-//! lookalike gets into a history.
+//! Non-transfer contracts and tokens we don't carry, unsolicited ones included,
+//! are ignored, and so is a token transfer of zero. Anyone can make a TRC-20
+//! contract log one between any two addresses: a zero `transferFrom` from the
+//! victim to a lookalike of an address it pays plants the lookalike in its
+//! history.
 //!
-//! The TRX a contract call moves is read from the internal transfers the indexer
-//! lists with the transaction. A full node keeps them in a receipt only when it
-//! was configured to, so they are never read from one.
+//! The TRX a contract call moves comes from the internal transfers the indexer
+//! lists with the transaction. A full node keeps those in a receipt only when
+//! configured to, so we never read them from one.
 
 use std::cmp::Ordering;
 
@@ -31,8 +31,7 @@ const TARGET: &str = "jelly::tron::history";
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Page<T> {
-    // Named rather than a bare `default`, which would have serde infer a
-    // `T: Default` bound on the whole page and put one on every row shape.
+    // A bare `default` would make serde require `T: Default` of every row shape.
     #[serde(default = "Vec::new")]
     pub(crate) data: Vec<T>,
     #[serde(default)]
@@ -52,15 +51,15 @@ impl<T> Page<T> {
     }
 }
 
-/// One indexer row from any stream, reduced to the txid and time its stream's
-/// frontier is kept by.
+/// An indexer row from any stream, reduced to the txid and time the frontier
+/// tracks.
 pub(crate) trait Row {
     fn txid(&self) -> &str;
     fn timestamp_millis(&self) -> Option<i64>;
 }
 
-/// A row that means whole records on its own, which an internal transfer, one
-/// step of a larger transaction, does not.
+/// A row that makes whole records on its own. An internal transfer doesn't,
+/// since it's one step of a larger transaction.
 pub(crate) trait Recorded: Row {
     /// The block the row says it was mined in. `TronGrid`'s TRC-20 rows say none.
     fn height(&self) -> Option<u64>;
@@ -103,7 +102,7 @@ pub(crate) struct NativeRow {
     net_fee: u64,
     #[serde(default)]
     energy_fee: u64,
-    /// Every transfer the contracts this transaction called made, whoever they
+    /// Every transfer made by contracts this transaction called, whoever they
     /// paid.
     #[serde(default)]
     internal_transactions: Vec<InternalRow>,
@@ -159,9 +158,8 @@ struct NativeRet {
 impl NativeRow {
     /// Total TRX burned, in sun.
     ///
-    /// `ret[0].fee` is authoritative when present, because it covers both
-    /// resource components. The flattened fields are the fallback for indexers
-    /// that omit it.
+    /// `ret[0].fee` wins when present, since it covers both bandwidth and energy.
+    /// The flattened fields are the fallback for indexers that omit it.
     fn fee_sun(&self) -> u64 {
         match self.ret.first() {
             Some(entry) if entry.fee > 0 => entry.fee,
@@ -169,7 +167,7 @@ impl NativeRow {
         }
     }
 
-    /// A row with no `contractRet` has not executed yet, which is not the same as
+    /// A row with no `contractRet` hasn't executed yet, which isn't the same as
     /// having failed.
     fn outcome(&self) -> TxOutcome {
         match self.ret.first().and_then(|entry| entry.contract_ret.as_deref()) {
@@ -184,9 +182,9 @@ impl NativeRow {
         self.raw_data.contract.first()?.parameter.value.owner_address.as_deref().and_then(canonical)
     }
 
-    /// The carried token, recipient and amount of a call to a carried token's
-    /// `transfer` of something, when the transaction is one. A transfer of nothing
-    /// is a call that moves neither TRX nor a token.
+    /// The token, recipient, and amount when this transaction calls `transfer`
+    /// with a nonzero amount on a token we carry. A zero transfer is treated as a
+    /// call that moves neither TRX nor a token.
     fn token_transfer(&self) -> Option<(TokenId, String, u128)> {
         let contract = self.raw_data.contract.first()?;
         if Contract::parse(&contract.contract_type)? != Contract::TriggerSmartContract {
@@ -196,15 +194,15 @@ impl NativeRow {
         let token =
             value.contract_address.as_deref().and_then(canonical).and_then(|at| token_at(&at))?;
         let calldata = hex::decode(value.data.as_deref()?).ok()?;
-        // The virtual machine ignores calldata past the two argument words, so a
-        // longer call moved what its first words say.
+        // The VM ignores calldata past the two argument words, so a longer call
+        // moves what those words say.
         let call = calldata.get(..abi::TRANSFER_CALL_BYTES)?;
         let (recipient, amount) = abi::decode_transfer(call).ok()?;
         (amount > 0).then(|| (token, address::display(&recipient), amount))
     }
 
-    /// The TRC-20 stream reports the token movement and no fee, so the TRX the
-    /// call burned is reported here, on a record for the same asset and txid that
+    /// The TRC-20 stream reports the token movement without a fee, so the TRX the
+    /// call burned is reported here, on a record with the same asset and txid that
     /// the store merges with that one.
     fn token_record(&self, address_id: i64, watched: &str) -> Option<TxRecordBuilder> {
         let (token, recipient, amount) = self.token_transfer()?;
@@ -234,14 +232,16 @@ impl NativeRow {
     }
 
     /// All the TRX the transaction moved for one watched address, netted into one
-    /// record: the transfer itself or what a call carried, and every internal
-    /// transfer to or from the address. The store keeps one row per address,
-    /// asset and txid, so every stream that reports this transaction reports it
-    /// from here, and none can overwrite the others with a share of it.
+    /// record: the transfer itself or what a call carried, plus every internal
+    /// transfer to or from the address.
+    ///
+    /// The store keeps one row per address, asset, and txid, so every stream that
+    /// reports this transaction reports it from here and none can overwrite the
+    /// others with a partial amount.
     ///
     /// A failed transaction moved nothing, so its internal transfers are skipped,
-    /// and it still cost its sender the fee. Only the sender paid, and the fee of
-    /// a carried-token transfer is already on that token's record.
+    /// but it still cost the sender the fee. Only the sender pays, and a
+    /// carried-token transfer's fee is already on that token's record.
     pub(crate) fn trx_record(&self, address_id: i64, watched: &str) -> Option<TxRecordBuilder> {
         let contract = self.raw_data.contract.first()?;
         let value = &contract.parameter.value;
@@ -306,8 +306,8 @@ impl Recorded for NativeRow {
         self.block_number
     }
 
-    /// Only TRX and carried-token transfers are shown. Staking, delegation, votes
-    /// and contract calls that move neither are not transfers.
+    /// Only TRX and carried-token transfers become records. Staking, delegation,
+    /// votes, and contract calls that move neither aren't transfers.
     fn records(&self, address_id: i64, watched: &str) -> Vec<TxRecordBuilder> {
         self.token_record(address_id, watched)
             .into_iter()
@@ -330,8 +330,8 @@ struct Moved {
 }
 
 impl Moved {
-    /// Takes one movement, which counts only when it names the address on a side.
-    /// `None` when a sum does not fit in 128 bits.
+    /// Adds one movement if the address is on either side. `None` if a sum
+    /// overflows `u128`.
     fn add(
         &mut self,
         watched: &str,
@@ -361,9 +361,9 @@ impl Moved {
     }
 
     /// The net movement. More in than out is incoming and more out than in is
-    /// outgoing, each by the difference, and a movement of nothing keeps the one
-    /// direction it had. What never left the address, or went out and came back,
-    /// is a self-transfer.
+    /// outgoing, each by the difference. A net of zero keeps its direction when
+    /// only one side had another party. What never left the address, or went out
+    /// and came back, is a self-transfer.
     fn net(&self, watched: &str) -> Option<(TxDirection, u128, Option<String>)> {
         if !self.is_involved {
             return None;
@@ -386,11 +386,11 @@ impl Moved {
     }
 }
 
-/// One row from `/v1/accounts/{address}/internal-transactions`.
+/// One row from `/v1/accounts/{address}/internal-transactions`: a transfer a
+/// contract made while a transaction ran.
 ///
-/// The row is a transfer a contract made while a transaction ran. A native row
-/// lists its own call's transfers in the same shape, without the transaction's
-/// id and time.
+/// A native row lists its own call's transfers in the same shape, minus the txid
+/// and time.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct InternalRow {
     /// The transaction the transfer ran in.
@@ -419,7 +419,7 @@ struct InternalData {
 }
 
 /// What a step moved, keyed by asset. `_` is TRX in sun, and every other key is a
-/// TRC-10 token, which this wallet does not carry.
+/// TRC-10 token, which we don't carry.
 #[derive(Debug, Clone, Copy, Default, Deserialize)]
 struct CallValue {
     #[serde(rename = "_", default)]
@@ -428,7 +428,7 @@ struct CallValue {
 
 impl InternalRow {
     /// The TRX this step moved, with its two sides. A rejected step moved
-    /// nothing, and only a call, a contract creation or a self-destruct pays its
+    /// nothing, and only a call, a contract creation, or a self-destruct pays its
     /// recipient. The other notes name staking and voting steps a contract took
     /// for itself.
     fn transfer(&self) -> Option<(Option<String>, Option<String>, u128)> {
@@ -441,7 +441,7 @@ impl InternalRow {
         Some((from, to, sun))
     }
 
-    /// Whether this step moved TRX to or from `watched`, which is what makes its
+    /// Whether this step moved TRX to or from `watched`, which makes its
     /// transaction worth reading.
     pub(crate) fn pays(&self, watched: &str) -> bool {
         self.transfer().is_some_and(|(from, to, _)| {
@@ -450,9 +450,9 @@ impl InternalRow {
     }
 }
 
-/// The note names the step. The indexer documents it in plain text and java-tron
-/// writes it hex encoded, so both spellings are read. A missing note is read as a
-/// call, which nearly every transfer is.
+/// The indexer documents the note as plain text but java-tron writes it hex
+/// encoded, so we read both. A missing note counts as a call, which nearly every
+/// transfer is.
 fn is_payment(note: Option<&str>) -> bool {
     let Some(note) = note else {
         return true;
@@ -493,8 +493,8 @@ pub(crate) struct TokenRow {
     block_number: Option<u64>,
 }
 
-/// Only the contract address is read. The `symbol`, `name` and `decimals` here
-/// are ignored, because the scale comes from the compiled token table.
+/// Only the contract address is read. The scale comes from the compiled token
+/// table, not the row's `decimals`.
 #[derive(Debug, Clone, Default, Deserialize)]
 struct TokenInfo {
     #[serde(default)]
@@ -502,18 +502,18 @@ struct TokenInfo {
 }
 
 impl TokenRow {
-    /// True unless the row names an event that is not a transfer.
+    /// True unless the row names an event that isn't a transfer.
     fn is_transfer(&self) -> bool {
         self.event_type.as_deref().unwrap_or("Transfer").eq_ignore_ascii_case("Transfer")
     }
 
-    /// The token this row is about, if this wallet carries it.
+    /// The token this row is about, if we carry it.
     fn token(&self) -> Option<TokenId> {
         token_at(&canonical(self.token_info.address.as_deref()?)?)
     }
 
-    /// The transferred amount in base units. A value that does not parse is a
-    /// fault, never a zero.
+    /// The amount in base units. A value that doesn't parse is a fault, never
+    /// zero.
     fn amount(&self) -> Option<u128> {
         self.value.as_deref()?.parse::<u128>().ok()
     }
@@ -527,7 +527,7 @@ impl TokenRow {
             tracing::warn!(
                 target: TARGET,
                 txid = %self.transaction_id,
-                "a token transfer whose value does not parse is never coerced to zero"
+                "skipped a token transfer whose value doesn't parse"
             );
             return None;
         };

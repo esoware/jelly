@@ -1,9 +1,9 @@
-//! TRON spells an address three ways. People read the base58check `T...` form,
-//! protobuf and the HTTP API carry the twenty-one byte `0x41 || keccak-tail`
-//! body, and an ABI word holds the bare twenty-byte tail.
+//! TRON spells an address three ways: the base58check `T...` form people read, the
+//! 21-byte `0x41 || keccak-tail` body that protobuf and the HTTP API carry, and
+//! the bare 20-byte tail in an ABI word.
 //!
-//! Every string goes through [`canonical`] or [`body`] once, and later steps work
-//! on fixed-size arrays.
+//! A string is parsed once, by [`canonical`] or [`body`], and later steps work on
+//! fixed-size arrays.
 
 use jelly_core::{Address, AddressCodec, AddressError, ChainId, KeyError};
 use jelly_keypair::keccak_address_bytes;
@@ -11,14 +11,13 @@ use jelly_keypair::keccak_address_bytes;
 use crate::config::CHAIN;
 use crate::error::TronError;
 
-/// Mainnet address prefix byte. Every TRON address renders as `T`.
+/// Mainnet's prefix byte, which makes every address start with `T`.
 pub(crate) const PREFIX: u8 = 0x41;
 
-/// The twenty-one byte body, prefix included.
+/// The address body, prefix included.
 pub(crate) const BODY_BYTES: usize = 21;
 
-/// The twenty byte tail, which is the same twenty bytes an EVM address holds
-/// because TRON hashes a public key the way Ethereum does.
+/// The same 20 bytes as the key's Ethereum address.
 pub(crate) const TAIL_BYTES: usize = 20;
 
 pub(crate) const CODEC: &dyn AddressCodec = &TronCodec;
@@ -56,16 +55,17 @@ fn decode_base58(value: &str) -> Result<[u8; BODY_BYTES], AddressError> {
     }
 }
 
-/// The `T...` form of an address given in either of its two TRON spellings.
+/// Normalizes a `T...` address or a 21-byte hex body, with or without `0x`, to the
+/// `T...` form.
 ///
-/// Accepts the `T...` form and the twenty-one byte hex body, with or without
-/// `0x`. The bare twenty-byte form is refused, because it is an Ethereum address
-/// and this runs over values that reach a recipient field.
+/// A bare 20-byte hex value is refused, because that's an Ethereum address and
+/// recipient fields come through here.
 pub(crate) fn canonical(field: &'static str, value: &str) -> Result<String, TronError> {
     Ok(display(&body(field, value)?))
 }
 
-/// The twenty-one byte body, which is what a transaction and a request carry.
+/// Parses either spelling to the 21-byte body that transactions and requests
+/// carry.
 pub(crate) fn body(field: &'static str, value: &str) -> Result<[u8; BODY_BYTES], TronError> {
     let trimmed = value.trim();
     let hex_chars = BODY_BYTES.saturating_mul(2);
@@ -78,7 +78,7 @@ pub(crate) fn body(field: &'static str, value: &str) -> Result<[u8; BODY_BYTES],
     decode_base58(trimmed).map_err(|source| TronError::invalid_address(field, source.to_string()))
 }
 
-/// A twenty-one byte body, checked for the mainnet prefix.
+/// A 21-byte body, checked for the mainnet prefix.
 pub(crate) fn from_body(field: &'static str, raw: &[u8]) -> Result<[u8; BODY_BYTES], TronError> {
     let body: [u8; BODY_BYTES] = raw
         .try_into()
@@ -98,7 +98,7 @@ pub(crate) const fn tail(body: &[u8; BODY_BYTES]) -> [u8; TAIL_BYTES] {
     tail
 }
 
-/// A body from the twenty byte tail an ABI word holds.
+/// Rebuilds the body from the 20-byte tail in an ABI word.
 pub(crate) const fn from_tail(tail: &[u8; TAIL_BYTES]) -> [u8; BODY_BYTES] {
     let mut body = [PREFIX; BODY_BYTES];
     let (_, rest) = body.split_at_mut(1);
@@ -106,8 +106,7 @@ pub(crate) const fn from_tail(tail: &[u8; TAIL_BYTES]) -> [u8; BODY_BYTES] {
     body
 }
 
-/// The address a secp256k1 public key holds, in either SEC1 form. TRON derives the
-/// same twenty bytes as Ethereum.
+/// The address of a secp256k1 public key in either SEC1 form.
 pub(crate) fn from_pubkey(pubkey: &[u8]) -> Result<String, KeyError> {
     Ok(display(&from_tail(&keccak_address_bytes(pubkey)?)))
 }
@@ -120,7 +119,7 @@ mod tests {
     use super::*;
     use crate::test_util::{OWNER, OWNER_KEY, RECIPIENT};
 
-    /// The twenty-one byte body [`RECIPIENT`] decodes to.
+    /// The 21-byte body [`RECIPIENT`] decodes to.
     const RECIPIENT_HEX: &str = "41e28b3cfd4e0e909077821478e9fcb86b84be786e";
 
     const VECTORS_JSON: &str = include_str!("../tests/vectors/addresses.json");
@@ -209,7 +208,7 @@ mod tests {
             derived,
             "either SEC1 form is the same key and so the same address"
         );
-        // This is the Ethereum address of the same key behind TRON's own prefix byte.
+        // The same key's Ethereum address behind TRON's prefix byte.
         assert_eq!(
             canonical("address", "0x419d8a62f656a8d1615c1294fd71e9cfb3e4855a4f").expect("a body"),
             OWNER

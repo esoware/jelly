@@ -17,8 +17,8 @@ const WHOLE_NUMBER_ROUTE: &str = "/v1/fees/recommended";
 const RECOMMENDED: &str =
     r#"{"fastestFee":12,"halfHourFee":8,"hourFee":4,"economyFee":2,"minimumFee":1}"#;
 
-/// Answers the way a deployment that predates the precise route does, which is 404
-/// for every route but the whole-number one.
+/// Answers like a deployment that predates the precise route: 404 for every route but
+/// the whole-number one.
 async fn answer(mut stream: TcpStream) -> Fallible<String> {
     let mut bytes = Vec::new();
     while !bytes.ends_with(b"\r\n\r\n") {

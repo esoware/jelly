@@ -5,15 +5,13 @@ use tauri::{App, AppHandle, Manager as _, WebviewWindow};
 
 use super::{CANVAS, TARGET, WindowBackdrop};
 
-// The canvas over the blur, at 85%.
-//
-// That is no heavier a veil than the page puts over its own blurred popups, since a whole
-// window of blur reads fainter than a popup's. The layer carries it rather than the page,
-// so the strip a resize uncovers before the page catches up is tinted too.
+// The canvas at 85% over the blur, no heavier than the page's veil over its own blurred
+// popups, since a whole window of blur reads fainter than a popup's. The layer applies it,
+// not the page, so the strip a resize uncovers before the page catches up is tinted too.
 const BACKDROP_TINT: Tint = Tint { red: CANVAS.0, green: CANVAS.1, blue: CANVAS.2, alpha: 0xd9 };
 
-/// The layer and everything that decides what it draws. It blurs only while the setting
-/// asks for it and transparency effects are on, whether or not the window is active.
+/// Blurs only while the setting asks for it and transparency effects are on, whether or
+/// not the window is active.
 struct Backdrop {
     layer: BackdropLayer,
     setting: BackdropSetting,
@@ -25,7 +23,7 @@ impl Backdrop {
     fn paint(&self) {
         let is_blurred = self.setting == BackdropSetting::Blur && self.has_effects;
         if let Err(error) = self.layer.set_blurred(is_blurred) {
-            tracing::warn!(target: TARGET, %error, "the window backdrop was not repainted");
+            tracing::warn!(target: TARGET, %error, "the window backdrop wasn't repainted");
         }
     }
 }
@@ -42,14 +40,14 @@ pub(super) fn attach(app: &App, window: &WebviewWindow) -> WindowBackdrop {
     }) {
         Ok(watched) => watched,
         Err(error) => {
-            tracing::warn!(target: TARGET, %error, "the transparency setting could not be read");
+            tracing::warn!(target: TARGET, %error, "the transparency setting couldn't be read");
             return WindowBackdrop::Solid;
         }
     };
     let layer = match jelly_win32::attach_backdrop(window, BACKDROP_TINT) {
         Ok(layer) => layer,
         Err(error) => {
-            tracing::warn!(target: TARGET, %error, "the window could not take a backdrop layer");
+            tracing::warn!(target: TARGET, %error, "the window couldn't take a backdrop layer");
             return WindowBackdrop::Solid;
         }
     };
@@ -66,7 +64,7 @@ pub(super) fn attach(app: &App, window: &WebviewWindow) -> WindowBackdrop {
 }
 
 /// Windows refuses to draw into a window from any thread but the one that created it, so
-/// the change waits for the main thread. A window without a layer has nothing to change.
+/// the change runs on the main thread. A window without a layer has nothing to change.
 fn update_backdrop(handle: &AppHandle, change: impl FnOnce(&mut Backdrop) + Send + 'static) {
     let main_thread_handle = handle.clone();
     let queued = handle.run_on_main_thread(move || {
@@ -77,7 +75,7 @@ fn update_backdrop(handle: &AppHandle, change: impl FnOnce(&mut Backdrop) + Send
         }
     });
     if let Err(error) = queued {
-        tracing::warn!(target: TARGET, %error, "the window backdrop change was not queued");
+        tracing::warn!(target: TARGET, %error, "the window backdrop change wasn't queued");
     }
 }
 

@@ -9,18 +9,16 @@ use crate::cpfp::{ChildRequest, Package, Unconfirmed, build_child};
 use crate::error::UtxoError;
 use crate::original::Original;
 
-/// A send to speed up with a child, recovered from the chain so a restart loses
-/// nothing.
+/// A send to speed up with a child, recovered from the chain so it survives a restart.
 ///
-/// The change is the last output paying one of the wallet's addresses other than the
-/// payment, which is the first output paying none of them. A send that paid only the
-/// wallet's own addresses, as an earlier child did, has no payment, so its last output
-/// of the wallet's is the change, and a child can be sped up in turn.
+/// The payment is the first output that doesn't pay the wallet, and the change is the
+/// last other output that does. A send that only paid the wallet, such as an earlier
+/// child, has no payment, so its last output is the change and it can be sped up too.
 #[derive(Debug, Clone)]
 pub(crate) struct ChildPaying {
     package: Package,
-    /// The address the change pays first, which the child pays back, then every
-    /// address the send spends from. Coins the child adds come only from these.
+    /// The change address first, which the child pays back to, then every address the
+    /// send spends from. The child adds coins only from these.
     sources: Vec<Watched>,
     change: OutPoint,
 }

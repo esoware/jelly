@@ -13,7 +13,7 @@ pub(crate) const INVALID_REQUEST: i64 = -32600;
 const INVALID_PARAMS: i64 = -32602;
 /// `sendTransaction` reports a failed preflight simulation with this code.
 pub(crate) const PREFLIGHT_FAILED: i64 = -32002;
-/// A transaction whose signature does not verify.
+/// A transaction whose signature doesn't verify.
 pub(crate) const SIGNATURE_VERIFY_FAILED: i64 = -32003;
 const SIGNATURE_LENGTH_MISMATCH: i64 = -32013;
 const UNSUPPORTED_TRANSACTION_VERSION: i64 = -32015;
@@ -27,14 +27,14 @@ const UNSUPPORTED_TRANSACTION_VERSION: i64 = -32015;
 pub enum SolanaError {
     #[error(transparent)]
     Net(NetError),
-    /// The cluster refused a broadcast, classified once.
+    /// The cluster refused a broadcast.
     #[error("{0}")]
     Rejected(Rejection),
     /// A JSON-RPC error with no more specific variant.
     #[error("{endpoint}: {method} failed with rpc error {code}: {message}")]
     Rpc { endpoint: EndpointLabel, method: Method, code: i64, message: String },
-    /// An answer this build cannot read, reported by position because serde's
-    /// message quotes the answer back.
+    /// An answer this build can't read, reported by position because serde's message
+    /// quotes the answer back.
     #[error("{endpoint}: the {method} answer is unreadable at line {line} column {column}")]
     Answer { endpoint: EndpointLabel, method: Method, line: usize, column: usize },
     #[error("{endpoint}: the {method} answer carries neither a result nor an error")]
@@ -100,8 +100,8 @@ pub enum SolanaError {
         token.symbol()
     )]
     MemoRequired { token: TokenId },
-    /// The recipient is itself a token account, of another mint or another
-    /// program, so the transfer has nowhere of this token's to land.
+    /// The recipient is a token account of another mint or another program, so this
+    /// token can't land there.
     #[error("This address is a token account for a different token, not {}.", token.symbol())]
     ForeignMint { token: TokenId },
     /// Tokens sent to an address with no private key land in an account only the
@@ -111,8 +111,8 @@ pub enum SolanaError {
         token.symbol()
     )]
     OffCurveRecipient { token: TokenId },
-    /// The token program owns the recipient, which is not a token account, such
-    /// as a mint.
+    /// A token program owns the recipient, but it isn't a token account. It could be a
+    /// mint, for example.
     #[error("This address is a token record such as a mint, not a wallet or a token account.")]
     NotARecipient,
     /// The account at the recipient's associated token address was reassigned,
@@ -127,9 +127,8 @@ pub enum SolanaError {
     NotAnInteger { field: &'static str },
     #[error("The value for {what} exceeds Solana's limit.")]
     Overflow { what: &'static str },
-    /// No compiled limit is zero, and the client never takes a simulation that
-    /// reports no units as a measurement, so this guards the type rather than an
-    /// answer.
+    /// Guards the type, not an answer. No compiled limit is zero, and a simulation that
+    /// reports zero units is never taken as a measurement.
     #[error("a compute unit limit of zero cannot run a transaction")]
     ComputeUnitsZero,
     #[error("The priority fee can be at most {}.", sol_text(MAX_CHOSEN_PRIORITY_FEE_LAMPORTS))]
@@ -152,17 +151,16 @@ pub enum SolanaError {
     WrongKeyLength { got: usize },
     #[error("the signing key does not own the account this transaction pays from")]
     KeyNotOwner,
-    /// This adapter builds single-signer transfers, so a message wanting any
-    /// other count was not built here and must not be signed here.
+    /// This adapter builds single-signer transfers, so a message wanting any other
+    /// count wasn't built here and mustn't be signed here.
     #[error("this build signs exactly one signature and this message requires {required}")]
     SignerCount { required: u8 },
-    /// A broadcast of bytes this adapter is not following, because they were
-    /// never signed here or stopped being followed first. No record of the send
-    /// can be written before they leave, so they never do.
+    /// Bytes this adapter isn't following, either never signed here or no longer
+    /// followed. They aren't sent, since no record of the send could be written first.
     #[error("the signed transaction has no reservation")]
     Untracked,
-    /// The node echoed a signature other than the one in the bytes it was given,
-    /// so its answer is not about this transaction.
+    /// The node echoed a signature other than the one in the bytes it was given, so
+    /// its answer isn't about this transaction.
     #[error("{endpoint}: the node echoed a signature that is not the one it was sent")]
     SignatureEcho { endpoint: EndpointLabel },
 }
@@ -310,8 +308,8 @@ impl SolanaError {
             | Self::EmptyAnswer { .. }
             | Self::BatchLength { .. } => Outcome::Rotate,
             Self::Rpc { code, .. } => code_outcome(code),
-            // Everything else is a statement about the request, so every
-            // endpoint would answer the same way.
+            // These are about the request itself, so every endpoint would answer the
+            // same way.
             Self::Rejected(_)
             | Self::Cursor(_)
             | Self::ForeignChain { .. }
@@ -352,9 +350,8 @@ impl SolanaError {
     }
 }
 
-/// A malformed request fails without rotation, because another endpoint would
-/// reject it too. Method-not-found and Solana's availability errors rotate to
-/// another endpoint.
+/// A malformed request fails without rotating, because another endpoint would reject
+/// it too. Method-not-found and Solana's availability errors rotate.
 const fn code_outcome(code: i64) -> Outcome {
     match code {
         PARSE_ERROR
@@ -367,11 +364,8 @@ const fn code_outcome(code: i64) -> Outcome {
     }
 }
 
-/// The classifier every walk uses, a broadcast included.
-///
-/// No separate broadcast classifier is needed, because
-/// [`crate::BroadcastReply::read`] returns a refusal as a value and it never
-/// reaches this function.
+/// Classifies pool failures for every call, broadcasts included. A broadcast refusal
+/// never gets here, because [`crate::BroadcastReply::read`] returns it as a value.
 pub(crate) fn classify(error: &NetError) -> Outcome {
     match *error {
         NetError::Rpc { code, .. } => code_outcome(code),
@@ -522,9 +516,8 @@ mod tests {
             ChainError::from(SolanaError::Untracked),
             ChainError::Internal { context: "solana adapter", .. }
         ));
-        // A transport failure keeps `jelly_net`'s own vocabulary rather than
-        // becoming an internal one, so the engine can still see it was the
-        // network.
+        // A transport failure keeps `jelly_net`'s own error rather than becoming an
+        // internal one, so the engine can still see it was the network.
         let net = SolanaError::Net(NetError::Status { endpoint: endpoint(), status: 500 });
         assert!(!matches!(ChainError::from(net), ChainError::Internal { .. }));
     }

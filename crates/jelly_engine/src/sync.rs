@@ -19,13 +19,12 @@ use crate::session::Session;
 /// Ceiling for the backoff after consecutive failing passes.
 const SYNC_BACKOFF_MAX: Duration = Duration::from_secs(30);
 
-/// One chain's supervision loop.
+/// One chain's sync loop.
 ///
 /// Exactly one runs per chain per supervision token (`Chains::supervision`), so a pass
 /// never overlaps itself. It wakes on a kick, a push from
-/// [`ChainAdapter::wait_activity`], the poll interval, or cancellation. The interval is a
-/// safety net, so a chain whose adapter listens for pushes syncs as soon as something
-/// happens.
+/// [`ChainAdapter::wait_activity`], the poll interval, or cancellation. For an adapter
+/// that listens for pushes, the interval is only a safety net.
 #[derive(Debug)]
 pub(crate) struct ChainLoop {
     pub(crate) chain: ChainId,
@@ -54,7 +53,7 @@ impl ChainLoop {
                     failures = 0;
                     self.poll
                 }
-                // The session is gone, so this loop has nothing left to do.
+                // The session is gone.
                 Err(CoreError::Locked) => break,
                 Err(ref error) => {
                     tracing::warn!(
@@ -88,11 +87,11 @@ impl ChainLoop {
     }
 
     /// Refreshes the watch set, runs sync, and publishes the result. The adapter's
-    /// cooperative deadline is shorter than the real-time watchdog so compliant adapters
-    /// can return partial progress.
+    /// deadline is shorter than the watchdog, so an adapter that honors it can return
+    /// partial progress.
     ///
-    /// Cancelling the supervision token drops the pass at an await. Committed batches
-    /// remain atomic. Uncommitted work resumes from the last cursor.
+    /// Canceling the supervision token drops the pass at an await. Committed batches
+    /// stay atomic, and uncommitted work resumes from the last cursor.
     async fn pass(&self, inner: &Inner) -> Result<(), CoreError> {
         let chain = self.chain;
         let session = inner.session.current().ok_or(CoreError::Locked)?;
@@ -126,9 +125,8 @@ impl ChainLoop {
     }
 }
 
-/// Builds the watch set on the blocking pool, because an ed25519 row's public key costs
-/// a SLIP-10 derivation or a vault read, and a wallet's worth of those does not belong on
-/// a runtime worker.
+/// Builds the watch set on the blocking pool, since each ed25519 row's public key costs a
+/// SLIP-10 derivation or a vault read.
 async fn watch_set(
     session: Arc<Session>,
     rows: Vec<AddressRow>,
@@ -155,13 +153,12 @@ async fn watch_set(
     .await
 }
 
-/// Publishes updated confirmation depths when the tip changes, because unchanged history
+/// Publishes new confirmation depths when the tip moves, since history that didn't change
 /// would otherwise leave the interface's counts stale.
 ///
-/// Depths up to one block past settled are announced so the transition to settled shows.
-/// So is every row that was unsettled at the prior tip, because a tip that moves many
-/// blocks at once, such as the first pass after an unlock, carries a row straight past
-/// settled.
+/// Depths up to one block past settled are announced so the move to settled shows. So is
+/// every row that was unsettled at the prior tip, because a tip that jumps many blocks,
+/// as on the first pass after an unlock, can carry a row straight past settled.
 async fn announce_confirmations(
     inner: &Inner,
     wallet_id: i64,
@@ -235,8 +232,8 @@ fn backoff(base: Duration, failures: u32) -> Duration {
     full_jitter(base.saturating_mul(factor).min(SYNC_BACKOFF_MAX))
 }
 
-/// A uniform draw from `0..=ceiling`. An entropy failure keeps the full ceiling,
-/// which is the conservative direction for a retry delay.
+/// A uniform draw from `0..=ceiling`. An entropy failure returns the full ceiling, the
+/// conservative choice for a retry delay.
 fn full_jitter(ceiling: Duration) -> Duration {
     let Ok(bytes) = random_bytes::<8>() else {
         return ceiling;

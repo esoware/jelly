@@ -18,8 +18,8 @@ pub(crate) struct Bip32Node {
 }
 
 impl Bip32Node {
-    /// Accepts the 16 to 64 byte range BIP-32 fixes. The length check is this crate's,
-    /// not the underlying library's.
+    /// Accepts the 16 to 64 byte range BIP-32 fixes. We check the length, since the
+    /// library doesn't.
     pub(crate) fn from_seed_bytes(bytes: &[u8]) -> Result<Self, KeyError> {
         if !(MIN_SEED_BYTES..=MAX_SEED_BYTES).contains(&bytes.len()) {
             return Err(KeyError::InvalidSeedLength { got: bytes.len() });
@@ -46,9 +46,8 @@ impl Bip32Node {
 
     /// Base58 `xpub`, for watch-only export.
     ///
-    /// Safe to share only while no non-hardened child private key is shared with it,
-    /// because an xpub plus any such child recovers the parent xprv. Account levels and
-    /// above are hardened for this reason.
+    /// An xpub plus any non-hardened child private key recovers the parent xprv, which is
+    /// why account levels and above are hardened.
     pub(crate) fn to_xpub_string(&self) -> String {
         Xpub::from_priv(signing_context(), &self.inner).to_string()
     }

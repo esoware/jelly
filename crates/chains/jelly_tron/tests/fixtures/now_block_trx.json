@@ -1,5 +1,5 @@
 {
-  "_derived": "The head block that mainnet transaction a46244ab (tests/fixtures/tx_trx.json) referenced, rebuilt from its TAPOS fields. ref_block_bytes a63d are the low 16 bits of the height 0x0515a63d, and ref_block_hash 437d27f93863a488 is bytes 8..16 of the block id. The last 16 bytes of the block id are zeroed because a transaction records only those eight and this build never reads them. The timestamp is the transaction's own, which is what a wallet stamps from the head block it read.",
+  "_derived": "The head block that mainnet transaction a46244ab (tests/fixtures/tx_trx.json) referenced, rebuilt from its TAPOS fields. ref_block_bytes a63d are the low 16 bits of the height 0x0515a63d, and ref_block_hash 437d27f93863a488 is bytes 8..16 of the block id. The last 16 bytes of the block id are zeroed, since a transaction records only bytes 8..16 and this build never reads the rest. The timestamp is the transaction's own, since a wallet stamps that from the head block it read.",
   "blockID": "000000000515a63d437d27f93863a48800000000000000000000000000000000",
   "block_header": {
     "raw_data": {

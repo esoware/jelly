@@ -151,7 +151,7 @@
         "forbid": [
           {
             "propName": "title",
-            "message": "Native tooltips are off. Use TooltipText or Tooltip from ui/tooltip.tsx."
+            "message": "Native tooltips are off. Use TooltipText from ui/tooltip.tsx."
           }
         ]
       }

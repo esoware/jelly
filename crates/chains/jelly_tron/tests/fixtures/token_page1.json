@@ -1,5 +1,5 @@
 {
-  "_recorded": "Page one of the TRC-20 history of TBdQCi6AvGhCNk17Pmhqx9eoXMRFqEBiqo, recorded from https://api.trongrid.io on 2026-08-13. Each row gained the block_number field TronGrid reports for a mined transfer, so the height and confirmation path is covered offline. Row one shares the timestamp of block 85304913 in tests/fixtures/now_block.json, and the other two are counted back from it at one block per three seconds.",
+  "_recorded": "Page one of the TRC-20 history of TBdQCi6AvGhCNk17Pmhqx9eoXMRFqEBiqo, recorded from https://api.trongrid.io on 2026-08-13. TronGrid's TRC-20 rows carry no block number, so each row was given a block_number by hand to cover the path that reads a height straight from the row. Row one shares the timestamp of block 85304913 in tests/fixtures/now_block.json, and the other two are counted back from it at one block per three seconds.",
   "data": [
     {
       "transaction_id": "0dce78f724bd4030f33c19ef006683fc7943f5f481faace26c45e4d95f736019",

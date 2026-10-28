@@ -38,8 +38,8 @@ pub struct TronAdapter {
     states: States,
     clock: Arc<dyn Clock>,
     watch: RwLock<Arc<[Watched]>>,
-    /// Held for a whole pass, which makes `sync` single-flight. It carries when
-    /// each address's history is next due from one pass to the next.
+    /// Held for a whole pass, so `sync` is single-flight. Each address's `Gate`
+    /// carries over from one pass to the next.
     pass: AsyncMutex<HashMap<i64, Gate>>,
 }
 
@@ -76,7 +76,7 @@ impl TronAdapter {
         self
     }
 
-    /// How many sends this adapter is still following.
+    /// How many sends this adapter is still tracking.
     #[cfg(feature = "test-util")]
     pub fn in_flight(&self) -> usize {
         self.states.pending_count()
@@ -86,12 +86,11 @@ impl TronAdapter {
         Arc::clone(&self.watch.read())
     }
 
-    /// Quotes and builds share this, so the user approves the numbers the
-    /// transaction was built with. Each build reads a fresh block reference.
-    /// Both are always for an address the engine has already pushed.
+    /// Shared by quotes and builds, so the user approves the same numbers the
+    /// transaction is built with. Each call reads a fresh block reference.
     ///
-    /// The governance parameters come from [`ParamCache`], and the compiled
-    /// figures stand in until a node answers.
+    /// The governance parameters come from [`ParamCache`], which falls back to the
+    /// compiled figures until a node answers.
     async fn resolve(&self, request: &TxRequest) -> Result<send::Plan, TronError> {
         let address_id = request.sole_source().ok_or(TronError::NotOneSource)?;
         self.states.ensure_readable()?;
@@ -140,11 +139,11 @@ impl ChainAdapter for TronAdapter {
 
     /// Single-flight per instance, so a second call waits for the running pass.
     ///
-    /// The tip is always read. Follow-up runs only if the deadline has not
-    /// passed, and each address's balances and history check it before they
-    /// start, so the pass stops early with the progress it has. The whole pass
-    /// also runs under a timeout [`Deadline::GRACE`] past the deadline, so a call
-    /// that outlasts both is reported rather than waited on.
+    /// The tip is always read. Follow-up, and each address's balances and history,
+    /// start only if the deadline hasn't passed, so the pass stops early with the
+    /// progress it has. The whole pass also runs under a timeout
+    /// [`Deadline::GRACE`] past the deadline, so a pass that overruns both is
+    /// reported instead of waited on.
     async fn sync(
         &self,
         deadline: Deadline,
@@ -182,11 +181,11 @@ impl ChainAdapter for TronAdapter {
         Ok(plan.unsigned()?)
     }
 
-    /// Makes no network call. This is the last point where the signature and the
-    /// payload's facts are both in hand, so the send starts being followed here.
+    /// Makes no network call. Tracking starts here, the last point where both the
+    /// signature and the payload's facts are in hand.
     ///
-    /// Nothing is persisted yet, because a build that is never broadcast is not a
-    /// transaction. Its in-memory entry ages out with its expiration.
+    /// Nothing is persisted yet, since a build that's never broadcast isn't a
+    /// transaction. Its in-memory entry ages out at its expiration.
     fn sign_tx(&self, tx: &UnsignedTx, keys: &[KeyMaterial]) -> Result<SignedTx, ChainError> {
         let (facts, signed) = sign::sign(tx, sole_key(keys)?)?;
         self.states.ensure_readable()?;
@@ -212,8 +211,8 @@ impl ChainAdapter for TronAdapter {
 
     /// One attempt against one endpoint, after the send is persisted.
     ///
-    /// A failed write stops the send. A definite refusal ends the follow-up, and
-    /// anything ambiguous keeps it because the transaction may have reached the
+    /// If the write fails, nothing is sent. A definite refusal stops tracking, and
+    /// anything ambiguous keeps it, since the transaction may have reached the
     /// network.
     async fn broadcast(&self, tx: &SignedTx) -> Result<TxId, ChainError> {
         let chain = tx.chain();
@@ -226,17 +225,15 @@ impl ChainAdapter for TronAdapter {
         }
         match broadcast::deliver(&self.client, tx.raw.as_bytes()).await? {
             BroadcastReply::Accepted { txid: echoed } => {
-                // The id is `sha256(raw_data)` and this build computed it before
-                // sending, so an endpoint that echoes a different one is
-                // misreporting. Accepting the answer is still safe, because the
-                // follow-up asks about the id computed here and reports only what
-                // the network holds under it.
+                // We computed the txid as `sha256(raw_data)`, so a different echo
+                // means the endpoint is misreporting. Accepting is still safe,
+                // since follow-up only asks about our own txid.
                 if let Some(echoed) = echoed.filter(|value| !value.is_empty())
                     && echoed != txid
                 {
                     tracing::warn!(
                         target: TARGET,
-                        "the endpoint echoed a transaction id that is not the one it was sent"
+                        "the endpoint echoed a txid other than the one it was sent"
                     );
                 }
                 Ok(tx.txid.clone())
@@ -259,8 +256,8 @@ impl ChainAdapter for TronAdapter {
 
 #[async_trait]
 impl PendingTracker for TronAdapter {
-    /// TRON has no nonce or output to release, so this only stops following an
-    /// unsent transaction before its expiration ages it out.
+    /// TRON has no nonce or output to release, so this just stops tracking an
+    /// unsent transaction before it expires.
     async fn discard(&self, tx: &UnsignedTx) -> Result<(), ChainError> {
         self.states.forget_unsent(&TronPayload::decode(&tx.payload)?.txid_hex());
         Ok(())

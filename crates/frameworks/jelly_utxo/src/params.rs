@@ -11,37 +11,36 @@ use crate::error::UtxoError;
 use crate::script::{SpendableScript, UtxoScript};
 use crate::token;
 
-/// Everything the UTXO chains differ by. Each chain crate holds its table.
+/// The facts the UTXO chains differ by. Each chain crate holds its own table.
 ///
-/// The chains share every consensus rule this engine touches that a table does
-/// not name, so nothing else in the crate matches on [`UtxoParams::chain`].
+/// The chains share every consensus rule this crate touches that a table doesn't
+/// name, so nothing matches on [`UtxoParams::chain`].
 #[derive(Debug, Clone, Copy)]
 #[expect(
     clippy::struct_excessive_bools,
-    reason = "each flag is a separate consensus fact of the chain, read on its own"
+    reason = "each flag is an independent fact about the chain"
 )]
 pub struct UtxoParams {
     pub chain: ChainId,
-    /// Address to script and back, the chain's one validating codec.
+    /// The chain's validating codec, address to script and back.
     pub codec: &'static dyn AddressCodec,
     /// The script kinds this build derives keys for and spends on the chain, as its
     /// spec declares them.
     pub script_kinds: &'static [ScriptKind],
     /// The unit a fee rate is quoted in, as the chain's spec declares it.
     pub fee_rate_unit: &'static str,
-    /// Block zero's hash in the display byte order Electrum, `server.features`,
-    /// and every block explorer use.
+    /// The genesis block's hash, in the display byte order that `server.features`
+    /// and block explorers use.
     pub genesis: [u8; 32],
-    /// A block past the last split from a chain that shares block zero, which is
-    /// what tells the two chains' Electrum servers apart, since the wire protocol is
-    /// identical across coins and the server populations share ports.
+    /// A block after the last split from a chain with the same genesis. Both chains'
+    /// Electrum servers speak the same protocol on the same ports, so this is what
+    /// tells them apart.
     pub checkpoint: Option<KnownBlock>,
     /// Whether a header carries its parent chain's proof of work after its eighty
     /// bytes.
     pub is_merge_mined: bool,
-    /// Whether the chain has segregated witness. Without it a transaction's weight
-    /// is four times its size, so a virtual byte is a byte and the network limits a
-    /// transaction by its size.
+    /// Without segwit a transaction's weight is four times its size, so a virtual
+    /// byte is a byte and the network limits a transaction by its size.
     pub has_segwit: bool,
     /// The stream every sync cursor of this chain is stored under. The cursor
     /// encoding is the same on every chain.
@@ -49,8 +48,7 @@ pub struct UtxoParams {
     pub dust: DustRule,
     pub min_relay_fee: FeeRate,
     pub incremental_relay_fee: FeeRate,
-    /// The most one transaction's outputs may add up to, which is Core's
-    /// `MAX_MONEY`.
+    /// Core's `MAX_MONEY`, the most one transaction's outputs may add up to.
     pub max_money: Amount,
     pub max_standard_weight: Weight,
     /// Core's `-mintxfee`, the lowest rate the reference wallet pays even when the
@@ -58,7 +56,7 @@ pub struct UtxoParams {
     pub min_tx_fee: FeeRate,
     pub fee_market: FeeMarket,
     pub replacement: Replacement,
-    /// How a pending send is sped up, or `None` when it cannot be.
+    /// How a pending send is sped up, or `None` when it can't be.
     pub bump_method: Option<BumpMethod>,
     /// Bitcoin Cash's replay protection, which signs every input with
     /// `SIGHASH_FORKID` over the BIP-143 digest and puts this fork id in the upper
@@ -70,8 +68,9 @@ pub struct UtxoParams {
     /// Whether a transaction's first output may hold an SLP message, which assigns
     /// tokens to the outputs after it that a plain spend of them would burn.
     pub has_slp_tokens: bool,
-    /// A depth, not a duration, because a reorg is counted in blocks and a faster
-    /// chain reaches the same depth sooner.
+    /// The deepest confirmation count a pass still emits a confirmation event for. A
+    /// depth, not a duration, because a reorg is counted in blocks and a faster chain
+    /// reaches the same depth sooner.
     pub confirmation_watch_depth: u32,
     /// Core's `COINBASE_MATURITY`. A node refuses a spend of a coinbase output
     /// while the spending block's height minus the coin's is below it.
@@ -108,7 +107,7 @@ pub enum Replacement {
     /// The reference node relays one only when configured to, but inputs still
     /// signal so a node that does relay one can unstick the payment.
     WhenConfigured,
-    /// No node relays one. Inputs do not signal, since a signal buys nothing and a
+    /// No node relays one. Inputs don't signal, since a signal buys nothing and a
     /// merchant taking a payment before it confirms can read one as a risk.
     Never,
 }
@@ -136,9 +135,8 @@ impl Replacement {
 /// How the smallest output a node relays is decided.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DustRule {
-    /// Bitcoin Core's rule, under which an output is dust when it is worth less
-    /// than spending it would cost at the chain's `DUST_RELAY_TX_FEE`, given in base
-    /// units per 1000 weight units.
+    /// Bitcoin Core's rule: an output is dust when it's worth less than spending it
+    /// would cost at the chain's `DUST_RELAY_TX_FEE`.
     RelayFee(FeeRate),
     /// Dogecoin Core's rule, one value for every spendable output.
     Fixed(Amount),
@@ -149,20 +147,20 @@ pub enum DustRule {
 pub enum FeeMarket {
     /// Transactions bid for scarce block space, so each level follows the market.
     Auction(Auction),
-    /// Blocks have room to spare and the reference wallet pays a fixed rate, which
-    /// is [`UtxoParams::min_tx_fee`]. The one level pays it too, and no server is
-    /// asked, since its estimate has nothing to measure.
+    /// Blocks have room to spare, so the single level pays the reference wallet's
+    /// fixed rate, [`UtxoParams::min_tx_fee`], without asking a server.
     Flat,
 }
 
-/// Where a market rate is read from, in the order it is tried.
+/// Where an auctioned chain's rates come from. The fee service is tried first, then
+/// the Electrum server's estimates, then its mempool histogram.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Auction {
     /// The confirmation target each fee level is estimated for when the fee service is
     /// unavailable, in [`FeeLevel::ALL`] order.
     pub target_blocks: [u16; 3],
-    /// Virtual bytes of mempool one block holds, the unit a fee horizon is
-    /// measured in.
+    /// Virtual bytes of mempool one block clears, for reading a target off the
+    /// histogram.
     pub block_vsize: u64,
     /// The route of the mempool.space-family fee service that prices the levels, whose
     /// `hourFee`, `halfHourFee`, and `fastestFee` are the slow, normal, and fast rates.
@@ -199,8 +197,8 @@ pub(crate) struct Locking<'a> {
 }
 
 impl UtxoParams {
-    /// Adopts the network's incremental relay fee when it is above the compiled
-    /// floor, because a replacement has to clear whatever the server charges.
+    /// Adopts the network's incremental relay fee when it's above the compiled floor,
+    /// because a replacement has to clear whatever the server charges.
     #[must_use]
     pub(crate) const fn with_incremental_relay_fee(mut self, observed: Option<FeeRate>) -> Self {
         if let Some(rate) = observed
@@ -236,9 +234,9 @@ impl UtxoParams {
         Ok(ScriptBuf::from(self.codec.script_pubkey(checked.value())?))
     }
 
-    /// The output script of `address`, refused unless this build can spend it on
-    /// this chain, which is only in a flavour the chain derives keys for. A P2SH
-    /// output reads as wrapped segwit, which a chain without segwit never derives.
+    /// The output script of `address`, refused unless it's a kind the chain derives
+    /// keys for. A P2SH output reads as wrapped segwit, which a chain without segwit
+    /// never derives.
     pub(crate) fn spendable_script(&self, address: &str) -> Result<SpendableScript, UtxoError> {
         let script = SpendableScript::new(self.script_pubkey(address)?)?;
         if !self.script_kinds.contains(&ScriptKind::from(script.kind())) {
@@ -250,7 +248,7 @@ impl UtxoParams {
     /// Every external address, watch rows and recipients alike, passes through
     /// here, so a refused form is named before the codec reads it.
     ///
-    /// Other valid output scripts stay payable even when Jelly cannot derive them.
+    /// Other valid output scripts stay payable even when Jelly can't derive them.
     pub fn canonical(&self, address: &str) -> Result<String, UtxoError> {
         if !self.address_refusals.is_empty() {
             let lowered = address.trim().to_ascii_lowercase();
@@ -264,8 +262,8 @@ impl UtxoParams {
     }
 
     /// The locking script `script_pubkey` pays. On a chain with `CashTokens`, a
-    /// token prefix is stepped over, and one that does not parse leaves the bytes
-    /// as they are, which then pay no address.
+    /// token prefix is skipped, and one that doesn't parse leaves the bytes as they
+    /// are, which then pay no address.
     pub(crate) fn locking<'a>(&self, script_pubkey: &'a Script) -> Locking<'a> {
         if self.has_cash_tokens
             && let Some(script) = token::locking_script(script_pubkey.as_bytes())
@@ -275,9 +273,9 @@ impl UtxoParams {
         Locking { script: script_pubkey, has_tokens: false }
     }
 
-    /// The address `pubkey` takes in the `script` flavour, refused when the chain
-    /// derives no key in that flavour, so a taproot request on Litecoin fails rather
-    /// than falling back to segwit v0.
+    /// The address `pubkey` takes in the `script` kind, refused when the chain derives
+    /// no key of that kind, so a taproot request on Litecoin fails instead of falling
+    /// back to segwit v0.
     pub fn key_address(&self, script: ScriptKind, pubkey: &[u8]) -> Result<String, KeyError> {
         let output = UtxoScript::of(script)
             .filter(|_| self.script_kinds.contains(&script))
@@ -294,8 +292,8 @@ impl UtxoParams {
         self.codec.address_of(self.locking(script_pubkey).script.as_bytes())
     }
 
-    /// The smallest value an output paying `script_pubkey` may carry. An
-    /// unspendable output is never dust, as both Cores have it.
+    /// The smallest value an output paying `script_pubkey` may carry. Neither Core
+    /// counts an unspendable output as dust.
     pub fn dust_threshold(&self, script_pubkey: &Script) -> Amount {
         if script_pubkey.is_op_return() {
             return Amount::ZERO;

@@ -33,8 +33,8 @@ const CORE_PERMISSIONS: [&str; 10] = [
     "core:window:allow-is-fullscreen",
 ];
 
-/// Native text writes let non-secret copies reach clipboard history without leaving incognito
-/// mode.
+/// Native text writes let a non-secret copy reach clipboard history while the webview stays
+/// incognito.
 const PLUGIN_PERMISSIONS: [&str; 1] = ["clipboard-manager:allow-write-text"];
 
 const MAIN_CAPABILITY: &str = "main.json";
@@ -95,8 +95,7 @@ fn only_the_secret_commands_are_granted_by_the_secret_capability() {
     assert_eq!(granted(SECRET_CAPABILITY).unwrap(), expected);
 }
 
-/// Export naming lets this test catch new secret commands granted by the ordinary
-/// capability file.
+/// Catches a new export granted by the main capability, as long as it's named `export_*`.
 #[test]
 fn no_command_outside_the_secret_capability_is_named_like_an_export() {
     let stray: Vec<&&str> = COMMAND_NAMES
@@ -154,7 +153,8 @@ fn sensitive_browser_copies_keep_incognito_clipboard_protection() {
     assert_eq!(config.pointer("/app/windows/0/incognito"), Some(&Value::Bool(true)));
 }
 
-/// Scope both capability files to the wallet window so future windows do not inherit them.
+/// Both capabilities are scoped to the wallet window, so a future window doesn't inherit
+/// them.
 #[test]
 fn every_capability_is_scoped_to_the_wallet_window() {
     for file in [MAIN_CAPABILITY, SECRET_CAPABILITY] {
@@ -167,7 +167,7 @@ fn every_capability_is_scoped_to_the_wallet_window() {
     }
 }
 
-/// Blocking webview networking prevents injected scripts from sending secrets elsewhere.
+/// With no network egress, an injected script can't send secrets anywhere.
 #[test]
 fn the_page_has_no_network_egress() {
     let config = tauri_conf().unwrap();
@@ -196,7 +196,7 @@ fn the_page_has_no_network_egress() {
     );
 }
 
-/// The policy cannot stop a top-level navigation, so the window is built in code with a
+/// The policy can't stop a top-level navigation, so the window is built in code with a
 /// handler that can. A window Tauri creates from the configuration would have none.
 #[test]
 fn the_wallet_window_is_built_in_code() {

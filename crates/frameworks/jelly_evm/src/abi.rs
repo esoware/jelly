@@ -18,9 +18,8 @@ sol! {
 )]
 mod bor {
     alloy::sol! {
-        /// Bor's system token contract at `0x1010`, which logs every movement of
-        /// the native coin, including one a contract makes, and names itself as
-        /// `token`.
+        /// Bor's system contract at `0x1010`. It logs every movement of the native
+        /// coin, internal ones included, with itself as `token`.
         interface IBorNativeToken {
             event LogTransfer(
                 address indexed token,
@@ -53,8 +52,7 @@ sol! {
 }
 
 sol! {
-    /// The OP Stack's fee oracle, which prices the L1 data fee its network charges
-    /// apart from gas.
+    /// The OP Stack's oracle for the L1 data fee, which is charged on top of gas.
     interface IGasPriceOracle {
         function getL1FeeUpperBound(uint256 unsignedTxSize) external view returns (uint256);
     }
@@ -66,14 +64,13 @@ pub(crate) const NATIVE_TRANSFER_TOPIC: B256 = bor::IBorNativeToken::LogTransfer
 
 pub(crate) const BOR_NATIVE_TOKEN: Address = address!("0x0000000000000000000000000000000000001010");
 
-/// Multicall3, deployed at this address on every network this build reaches.
+/// Multicall3, at this address on every network we support.
 pub(crate) const MULTICALL3: Address = address!("0xcA11bde05977b3631167028862bE2a173976CA11");
 
 /// The `GasPriceOracle` predeploy, at this address on every OP Stack network.
 pub(crate) const GAS_PRICE_ORACLE: Address = address!("0x420000000000000000000000000000000000000F");
 
-/// One movement a log reports, whether a token contract or the native token
-/// logged it.
+/// A transfer decoded from an ERC-20 log or a Bor native-token log.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Transfer {
     pub(crate) from: Address,
@@ -85,9 +82,9 @@ pub(crate) fn balance_of_calldata(owner: Address) -> Vec<u8> {
     IERC20::balanceOfCall { owner }.abi_encode()
 }
 
-/// The only state-changing call this build generates. It never generates an
-/// approval, because an allowance that outlives the send is a standing risk.
-/// Calldata the user supplies is signed as given.
+/// The only state-changing call we generate. We never generate an approval,
+/// because an allowance that outlives the send is a standing risk. Calldata the
+/// user supplies is signed as given.
 pub(crate) fn transfer_calldata(to: Address, value: U256) -> Vec<u8> {
     IERC20::transferCall { to, value }.abi_encode()
 }
@@ -100,7 +97,7 @@ pub(crate) fn aggregate3_calldata(calls: Vec<IMulticall3::Call3>) -> Vec<u8> {
     IMulticall3::aggregate3Call { calls }.abi_encode()
 }
 
-/// `allowFailure` is always set, so one reverting contract does not lose the
+/// `allowFailure` is always set, so one reverting contract doesn't lose the
 /// whole batch. A failed entry reads as an unknown balance, not a zero one.
 pub(crate) fn call3(target: Address, call_data: Vec<u8>) -> IMulticall3::Call3 {
     IMulticall3::Call3 { target, allowFailure: true, callData: Bytes::from(call_data) }
@@ -137,8 +134,7 @@ pub(crate) fn decode_transfer(topics: &[B256], data: &[u8]) -> Option<Transfer> 
     Some(Transfer { from, to, value })
 }
 
-/// `None` for a malformed log. The four balance words after the amount are not
-/// read.
+/// `None` for a malformed log. The four balance words after the amount aren't read.
 pub(crate) fn decode_native_transfer(topics: &[B256], data: &[u8]) -> Option<Transfer> {
     let log =
         bor::IBorNativeToken::LogTransfer::decode_raw_log(topics.iter().copied(), data).ok()?;

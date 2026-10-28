@@ -1,8 +1,7 @@
 use jelly_core::wire_enum;
 
 wire_enum! {
-    /// Every HTTP JSON-RPC method this crate sends, so each name is spelled only
-    /// here.
+    /// The HTTP JSON-RPC methods this crate sends, so each name is spelled only here.
     pub enum Method {
         GetGenesisHash => "getGenesisHash",
         GetSlot => "getSlot",

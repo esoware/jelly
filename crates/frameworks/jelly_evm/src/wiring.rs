@@ -10,10 +10,10 @@ use crate::etherscan::EtherscanHistory;
 use crate::node::PooledNode;
 use crate::params::EvmParams;
 
-/// The adapter for the network `params` names. Construction opens no sockets.
+/// Builds the adapter without opening any sockets.
 ///
-/// Without a history endpoint, and an Etherscan key unless the network's service is
-/// keyless, history walks `eth_getLogs` instead.
+/// History comes from `eth_getLogs` unless there's a history endpoint and either an
+/// Etherscan key or a keyless service.
 pub async fn build(
     spec: &ChainSpec,
     params: &'static EvmParams,
@@ -51,8 +51,8 @@ pub async fn build(
     Ok(Arc::new(builder.build()?))
 }
 
-/// Asks one endpoint which network it serves, through the connector its pool is
-/// built with, so the endpoint editor and the pool's guard cannot disagree.
+/// Asks one endpoint which network it serves, through the same connector as its
+/// pool, so the endpoint editor and the pool can't disagree.
 pub async fn probe(params: &EvmParams, network: &Network, endpoint: &Endpoint) -> ProbeReport {
     let clock = network.clock().as_ref();
     match endpoint.transport() {
@@ -77,5 +77,5 @@ fn rpc_connector(network: &Network, params: &EvmParams) -> HttpConnector {
 }
 
 fn ws_connector(network: &Network, params: &EvmParams) -> Result<WsConnector, NetError> {
-    Ok(WsConnector::new(network.ws_dialler()?, Arc::clone(network.clock()), Arc::new(*params)))
+    Ok(WsConnector::new(network.ws_dialer()?, Arc::clone(network.clock()), Arc::new(*params)))
 }

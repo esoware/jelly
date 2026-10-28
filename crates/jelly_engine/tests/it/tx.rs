@@ -17,7 +17,7 @@ use crate::common::{
 const RECIPIENT: &str = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4";
 const CHAIN: ChainId = ChainId::Bitcoin;
 
-/// Just past the time an authorisation stays submittable.
+/// Just past the time an authorization stays submittable.
 const PAST_EXPIRY: Duration = test_util::PENDING_TTL.saturating_add(Duration::from_secs(1));
 
 /// A wallet with one address on a chain that has an adapter, and the address's id.
@@ -44,7 +44,7 @@ async fn watched(harness: &Harness) -> Fallible<()> {
     Ok(())
 }
 
-/// A utxo-shaped fee selection, which is what the fake adapter reads.
+/// A UTXO fee rate in sat/vB, which the fake adapter accepts.
 fn rate(sat_per_vb: &str) -> FeeSelection {
     FeeSelection::Rate { rate: String::from(sat_per_vb) }
 }
@@ -216,7 +216,7 @@ async fn the_same_request_previews_to_the_same_digest() {
 }
 
 /// The fake's signer refuses any preview but the one it built, so the warning the engine
-/// adds cannot reach it.
+/// adds can't reach it.
 #[tokio::test]
 async fn a_fee_above_the_chains_limit_is_warned_about_and_still_signs() {
     let (harness, from) = ready().await.unwrap();
@@ -230,7 +230,7 @@ async fn a_fee_above_the_chains_limit_is_warned_about_and_still_signs() {
 }
 
 #[tokio::test]
-async fn locking_clears_every_authorisation() {
+async fn locking_clears_every_authorization() {
     let harness = harness().await.unwrap();
     harness.builder.install(&[CHAIN]);
     let created = harness.seed_wallet("spender").await.unwrap();
@@ -251,7 +251,7 @@ async fn locking_clears_every_authorisation() {
 }
 
 #[tokio::test]
-async fn discarding_an_authorisation_releases_its_reservation() {
+async fn discarding_an_authorization_releases_its_reservation() {
     let (harness, from) = ready().await.unwrap();
     let prepared = harness.engine.prepare_tx(request(from)).await.unwrap();
     harness.engine.delete_pending_tx(prepared.id).await.unwrap();
@@ -263,13 +263,13 @@ async fn discarding_an_authorisation_releases_its_reservation() {
 }
 
 #[tokio::test]
-async fn an_expired_authorisation_releases_its_reservation() {
+async fn an_expired_authorization_releases_its_reservation() {
     let (harness, from) = ready().await.unwrap();
     let prepared = harness.engine.prepare_tx(request(from)).await.unwrap();
     harness.clock.advance(PAST_EXPIRY);
     assert!(
         test_util::list_pending_txs(&harness.engine).await.unwrap().is_empty(),
-        "the authorisation should have expired"
+        "the authorization should have expired"
     );
     assert_eq!(harness.builder.state(CHAIN).discards(), 1);
 
@@ -279,7 +279,7 @@ async fn an_expired_authorisation_releases_its_reservation() {
 }
 
 #[tokio::test]
-async fn an_expired_authorisation_is_refused_before_anything_evicts_it() {
+async fn an_expired_authorization_is_refused_before_anything_evicts_it() {
     let (harness, from) = ready().await.unwrap();
     let prepared = harness.engine.prepare_tx(request(from)).await.unwrap();
     harness.clock.advance(PAST_EXPIRY);
@@ -292,7 +292,7 @@ async fn an_expired_authorisation_is_refused_before_anything_evicts_it() {
 }
 
 #[tokio::test]
-async fn an_authorisation_that_expires_while_signing_is_never_broadcast() {
+async fn an_authorization_that_expires_while_signing_is_never_broadcast() {
     let (harness, from) = ready().await.unwrap();
     let state = harness.builder.state(CHAIN);
     state.sign_slowly(Arc::clone(&harness.clock), PAST_EXPIRY);
@@ -340,8 +340,8 @@ async fn a_store_failure_after_a_broadcast_is_not_an_error() {
     assert!(detected_so_far(&mut events).is_empty(), "a row that was never written was announced");
 }
 
-/// The clock is read for the sent record while a failure still leaves the authorisation to
-/// retry, because nothing after the broadcast may fail the send.
+/// The engine reads the clock for the sent record before it broadcasts, since nothing
+/// after the broadcast may fail the send.
 #[tokio::test]
 async fn a_clock_failure_after_a_broadcast_still_reports_the_payment_as_sent() {
     let (harness, from) = ready().await.unwrap();
@@ -378,7 +378,7 @@ async fn a_build_that_previews_another_chain_is_refused() {
 
     assert!(
         test_util::list_pending_txs(&harness.engine).await.unwrap().is_empty(),
-        "nothing was authorised"
+        "nothing was authorized"
     );
 }
 
@@ -465,10 +465,10 @@ async fn a_cancel_is_quoted_planned_and_signed_like_a_bump() {
         from_ref(&cancel.preview.to),
         "a cancel pays its own sender"
     );
-    let cancelled =
+    let canceled =
         harness.engine.submit_tx(cancel.id, secret(PASSWORD), cancel.preview_digest).await.unwrap();
 
-    let query = TxQuery { txid: Some(cancelled.value().to_owned()), ..Default::default() };
+    let query = TxQuery { txid: Some(canceled.value().to_owned()), ..Default::default() };
     let rows = harness.engine.list_txs(query).await.unwrap().rows;
     let row = rows.first().expect("the cancel is recorded");
     assert_eq!(row.direction, TxDirection::SelfTransfer, "the cancel is a send to itself");
@@ -557,7 +557,7 @@ async fn a_page_token_this_build_did_not_issue_is_refused() {
 }
 
 #[tokio::test]
-async fn a_rebuild_evicts_the_authorisations_of_the_adapter_it_replaces() {
+async fn a_rebuild_evicts_the_authorizations_of_the_adapter_it_replaces() {
     let (harness, from) = ready().await.unwrap();
     let prepared = harness.engine.prepare_tx(request(from)).await.unwrap();
     assert!(harness.builder.weak(CHAIN).upgrade().is_some(), "the fixture never built an adapter");
@@ -565,7 +565,7 @@ async fn a_rebuild_evicts_the_authorisations_of_the_adapter_it_replaces() {
     test_util::rebuild_adapters(&harness.engine).await.unwrap();
     assert!(
         test_util::list_pending_txs(&harness.engine).await.unwrap().is_empty(),
-        "an authorisation outlived the adapter holding its reservation"
+        "an authorization outlived the adapter holding its reservation"
     );
     let refused =
         harness.engine.submit_tx(prepared.id, secret(PASSWORD), prepared.preview_digest).await;

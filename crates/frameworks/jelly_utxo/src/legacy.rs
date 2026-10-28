@@ -9,7 +9,7 @@ pub struct Base58Versions {
     pub p2pkh: u8,
     pub p2sh: u8,
     /// A superseded P2SH version byte the chain's node software still accepts when
-    /// decoding. It is read and never written, so one script never has two spellings.
+    /// decoding. It's read but never written, so one script never has two spellings.
     pub superseded_p2sh: Option<u8>,
 }
 
@@ -46,9 +46,9 @@ impl Legacy {
 impl Base58Versions {
     /// Reads a legacy address of `chain`.
     ///
-    /// A chain with segwit addresses of its own reads those before it gets here, so a
-    /// string the segwit decoder accepts is another network's address, and it is
-    /// reported as such rather than as a broken base58 checksum.
+    /// A chain's own segwit addresses are read before this, so a string the segwit
+    /// decoder accepts here is another network's address, and is reported that way
+    /// instead of as a bad base58 checksum.
     pub fn decode(self, chain: ChainId, value: &str) -> Result<Legacy, AddressError> {
         if segwit::decode(value).is_ok() {
             return Err(AddressError::WrongNetwork { chain });
@@ -88,11 +88,11 @@ impl Base58Versions {
     }
 }
 
-/// Whether `text` is a legacy address, which its base58 checksum settles.
+/// Whether `text` is a legacy address, judged by its base58 checksum.
 ///
-/// The alphabet does not, since a legacy address can avoid every character base32
-/// lacks, as about one P2SH address in twenty does. A `CashAddr` payload passes the
-/// four-byte checksum about once in four billion tries.
+/// The alphabet can't tell, since about one P2SH address in twenty avoids every
+/// character base32 lacks. A `CashAddr` payload passes the four-byte checksum about
+/// once in four billion tries.
 pub fn is_legacy(text: &str) -> bool {
     base58::decode_check(text).is_ok()
 }

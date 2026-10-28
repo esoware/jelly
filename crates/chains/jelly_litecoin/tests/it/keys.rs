@@ -74,8 +74,8 @@ fn electrum_script_prefixes_name_the_address_type() {
         imported.material.with_bytes(|bytes| assert_eq!(bytes, key));
         assert_eq!(ENTRY.recognize_key(&input), Some(NAME));
     }
-    // A taproot prefix names a flavour the chain does not derive, which resolving the
-    // script then refuses.
+    // A taproot prefix imports, but Litecoin doesn't derive taproot, so the address is
+    // refused.
     let taproot = ENTRY.import_key(&format!("p2tr:{}", wif.as_str()), None).unwrap();
     assert_eq!(taproot.named_script, Some(ScriptKind::P2tr));
     assert!(matches!(
@@ -98,8 +98,8 @@ fn electrum_3_version_byte_offsets_name_the_address_type() {
     }
 }
 
-/// Another chain's WIF is no format of this chain's, so the chain table can name the
-/// chain it does belong to.
+/// Another chain's WIF isn't recognized here, so the chain table can name the chain it
+/// belongs to.
 #[test]
 fn a_version_byte_names_only_its_own_network() {
     let key = [7u8; 32];

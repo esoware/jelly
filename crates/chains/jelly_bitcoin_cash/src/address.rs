@@ -14,8 +14,8 @@ const CHAIN: ChainId = SPEC.chain;
 /// without a prefix is read against it.
 const PREFIX: &str = SPEC.uri_scheme;
 
-/// Bitcoin Cash kept Bitcoin's version bytes when it split, so a legacy address is
-/// the same string on both chains. It is read as written and never produced.
+/// Bitcoin's version bytes, kept at the split. A legacy address is accepted as written
+/// and never produced.
 const LEGACY: Base58Versions = Base58Versions { p2pkh: 0x00, p2sh: 0x05, superseded_p2sh: None };
 
 /// `CashAddr` type bits. A token-aware type pays the same script as its plain twin and
@@ -26,10 +26,10 @@ const TOKEN_AWARE_P2PKH: u8 = 2;
 const TOKEN_AWARE_P2SH: u8 = 3;
 
 /// Reads `CashAddr`, with or without its prefix and in either case, and the legacy
-/// base58 forms, which pay the same scripts. Writes `CashAddr`.
+/// base58 forms. Writes `CashAddr`.
 ///
-/// Every `CashAddr` type this build knows pays a standard script, including the
-/// 32-byte P2SH form, so a form Jelly derives no key for is still a form it can pay.
+/// Every known `CashAddr` type maps to a standard script, the 32-byte P2SH form
+/// included, so Jelly can pay forms it doesn't derive.
 #[derive(Debug)]
 pub(crate) struct CashAddrCodec;
 
@@ -60,15 +60,15 @@ impl AddressCodec for CashAddrCodec {
     }
 }
 
-/// `kind` is the single-key flavour the output matches, which only P2PKH is.
+/// `kind` is set only for P2PKH, the one single-key script here.
 struct Parsed {
     canonical: String,
     script: ScriptBuf,
     kind: Option<ScriptKind>,
 }
 
-/// Text that is no legacy address is `CashAddr` when it has a prefix or keeps to the
-/// base32 alphabet, and a broken legacy address otherwise.
+/// Anything that isn't a legacy address is read as `CashAddr` if it has a prefix or is
+/// all base32, and as a broken legacy address otherwise.
 fn parse(value: &str) -> Result<Parsed, AddressError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {

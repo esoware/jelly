@@ -15,14 +15,13 @@ use crate::route::Route;
 
 const READ: &str = "Zcash read";
 const BROADCAST: &str = "Zcash broadcast";
-// The pool cuts each Blockbook attempt off after 15 seconds, so a longer timeout never applies.
+// The pool cuts a Blockbook attempt off at 15 seconds anyway.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 // Room for a transaction document, which holds the hex of a transaction up to
 // `sign::MAX_TX_BYTES`.
 const MAX_RESPONSE_BYTES: usize = 4_500_000;
-// Public Blockbook servers limit how fast one client reads, so reads are spaced apart.
-// Zelcore's refuses with HTTP 429 after about forty reads at half a second apart, and
-// holds about thirty a minute.
+// Public Blockbook servers limit how fast one client reads. Zelcore's refuses with HTTP 429
+// after about forty reads half a second apart, and keeps up with about thirty a minute.
 const READ_SPACING: Duration = Duration::from_secs(2);
 // An endpoint cooling down after a failure admits no attempt, so a call waits for one.
 const ADMISSION_WAIT: Duration = Duration::from_millis(200);
@@ -91,7 +90,7 @@ async fn request(
 }
 
 // `NoneReady` means no endpoint admitted an attempt, so no request left, and retrying even
-// a `broadcast_once` call cannot submit a transaction twice.
+// a `broadcast_once` call can't submit a transaction twice.
 async fn retry_until_admitted<T, F, Fut>(
     operation: &'static str,
     mut call: F,
@@ -164,7 +163,7 @@ mod tests {
     use crate::identity::ZcashIdentity;
 
     #[tokio::test]
-    #[ignore = "Reads the public Zcash mainnet endpoint without signing or broadcasting."]
+    #[ignore = "Reads the public Zcash mainnet endpoints without signing or broadcasting."]
     async fn mainnet_identity_raw_transactions_history_and_quote() {
         let network =
             Network::start(Arc::new(SystemClock), Arc::new(MemoryPinStore::new()), None, &[ENTRY])

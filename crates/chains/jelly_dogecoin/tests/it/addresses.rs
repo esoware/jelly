@@ -48,7 +48,7 @@ fn valid_addresses_canonicalise_to_themselves() {
         let address = ENTRY.validate_address(case).unwrap();
         assert_eq!(address.value(), case);
         assert_eq!(address.chain(), ChainId::Dogecoin);
-        // Surrounding whitespace is the caller's paste, not part of the value.
+        // Whitespace around a paste isn't part of the address.
         let padded = format!("  {case}  ");
         assert_eq!(ENTRY.validate_address(&padded).unwrap().value(), case);
     }
@@ -64,16 +64,15 @@ fn invalid_addresses_are_refused() {
 }
 
 #[test]
-fn the_codec_reports_the_flavour_a_path_derived() {
+fn the_codec_reports_the_flavor_a_path_derived() {
     let address = address_at(ENTRY, "m/44'/3'/0'/0/0", None).unwrap();
     assert_eq!(ENTRY.codec().script_kind(&address), Some(ScriptKind::P2pkh));
     assert!(!ENTRY.codec().script_pubkey(&address).unwrap().is_empty());
 }
 
-/// Dogecoin never activated segregated witness, so P2PKH is the only flavour and a
-/// segwit path is refused rather than downgraded.
+/// A segwit or taproot path is refused, not downgraded to P2PKH.
 #[test]
-fn p2pkh_is_the_only_flavour() {
+fn p2pkh_is_the_only_flavor() {
     assert_eq!(SPEC.default_script, Some(ScriptKind::P2pkh));
     assert_eq!(
         address_at(ENTRY, "m/0/0", None).unwrap(),

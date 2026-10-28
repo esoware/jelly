@@ -130,9 +130,10 @@ fn only(rows: &[TxEntry]) -> Fallible<&TxEntry> {
     }
 }
 
-/// What each address's share adds up to in the wallet's history, and what each
-/// address shows on its own: a pooled send, a transfer between two addresses of the
-/// wallet, and a payment to two of them.
+/// A pooled send, a transfer between two of the wallet's addresses, and a payment to two of
+/// them each list once in the wallet's history.
+///
+/// Each is combined from every address's share, and each address still lists its own share.
 #[tokio::test]
 async fn the_history_lists_a_shared_transaction_once_and_each_address_its_share() {
     let (harness, ids) = wallet(&[CHAIN], 2).await.unwrap();

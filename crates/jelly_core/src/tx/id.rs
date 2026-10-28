@@ -34,8 +34,8 @@ impl fmt::Display for TxId {
     }
 }
 
-/// Single-use transaction authorization. Uses 128 random bits rendered as lowercase hex.
-/// Parsing accepts either case.
+/// Single-use transaction authorization: 128 random bits, rendered as lowercase hex and
+/// parsed in either case.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PendingTxId(#[cfg_attr(feature = "ipc", specta(type = String))] [u8; Self::LEN]);

@@ -10,16 +10,14 @@ use tokio::time::timeout;
 use crate::endpoint::UrlRejection;
 use crate::retry_after::RetryAfter;
 
-/// Every variant that names an endpoint names it as an [`EndpointLabel`], so userinfo,
-/// path, and query cannot reach a message, a log, an event, or a stored health record.
+/// Endpoints appear only as an [`EndpointLabel`], so no userinfo, path, or query reaches a
+/// message, a log, an event, or a stored health record.
 ///
-/// Redaction happens at construction, so a `Debug` print is safe to write to a file the
-/// user may send on.
+/// Redaction happens at construction, so even `Debug` output is safe to share.
 #[derive(Debug, thiserror::Error)]
 pub enum NetError {
-    /// A transport failure with the underlying cause kept as a typed source.
-    /// [`NetError::source_of`] recovers it, which is how a protocol crate
-    /// carries its own error through a rotation.
+    /// A transport failure. A protocol crate can box its own error as `source` and carry
+    /// it through a rotation, then get it back with [`NetError::source_of`].
     #[error("{endpoint}: {}", kind.as_str())]
     Endpoint {
         endpoint: EndpointLabel,
@@ -29,12 +27,12 @@ pub enum NetError {
     },
     #[error("{endpoint}: timed out after {elapsed_millis} ms")]
     Timeout { endpoint: EndpointLabel, elapsed_millis: u64 },
-    /// The detail is a fixed reason, so no library's message can reach an error the
-    /// interface receives. A caller logs the library's error itself when it helps.
+    /// `detail` is a fixed string, so no library's message reaches the interface. Log the
+    /// library's error separately when it helps.
     #[error("{endpoint}: malformed response: {detail}")]
     Protocol { endpoint: EndpointLabel, detail: &'static str },
-    /// A caller whose answer scales with its query, such as a log read, narrows the
-    /// query rather than rotating, because every host would send the same bytes.
+    /// Every host would send the same bytes, so a caller whose answer scales with its
+    /// query, such as a log read, narrows the query instead of rotating.
     #[error("{endpoint}: the response is larger than {max_bytes} bytes")]
     TooLarge { endpoint: EndpointLabel, max_bytes: usize },
     #[error("{endpoint}: http {status}")]
@@ -47,9 +45,9 @@ pub enum NetError {
     WrongNetwork { endpoint: EndpointLabel, expected: String, found: String },
     #[error("{}: no endpoint is configured", chain.display_name())]
     NoEndpoints { chain: ChainId },
-    /// Every endpoint was skipped before it could be tried, because it was cooling down
-    /// after a failure, disqualified for serving the wrong network, or outside the
-    /// remaining budget. Nothing was sent, so no endpoint's health moved.
+    /// No endpoint could be tried: each was held back by its pacer, disqualified for
+    /// serving another network, or past the walk's budget. Nothing was sent, so no
+    /// endpoint's health moved.
     #[error("{}: no endpoint was ready for {operation}", chain.display_name())]
     NoneReady { chain: ChainId, operation: &'static str },
     #[error("{}: no endpoint answered for {operation}", chain.display_name())]
@@ -67,8 +65,7 @@ pub enum NetError {
 }
 
 impl NetError {
-    /// A transport failure, with `source` kept for a caller that knows its
-    /// type. `source` must already be free of any URL.
+    /// A transport failure. `source` must already be free of any URL.
     pub fn endpoint<E: StdError + Send + Sync + 'static>(
         endpoint: &EndpointLabel,
         kind: FailureKind,
@@ -89,8 +86,8 @@ impl NetError {
         Self::Config { context, source: Box::new(source) }
     }
 
-    /// The class an endpoint attempt and the logs carry. Nothing downstream re-derives a
-    /// classification by inspecting a message.
+    /// The failure class that attempts and logs carry, so nothing downstream has to read
+    /// a message to classify it.
     pub const fn kind(&self) -> FailureKind {
         match *self {
             Self::Endpoint { kind, .. } => kind,
@@ -115,9 +112,8 @@ impl NetError {
         }
     }
 
-    /// Whether the endpoints tried could not be reached at all, as opposed to answering
-    /// badly. An endpoint serving another network is unusable at the connection, and a
-    /// chain with no endpoint has nothing to reach.
+    /// Whether nothing could be reached, as opposed to an endpoint answering badly. An
+    /// endpoint serving another network and a chain with no endpoint both count.
     pub fn is_unreachable(&self) -> bool {
         match self {
             Self::Endpoint { kind, .. } => kind.is_unreachable(),
@@ -137,8 +133,7 @@ impl NetError {
         }
     }
 
-    /// The endpoint this failure is attributable to, when there is one. The
-    /// aggregate variants name a chain rather than one endpoint.
+    /// The endpoint this failure belongs to. The aggregate variants name a chain instead.
     pub const fn label(&self) -> Option<&EndpointLabel> {
         match self {
             Self::Endpoint { endpoint, .. }
@@ -179,10 +174,7 @@ impl NetError {
     }
 
     /// The typed cause a protocol crate boxed into [`NetError::Endpoint`] or
-    /// [`NetError::Config`].
-    ///
-    /// This and [`NetError::into_source_of`] let a crate above this one carry its own
-    /// error through a failover walk without the pool knowing its type.
+    /// [`NetError::Config`], so it gets its own error back after a walk.
     pub fn source_of<E: StdError + Send + Sync + 'static>(&self) -> Option<&E> {
         match *self {
             Self::Endpoint { ref source, .. } | Self::Config { ref source, .. } => {
@@ -240,9 +232,9 @@ pub(crate) async fn within<T>(
     timeout(budget, future).await.unwrap_or_else(|_| Err(NetError::timed_out(label, budget)))
 }
 
-/// A failed rotation, a chain with no endpoints, or a walk where none was ready becomes
-/// the chain-level endpoints-down error, and a configuration failure is internal.
-/// Everything else is one endpoint's answer.
+/// A failed walk, a chain with no endpoints, or a walk where none was ready is
+/// endpoints-down, and a configuration failure is internal. Everything else is one
+/// endpoint's answer.
 impl From<NetError> for ChainError {
     fn from(error: NetError) -> Self {
         match error {
@@ -263,9 +255,9 @@ impl From<NetError> for ChainError {
             | NetError::RateLimited { .. }
             | NetError::Rpc { .. }
             | NetError::WrongNetwork { .. }) => Self::rpc(other),
-            // A URL in use passed `resolve` and the defaults are compiled in, so those two
-            // are this build's inconsistency, and a configuration failure such as an
-            // unusable proxy is not a node's answer either.
+            // A URL in use already passed `resolve` and the defaults are compiled in, so
+            // either failing is a bug in this build. An unusable proxy isn't a node's
+            // answer either.
             other @ (NetError::InvalidUrl { .. }
             | NetError::Defaults { .. }
             | NetError::Config { .. }) => Self::internal("the network configuration", other),
@@ -273,8 +265,8 @@ impl From<NetError> for ChainError {
     }
 }
 
-/// A network failure while building an adapter is a failed build, never an answer. The
-/// pool helpers on `Network` report an empty rotation themselves.
+/// A network failure while building an adapter is a failed build. The pool helpers on
+/// `Network` report an empty rotation themselves.
 impl From<NetError> for BuildError {
     fn from(error: NetError) -> Self {
         Self::Failed(ChainError::from(error))

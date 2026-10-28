@@ -60,8 +60,8 @@ impl Pending {
     }
 }
 
-/// Checks that `signed.boc` is the external message of `payment`, which has already been
-/// validated, signed, and that `signed.hash` is its normalized hash.
+/// Checks that `signed.boc` is the signed external message of `payment`, which the caller
+/// has already validated, and that `signed.hash` is its normalized hash.
 fn validate_signed(payment: &Payment, signed: &SignedBoc) -> Result<(), TonError> {
     let cell = Cell::from_boc(&STANDARD.decode(&signed.boc).map_err(|_| MISMATCH)?)?;
     let wallet = ton_wallet(&payment.pubkey, payment.version)?;
@@ -136,7 +136,7 @@ impl States {
 
     /// Reads the stored sends of `address_ids` and the stored cursors of the `admitted`
     /// ones, which are new to the watch set, and holds each admitted address's stored send
-    /// unless it already holds one. Anything stored that cannot be read blocks spending.
+    /// unless it already holds one. Anything stored that can't be read blocks spending.
     pub(crate) async fn load(&self, address_ids: &[i64], admitted: &[i64]) -> Result<(), TonError> {
         self.ensure_readable()?;
         let scans = if admitted.is_empty() {
@@ -159,7 +159,7 @@ impl States {
     }
 
     /// The history cursor stored for `address_id`, or a fresh one before its first walk.
-    /// One that cannot be read blocks spending.
+    /// One that can't be read blocks spending.
     pub(crate) async fn cursor(&self, address_id: i64) -> Result<Cursor, TonError> {
         let stored = self
             .cursors
@@ -299,8 +299,8 @@ fn scopes(address_ids: &[i64]) -> Vec<CursorScope> {
     address_ids.iter().copied().map(CursorScope::Address).collect()
 }
 
-/// The sends stored in `rows`, once every stored cursor in `scans` and every stored send
-/// reads, and each send is a broadcast one whose BOC matches its payment and hash.
+/// The sends stored in `rows`. Fails unless every cursor in `scans` and every stored send
+/// reads, and each send was broadcast with a BOC that matches its payment and hash.
 fn restore(
     scans: &[ScanAdvance],
     rows: &[HeldReservation],

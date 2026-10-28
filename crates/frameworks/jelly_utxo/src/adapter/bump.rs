@@ -16,8 +16,8 @@ use crate::error::UtxoError;
 use crate::original::Original;
 use crate::params::BumpMethod;
 
-/// Bitcoin Core's and Litecoin Core's `DEFAULT_ANCESTOR_LIMIT` less one, the most
-/// unconfirmed transactions a child may wait on and still be relayed.
+/// Bitcoin Core's and Litecoin Core's `DEFAULT_ANCESTOR_LIMIT` less one: the most
+/// unconfirmed transactions a child can wait on and still relay.
 const MAX_PACKAGE: usize = 24;
 
 enum Bumping {
@@ -25,8 +25,8 @@ enum Bumping {
     Child { child: ChildPaying, coins: Vec<Utxo> },
 }
 
-/// A bump resolved against the chain, which builds at any rate with no I/O, so a
-/// quote prices its selection and every level against the same coins.
+/// A bump resolved against the chain. It builds at any rate with no I/O, so a quote
+/// prices every level against the same coins.
 struct ResolvedBump {
     bumping: Bumping,
     fee_context: FeeContext,
@@ -64,13 +64,11 @@ impl ResolvedBump {
 }
 
 impl UtxoAdapter {
-    /// The transaction `txid` names, resolved against its funding, for a bump to speed
-    /// up.
+    /// The transaction to bump, resolved against its funding.
     ///
-    /// One the last pass saw in a block is refused. The network would refuse its bump
-    /// anyway, but only after the user approved and signed one. A transaction no pass
-    /// has seen reads as zero confirmations, so no bump that could have worked is
-    /// refused.
+    /// One the last pass saw confirmed is refused here, before the user signs a bump
+    /// the network would refuse anyway. One no pass has seen counts as unconfirmed, so
+    /// this never refuses a bump that could work.
     async fn pending_original(&self, txid: &TxId) -> Result<Original, UtxoError> {
         self.ensure_readable()?;
         let parsed = txid.value().parse::<Txid>().map_err(|_| UtxoError::NotATxid)?;
@@ -80,8 +78,8 @@ impl UtxoAdapter {
         self.client.original(parsed).await
     }
 
-    /// Quotes and builds resolve the same bump, as the table's bump method makes it.
-    /// Only a build claims coins.
+    /// Shared by quotes and builds, using the table's bump method. Only a build claims
+    /// coins.
     async fn resolve_bump(&self, txid: &TxId) -> Result<ResolvedBump, UtxoError> {
         let method =
             self.params.bump_method.ok_or(UtxoError::NoBumpMethod { chain: self.params.chain })?;
@@ -140,8 +138,8 @@ impl UtxoAdapter {
         let built = resolved.build(rate)?;
         let payload = &built.payload;
         match resolved.replaced_spends() {
-            // A replacement deliberately spends what it replaces, so the claim the
-            // original build holds moves to it rather than conflicting with it.
+            // A replacement spends the original's coins on purpose, so it takes over
+            // the original's claim instead of conflicting with it.
             Some(spends) => {
                 self.claims.take_over(payload.unsigned_txid(), &payload.outpoints(), &spends);
             }
@@ -153,8 +151,8 @@ impl UtxoAdapter {
     /// Every transaction `original` waits on that the last pass saw still in the
     /// mempool, each priced from its own funding.
     ///
-    /// The funding of every input is in a watched history, because it paid the
-    /// wallet, so the wallet knows whether it is still unconfirmed, and so on up.
+    /// Every input's funding paid the wallet, so it's in a watched history and the
+    /// last pass knows whether it's still unconfirmed, and likewise up the chain.
     async fn unconfirmed_ancestors(
         &self,
         original: &Original,
@@ -177,8 +175,8 @@ impl UtxoAdapter {
     }
 }
 
-/// A bump on this table is a replacement or a child, as its bump method says, and
-/// the adapter offers none on a table without one.
+/// Bumps by replacement or by a child, as the table's bump method says. A table
+/// without one offers no bump.
 #[async_trait]
 impl FeeBump for UtxoAdapter {
     async fn quote_bump(&self, txid: &TxId, fee: &FeeSelection) -> Result<FeeQuote, ChainError> {
@@ -187,12 +185,11 @@ impl FeeBump for UtxoAdapter {
             .map_err(|error| error.into_chain_error(self.params.chain))
     }
 
-    /// Uses the caller's fee selection, where a level pays its rate, or the network's
-    /// floor for the bump when that is higher, and the original transaction's sources,
-    /// recipient, and change, including after restart.
+    /// Uses the caller's fee selection and the original's sources, recipient, and
+    /// change, all recovered from the chain, so it works after a restart.
     ///
-    /// A replacement preserves outputs except its designated fee source, and a child
-    /// pays only back to the wallet, so neither can redirect the payment.
+    /// A replacement keeps paying the original's recipients, and a child pays only back
+    /// to the wallet, so neither can redirect the payment.
     async fn build_bump(&self, txid: &TxId, fee: &FeeSelection) -> Result<UnsignedTx, ChainError> {
         self.prepare_bump(txid, fee)
             .await

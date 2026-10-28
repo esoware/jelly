@@ -1,8 +1,8 @@
 use jelly_core::AssetId;
 use jelly_prices::Ticker;
 
-/// A coin whose symbol no ticker names fails here rather than an asset that
-/// silently loses its fiat value.
+/// A coin whose symbol no ticker names fails here instead of silently losing its fiat
+/// value.
 #[test]
 fn every_asset_trades_under_exactly_one_ticker() {
     for asset in AssetId::all() {

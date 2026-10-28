@@ -12,14 +12,14 @@ use crate::subaddress::Subaddress;
 const VIEW_NOT_REDUCED: &str = "the view key is not a reduced ed25519 scalar";
 const SPEND_NOT_REDUCED: &str = "the spend key is not a reduced ed25519 scalar";
 
-/// Monero account keys retained only while unlocked. Local scanning needs the view scalar.
-/// Spend detection and signing also need the spend scalar.
+/// The account's keys, held only while the wallet is unlocked. Scanning needs the view
+/// scalar, and key images need the spend scalar too.
 ///
-/// Construction validates reduced scalars and a torsion-free public spend key.
+/// Construction checks that both scalars are reduced and the public spend key is
+/// torsion-free.
 #[cfg_attr(feature = "test-util", derive(Clone))]
 pub struct MoneroAccount {
-    /// The key hierarchy, which alone derives this account's addresses and the
-    /// offset a subaddress's spend key carries.
+    /// Derives the addresses and each subaddress's spend-key offset.
     keys: MoneroKeys,
     view_pair: ViewPair,
     spend: Zeroizing<Scalar>,
@@ -63,14 +63,12 @@ fn wallet_keys(
 }
 
 impl MoneroAccount {
-    /// The account identity. The persisted scan blob is bound to it, so a blob
-    /// from another account is refused rather than mis-attributed.
+    /// The account's identity. Both persisted blobs are bound to it, so another
+    /// account's blob is refused instead of misfiled.
     pub fn public_spend(&self) -> [u8; 32] {
         self.view_pair.spend().compress().to_bytes()
     }
 
-    /// The scanning pair. It is cloned into each [`monero_wallet::Scanner`],
-    /// which takes ownership.
     pub(crate) const fn view_pair(&self) -> &ViewPair {
         &self.view_pair
     }
@@ -82,14 +80,13 @@ impl MoneroAccount {
         })
     }
 
-    /// The account's signing scalar, recovered from `key`, which is the spend key
-    /// behind the address at `subaddress`. That is the account's own spend key at
-    /// the primary address and `ks + m` anywhere else, so the offset comes off
-    /// before the result has to be the private key behind this account's public
-    /// spend key. Nothing but the key the caller supplied is ever signed with.
+    /// Recovers the account's spend scalar from `key`, the spend key behind `subaddress`.
+    /// That's `ks` at the primary address and `ks + m` anywhere else, so the offset comes
+    /// off first, and the result has to match this account's public spend key. Only the
+    /// key the caller supplied is ever signed with.
     ///
-    /// `k G` is computed without a public scalar-basepoint multiplication, since a
-    /// Pedersen commitment to zero with mask `k` is `k G + 0 H`.
+    /// `monero-ed25519` has no public basepoint multiplication, so `k G` comes from a
+    /// Pedersen commitment to zero with mask `k`, which is `k G + 0 H`.
     #[expect(clippy::arithmetic_side_effects, reason = "ed25519 scalar arithmetic is total")]
     pub(crate) fn signing_key(
         &self,
@@ -124,9 +121,9 @@ impl MoneroAccount {
 
     /// Computes an owned output's key image as `(ks + key_offset) Hp(P)`.
     ///
-    /// The hidden `monero-ed25519` conversions are used because the crate has no
-    /// public arbitrary-point multiplication. Its version is pinned, and vectors
-    /// check the result against the library's signing path.
+    /// Uses the hidden `monero-ed25519` conversions, since the crate has no public
+    /// arbitrary-point multiplication. Its version is pinned, and vectors check the
+    /// result against the library's signing path.
     #[expect(
         clippy::arithmetic_side_effects,
         reason = "ed25519 scalar and point arithmetic is total"
@@ -139,10 +136,8 @@ impl MoneroAccount {
     }
 }
 
-/// Reads a canonically encoded ed25519 scalar.
-///
 /// Every key [`MoneroKeys`] produces is already reduced, so a failure means the caller
-/// supplied something that is not a Monero key. `what` is always a literal, so no
+/// supplied something that isn't a Monero key. `what` is always a literal, so no
 /// fragment of a key can reach the message.
 fn read_scalar(bytes: &[u8; 32], what: &'static str) -> Result<Scalar, MoneroError> {
     Scalar::read(&mut bytes.as_slice()).map_err(|_| MoneroError::Key { what })
@@ -267,7 +262,7 @@ mod tests {
                     account.signing_key(&held, Subaddress::new(major, minor.saturating_add(1))),
                     Err(MoneroError::KeyNotOwner)
                 ),
-                "({major}, {minor})'s key is not its neighbour's"
+                "({major}, {minor})'s key is not its neighbor's"
             );
         }
         assert!(matches!(

@@ -31,7 +31,7 @@ pub enum ChainError {
     Signing(#[source] BoxedSource),
     #[error("unsupported: {0}")]
     Unsupported(#[source] BoxedSource),
-    /// The shell shows this text to the user verbatim, so it is copy: full sentences in
+    /// The shell shows this text to the user verbatim, so it's copy: full sentences in
     /// sentence case, ASCII only, with no URL, file path, secret, or library error text.
     #[error("{0}")]
     InvalidInput(String, #[source] BoxedSource),
@@ -179,11 +179,11 @@ pub enum CoreError {
     NotFound { entity: &'static str, id: String },
     #[error("{entity} already exists")]
     AlreadyExists { entity: &'static str },
-    /// The shell shows `detail` to the user verbatim, so it is copy: full sentences in
+    /// The shell shows `detail` to the user verbatim, so it's copy: full sentences in
     /// sentence case, ASCII only, with no URL, file path, secret, or library error text.
     #[error("{detail}")]
     InvalidInput { field: &'static str, detail: String },
-    /// `reason` is `None` when the chain is switched off or the wallet's adapters are not
+    /// `reason` is `None` when the chain is switched off or the wallet's adapters aren't
     /// built yet.
     #[error("no adapter for {}", chain.display_name())]
     NoAdapter { chain: ChainId, reason: Option<SkipReason> },
@@ -269,9 +269,9 @@ impl CoreError {
 
 /// Key, phrase, path, and address failures across every chain's key handling.
 ///
-/// No variant, and no `Display` reachable from one, interpolates any fragment of its
-/// input. Messages carry only positions, counts, and kinds, so a seed word, a
-/// passphrase, or a key byte cannot reach a log.
+/// No message, nested ones included, quotes any fragment of its input. Messages carry only
+/// positions, counts, and kinds, so a seed word, a passphrase, or a key byte can't reach a
+/// log.
 #[derive(Debug, thiserror::Error)]
 pub enum KeyError {
     #[error("The system could not generate secure random bytes.")]
@@ -353,7 +353,7 @@ pub enum KeyError {
 }
 
 impl KeyError {
-    /// An invariant the key code believes it upholds turned out not to hold.
+    /// A broken invariant in the key code.
     pub const fn internal(context: &'static str) -> Self {
         Self::Internal { context }
     }

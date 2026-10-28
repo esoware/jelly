@@ -9,8 +9,7 @@ const HASH_BYTES: usize = 32;
 /// Electrum's name for an output script, the `SHA-256` of the script bytes
 /// reversed.
 ///
-/// The reversal is normative, borrowed from Bitcoin's hash display order. The
-/// hex form goes on the wire, so `Display` and `Serialize` produce the same 64
+/// The hex form goes on the wire, so `Display` and `Serialize` produce the same 64
 /// characters.
 pub(crate) struct ElectrumScriptHash([u8; HASH_BYTES]);
 
@@ -64,12 +63,12 @@ mod tests {
     /// What a request carries and what a log line shows have to be the same hex
     /// string.
     #[test]
-    fn a_scripthash_serialises_as_the_hex_it_displays() {
+    fn a_scripthash_serializes_as_the_hex_it_displays() {
         let script = ScriptBuf::from_hex("0014000102030405060708090a0b0c0d0e0f1011121314")
             .expect("a script");
         let hash = ElectrumScriptHash::of(&script);
         let text = hash.to_string();
         assert_eq!(text.len(), 64);
-        assert_eq!(serde_json::to_string(&hash).expect("it serialises"), format!("\"{text}\""));
+        assert_eq!(serde_json::to_string(&hash).expect("it serializes"), format!("\"{text}\""));
     }
 }

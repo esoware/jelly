@@ -152,8 +152,8 @@ async fn refusing_tls() -> io::Result<(String, JoinHandle<io::Result<()>>)> {
 /// An HTTPS endpoint whose TLS handshake fails is a TLS failure.
 ///
 /// `ProbeFailure::Tls` is the report for a handshake that failed, and the Electrum and
-/// websocket dialler already classify one as `FailureKind::Tls`, so it must not be
-/// reported as an endpoint that could not be reached.
+/// websocket dialer already classify one as `FailureKind::Tls`, so it must not be
+/// reported as an endpoint that couldn't be reached.
 #[tokio::test]
 async fn a_failed_tls_handshake_on_the_http_path_is_reported_as_a_tls_failure() {
     let (url, server) = refusing_tls().await.expect("a loopback server");
