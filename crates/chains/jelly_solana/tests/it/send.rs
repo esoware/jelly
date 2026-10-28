@@ -543,9 +543,8 @@ mod token_transfers {
         );
     }
 
-    /// Pasting a token account's own address names the account to credit, so the
-    /// tokens go straight into it rather than into a new account that token
-    /// account would hold the authority over.
+    /// A pasted token account address names the account to credit, so the tokens go
+    /// straight into it instead of into a new associated account it would own.
     #[tokio::test]
     async fn a_recipient_that_is_itself_a_token_account_of_the_mint_is_credited_directly() {
         let harness = Harness::priced().await.unwrap();
@@ -609,11 +608,11 @@ mod token_transfers {
     async fn refusal(harness: &Harness, to: &str, asset: AssetId) -> Fallible<String> {
         let built = harness.adapter.build_tx(&request(to, asset, 1_000)).await;
         let Err(ChainError::InvalidInput(text, _)) = built else {
-            return Err(format!("a refusal the interface shows as written: {built:?}").into());
+            return Err(format!("expected a refusal shown as written, got {built:?}").into());
         };
         let quoted = harness.adapter.quote_fee(&request(to, asset, 1_000)).await;
         if quoted.is_ok() {
-            return Err(format!("a quote refuses it too: {quoted:?}").into());
+            return Err(format!("expected the quote to refuse it too, got {quoted:?}").into());
         }
         Ok(text)
     }

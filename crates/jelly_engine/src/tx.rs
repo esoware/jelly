@@ -27,8 +27,8 @@ impl WalletEngine {
         Ok(adapter.quote_fee(&request).await?)
     }
 
-    /// Builds a transaction and authorises it. The returned preview is exactly
-    /// what will be signed, and its digest is what binds the two together.
+    /// Builds a transaction and authorizes it. The returned preview is exactly what will
+    /// be signed, and its digest binds the two together.
     pub async fn prepare_tx(&self, request: TxRequest) -> Result<PreparedTx, CoreError> {
         let (session, _sending) = self.begin_send().await?;
         let (request, sources) = self.resolve_request(&session, request).await?;
@@ -43,8 +43,8 @@ impl WalletEngine {
     /// What speeding up an unconfirmed transaction at `fee` would cost. Nothing is built
     /// and nothing is reserved.
     ///
-    /// A fee level is raised to the network's floor for the bump, so it is never refused
-    /// by [`WalletEngine::bump_fee`] for being too cheap.
+    /// A fee level is raised to the network's floor for the bump, so
+    /// [`WalletEngine::bump_fee`] never refuses it as too cheap.
     pub async fn quote_bump(&self, txid: &TxId, fee: &FeeSelection) -> Result<FeeQuote, CoreError> {
         let (_session, _sending) = self.begin_send().await?;
         let adapter = self.adapter(txid.chain())?;
@@ -52,13 +52,12 @@ impl WalletEngine {
         Ok(bump.quote_bump(txid, fee).await?)
     }
 
-    /// Plans a fee bump for an unconfirmed transaction, a replacement or a child that
-    /// pays for it, and authorises it.
+    /// Plans a fee bump for an unconfirmed transaction, either a replacement or a child
+    /// that pays for it, and authorizes it.
     ///
-    /// `txid` carries the chain, so no second argument can disagree with it, and `fee` is
-    /// the same [`FeeSelection`] a fresh send takes. Only the price is read from it. The
-    /// recipient, amount, and coins, nonce slot, or change come from the transaction being
-    /// sped up, so nothing here can redirect a payment.
+    /// Only the price is read from `fee`. The recipient, amount, and coins, nonce slot, or
+    /// change come from the transaction being sped up, so nothing here can redirect a
+    /// payment.
     pub async fn bump_fee(&self, txid: &TxId, fee: &FeeSelection) -> Result<PreparedTx, CoreError> {
         let (session, _sending) = self.begin_send().await?;
         self.require_sent_tx(session.wallet_id(), txid).await?;
@@ -69,7 +68,7 @@ impl WalletEngine {
         self.hold_replacement(&session, txid.chain(), &adapter, unsigned).await
     }
 
-    /// What cancelling an unconfirmed transaction at `fee` would cost. Nothing is built and
+    /// What canceling an unconfirmed transaction at `fee` would cost. Nothing is built and
     /// nothing is reserved.
     pub async fn quote_cancel(
         &self,
@@ -83,8 +82,8 @@ impl WalletEngine {
     }
 
     /// Plans a replacement that moves nothing for an unconfirmed transaction and
-    /// authorises it, under the same rules as [`WalletEngine::bump_fee`]. Only the price
-    /// is read from `fee`, and the sender and slot come from the transaction cancelled.
+    /// authorizes it, under the same rules as [`WalletEngine::bump_fee`]. Only the price
+    /// is read from `fee`, and the sender and slot come from the transaction canceled.
     pub async fn cancel_tx(
         &self,
         txid: &TxId,
@@ -99,11 +98,11 @@ impl WalletEngine {
         self.hold_replacement(&session, txid.chain(), &adapter, unsigned).await
     }
 
-    /// Keeps the authorisation through the password check and signing, so those failures
+    /// Keeps the authorization through the password check and signing, so those failures
     /// stay retryable, and consumes it immediately before broadcast.
     ///
-    /// After a successful send, a local persistence failure is retried in the background
-    /// rather than reported as a failed payment.
+    /// After a successful send, a local persistence failure is retried in the background,
+    /// not reported as a failed payment.
     pub async fn submit_tx(
         &self,
         id: PendingTxId,
@@ -115,11 +114,11 @@ impl WalletEngine {
         if session.cancel.is_cancelled() {
             return Err(CoreError::Locked);
         }
-        self.authorised(id, digest).await?;
+        self.authorized(id, digest).await?;
         session.verify_password(password).await?;
 
-        // Password checking and signing can each outlast the authorisation's TTL.
-        let held = self.authorised(id, digest).await?;
+        // Password checking and signing can each outlast the authorization's TTL.
+        let held = self.authorized(id, digest).await?;
         let adapter = self.adapter(held.chain())?;
         let (signed, _sending) =
             sign(Arc::clone(&session), Arc::clone(&adapter), held.signers, held.unsigned, sending)
@@ -128,8 +127,8 @@ impl WalletEngine {
         if session.cancel.is_cancelled() {
             return Err(CoreError::Locked);
         }
-        // Read while a failure still leaves the authorisation to retry, because nothing
-        // after the broadcast may fail the send.
+        // Read now, while a failure still leaves the authorization to retry. Nothing after
+        // the broadcast may fail the send.
         let seen_unix_secs = self
             .inner
             .clock
@@ -173,7 +172,7 @@ impl WalletEngine {
         Ok(txid)
     }
 
-    /// Drops an authorisation without signing it, releasing whatever the adapter
+    /// Drops an authorization without signing it, releasing whatever the adapter
     /// reserved for it.
     pub async fn delete_pending_tx(&self, id: PendingTxId) -> Result<(), CoreError> {
         let (_session, _sending) = self.begin_send().await?;
@@ -182,7 +181,7 @@ impl WalletEngine {
         Ok(())
     }
 
-    /// Authorisations still awaiting a submit, stale ones already released.
+    /// Authorizations still awaiting a submit, stale ones already released.
     #[cfg(any(test, feature = "test-util"))]
     pub(crate) async fn list_pending_txs(&self) -> Result<Vec<PreparedTx>, CoreError> {
         let (_session, _sending) = self.begin_send().await?;
@@ -190,7 +189,7 @@ impl WalletEngine {
         Ok(self.inner.pending.views())
     }
 
-    /// The open session and the send guard, refusing a session a lock cancelled while
+    /// The open session and the send guard, refusing a session a lock canceled while
     /// this waited for the guard.
     async fn begin_send(&self) -> Result<(Arc<Session>, MutexGuard<'_, ()>), CoreError> {
         let session = self.require_session().await?;
@@ -201,9 +200,9 @@ impl WalletEngine {
         Ok((session, sending))
     }
 
-    /// The authorisation for `id`, refusing one that has outlived the pending TTL or its
+    /// The authorization for `id`, refusing one that has outlived the pending TTL or its
     /// adapter, and a digest that is not the one it was issued with.
-    async fn authorised(
+    async fn authorized(
         &self,
         id: PendingTxId,
         digest: PreviewDigest,
@@ -213,8 +212,8 @@ impl WalletEngine {
         if pending.digest == digest { Ok(pending) } else { Err(CoreError::RebuildRequired) }
     }
 
-    /// Takes out an authorisation over a replacement of one of the wallet's sends, signed
-    /// by the keys behind whichever of the chain's addresses its preview names.
+    /// Authorizes a replacement of one of the wallet's sends, signed by whichever of the
+    /// chain's addresses its preview names.
     async fn hold_replacement(
         &self,
         session: &Arc<Session>,
@@ -224,18 +223,18 @@ impl WalletEngine {
     ) -> Result<PreparedTx, CoreError> {
         let rows = self.inner.store.list_addresses(session.wallet_id(), Some(chain)).await?;
         let signers = signers_of(&unsigned.preview, &rows)?;
-        // The same proof a fresh send takes, because the replacement is signed with the
-        // keys behind these rows.
+        // Verified like a fresh send's sources, since these rows' keys sign the
+        // replacement.
         let signers = derive::verify_rows(Arc::clone(session), signers).await?;
         self.hold(chain, signers, adapter, unsigned)
     }
 
-    /// Takes out one authorisation over `unsigned`, which `adapter` built on `chain`
-    /// from `signers`, the rows of its preview's sources in their order.
+    /// Authorizes `unsigned`, which `adapter` built on `chain` from `signers`, the rows of
+    /// its preview's sources in order.
     ///
-    /// The preview's chain is what the digest covers and what picks the adapter that
-    /// signs and broadcasts, so a transaction whose preview names another chain than the
-    /// sources' is refused rather than held.
+    /// The preview's chain is what the digest covers and what picks the adapter that signs
+    /// and broadcasts, so a preview that names a different chain from its sources is
+    /// refused.
     fn hold(
         &self,
         chain: ChainId,
@@ -257,11 +256,11 @@ impl WalletEngine {
         Ok(view)
     }
 
-    /// Releases every authorisation that has run out or whose adapter a rebuild replaced.
+    /// Releases every authorization that has run out or whose adapter a rebuild replaced.
     /// The replacement never saw the old reservations and could hand the same coins or
-    /// nonce to another send, so such an authorisation must not stay submittable.
+    /// nonce to another send, so such an authorization mustn't stay submittable.
     ///
-    /// Telling the adapter stops an abandoned preview from holding an outpoint lock or a
+    /// Telling the adapter keeps an abandoned preview from holding an outpoint lock or a
     /// nonce slot for the rest of the session.
     async fn evict_stale(&self) {
         let now_millis = self.inner.clock.elapsed_millis();
@@ -271,11 +270,11 @@ impl WalletEngine {
         }
     }
 
-    /// Retries a record the store refused after a successful broadcast, on the
-    /// engine's tracker so shutdown waits for it.
+    /// Retries a record the store refused after a successful broadcast, on the engine's
+    /// tracker so shutdown waits for it.
     ///
-    /// The attempt that lands announces it, which is the only event the
-    /// interface gets for this transaction before the next sync pass finds it.
+    /// The attempt that lands announces it. That's the only event the interface gets for
+    /// this transaction until a sync pass finds it.
     fn retry_record(&self, record: TxRecord) {
         let weak = Arc::downgrade(&self.inner);
         let cancel = self.inner.cancel.clone();
@@ -310,13 +309,13 @@ impl WalletEngine {
         });
     }
 
-    /// Resolves the sending addresses to the rows the store holds and verifies each, so
-    /// a command cannot smuggle in a foreign address or a different key. A UTXO chain
-    /// pools several addresses, and every other chain sends from exactly one.
+    /// Resolves the sending addresses to the rows the store holds and verifies each, so a
+    /// command can't smuggle in a foreign address or a different key. A UTXO chain pools
+    /// several addresses, and every other chain sends from exactly one.
     ///
     /// The request comes back with its recipient as the chain's payment target. TON keeps
-    /// the validated payment URI because its comment is part of the signed transfer.
-    /// Other chains receive the canonical address.
+    /// the validated payment URI because its comment is part of the signed transfer, and
+    /// other chains get the canonical address.
     async fn resolve_request(
         &self,
         session: &Arc<Session>,
@@ -369,8 +368,9 @@ impl WalletEngine {
     }
 
     /// Refuses `txid` unless the wallet holds an outgoing or self-transfer row of it,
-    /// which proves one of its addresses paid into it. A send to another of the wallet's
-    /// own addresses also has an incoming row, and that address's key signed nothing.
+    /// which proves one of its addresses spent in it. An incoming row isn't enough, since
+    /// a send to another of the wallet's own addresses has one for an address whose key
+    /// signed nothing.
     async fn require_sent_tx(&self, wallet_id: i64, txid: &TxId) -> Result<(), CoreError> {
         for direction in [TxDirection::Outgoing, TxDirection::SelfTransfer] {
             let filter = TxFilter {
@@ -392,8 +392,8 @@ impl WalletEngine {
 const SOURCES: &str = "fromAddressIds";
 
 /// The rows of `preview`'s sources, in its order, each one of `candidates`. An adapter
-/// that names an address the request did not offer is refused, so it cannot sign with
-/// a key the user did not choose.
+/// that names an address the request didn't offer is refused, so it can't sign with a
+/// key the user didn't choose.
 fn signers_of(
     preview: &TxPreview,
     candidates: &[AddressRow],
@@ -416,10 +416,10 @@ fn signers_of(
         .collect()
 }
 
-/// The row a broadcast transaction leaves behind, taken from the preview the
-/// user approved rather than from the request that asked for it.
+/// The row a broadcast transaction leaves behind, taken from the preview the user
+/// approved, not from the request.
 ///
-/// It sits at the first source, which the transaction always moves funds of, so the
+/// It's filed under the first source, which the transaction always spends from, so the
 /// sync pass that sees the transaction rewrites it with that address's own share.
 fn sent_record(pending: &PendingTx, txid: &TxId, seen_unix_secs: i64) -> TxRecord {
     let preview = pending.preview();
@@ -446,7 +446,7 @@ fn sent_record(pending: &PendingTx, txid: &TxId, seen_unix_secs: i64) -> TxRecor
     record.build()
 }
 
-/// Files a broadcast transaction's record, answering what the store did with it.
+/// Files a broadcast transaction's record and returns what the store did with it.
 async fn record_sent(inner: &Inner, record: TxRecord) -> Result<Option<TxWrite>, StoreError> {
     let batch = SyncBatch { txs: vec![record], ..SyncBatch::default() };
     Ok(inner.store.apply_sync_batch(batch).await?.into_iter().next())
@@ -470,8 +470,8 @@ async fn release(pending: &PendingTx) {
     }
 }
 
-/// Releases a refused transaction's reservations, but only when the refusal
-/// proves it is in no mempool anywhere.
+/// Releases a refused transaction's reservations, but only when the refusal proves it's
+/// in no mempool anywhere.
 ///
 /// Anything transport-ambiguous keeps them, because the bytes may have landed and a
 /// released outpoint or nonce is how one payment becomes two.
@@ -516,15 +516,15 @@ async fn sign(
                 .map(|row| derive::resolve_key(&session, row))
                 .collect::<Result<Vec<_>, _>>()?;
             let signed = adapter.sign_tx(&unsigned, &keys).map_err(CoreError::Chain)?;
-            // Cancellation of the awaiter cannot retire the adapter or release its nonce
-            // until the actual signer has finished mutating its reservations.
+            // The task holds the send guard, so even if the caller is dropped, nothing can
+            // retire the adapter or release its nonce until the signer is done with its
+            // reservations.
             Ok((signed, sending))
         })
         .await
         .map_err(task_error)?
 }
 
-/// One wording for a chain with no replacement mechanism, wherever it is asked.
 const fn no_replacement() -> CoreError {
     CoreError::Unsupported("this chain cannot replace a transaction")
 }

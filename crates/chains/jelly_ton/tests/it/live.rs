@@ -36,7 +36,7 @@ async fn mainnet_read_smoke() {
 }
 
 /// wallet-core's Trust Wallet test phrase holds its funds in a V4R2 wallet, which the
-/// probe finds in use on mainnet, and leaves its never used V3R2 wallet out.
+/// probe finds in use on mainnet, and leaves its never-used V3R2 wallet out.
 #[tokio::test]
 #[ignore = "Queries public mainnet accounts and depends on TON Center availability."]
 async fn mainnet_probe_finds_the_wallet_version_a_key_was_used_under() {

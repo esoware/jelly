@@ -8,8 +8,8 @@ use zeroize::Zeroizing;
 use crate::engine::Inner;
 use crate::session::Session;
 
-/// Frame version of a stored cursor. It is written inside the encrypted vault payload
-/// and read back by later builds.
+/// Frame version of a stored cursor. It's persisted in the vault, so later builds have
+/// to read it.
 const VERSION: u8 = 1;
 
 /// Length of the little-endian scope id inside a frame.
@@ -19,11 +19,10 @@ const SCOPE_ID_BYTES: usize = 8;
 /// address.
 const WALLET_SCOPE_ID: i64 = 0;
 
-/// Which scan streams live in the vault rather than in the wallet database.
+/// Whether a scan stream lives in the vault instead of the wallet database.
 ///
-/// The Monero scan blob is view-key derived and carries every owned output's key offset,
-/// which is what spends it, so no byte of it may reach `SQLite`. The match is exhaustive
-/// so a new stream cannot be added without deciding this.
+/// The Monero scan blob is derived from the view key and carries every owned output's key
+/// offset, which is what spends it, so no byte of it may reach `SQLite`.
 pub(crate) const fn is_secret_scan(stream: ScanStream) -> bool {
     match stream {
         ScanStream::MoneroScan => true,
@@ -40,8 +39,8 @@ pub(crate) const fn is_secret_scan(stream: ScanStream) -> bool {
     }
 }
 
-/// The same decision for the reservation half. The Monero slot holds key images
-/// and the signed bytes of transactions still in the air.
+/// The same decision for reservation slots. Monero's holds key images and the signed
+/// bytes of sends still in flight.
 pub(crate) const fn is_secret_slot(slot: ReservationSlot) -> bool {
     match slot {
         ReservationSlot::MoneroSends => true,
@@ -54,20 +53,20 @@ pub(crate) const fn is_secret_slot(slot: ReservationSlot) -> bool {
     }
 }
 
-/// The open session of `wallet_id`, without marking activity, because persistence is
-/// background work and must not hold a session open.
+/// The open session of `wallet_id`. It doesn't mark activity, because persistence is
+/// background work and mustn't hold a session open.
 ///
-/// Any other session is refused. A stale adapter must never write one wallet's output
-/// keys into another wallet's vault.
+/// Any other session is refused, so a stale adapter can't write one wallet's output keys
+/// into another wallet's vault.
 fn secret_session(inner: &Inner, wallet_id: i64) -> Result<Arc<Session>, CoreError> {
     let session = inner.session.current().ok_or(CoreError::Locked)?;
     if session.wallet_id() == wallet_id { Ok(session) } else { Err(CoreError::Locked) }
 }
 
-/// Every stored pair inside `scopes` whose label is one of `wanted`.
+/// Every stored entry inside `scopes` whose label is one of `wanted`.
 ///
-/// The vocabulary travels in with its spellings, so a matched frame is answered with the
-/// caller's own value and nothing has to parse a label back into the enum it came from.
+/// `wanted` pairs each label with the caller's own value, so a match returns that value
+/// and nothing has to parse a label back into the enum it came from.
 pub(crate) fn read_secrets<T: Copy>(
     inner: &Inner,
     wallet_id: i64,
@@ -94,7 +93,7 @@ pub(crate) fn read_secrets<T: Copy>(
     })
 }
 
-/// Replaces the vault entry for one pair, or inserts it.
+/// Replaces or inserts the vault entry for `(scope, label)`.
 pub(crate) async fn write_secret(
     inner: &Inner,
     wallet_id: i64,
@@ -119,7 +118,8 @@ pub(crate) async fn write_secret(
         .await
 }
 
-/// Routing must succeed before any secret state can be read or replaced.
+/// Every frame must decode and route to its own `(scope, label)` before any secret state
+/// is read or replaced.
 fn check_frames(vault: &UnlockedVault) -> Result<(), VaultError> {
     let mut scopes = BTreeSet::new();
     for (_, blob) in vault.entries_of_kind(BlobKind::MoneroScanState) {
@@ -152,23 +152,23 @@ fn entry_for(vault: &UnlockedVault, scope: CursorScope, label: &str) -> Option<E
     })
 }
 
-/// One secret cursor, borrowed out of the vault blob it was read from.
+/// One secret cursor, borrowed from the vault blob it was read from.
 ///
-/// Each is a `BlobKind::MoneroScanState` entry per `(scope, label)`, framed as
+/// Each `(scope, label)` is one `BlobKind::MoneroScanState` entry, framed as
 /// `version:u8 | scope_id:i64 le | label_length:u8 | label | payload`, where the scope id is
-/// an address row ID or [`WALLET_SCOPE_ID`]. Random entry IDs require storing the lookup
-/// key inside the frame. Stream and reservation labels are disjoint.
+/// an address row ID or [`WALLET_SCOPE_ID`]. Vault entry IDs are random, so the lookup key
+/// has to live in the frame. Stream and reservation labels never overlap.
 struct Frame<'a> {
     scope: CursorScope,
     label: &'a str,
     payload: &'a [u8],
 }
 
-/// `None` when the frame cannot hold the cursor.
+/// `None` when the frame can't hold the cursor.
 ///
-/// That is a label longer than its one length byte, a total that overflows a `usize`, or
-/// an address whose ID would read back as the wallet. None of them happens with this
-/// crate's vocabulary and real address rows.
+/// That's a label longer than its one length byte, a total that overflows a `usize`, or
+/// an address whose ID would read back as the wallet. None of these happen with this
+/// crate's labels and real address rows.
 fn encode(scope: CursorScope, label: &str, value: &[u8]) -> Option<Zeroizing<Vec<u8>>> {
     let scope_id = match scope {
         CursorScope::Wallet => WALLET_SCOPE_ID,
@@ -279,8 +279,8 @@ mod tests {
         assert!(decode(&framed).is_none());
     }
 
-    /// Both halves share the frame, so both spellings have to come back as
-    /// themselves.
+    /// Streams and reservations share the frame, so both kinds of label have to come back
+    /// as themselves.
     #[test]
     fn a_reservation_frames_the_same_way() {
         let label = ReservationSlot::MoneroSends.as_str();

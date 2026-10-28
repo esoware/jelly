@@ -43,7 +43,6 @@ pub(super) struct Indexed {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum IndexedReadState {
-    /// Reads continue.
     Active,
     /// Later addresses are deferred.
     StoppedDeferring,
@@ -51,18 +50,17 @@ enum IndexedReadState {
     StoppedJudging,
 }
 
-/// Reads the three lists of each address that is due, from one shared frontier.
+/// Reads all three lists of each due address, starting from the same block.
 ///
-/// The service is per address, so this is the one step whose cost grows with the
-/// wallet. An address is due when [`Indexing::is_due`] says so, and its news ends
-/// once a read returns rows past the frontier it started from, or claims the
-/// blocks up to the tip that first showed the news.
+/// The service is per address, so this is the only step whose cost grows with the
+/// wallet. An address's news ends once a read returns rows past the frontier it
+/// started from, or covers the blocks up to the tip that first showed the news.
 ///
 /// An address whose read emitted a native record is explained wholly, because a
-/// token transfer moves no native balance. One whose news is still unreported, or
-/// whose read was truncated, or skipped for the deadline or a busy or unreachable
-/// service, is deferred, because the service may still report the transfer behind
-/// its change. The first failure ends the step, because the next address would ask
+/// token transfer moves no native balance. One whose news is still unreported, whose
+/// read was truncated, or that was skipped for the deadline or a busy or unreachable
+/// service is deferred, because the service may still report the transfer behind
+/// its change. The first failure stops the reads, because the next address would ask
 /// the same service.
 pub(super) async fn indexed_history(
     inputs: &PassInputs<'_>,
@@ -119,7 +117,7 @@ pub(super) async fn indexed_history(
             Err(EvmError::HistoryRefused(HistoryRefusal::ChainNotCovered)) => {
                 tracing::info!(
                     target: TARGET,
-                    "the history service does not serve this network for this key, so history comes from logs and balances"
+                    "the history service doesn't serve this network for this key, so history comes from logs and balances"
                 );
                 outcome.is_unserved = true;
                 return outcome;
@@ -176,16 +174,16 @@ pub(super) async fn indexed_history(
     outcome
 }
 
-/// Receipts asked for in one batch, so a long history is not one request a public
-/// node refuses.
+/// Receipts per batch, so a long history doesn't become one request a public node
+/// refuses.
 const RECEIPT_BATCH: usize = 20;
 
 /// One address's read as records.
 ///
-/// The OP Stack charges for posting a transaction's data to Ethereum apart from gas,
-/// and the service's rows price only the gas. There each transaction the owner sent
-/// is priced by its receipt, as the send's own record is, so the two agree and the
-/// stored fee stands. One whose receipt states no fee keeps its row's gas.
+/// On the OP Stack the service's rows price only gas, not the L1 data fee, so each
+/// transaction the owner sent is priced by its receipt instead. That matches the
+/// send's own record, so the stored fee stands. One whose receipt states no fee
+/// keeps its row's gas.
 async fn records_of(
     inputs: &PassInputs<'_>,
     entry: &Watched,

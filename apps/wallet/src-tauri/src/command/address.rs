@@ -18,7 +18,7 @@ pub(crate) async fn list_addresses(
     with_engine(&state, async move |engine| engine.list_addresses(Some(chain)).await).await
 }
 
-/// Opens only a built-in address explorer after validating the address.
+/// Opens the chain's built-in address explorer, and only for a valid address.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn open_address_explorer(chain: ChainId, address: String) -> Result<(), IpcError> {
@@ -31,8 +31,8 @@ pub(crate) async fn open_address_explorer(chain: ChainId, address: String) -> Re
     open_explorer(template.replace(ADDRESS_PLACEHOLDER, address.value())).await
 }
 
-/// Derives the lowest free address using the requested script type or the chain's
-/// default path.
+/// Derives the lowest free index on the requested script's path, or on the chain's default
+/// path.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn add_address(
@@ -62,7 +62,7 @@ pub(crate) async fn add_address_at(
     .await
 }
 
-/// Creates a standalone key in the vault. The seed phrase cannot restore it.
+/// Creates a standalone key in the vault. The seed phrase can't restore it.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn create_imported_address(
@@ -77,8 +77,7 @@ pub(crate) async fn create_imported_address(
     .await
 }
 
-/// The key password is the keystore-v3 password and is ignored by every other import
-/// format.
+/// `key_password` is the keystore-v3 password. Every other format ignores it.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn import_private_key(
@@ -110,8 +109,8 @@ pub(crate) async fn set_address_label(
     .await
 }
 
-/// Removes an address the seed derives, with its balances and history. Adding it again
-/// re-derives it.
+/// Removes an address with its balances and history. Refused for the last address on a
+/// standalone key, which only `delete_key` removes.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn delete_address(
@@ -121,7 +120,7 @@ pub(crate) async fn delete_address(
     with_engine(&state, async move |engine| engine.delete_address(address_id).await).await
 }
 
-/// Permanently deletes a standalone key and its address.
+/// Permanently deletes a standalone key and every address it holds.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn delete_key(
@@ -137,7 +136,7 @@ pub(crate) async fn delete_key(
     .await
 }
 
-/// Returns the canonical address without accessing keys or the network.
+/// Returns the canonical spelling without touching keys or the network.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn validate_address(chain: ChainId, value: String) -> Result<String, IpcError> {

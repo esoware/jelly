@@ -1,14 +1,12 @@
-//! History cursors with forward and backfill anchors.
+//! History cursors, each with a forward frontier and a backfill position.
 //!
-//! The forward walk starts at the newest entry and stops at the previous frontier
-//! or the page budget. A walk the budget stopped short of the frontier resumes
-//! where it stopped on the next pass, and the frontier moves only once it gets
-//! there. The frontier never moves above a transaction reported with no block,
-//! so a later walk reads it again and places it. The backfill resumes from the
-//! stored fingerprint.
+//! The forward walk reads from the newest entry down to the previous frontier, or
+//! until the page budget runs out. A walk cut short resumes on the next pass, and
+//! the frontier only moves once it gets there. It never moves above a transaction
+//! reported with no block, so a later walk reads that one again and places it.
 //!
-//! An empty page or a missing fingerprint ends the backfill. An unreadable cursor
-//! costs a rescan.
+//! The backfill resumes from the stored fingerprint and ends at an empty page or a
+//! missing fingerprint. An unreadable cursor costs a rescan.
 
 use serde::{Deserialize, Serialize};
 
@@ -16,8 +14,8 @@ use crate::route::Route;
 
 /// The three history streams a walk covers.
 ///
-/// The walk is driven by this rather than by [`Route`], so every match pairing a
-/// stream with its cursor, row shape and path is total.
+/// Walks match on this instead of [`Route`], so every match pairing a stream with
+/// its cursor, row shape, and path is exhaustive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum Stream {
     Native,
@@ -27,9 +25,8 @@ pub(crate) enum Stream {
 }
 
 impl Stream {
-    /// Every stream, in the order a pass walks them. The internal stream comes
-    /// last, so it can skip a transaction the native stream already reported
-    /// whole.
+    /// Every stream, in the order a pass walks them. Internal goes last so it can
+    /// skip a transaction the native stream already reported whole.
     pub(crate) const ALL: [Self; 3] = [Self::Native, Self::Token, Self::Internal];
 
     pub(crate) const fn route(self) -> Route {
@@ -41,27 +38,25 @@ impl Stream {
     }
 }
 
-/// One stream's two frontiers.
+/// One stream's forward frontier and backfill position.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct StreamCursor {
-    /// The newest transaction id this wallet has reported for this stream below
-    /// every one it reported with no block. The forward walk stops when it sees
-    /// it again.
+    /// The newest txid reported on this stream that's below every one reported
+    /// with no block. The forward walk stops when it sees it again.
     pub(crate) newest: Option<String>,
     /// The block time of that transaction, in milliseconds.
     ///
-    /// A page older than this is behind the frontier even when the id itself has been
-    /// pruned from the indexer, which is what keeps the walk bounded on an endpoint
-    /// that trims history.
+    /// A row older than this is behind the frontier even if the indexer has
+    /// pruned the txid, which keeps the walk bounded on an endpoint that trims
+    /// history.
     #[serde(rename = "newestMs")]
     pub(crate) newest_millis: Option<i64>,
-    /// A forward walk that ran out of pages or time short of the frontier.
+    /// Set when a forward walk ran out of pages or time short of the frontier.
     pub(crate) resume: Option<Resume>,
-    /// The opaque indexer cursor the walk into older pages resumes from.
+    /// The indexer fingerprint the backfill resumes from.
     pub(crate) backfill: Option<String>,
-    /// True once the backfill has reached the end of the stream, which means
-    /// this stream has been walked all the way back at least once.
+    /// True once the backfill has reached the end of the stream.
     #[serde(rename = "complete")]
     pub(crate) is_complete: bool,
 }
@@ -70,19 +65,19 @@ pub(crate) struct StreamCursor {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Resume {
-    /// The indexer cursor of the first page the walk has not read.
+    /// The indexer fingerprint of the first page the walk hasn't read.
     pub(crate) fingerprint: String,
-    /// The transaction id that becomes the frontier once the walk reaches the old
-    /// one, which is the newest it read below every row it reported with no
-    /// block. `None` when it has read no such row yet.
+    /// The txid that becomes the frontier once the walk reaches the old one: the
+    /// newest it read below every row it reported with no block. `None` if it
+    /// hasn't read one yet.
     pub(crate) newest: Option<String>,
     #[serde(rename = "newestMs")]
     pub(crate) newest_millis: Option<i64>,
 }
 
 impl StreamCursor {
-    /// Whether a row is at or behind the forward frontier, which is where the
-    /// forward walk stops.
+    /// Whether a row is at or behind the forward frontier, where the forward walk
+    /// stops.
     pub(crate) fn is_caught_up(&self, txid: &str, timestamp_millis: Option<i64>) -> bool {
         if self.newest.as_deref() == Some(txid) {
             return true;
@@ -93,8 +88,8 @@ impl StreamCursor {
         }
     }
 
-    /// Called only after the row has been emitted, so the frontier never advances
-    /// over unreported history.
+    /// Call only after the row is emitted, so the frontier never moves over
+    /// unreported history.
     pub(crate) fn advance_forward(&mut self, txid: &str, timestamp_millis: Option<i64>) {
         self.newest = Some(txid.to_owned());
         self.newest_millis = timestamp_millis;
@@ -115,8 +110,8 @@ impl StreamCursor {
         self.is_complete = true;
     }
 
-    /// Starts the backfill at `fingerprint`, or records that there is nothing
-    /// older to read.
+    /// Starts the backfill at `fingerprint`, or records that there's nothing older
+    /// to read.
     pub(crate) fn backfill_from(&mut self, fingerprint: Option<&str>) {
         match fingerprint {
             Some(cursor) => self.backfill = Some(cursor.to_owned()),

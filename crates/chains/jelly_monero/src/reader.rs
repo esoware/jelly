@@ -1,7 +1,7 @@
 use crate::error::MoneroError;
 
 /// Little-endian fields read off the front of a byte slice. Running out of bytes
-/// raises whatever error the format it reads names for that.
+/// raises the format's own `truncated` error.
 pub(crate) struct Reader<'a> {
     bytes: &'a [u8],
     truncated: fn() -> MoneroError,
@@ -47,7 +47,7 @@ impl<'a> Reader<'a> {
     }
 
     /// A `u16` length and that many bytes of utf-8, refused with `not_text` when
-    /// they are not.
+    /// they aren't.
     pub(crate) fn text(&mut self, not_text: MoneroError) -> Result<String, MoneroError> {
         let length = usize::from(self.u16()?);
         String::from_utf8(self.take(length)?.to_vec()).map_err(|_| not_text)

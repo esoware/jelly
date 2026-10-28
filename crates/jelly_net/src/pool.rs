@@ -20,41 +20,37 @@ const TARGET: &str = "jelly::net::pool";
 /// What the failover walk does with a failure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outcome {
-    /// The endpoint answered and this error is the answer. The walk stops and
-    /// the endpoint is credited with a success.
+    /// The error is the endpoint's answer. Stop and credit the endpoint.
     Accept,
-    /// The endpoint failed, so it is penalized and the walk tries the next one.
+    /// The endpoint failed. Penalize it and try the next one.
     Rotate,
-    /// The endpoint is healthy but does not serve this request, such as a host that
-    /// refuses log queries. The walk tries the next one and the endpoint's health
-    /// is untouched, because it still serves everything else.
+    /// The endpoint can't serve this request (e.g. it refuses log queries). Move on
+    /// without penalizing it.
     Skip,
-    /// The request is wrong and every endpoint will say so. The walk stops and
-    /// the endpoint's health is untouched.
+    /// The request itself is wrong, so every endpoint would refuse it. Stop without
+    /// penalizing the endpoint.
     Fail,
 }
 
-/// Where one request puts an endpoint, for a chain whose endpoints do not all serve
-/// every request alike. Declaration order is preference order.
+/// Where one request puts an endpoint, for a chain whose endpoints don't all serve every
+/// request alike. Declaration order is preference order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Standing {
     Preferred,
-    /// Tried after every preferred endpoint that is as healthy.
+    /// Tried after every preferred endpoint that's as healthy.
     Fallback,
-    /// Never asked, because it does not serve the request.
+    /// Never asked, because it doesn't serve the request.
     Excluded,
 }
 
-/// What a chain whose endpoints all serve every request alike walks with.
 const fn everywhere(_endpoint: &Endpoint) -> Standing {
     Standing::Preferred
 }
 
-/// Request budgets include dialing, TLS, identity checks, and calls.
+/// Time budgets that cover dialing, TLS, identity checks, and calls.
 ///
-/// `walk` limits the whole endpoint rotation and `per_attempt` limits one endpoint. The
-/// walk stops once less than `floor` remains rather than start an attempt without
-/// enough time.
+/// `walk` limits the whole rotation and `per_attempt` one endpoint's turn. The walk stops
+/// once less than `floor` remains, instead of starting an attempt with too little time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimeoutPolicy {
     pub connect: Duration,
@@ -72,7 +68,7 @@ impl TimeoutPolicy {
         floor: Duration::from_millis(250),
     };
 
-    /// For Monero, whose daemon scan and distribution calls are slow by nature.
+    /// For Monero, whose daemon block scans and output distribution calls are slow.
     const SLOW: Self = Self {
         connect: CONNECT_TIMEOUT,
         per_attempt: Duration::from_secs(30),
@@ -98,18 +94,16 @@ impl TimeoutPolicy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Rotation {
     Failover,
-    /// One endpoint at most, because a failed send leaves its outcome unknown.
+    /// One endpoint at most, as for a send whose failure leaves its outcome unknown.
     Once,
 }
 
-/// What the pool knows about an endpoint whose network it has asked about.
-///
-/// A disqualified endpoint has no connection to hold, so none can be cached for it.
+/// What the pool learned from asking an endpoint which network it serves.
 enum Admission<C> {
-    /// The endpoint proved its network, with the connection that is open to it, if any.
+    /// The endpoint passed its identity check. `connection` is the one open to it, if any.
     Verified { connection: Option<Arc<C>> },
-    /// What the check that disqualified the endpoint expected and found, so a walk that
-    /// learns of it late can fail with the same answer.
+    /// What the check expected and found, kept so a walk that learns of it late fails the
+    /// same way.
     Disqualified { expected: String, found: String },
 }
 
@@ -129,19 +123,15 @@ impl<C> Admission<C> {
 
 /// A failure from one attempt, and whether the caller's classifier gets a say.
 enum Failed {
-    /// The walk rotates whatever the classifier would say. Only an identity check that
-    /// failed or found another network does this, because the classifier judges the
-    /// caller's request, and no caller may accept an answer from a host that has not
-    /// proved its network.
+    /// Rotates whatever the classifier would say. Only an identity check that failed or
+    /// found another network does this, since the classifier judges the caller's request
+    /// and no caller may accept an answer from a host that hasn't proved its network.
     Rotate(NetError),
     Classify(NetError),
 }
 
-/// This is the workspace's only failover walk.
-///
-/// Rotation order, per-attempt timing, failure aggregation, health recording, and
-/// admission control all live here. A chain crate supplies a connector, a closure, and
-/// a classifier, and gets one answer or one aggregate failure.
+/// Tries endpoints in health order until one answers. Callers supply a connector, the
+/// request, and a classifier for failures.
 pub struct Pool<C> {
     chain: ChainId,
     transport: Transport,
@@ -166,11 +156,11 @@ impl<C> fmt::Debug for Pool<C> {
 }
 
 impl<C: Send + Sync + 'static> Pool<C> {
-    /// A pool over `runtime`'s clock, health tracker and pacer, with the
-    /// transport's own timeout policy.
+    /// A pool over `runtime`'s clock, health tracker, and pacer, with the transport's own
+    /// timeout policy.
     ///
-    /// Only [`NetRuntime::pool`] builds one, because a pool that did not share the
-    /// runtime's bookkeeping would rotate on one notion of time and record on another.
+    /// Only [`NetRuntime::pool`] builds one, so a pool can't rotate on one clock and record
+    /// on another.
     pub(crate) fn new(
         chain: ChainId,
         transport: Transport,
@@ -232,11 +222,8 @@ impl<C: Send + Sync + 'static> Pool<C> {
         self.walk(operation, classify, standing, Rotation::Failover, f).await
     }
 
-    /// It makes one attempt against one endpoint.
-    ///
-    /// A transport failure leaves the outcome unknown, so a broadcast is never replayed
-    /// around a rotation. The caller re-checks by transaction id and re-sends the
-    /// identical bytes, or gives up.
+    /// One attempt against one endpoint, because a failed send leaves its outcome unknown.
+    /// The caller re-checks by txid and re-sends the identical bytes, or gives up.
     pub async fn broadcast_once<T, F, Fut>(
         &self,
         operation: &'static str,
@@ -251,10 +238,10 @@ impl<C: Send + Sync + 'static> Pool<C> {
         self.walk(operation, classify, everywhere, Rotation::Once, f).await
     }
 
-    /// One attempt against the configured endpoint whose URL is `url`, connecting to it
-    /// first when no connection is open, for a request that must reach that node and no
-    /// other. An endpoint the user removed fails as [`NetError::NoEndpoints`], and one
-    /// found serving another network as [`NetError::WrongNetwork`].
+    /// One attempt against the configured endpoint at `url`, for a request that must
+    /// reach that node and no other. An endpoint the user removed fails as
+    /// [`NetError::NoEndpoints`], and one found serving another network as
+    /// [`NetError::WrongNetwork`].
     pub async fn call_at<T, F, Fut>(
         &self,
         url: &str,
@@ -338,9 +325,8 @@ impl<C: Send + Sync + 'static> Pool<C> {
             };
             has_tried = true;
 
-            // A turn gets the smaller of what the walk has left and one attempt's own
-            // budget, and everything the turn does comes out of it, because independent
-            // timeouts add up while one shared deadline does not.
+            // The dial, the identity check, and the call share one deadline, since
+            // separate timeouts would add up.
             let turn = deadline.min(self.clock.deadline_in(self.timeouts.per_attempt));
             let started_millis = self.clock.elapsed_millis();
             let result = self.attempt(endpoint, turn, &f).await;
@@ -391,8 +377,8 @@ impl<C: Send + Sync + 'static> Pool<C> {
         Err(NetError::AllFailed { chain: self.chain, operation, attempts })
     }
 
-    /// One endpoint's whole turn, which connects and proves identity if needed and then
-    /// runs the caller's closure. Every step comes out of `turn`.
+    /// One endpoint's turn: connect and check its identity if needed, then run the
+    /// caller's closure, all within `turn`.
     async fn attempt<T, F, Fut>(
         &self,
         endpoint: &Endpoint,
@@ -425,8 +411,8 @@ impl<C: Send + Sync + 'static> Pool<C> {
     }
 
     /// Records the endpoint as verified with its connection, unless another walk
-    /// disqualified it while this one was dialling or checking. A mismatch holds for the
-    /// rest of the session, so a confirmation that comes back after it changes nothing.
+    /// disqualified it while this one was dialing or checking. A mismatch holds for the
+    /// rest of the session, so a late confirmation changes nothing.
     fn admit(&self, endpoint: &Endpoint, connection: &Arc<C>) -> Result<(), Failed> {
         let mut admissions = self.admissions.lock();
         let admission = admissions
@@ -439,8 +425,8 @@ impl<C: Send + Sync + 'static> Pool<C> {
         Ok(())
     }
 
-    /// A dial gets the transport's connect budget, or what is left of the turn
-    /// if that is shorter.
+    /// A dial gets the transport's connect budget, or what's left of the turn if that's
+    /// shorter.
     async fn dial(&self, endpoint: &Endpoint, turn: Deadline) -> Result<Arc<C>, Failed> {
         let budget = turn.remaining(self.clock.as_ref()).min(self.timeouts.connect);
         within(endpoint.label(), budget, self.connector.connect(endpoint))
@@ -490,8 +476,6 @@ impl<C: Send + Sync + 'static> Pool<C> {
         self.health.record_success(endpoint, Duration::from_millis(latency_millis));
     }
 
-    /// Drops the cached connection, backs off the pacer, records the failure in health,
-    /// and returns the attempt, whose message is for the log.
     fn penalize(
         &self,
         endpoint: &Endpoint,
@@ -512,15 +496,14 @@ impl<C: Send + Sync + 'static> Pool<C> {
         EndpointAttempt::new(endpoint.label().clone(), error.kind(), reason(error))
     }
 
-    /// The configured endpoints `standing` admits, best first, by health class, then
-    /// standing, then origin, then latency tier, then configured position.
+    /// The configured endpoints `standing` admits, best first: by health class with an
+    /// untried endpoint counted as healthy, then standing, then the real class, origin,
+    /// latency tier, and configured position.
     ///
-    /// Health dominates origin, so a pinned endpoint that is down cannot block every
-    /// request, but pinning wins among equally healthy endpoints. Health dominates
-    /// standing too, except that an untried endpoint counts as healthy against it, so
-    /// a fallback that has answered before cannot keep the requests a preferred
-    /// endpoint was never asked for. When every endpoint is preferred, as for
-    /// [`Pool::call`], the order is health class, origin, latency tier, then position.
+    /// Health beats origin, so a pinned endpoint that's down can't block every request,
+    /// but a pin wins among equally healthy endpoints. Counting an untried endpoint as
+    /// healthy keeps a fallback that has answered before from taking the requests a
+    /// preferred endpoint was never asked.
     fn ordered(&self, standing: impl Fn(&Endpoint) -> Standing) -> Vec<&Endpoint> {
         let mut keyed: Vec<_> = self
             .endpoints
@@ -570,13 +553,12 @@ impl<C: Send + Sync + 'static> Pool<C> {
     }
 }
 
-/// Why one endpoint failed, for the log line.
+/// Why one endpoint failed, for the log, with the whole `source` chain rendered because
+/// [`NetError::Endpoint`]'s `Display` names only the endpoint and the failure class.
 ///
-/// [`NetError::Endpoint`]'s `Display` names only the endpoint and the failure class and
-/// keeps the protocol crate's error as its `source`, so the whole chain is rendered.
 /// Every source boxed here is URL-free: reqwest's is stripped with `without_url`, and the
-/// TLS, io and websocket errors name no address. A protocol crate that boxes its own
-/// error must keep it so.
+/// TLS, io, and websocket errors carry no URL. A protocol crate that boxes its own error
+/// must keep it so.
 fn reason(error: &NetError) -> String {
     let mut text = error.to_string();
     let mut cause = error.source();

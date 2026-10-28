@@ -8,23 +8,21 @@ use crate::adapter::UtxoAdapter;
 use crate::fee_api::{FeeApi, MempoolFeeApi};
 use crate::params::{FeeMarket, UtxoParams};
 
-/// The connector a chain's Electrum pool and its endpoint probe share, over the pinned
-/// dialler and the chain guard.
+/// The connector a chain's Electrum pool and its endpoint probe share.
 ///
-/// Block zero, and the checkpoint when the table names one, are hashed and
-/// compared against the table's, which keeps one chain's server out of another's
-/// pool. The chains share the protocol, so a wrong-network server could otherwise
-/// report an empty wallet. The pool runs the guard before an endpoint's first
-/// request, the endpoint probe runs it on demand, and the client re-runs it on
-/// every later socket.
+/// It checks block zero, and the checkpoint when the table names one, against the
+/// table's, which keeps one chain's server out of another's pool. The chains share
+/// the protocol, so a wrong-network server could otherwise report an empty wallet.
+/// The pool runs the check before an endpoint's first request, the probe runs it on
+/// demand, and the client runs it again on every new socket.
 fn electrum(network: &Network, params: &UtxoParams) -> Result<ElectrumConnector, NetError> {
-    Ok(ElectrumConnector::new(network.electrum_dialler(params.chain)?, params.electrum_chain()))
+    Ok(ElectrumConnector::new(network.electrum_dialer(params.chain)?, params.electrum_chain()))
 }
 
 /// The chain's adapter over its Electrum pool. Construction opens no sockets.
 ///
 /// An auctioned chain without a fee service falls back to the Electrum server's
-/// estimator. A flat chain reads no market, so it has no fee service to build.
+/// estimates. A flat chain reads no market, so it gets no fee service.
 pub async fn build(
     network: &Network,
     request: &BuildRequest,
@@ -45,12 +43,12 @@ pub async fn build(
 }
 
 /// Asks one Electrum endpoint which network it serves, through the connector the
-/// chain's pool is built with, so the endpoint editor and the pool's guard cannot
+/// chain's pool is built with, so the endpoint editor and the pool's guard can't
 /// disagree.
 ///
-/// The registry asks a REST service whether it answers before it dispatches here, so an
-/// endpoint on any other transport was built outside the registry and gets the
-/// registry's own refusal.
+/// The registry probes a REST service itself before dispatching here, so an endpoint
+/// on any other transport was built outside the registry and gets the registry's own
+/// refusal.
 pub async fn probe(network: &Network, endpoint: &Endpoint, params: &UtxoParams) -> ProbeReport {
     if endpoint.transport() != Transport::ElectrumSsl {
         return ProbeReport::unused_transport(endpoint.label());

@@ -12,7 +12,7 @@ workspace = true
 [features]
 default = []
 ipc = ["dep:specta", "jelly_core/ipc"]
-# A test network, an in-memory websocket server, and unthrottled runtimes for tests.
+# A fake-clock network, an in-memory websocket server, and unthrottled pacing.
 # Enable only from [dev-dependencies].
 test-util = ["jelly_core/test-util"]
 

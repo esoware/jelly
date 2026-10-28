@@ -4,8 +4,8 @@ use jelly_core::{ClockError, CoreError};
 use rusqlite::{ErrorCode, ffi};
 use tokio::task::JoinError;
 
-/// Messages never contain user-supplied values. Missing-row IDs are internal integers or
-/// redacted endpoint labels, never addresses or full URLs.
+/// Messages never carry user data. A missing row's id is an integer or a redacted endpoint
+/// label, never an address or a full URL.
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
     #[error("there is no {entity} with id {id}")]
@@ -14,10 +14,10 @@ pub enum StoreError {
     #[error("this {entity} has the same {columns} as one already stored")]
     AlreadyExists { entity: &'static str, columns: &'static str },
 
-    /// A reference the statement did not expect to fail, such as one to a row it
-    /// resolved earlier in the same transaction. A parent row the caller named and that
-    /// is not there is reported as [`StoreError::NotFound`] instead.
-    #[error("this {entity} refers to a row that is not there")]
+    /// A reference that shouldn't have failed, such as one to a row resolved earlier in
+    /// the same transaction. A missing parent the caller named is [`StoreError::NotFound`]
+    /// instead.
+    #[error("this {entity} refers to a row that isn't there")]
     MissingReference { entity: &'static str },
 
     #[error("the database refused this {entity}: {constraint}")]
@@ -26,19 +26,19 @@ pub enum StoreError {
     #[error("the wallet database is schema v{found} but this build supports v{supported}")]
     SchemaTooNew { found: u32, supported: u32 },
 
-    #[error("the wallet database is damaged beyond recovery")]
+    #[error("the wallet database is damaged")]
     Corrupt,
 
     #[error("another program is holding the wallet database")]
     Busy,
 
-    #[error("the {entity} column {column} holds a value this build does not recognize")]
+    #[error("the {entity} column {column} holds a value this build doesn't recognize")]
     Decode { entity: &'static str, column: &'static str },
 
-    #[error("the {entity} {column} total does not fit")]
+    #[error("the {entity} {column} total overflowed")]
     Overflow { entity: &'static str, column: &'static str },
 
-    #[error("input or output failed while {context}")]
+    #[error("a file operation failed while {context}")]
     Io {
         context: &'static str,
         #[source]
@@ -48,17 +48,17 @@ pub enum StoreError {
     #[error("the system clock is unusable")]
     Clock(#[from] ClockError),
 
-    #[error("the database failed while {context}")]
+    #[error("SQLite failed while {context}")]
     Sqlite {
         context: &'static str,
         #[source]
         source: rusqlite::Error,
     },
 
-    #[error("the wallet database did not behave as its schema promises: {context}")]
+    #[error("the wallet database didn't behave as its schema promises: {context}")]
     Internal { context: &'static str },
 
-    #[error("a storage task did not finish")]
+    #[error("a storage task didn't finish")]
     Task(#[from] JoinError),
 }
 
@@ -92,9 +92,9 @@ impl From<rusqlite::Error> for StoreError {
     }
 }
 
-// A missing row and a duplicate are domain answers, and everything else is a storage
-// failure. The context names the thing rather than the crate. The library's own words go
-// to the source chain and the log.
+// A missing row and a duplicate are answers for the caller. Everything else is a storage
+// failure whose message names only the wallet database, with the details left to the
+// source chain.
 impl From<StoreError> for CoreError {
     fn from(error: StoreError) -> Self {
         match error {
@@ -122,9 +122,9 @@ pub(crate) trait Classify<T> {
     /// input.
     fn constrained(self, entity: &'static str, columns: &'static str) -> Result<T, StoreError>;
 
-    /// Reports a foreign-key failure as the parent row `id` being missing, which is an
-    /// answer for the caller rather than a storage fault. Applies wherever the caller
-    /// names that parent, and goes before `constrained` on a statement that needs both.
+    /// Reports a foreign-key failure as the parent row `id` not being found. Use it where
+    /// the caller named that parent, and before `constrained` on a statement that needs
+    /// both.
     fn referring_to(self, entity: &'static str, id: i64) -> Result<T, StoreError>;
 }
 

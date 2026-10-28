@@ -1,8 +1,7 @@
 //! What a Solana transfer costs, in integer lamports.
 //!
-//! The base fee is a protocol constant per signature. The priority fee is a
-//! price times the compute-unit limit requested, not the units consumed, which
-//! is why the limit is measured rather than guessed generously.
+//! The priority fee is a price times the compute-unit limit requested, not the units
+//! consumed, so the limit is measured rather than guessed generously.
 
 use jelly_core::{Amount, AssetId, FeeLevel};
 use parking_lot::Mutex;
@@ -12,11 +11,9 @@ use crate::error::SolanaError;
 use crate::route::{Shape, TransferKind};
 use crate::rpc::PrioritizationFee;
 
-/// Lamports per signature.
-///
-/// The fee rate governor is fixed at this figure, so the base fee is computed
-/// rather than read. `getFeeForMessage` would cost a round trip and answers
-/// `null` once the blockhash ages out.
+/// The fee rate governor is fixed at this figure, so the base fee is computed rather
+/// than read. `getFeeForMessage` would cost a round trip and answers `null` once the
+/// blockhash ages out.
 pub(crate) const LAMPORTS_PER_SIGNATURE: u64 = 5_000;
 
 /// The most compute units one transaction may request.
@@ -28,8 +25,7 @@ const COMPUTE_UNIT_MARGIN_PERMILLE: u64 = 200;
 /// The scale a compute-unit price is quoted in.
 const MICRO_LAMPORTS_PER_LAMPORT: u128 = 1_000_000;
 
-/// The priority fee a price buys over a compute-unit limit, rounded up exactly
-/// as the runtime rounds it.
+/// Rounded up, as the runtime rounds it.
 pub(crate) fn priority_fee(micro_lamports_per_unit: u64, compute_unit_limit: u32) -> Option<u64> {
     let total = u128::from(micro_lamports_per_unit).checked_mul(u128::from(compute_unit_limit))?;
     u64::try_from(total.div_ceil(MICRO_LAMPORTS_PER_LAMPORT)).ok()
@@ -41,8 +37,8 @@ pub(crate) fn total_fee(micro_lamports_per_unit: u64, compute_unit_limit: u32) -
 }
 
 /// The highest price whose fee over `compute_unit_limit` stays at or below
-/// `ceiling_lamports`. `None` when the limit is zero or the price does not fit
-/// in a u64.
+/// `ceiling_lamports`. `None` when the limit is zero or the price doesn't fit in a
+/// u64.
 fn price_within(ceiling_lamports: u64, compute_unit_limit: u32) -> Option<u64> {
     let room = u128::from(ceiling_lamports)
         .checked_mul(MICRO_LAMPORTS_PER_LAMPORT)?
@@ -65,7 +61,7 @@ fn percentile(sorted_ascending: &[u64], percent: u8) -> u64 {
 }
 
 /// The percentile of the recent prioritization fees a level pays. The normal level
-/// reads what Trezor Suite reads.
+/// matches Trezor Suite.
 const fn level_percentile(level: FeeLevel) -> u8 {
     match level {
         FeeLevel::Slow => 50,
@@ -74,14 +70,13 @@ const fn level_percentile(level: FeeLevel) -> u8 {
     }
 }
 
-/// The lowest price a level pays, in micro-lamports per compute unit.
+/// The lowest price any level pays.
 ///
-/// Each sample is the cheapest landed price of its slot, so the samples read low,
-/// and Trezor Suite floors its price at this figure. A SOL transfer pays about 160
-/// lamports for it.
+/// Each sample is its slot's cheapest landed price, so the samples read low, and
+/// Trezor Suite uses the same floor. A SOL transfer pays about 160 lamports at it.
 const MIN_LEVEL_MICRO_LAMPORTS_PER_UNIT: u64 = 300_000;
 
-/// The most a manual priority fee may be, 1 SOL, which is Phantom's limit.
+/// 1 SOL, Phantom's limit on a manual priority fee.
 pub(crate) const MAX_CHOSEN_PRIORITY_FEE_LAMPORTS: u64 = 1_000_000_000;
 
 /// What a plan pays per compute unit.
@@ -93,9 +88,9 @@ pub(crate) struct Pricing {
 }
 
 impl Pricing {
-    /// The highest price whose priority fee over `compute_unit_limit` stays within
-    /// the `lamports` the user chose. The runtime rounds the fee up, so this
-    /// charges exactly `lamports` whenever the limit is at most a million units.
+    /// The highest price whose priority fee over `compute_unit_limit` stays within the
+    /// `lamports` the user chose. The runtime rounds the fee up, so this charges exactly
+    /// `lamports` whenever the limit is at most a million units.
     pub(crate) fn chosen(lamports: u64, compute_unit_limit: u32) -> Self {
         Self {
             micro_lamports_per_unit: price_within(lamports, compute_unit_limit).unwrap_or(0),
@@ -103,12 +98,12 @@ impl Pricing {
         }
     }
 
-    /// The level's percentile of the samples, floored, then lowered to whatever
-    /// keeps the priority fee within `ceiling_lamports`.
+    /// The level's percentile of the samples, floored, then lowered to whatever keeps
+    /// the priority fee within `ceiling_lamports`.
     ///
-    /// Each sample is the lowest price paid in one recent slot by a transaction
-    /// touching the queried accounts. The ceiling is there because the sample is
-    /// the one number on the fee path a remote host chooses.
+    /// Each sample is the lowest price paid in one recent slot by a transaction touching
+    /// the queried accounts. The ceiling exists because the samples are the one input to
+    /// the fee that a remote host chooses.
     pub(crate) fn sampled(
         samples: &[PrioritizationFee],
         level: FeeLevel,
@@ -124,16 +119,15 @@ impl Pricing {
     }
 }
 
-/// Shown in the preview, because a limit that was not measured is the one
-/// number in a fee that can be wrong.
+/// Shown in the preview, because a limit that wasn't measured is the one number in a
+/// fee that can be wrong.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum UnitSource {
     /// Measured by simulating this exact transaction shape.
     Simulated,
     /// Measured earlier in this session for the same shape.
     Cached,
-    /// The node could not be asked, so this is the compiled ceiling for the
-    /// shape.
+    /// The compiled ceiling for the shape, because no simulation measured it.
     Compiled,
 }
 
@@ -177,10 +171,10 @@ impl ComputeUnits {
         Self::new(limit, UnitSource::Simulated)
     }
 
-    /// The compiled ceiling for `shape`, used when no simulation is available.
+    /// The compiled ceiling for `shape`, used when no simulation measured it.
     ///
-    /// The priority fee is the price times the limit, so a loose limit overpays.
-    /// These are ceilings over what each shape consumes on mainnet.
+    /// Each is a ceiling over what the shape consumes on mainnet. The priority fee is
+    /// the price times the limit, so a looser limit would overpay.
     pub(crate) const fn compiled(shape: Shape) -> Self {
         let limit = match (shape.kind, shape.is_account_creation) {
             (TransferKind::Native, _) => 1_000,
@@ -206,18 +200,16 @@ impl ComputeUnits {
         self.source
     }
 
-    /// True when no measurement chose the limit, so it is the compiled ceiling for
-    /// the shape.
+    /// True for the compiled ceiling, when no measurement chose the limit.
     pub(crate) const fn is_fallback(self) -> bool {
         matches!(self.source, UnitSource::Compiled)
     }
 }
 
-/// One session's compute-unit measurements, keyed by the shape they were taken
-/// against.
+/// One session's compute-unit measurements, keyed by shape.
 ///
-/// Consumption depends on which instructions run, not on the amount or
-/// counterparty, so a measurement serves every later transfer of that shape.
+/// Consumption depends on which instructions run, not on the amount or counterparty,
+/// so a measurement serves every later transfer of that shape.
 #[derive(Debug, Default)]
 pub(crate) struct UnitCache {
     entries: Mutex<Vec<(Shape, ComputeUnits)>>,
@@ -246,7 +238,7 @@ pub(crate) fn sol_text(lamports: u64) -> String {
     amount_text(NATIVE, lamports)
 }
 
-/// Lamports rendered both ways, which is what every fee row in a preview says.
+/// SOL and lamports both, as every fee row in a preview shows them.
 pub(crate) fn lamports_text(lamports: u64) -> String {
     format!("{} ({lamports} lamports)", sol_text(lamports))
 }

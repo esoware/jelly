@@ -1,7 +1,7 @@
 const HISTORY_PAGE_SIZE: u32 = 1_000;
 
-/// A Blockbook read. Its query stays apart from its path, because `jelly_net` merges it
-/// into whatever query the endpoint's own address carries.
+/// A Blockbook read. The query is kept apart from the path because `jelly_net` merges it
+/// with any query the endpoint's URL already has.
 #[derive(Debug, Clone, Copy)]
 pub enum Route<'a> {
     Status,

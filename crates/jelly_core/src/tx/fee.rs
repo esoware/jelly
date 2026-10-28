@@ -77,13 +77,13 @@ impl FeeSelection {
 #[serde(rename_all = "camelCase")]
 pub struct FeeQuote {
     pub fee: Amount,
-    /// The price the quote settled on as a custom fee, with every market read filled in,
-    /// so a custom fee starts from it. Absent on a chain without custom fees.
+    /// The quoted price as a custom fee, with every market read filled in, for a custom fee
+    /// to start from. Absent on a chain without custom fees.
     pub custom: Option<FeeSelection>,
     /// What a send-max moves at this fee. Present only when the request is a send-max.
     pub max_amount: Option<Amount>,
     /// What the same transaction would pay at each of the chain's fee levels, slowest
-    /// first. Empty on a chain whose fee is fixed, and when the market could not be read.
+    /// first. Empty on a chain whose fee is fixed, and when the market couldn't be read.
     pub levels: Vec<LevelFee>,
 }
 

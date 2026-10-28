@@ -32,8 +32,7 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::Rate),
-    // About $2.01 at the October 2026 price of $80260. A 141 vB payment costs 141 to 282
-    // sat at the 1 to 2 sat/vB blocks take now, and reaches it at about 18 sat/vB.
+    // About $2.
     high_fee: Amount::from_base_units(2_500),
     can_pin_nonce: false,
     can_carry_data: false,
@@ -57,16 +56,13 @@ const CODEC: UtxoCodec = UtxoCodec {
     base58: Base58Versions { p2pkh: 0x00, p2sh: 0x05, superseded_p2sh: None },
 };
 
-/// Bitcoin relay and consensus constants in weight units.
+/// Rates are per kwu, a quarter of Core's per-kvB figures: the 3000 sat/kvB dust relay
+/// fee is 750, and the 100 sat/kvB minimum and incremental relay fees (since Core 29.1)
+/// are 25.
 ///
-/// Core's per-kvB fees divide by four, so the dust relay fee is 750 sat/kwu and
-/// the minimum and incremental relay fees, 100 sat/kvB since Core 29.1, are 25
-/// sat/kwu.
-///
-/// The minimum and incremental relay fees are only floors. A server's reported
-/// relay floor raises the minimum, and the network's incremental relay fee raises
-/// the replacement floor, so a node that still runs the older 1000 sat/kvB defaults
-/// is never offered less than it takes.
+/// Those two are only floors. The server's reported relay floor raises the minimum and
+/// its incremental relay fee raises the replacement floor, so a node still on the old
+/// 1000 sat/kvB defaults is never offered less than it takes.
 pub const PARAMS: UtxoParams = UtxoParams {
     chain: SPEC.chain,
     codec: &CODEC,
@@ -77,9 +73,9 @@ pub const PARAMS: UtxoParams = UtxoParams {
         0x93, 0x4f, 0xf7, 0x63, 0xae, 0x46, 0xa2, 0xa6, 0xc1, 0x72, 0xb3, 0xf1, 0xb6, 0x0a, 0x8c,
         0xe2, 0x6f,
     ],
-    // The fourth halving's block, mined 2024-04-20, past every split from Bitcoin
-    // that left servers behind: Bitcoin Cash at 478559, Bitcoin Gold at 491407,
-    // and every chain that split from Bitcoin Cash since.
+    // The fourth halving (2024-04-20), after every split that still runs servers:
+    // Bitcoin Cash at 478559, Bitcoin Gold at 491407, and every later split from
+    // Bitcoin Cash.
     checkpoint: Some(KnownBlock {
         height: 840_000,
         hash: [
@@ -99,21 +95,18 @@ pub const PARAMS: UtxoParams = UtxoParams {
     // Core's `DEFAULT_TRANSACTION_MINFEE` of 1000 sat/kvB.
     min_tx_fee: FeeRate::from_sat_per_kwu(250),
     fee_market: FeeMarket::Auction(Auction {
-        // An hour, half an hour, and the next block, the horizons of `hourFee`,
-        // `halfHourFee`, and `fastestFee`. Core answers a one-block target with its
-        // two-block estimate.
+        // An hour, half an hour, and the next block, matching `hourFee`, `halfHourFee`,
+        // and `fastestFee`. Core answers a one-block target with its two-block
+        // estimate.
         target_blocks: [6, 3, 1],
         block_vsize: 1_000_000,
-        // The rates to a thousandth of a sat/vB, which Sparrow and Trezor Suite
-        // read, so a level between two whole numbers is not rounded to one. No
-        // level goes below `min_tx_fee`, but a custom rate is judged slow against
-        // the exact reading. Older deployments serve only the whole-number route.
+        // Rates to a thousandth of a sat/vB, so a level between two whole numbers
+        // isn't rounded. Older deployments serve only the whole-number route.
         api_route: "/v1/fees/precise",
         api_fallback_route: Some("/v1/fees/recommended"),
     }),
-    // Signalling is what makes a payment replaceable on a node that honours it, and
-    // Core 28 replaces regardless, so a final sequence would only cost the user the
-    // ability to unstick their own payment.
+    // Core 28 replaces a payment whether or not it signals, so signaling costs
+    // nothing and lets older nodes take the user's own bump.
     replacement: Replacement::ByDefault,
     bump_method: Some(BumpMethod::Replace),
     sighash_fork_id: None,
@@ -121,10 +114,9 @@ pub const PARAMS: UtxoParams = UtxoParams {
     has_slp_tokens: false,
     confirmation_watch_depth: 6,
     coinbase_maturity: 100,
-    // Bitcoin has no extension block, so no output is a peg-out.
     pegout_maturity: 0,
-    // Every Bitcoin address form is unambiguous, so there is nothing to warn a
-    // sender about.
+    // Bitcoin Cash and Litecoin warn about the legacy forms they share with Bitcoin,
+    // which are native here.
     address_notes: &[],
     address_refusals: &[],
     fee_ceiling: Amount::from_base_units(2_000_000),
@@ -135,8 +127,8 @@ pub const PARAMS: UtxoParams = UtxoParams {
 pub const ENTRY: &dyn ChainEntry = &UtxoEntry {
     spec: &SPEC,
     params: &PARAMS,
-    // Bitcoin Cash and Zcash kept this version byte, so a Bitcoin WIF also imports
-    // into both.
+    // Bitcoin Cash and Zcash use the same version byte, so a Bitcoin WIF imports into
+    // both.
     wif: WifFormat { version: 0x80, has_script_offsets: true, name: "Bitcoin WIF key" },
     is_scheme_prefix: false,
     default_endpoints: include_str!("../endpoints.json"),

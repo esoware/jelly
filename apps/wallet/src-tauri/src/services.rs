@@ -31,8 +31,8 @@ pub struct ShellConfig {
     pub prices: PriceFeedConfig,
 }
 
-/// Lets startup tests inject the clock and credential store. A test that must stay offline
-/// also asks the price feed in [`ShellConfig`] for no tickers.
+/// Lets startup tests inject the clock and credential store. An offline test also asks the
+/// price feed in [`ShellConfig`] for no tickers.
 #[derive(Debug, Clone)]
 pub struct ShellDeps {
     pub data_dir: PathBuf,
@@ -52,21 +52,22 @@ impl ShellDeps {
 }
 
 pub struct Services {
-    /// Engine shutdown needs the last engine handle to checkpoint the write-ahead log, so
-    /// the one here is taken before it.
+    /// Taken at shutdown, since the engine checkpoints the write-ahead log only from its
+    /// last handle.
     engine: Mutex<Option<WalletEngine>>,
     network: Arc<Network>,
     proxy_write: AsyncMutex<()>,
     /// Held from a reload's read of the endpoint table to its write to the registry, so a
-    /// reload that read before an edit cannot land after the edit's own reload.
+    /// reload that read before an edit can't land after the edit's own reload.
     endpoint_reload: AsyncMutex<()>,
     prices: PriceFeed,
     price_history: PriceHistoryFeed,
     price_charts: PriceCharts,
     price_feed_switch: watch::Sender<bool>,
-    /// Reports database replacement so the frontend can distinguish it from a first run.
+    /// Set when startup replaced the database, so the frontend can tell that from a first
+    /// run.
     rebuilt: Option<DatabaseRebuilt>,
-    /// Shell tasks cancelled and drained before engine shutdown.
+    /// Canceled and drained before engine shutdown.
     tasks: TaskTracker,
     cancel: CancellationToken,
 }
@@ -81,12 +82,12 @@ impl fmt::Debug for Services {
 }
 
 impl Services {
-    /// The engine needs the factory, the network needs the engine's stored TLS pins, and
-    /// the factory needs the network, which fixes the order here.
+    /// The order is fixed: the engine takes the factory, the network takes the engine's
+    /// stored TLS pins, and only then can the factory take the network.
     pub async fn start(config: ShellConfig, deps: ShellDeps) -> Result<Arc<Self>, StartFailure> {
         let clock = Arc::clone(&deps.clock);
         let adapters = Arc::new(AdapterFactory::new());
-        // Platform credential stores may block, so the probe runs on the blocking pool.
+        // A platform credential store can block.
         let probe = Arc::clone(&deps.keystore);
         spawn_blocking(move || probe.check_available())
             .await
@@ -104,7 +105,7 @@ impl Services {
         if rebuilt.is_some() {
             tracing::warn!(
                 target: TARGET,
-                "the previous wallet database could not be used and was replaced"
+                "the previous wallet database couldn't be used and was replaced"
             );
         }
 
@@ -124,13 +125,14 @@ impl Services {
             Ok::<_, StartupError>((settings, network))
         }
         .await;
-        // A dropped engine skips the lock path and leaves the log to SQLite's own close,
-        // which another open connection prevents.
+        // Shut the engine down instead of dropping it. A dropped engine skips locking and
+        // leaves the checkpoint to SQLite's own close, which never runs while another
+        // connection is open.
         let (settings, network) = match wired {
             Ok(wired) => wired,
             Err(error) => {
                 if let Err(shutdown) = engine.shutdown().await {
-                    tracing::warn!(target: TARGET, error = %shutdown, "shutdown did not complete");
+                    tracing::warn!(target: TARGET, error = %shutdown, "shutdown didn't complete");
                 }
                 return Err(StartFailure { error, rebuilt });
             }
@@ -192,7 +194,7 @@ impl Services {
             return Err(IpcError::prices_unavailable());
         }
         self.price_charts.chart(asset, interval, self.prices.currency()).await.map_err(|error| {
-            tracing::warn!(target: TARGET, %error, "a price chart was not loaded");
+            tracing::warn!(target: TARGET, %error, "a price chart wasn't loaded");
             IpcError::prices_unavailable()
         })
     }
@@ -211,8 +213,8 @@ impl Services {
         Ok(())
     }
 
-    /// Validates without changing egress, persists the setting, then publishes
-    /// the prepared route. The price feed follows it even while locked.
+    /// Validates without changing egress, saves the setting, then publishes the prepared
+    /// route. The price feed follows it even while locked.
     pub async fn set_proxy(&self, proxy: Option<ProxySetting>) -> Result<(), IpcError> {
         let _writing = self.proxy_write.lock().await;
         let prepared =
@@ -222,8 +224,8 @@ impl Services {
         Ok(())
     }
 
-    /// Reloads endpoint overrides before requesting an adapter rebuild. The endpoint list
-    /// must also reflect the edit.
+    /// Reloads the registry, which the endpoint list reads too, then asks for an adapter
+    /// rebuild.
     pub async fn endpoints_changed(&self) -> Result<(), IpcError> {
         let engine = self.engine()?;
         let _reloading = self.endpoint_reload.lock().await;
@@ -232,7 +234,7 @@ impl Services {
         Ok(())
     }
 
-    /// Registers a shell task that shutdown drops at whatever await it is parked on.
+    /// Registers a shell task that shutdown drops at whatever await it's parked on.
     pub(crate) fn spawn(&self, task: impl Future<Output = ()> + Send + 'static) {
         self.tasks.spawn(self.cancel.clone().run_until_cancelled_owned(task));
     }
@@ -249,10 +251,10 @@ impl Services {
             return;
         };
         if let Err(error) = persist_endpoint_health(&engine, self.network.health()).await {
-            tracing::warn!(target: TARGET, %error, "endpoint health was not written");
+            tracing::warn!(target: TARGET, %error, "endpoint health wasn't written");
         }
         if let Err(error) = engine.shutdown().await {
-            tracing::warn!(target: TARGET, %error, "shutdown did not complete");
+            tracing::warn!(target: TARGET, %error, "shutdown didn't complete");
         }
     }
 }
@@ -261,7 +263,7 @@ fn unreadable(source: CoreError) -> StartupError {
     StartupError::Failed { context: "reading the wallet database", source: Box::new(source) }
 }
 
-/// Logs the redacted proxy error and returns a fixed validation message.
+/// Logs the redacted proxy error and returns fixed copy.
 pub(crate) fn proxy_refused(error: &NetError) -> IpcError {
     tracing::warn!(target: TARGET, %error, "the outbound route was refused");
     IpcError::invalid_input("That proxy address cannot be used.")

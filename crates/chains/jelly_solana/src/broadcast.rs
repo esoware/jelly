@@ -6,28 +6,28 @@ use crate::method::Method;
 use crate::rpc::{Envelope, Preflight, TransactionFailure};
 
 wire_enum! {
-    /// Why the cluster refused a transaction, as a closed vocabulary.
+    /// Why the cluster refused a transaction.
     ///
-    /// The runtime's `TransactionError` grows with every release, so its variant
-    /// name is classified once here. An unknown name is
-    /// [`BroadcastRefusal::Unclassified`], which is safe because the transaction
-    /// was not forwarded.
+    /// The runtime's `TransactionError` gains variants with every release, so its
+    /// variant name is classified once here. An unknown name is
+    /// [`BroadcastRefusal::Unclassified`] and counts as not landed, which is safe
+    /// because a refused preflight doesn't forward the transaction.
     pub(crate) enum BroadcastRefusal {
         /// The network already has this transaction, which is a success.
         AlreadyProcessed => "already_processed",
-        /// The blockhash is outside the node's window, because it expired or the
-        /// node is behind. Either way this attempt did not land.
+        /// The blockhash expired or the node is behind. Either way this attempt
+        /// didn't land.
         BlockhashNotFound => "blockhash_not_found",
-        /// An account the transaction names does not exist.
+        /// An account the transaction names doesn't exist.
         AccountMissing => "account_missing",
-        /// The fee payer cannot cover the fee.
+        /// The fee payer can't cover the fee.
         InsufficientFunds => "insufficient_funds",
         /// An account would be left below the rent-exempt minimum.
         BelowRentMinimum => "below_rent_minimum",
         /// An instruction failed during execution.
         ProgramFailed => "program_failed",
-        /// Another transaction holds a lock this one needs, or the runtime
-        /// refused this slot's load. The same bytes may land later.
+        /// Another transaction holds a lock this one needs, or the runtime turned it
+        /// away for now. The same bytes may land later.
         Contended => "contended",
         /// The transaction as written can never be accepted.
         Malformed => "malformed",
@@ -63,8 +63,7 @@ impl BroadcastRefusal {
         }
     }
 
-    /// Classifies one `TransactionError` variant name. Names the runtime added
-    /// since are `Unclassified`.
+    /// A `TransactionError` variant name this build doesn't know is `Unclassified`.
     fn classify(name: &str) -> Self {
         match name {
             "AlreadyProcessed" | "AlreadyProcessedInBlock" => Self::AlreadyProcessed,
@@ -114,16 +113,14 @@ impl BroadcastRefusal {
         match self {
             Self::AlreadyProcessed => "the network already has this transaction",
             Self::BlockhashNotFound => {
-                "the blockhash is outside this node's window, so this attempt did not land"
+                "the blockhash expired or the node is behind, so this attempt didn't land"
             }
-            Self::AccountMissing => "an account this transaction names does not exist",
-            Self::InsufficientFunds => "the fee payer cannot cover the fee",
-            Self::BelowRentMinimum => {
-                "an account would be left below the rent-exempt minimum, which the runtime refuses"
-            }
+            Self::AccountMissing => "an account this transaction names doesn't exist",
+            Self::InsufficientFunds => "the fee payer can't cover the fee",
+            Self::BelowRentMinimum => "an account would be left below the rent-exempt minimum",
             Self::ProgramFailed => "an instruction failed while it ran",
             Self::Contended => {
-                "the runtime could not take this slot's load; the same bytes may land later"
+                "the transaction was contended or throttled; the same bytes may land later"
             }
             Self::Malformed => "the transaction as written can never be accepted",
             Self::Unclassified => "the cluster refused the transaction",
@@ -140,8 +137,6 @@ impl BroadcastRefusal {
     }
 }
 
-/// Turns a refused preflight into the classification the rest of the workspace
-/// reads.
 fn classify_preflight(message: &str, preflight: Option<&Preflight>) -> Rejection {
     let refusal = refusal_of(preflight.and_then(|data| data.err.as_ref()));
     let logs = preflight.map_or(&[][..], |data| data.logs.as_slice());
@@ -164,9 +159,8 @@ pub(crate) fn refusal_of(failure: Option<&TransactionFailure>) -> BroadcastRefus
     failure.map_or(BroadcastRefusal::Unclassified, |error| BroadcastRefusal::classify(error.name()))
 }
 
-/// A refusal travels as a value rather than an error, because the node simulated
-/// the transaction and every node would say the same, so a rotation must not
-/// shop it around.
+/// A refusal is a value, not an error, so the pool doesn't try it on another endpoint.
+/// The node simulated the transaction, and every node would say the same.
 #[derive(Debug, Clone)]
 pub enum BroadcastReply {
     /// The node accepted the bytes and echoed this signature.
@@ -179,7 +173,7 @@ impl BroadcastReply {
     /// Public so a scripted [`crate::SolanaNode`] classifies a refusal exactly as
     /// the shipped one does.
     ///
-    /// A refusal is recognised by a structured `err` in the error `data` or by
+    /// A refusal is recognized by a structured `err` in the error `data` or by
     /// Solana's preflight codes, because some gateways strip `data` and leave
     /// only the code and wording.
     pub fn read(endpoint: &EndpointLabel, body: &str) -> Result<Self, SolanaError> {
@@ -235,8 +229,8 @@ pub(crate) async fn deliver(
 ) -> Result<Delivery, SolanaError> {
     match client.send_transaction(raw, attempt).await? {
         BroadcastReply::Accepted { endpoint, signature: echoed } => {
-            // The signature is derived from the bytes, so a node echoing another
-            // one is not answering about this transaction.
+            // The signature is derived from the bytes, so a node echoing another one
+            // isn't answering about this transaction.
             if echoed == signature {
                 Ok(Delivery::Accepted)
             } else {

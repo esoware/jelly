@@ -1,5 +1,3 @@
-//! Fixtures the unit tests share.
-
 use jelly_keypair::Secp256k1Key;
 
 use crate::address::pubkey_address;

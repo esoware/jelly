@@ -6,8 +6,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 /// An asset quantity in base units. The asset supplies its decimals through
 /// `AssetId::decimals`.
 ///
-/// Arithmetic methods state their overflow behavior. There are no `Add` or `Sub`
-/// implementations.
+/// There's no `Add` or `Sub`, so every arithmetic method names its overflow behavior.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Amount(#[cfg_attr(feature = "ipc", specta(type = String))] u128);
@@ -59,8 +58,8 @@ impl Amount {
         amounts.into_iter().try_fold(Self::ZERO, Self::checked_add)
     }
 
-    /// Decimal rendering with trailing fraction zeros removed. This and
-    /// [`Amount::parse`] are the workspace's only decimal conversions for amounts.
+    /// Decimal text with trailing fraction zeros removed. Only this and [`Amount::parse`]
+    /// convert amounts to and from decimals.
     pub fn format(self, decimals: u8) -> String {
         decimal_text(self.0, usize::from(decimals))
     }
@@ -120,7 +119,7 @@ pub enum DecimalError {
 ///
 /// "sat" in the method names stands for the chain's base unit, whatever the chain calls it.
 ///
-/// It has no `Display`, because the unit's name belongs to the chain. Callers pair
+/// It has no `Display` because the unit's name belongs to the chain, so callers pair
 /// [`FeeRate::format_sat_per_vb`] with `ChainSpec::fee_rate_unit`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FeeRate(u64);
@@ -148,7 +147,7 @@ impl FeeRate {
     }
 
     /// Parses a per-virtual-byte decimal with at most three fraction digits. A value
-    /// that is not a multiple of 0.004 rounds up to the next whole unit per kwu.
+    /// that isn't a multiple of 0.004 rounds up to the next whole unit per kwu.
     pub fn parse_sat_per_vb(text: &str) -> Result<Self, DecimalError> {
         let milli_vb = scaled_units(text, Self::VBYTE_SCALE)?;
         let kwu = milli_vb.div_ceil(Self::MILLI_VB_PER_KWU);

@@ -1,9 +1,7 @@
-//! Every read the adapter makes, and the one write, over the failover pool.
-//! Nothing above this module knows an Electrum method name or wire shape.
+//! Every read the adapter makes, and its one write, over the failover pool.
 //!
-//! The pool tags every walk it logs or reports with its own chain, which the
-//! adapter's build holds equal to the table's, so the operation names here do
-//! not repeat it.
+//! The pool tags its logs and errors with its own chain, which `UtxoAdapter::new`
+//! checks against the table's, so operation names here leave the chain out.
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -21,12 +19,11 @@ use crate::original::Original;
 use crate::params::UtxoParams;
 use crate::sync::{PassOutcome, WatchedScript, sync_pass};
 
-/// The Electrum side walks the failover pool once per call. The fee service is
-/// optional, and its absence is not a failure.
+/// Each Electrum call walks the failover pool once. The fee service is optional.
 ///
-/// A read rotates on anything attributable to one server and stops only on a
-/// refusal a second host would repeat, or on a method the negotiated protocol
-/// lacks, which was never sent.
+/// A read moves to the next server on any failure one server could be blamed for. It
+/// stops on a refusal every server would repeat, or on a method the negotiated
+/// protocol lacks, which was never sent.
 #[derive(Debug)]
 pub(crate) struct UtxoClient {
     pool: Arc<Pool<ElectrumClient>>,
@@ -49,10 +46,9 @@ impl UtxoClient {
         self.call("tip", async |client| Ok(client.tip_height().await?)).await
     }
 
-    /// The relay floors protocol 1.6 reports. A server that negotiated below 1.6
-    /// refuses the method before anything is sent, and the walk stops there rather
-    /// than penalising every server, so `bid` then takes the floor from the fee
-    /// service.
+    /// The relay floors that protocol 1.6 reports. Below 1.6 the call fails before
+    /// anything is sent and the walk stops without penalizing any server, so `bid`
+    /// takes the floor from the fee service instead.
     pub(crate) async fn mempool_info(&self) -> Result<MempoolInfo, UtxoError> {
         self.call("mempool info", async |client| Ok(client.mempool_info().await?)).await
     }
@@ -78,9 +74,8 @@ impl UtxoClient {
 
     /// The transaction `txid` and the outputs it spends.
     ///
-    /// Both fetches happen in one walk, so the transaction and its funding come
-    /// from the same server, and a replacement is priced from the transactions
-    /// themselves rather than a claim.
+    /// Both come from one server in one walk, so a bump is priced from the
+    /// transactions themselves rather than a fee the server reports.
     pub(crate) async fn original(&self, txid: Txid) -> Result<Original, UtxoError> {
         self.call("original transaction", async |client| {
             let mut fetched = client.txs(&[txid]).await?;
@@ -105,11 +100,8 @@ impl UtxoClient {
         .await
     }
 
-    /// One endpoint, one attempt.
-    ///
-    /// A transport failure leaves the outcome unknown, so the caller re-checks by
-    /// transaction id before any re-send rather than replaying the bytes around a
-    /// rotation.
+    /// One attempt against one endpoint, since a failed send leaves its outcome
+    /// unknown.
     pub(crate) async fn broadcast(&self, tx: &Transaction) -> Result<Txid, UtxoError> {
         self.pool
             .broadcast_once("broadcast", classify_broadcast, async |client: Arc<ElectrumClient>| {
@@ -119,11 +111,11 @@ impl UtxoClient {
             .map_err(UtxoError::from_net)
     }
 
-    /// The pooled client the next read would use, connected and proved.
+    /// A connected client from the pool, for the activity listener.
     ///
-    /// The walk only acquires the connection. The subscription wait happens
-    /// outside the pool, because waiting for the next block must not be bounded
-    /// by a per-attempt budget or read as a slow endpoint.
+    /// Only the connection goes through the pool. The subscription waits outside it,
+    /// so waiting for a block isn't cut off by the per-attempt timeout or counted
+    /// against the endpoint as slowness.
     pub(crate) async fn watch_client(&self) -> Result<Arc<ElectrumClient>, UtxoError> {
         self.call("watch", async |client| Ok(client)).await
     }
@@ -143,8 +135,8 @@ impl UtxoClient {
         .await
     }
 
-    /// Walks the pool until one endpoint answers, carrying the typed failure
-    /// through and handing it back intact.
+    /// Walks the pool until an endpoint answers. A `UtxoError` from `attempt` comes
+    /// back as itself, not wrapped in a `NetError`.
     async fn call<T, F, Fut>(&self, operation: &'static str, attempt: F) -> Result<T, UtxoError>
     where
         T: Send,

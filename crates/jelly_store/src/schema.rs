@@ -1,12 +1,8 @@
-//! The tables an empty file is given, and the `user_version` stamp that says a file holds
-//! them.
-
 use rusqlite::Connection;
 
 use crate::error::StoreError;
 
-/// The stamp in `user_version`. Zero is an empty file, and any other stamp is refused
-/// rather than opened.
+/// Stored in `user_version`. Zero means an empty file, and any other value is refused.
 const SCHEMA_VERSION: u32 = 1;
 
 const SCHEMA: &str = "
@@ -152,8 +148,6 @@ fn current_version(connection: &Connection) -> Result<u32, StoreError> {
     u32::try_from(version).map_err(|_| StoreError::decode("pragma", "user_version"))
 }
 
-/// Gives an empty file the schema and refuses a file stamped with a version this build
-/// does not know.
 pub(crate) fn create_or_check(connection: &mut Connection) -> Result<(), StoreError> {
     match current_version(connection)? {
         0 => create(connection),

@@ -13,10 +13,9 @@ use crate::store::{Reader, Writer};
 const TX: &str = "transaction";
 const UNIQUE_COLUMNS: &str = "address_id, asset, txid";
 
-/// The direction the wallet's rows of `t`'s transaction give it together.
-///
-/// It is incoming when none of them spent, outgoing when one paid an address that is not
-/// the wallet's or paid no address at all, and a self-transfer otherwise.
+/// The direction of `t`'s transaction across all the wallet's rows of it: incoming when
+/// none of them spent, outgoing when one paid an address outside the wallet or no address
+/// at all, and self otherwise.
 macro_rules! group_direction {
     () => {
         "CASE \
@@ -37,11 +36,11 @@ macro_rules! group_direction {
 statements! {
     /// `sort_time` is generated from `timestamp` and `created_at`.
     ///
-    /// Weak sightings fill gaps without replacing decoded transfers. A UTXO mempool
-    /// sighting clears an earlier mined position and its block time, but never the
-    /// first sighting of a row that was not mined; optimistic local sends clear neither.
-    /// A sighting that cannot tell which transaction a speed-up pays for keeps the
-    /// one an earlier sighting named.
+    /// A balance-delta sighting fills gaps but never replaces a decoded transfer, and an
+    /// unknown outcome never replaces a known one. A UTXO mempool sighting clears an
+    /// earlier mined position and its block time, but never the first-seen time of a row
+    /// that wasn't mined. An optimistic local send clears neither. A sighting that can't
+    /// tell which transaction a speed-up pays for keeps the one an earlier sighting named.
     UPSERT =
         "INSERT INTO txs \
            (wallet_id, address_id, chain, asset, txid, direction, outcome, detection, amount, \
@@ -64,14 +63,14 @@ statements! {
            timestamp = CASE WHEN ?17 AND height IS NOT NULL THEN excluded.timestamp \
              ELSE COALESCE(excluded.timestamp, timestamp) END";
 
-    /// A native row that moved nothing and names `?6`, the contract of token `?5`, goes
-    /// when that token's row of the transaction carries a fee.
+    /// Deletes the zero-value native row that names `?6`, token `?5`'s contract, once the
+    /// same address's token row of the transaction carries a fee.
     ///
-    /// Both are one address's rows of one transaction, so the native row says nothing
-    /// the other does not, whichever arrived first. An EVM indexer lists the owner's call
-    /// to a token contract as a native transaction of its own, even when the call
-    /// reverted. The two fees need not match, because on the OP Stack an indexed row that
-    /// got no fee from its receipt prices only the gas, without the L1 data fee.
+    /// A history source can list the owner's call to a token contract as a native
+    /// transaction of its own, even when the call reverted, as EVM indexers do. Whichever
+    /// arrived first, the token row already says everything the native row does. The fees
+    /// needn't match: on the OP Stack, an indexed row that got no fee from its receipt
+    /// prices only the gas, without the L1 data fee.
     DROP_REDUNDANT_NATIVE =
         "DELETE FROM txs \
          WHERE txid = ?1 AND address_id = ?2 AND asset = ?3 AND amount = ?4 \
@@ -89,13 +88,13 @@ statements! {
         "UPDATE txs SET height = NULL, timestamp = NULL WHERE chain = ?1 AND txid = ?2";
 
     /// Keyset paging. The position is always bound, so the comparison is an index range
-    /// seek rather than a scan.
+    /// seek, not a scan.
     ///
-    /// An unmined row reads as the time it sorts by, so it has a first sighting even
-    /// when no sighting carried a time or a reorg cleared its block time.
+    /// An unmined row reports its `sort_time` as its timestamp, so it shows a first-seen
+    /// time even when no sighting carried one or a reorg cleared its block time.
     ///
-    /// With no chain named, the chains the wallet has switched off are left out here
-    /// rather than after paging, so their rows never take a page's places.
+    /// With no chain named, chains the wallet has switched off are filtered out here,
+    /// before paging, so their rows never take up a page's slots.
     LIST =
         "SELECT t.id AS id, t.address_id AS address_id, t.chain AS chain, \
            t.asset AS asset, t.txid AS txid, t.direction AS direction, \
@@ -117,11 +116,11 @@ statements! {
          ORDER BY t.sort_time DESC, t.id DESC \
          LIMIT ?9";
 
-    /// Keyset paging over lead rows, as `LIST` pages over rows, and leaving out the
-    /// same chains.
+    /// Keyset paging like `LIST`, over one lead row per transaction and asset, and leaving
+    /// out the same switched-off chains.
     ///
-    /// There is one lead row per transaction and asset. A transaction's lead row is its
-    /// earliest, so its place in the history does not move as later rows of it arrive.
+    /// The lead row is the transaction's earliest, so its place in the history doesn't
+    /// move as later rows of it arrive.
     GROUP_LIST =
         concat!(
             "SELECT t.id AS id, t.chain AS chain, t.asset AS asset, t.txid AS txid, \
@@ -166,15 +165,15 @@ statements! {
 /// What writing one record did to the history.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TxWrite {
-    /// The wallet held no row of the transaction for the asset before, so it is news.
+    /// The wallet had no row of the transaction for the asset before, so it's news.
     Inserted,
-    /// The wallet already held a row of it, at this address or another, so the record
-    /// is a later sighting or another address's share of a known transaction. A record
-    /// that a row of another asset already says everything of is no news either.
+    /// The wallet already had a row of it, at this address or another, so the record is a
+    /// later sighting or another address's share of a known transaction. A native call
+    /// row that a token row makes redundant counts here too.
     Updated,
 }
 
-/// Confirmations are absent because they are derived from the current tip at read time.
+/// No confirmation count, since that's derived from the current tip at read time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TxRow {
     pub id: i64,
@@ -192,16 +191,16 @@ pub struct TxRow {
     /// The unconfirmed transaction a child-pays-for-parent speed-up pays for.
     pub pays_for: Option<String>,
     pub height: Option<u64>,
-    /// The block's time, or while unmined the first sighting: the time a sighting
-    /// reported, else the time the row was first stored. Only a mined row whose block
-    /// time is unknown has none.
+    /// The block time, or for an unmined row the first-seen time: the time a sighting
+    /// reported, else when the row was first stored. Only a mined row with an unknown
+    /// block time has none.
     pub timestamp_unix_secs: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TxFilter {
     pub wallet_id: i64,
-    /// `None` lists every chain the wallet has not switched off.
+    /// `None` lists every chain the wallet hasn't switched off.
     pub chain: Option<ChainId>,
     pub asset: Option<AssetId>,
     pub address_id: Option<i64>,
@@ -235,7 +234,7 @@ impl TxFilter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TxGroupFilter {
     pub wallet_id: i64,
-    /// `None` lists every chain the wallet has not switched off.
+    /// `None` lists every chain the wallet hasn't switched off.
     pub chain: Option<ChainId>,
     pub asset: Option<AssetId>,
     pub txid: Option<String>,
@@ -342,8 +341,8 @@ fn map(row: &Row<'_>) -> Result<TxRow, StoreError> {
 }
 
 impl Writer<'_> {
-    /// The wallet and chain come from the address row, so a record cannot be filed under a
-    /// wallet that does not own its address.
+    /// The wallet and chain come from the address row, so a record can't be filed under a
+    /// wallet that doesn't own its address.
     pub(crate) fn put_tx(
         &self,
         record: &TxRecord,
@@ -357,7 +356,7 @@ impl Writer<'_> {
         }
         let height = codec::optional_u64_to_db(record.height, HEIGHT)?;
         // UTXO sync reports decoded mempool transactions as successful. A local
-        // broadcast reports an unknown outcome and cannot undo a mined position.
+        // broadcast reports an unknown outcome and can't undo a mined position.
         let is_mempool_sighting = owner.chain.is_utxo()
             && record.height.is_none()
             && record.outcome == TxOutcome::Success
@@ -421,7 +420,7 @@ impl Writer<'_> {
     }
 
     /// A reorg is chain-wide, so this clears the height and timestamp of every row, in
-    /// every wallet, that records `txid` on its chain, and nothing else.
+    /// every wallet, that records `txid` on its chain.
     pub fn clear_tx_inclusion(&self, txid: &TxId) -> Result<(), StoreError> {
         sql::run(self.connection(), CLEAR_INCLUSION, params![txid.chain().as_str(), txid.value()])?;
         Ok(())
@@ -429,7 +428,6 @@ impl Writer<'_> {
 }
 
 impl Reader<'_> {
-    /// Newest first.
     pub(crate) fn list_txs(&self, filter: TxFilter) -> Result<TxPage, StoreError> {
         let TxFilter { wallet_id, chain, asset, address_id, txid, direction, cursor, limit } =
             filter;
@@ -450,7 +448,6 @@ impl Reader<'_> {
         Ok(TxPage { rows, next_cursor })
     }
 
-    /// Newest first, one entry per transaction and asset.
     pub(crate) fn list_tx_groups(&self, filter: TxGroupFilter) -> Result<TxGroupPage, StoreError> {
         let TxGroupFilter { wallet_id, chain, asset, txid, direction, cursor, limit } = filter;
         let chain = chain.map(ChainId::as_str);
@@ -490,11 +487,11 @@ impl Reader<'_> {
         Ok(TxGroupPage { groups, next_cursor })
     }
 
-    /// One page of `list` from `cursor` on, bound to `filters`. `map` answers each row
-    /// with its keyset position.
+    /// One page of `list` after `cursor`, with `filters` bound first. `map` returns each
+    /// row with its keyset position.
     ///
-    /// `limit` is clamped to `1..=TxFilter::MAX_LIMIT`. The page asks for one row past
-    /// it, which detects a next page without a second query.
+    /// `limit` is clamped to `1..=TxFilter::MAX_LIMIT`. Fetching one row past it tells
+    /// whether there's a next page without a second query.
     fn page<T>(
         &self,
         list: &str,

@@ -47,8 +47,8 @@ pub(crate) fn of_receipt(
 
 /// A send whose nonce another transaction took never ran.
 ///
-/// It moved nothing and cost nothing. The zero fee is written rather than left
-/// out, because a row keeps a fee it already holds when a record names none.
+/// It moved nothing and cost nothing. The zero fee is written out, because a
+/// stored row keeps its old fee when a record names none.
 pub(crate) fn of_replaced(tracked: &Tracked, address_id: i64, txid: B256) -> TxRecord {
     TxRecord::builder(
         tracked.asset,
@@ -94,8 +94,8 @@ pub(crate) fn of_balance_delta(
 /// What one transaction moved for one watched address in one asset.
 ///
 /// The store keeps one row per address, asset and txid, so every transfer a
-/// transaction makes is summed into one record rather than each overwriting the
-/// one before it.
+/// transaction makes is summed into one record instead of each overwriting the
+/// last.
 #[derive(Debug)]
 struct Moved {
     owner: Address,
@@ -158,11 +158,11 @@ impl Moved {
         }
     }
 
-    /// The net movement. More in than out is incoming and more out than in is
-    /// outgoing, each by the difference, and so is a transfer of nothing from or
-    /// to another party, or a creation of nothing. What never left the owner, or
-    /// went out and came back, is a self-transfer. `None` when a sum does not fit
-    /// in 128 bits.
+    /// The net movement: incoming when more came in than went out, outgoing when
+    /// more went out, each by the difference. A zero net with only a sender is
+    /// incoming, and one with only a recipient or a contract creation is outgoing.
+    /// Anything else that nets to zero is a self-transfer. `None` when a sum doesn't
+    /// fit in 128 bits.
     fn record(
         &self,
         (address_id, asset, txid): (i64, AssetId, B256),
@@ -230,8 +230,8 @@ fn of_moves(moves: Moves, tip: u64) -> Vec<TxRecord> {
 /// A log counts toward every watched address it names, so a transfer between
 /// two of this wallet's addresses produces a record for each.
 ///
-/// A log from the native token is read only where `native` names the network's
-/// coin. Logs from an unknown contract, removed by a reorg, with no position, or
+/// A log from Bor's native token contract counts as the coin only when `native`
+/// is set. Logs from an unknown contract, removed by a reorg, with no position, or
 /// moving nothing are dropped. Anyone can make a contract log a transfer of nothing
 /// from any address, which is how a lookalike address gets into a history.
 pub(crate) fn of_logs(
@@ -301,14 +301,13 @@ pub(crate) fn of_logs(
 /// Every native movement of one address, netted per transaction.
 ///
 /// A transaction's own row and the internal calls that ran in it share its hash,
-/// and the store keeps one row per address, asset and txid, so they are summed
-/// into one record rather than each overwriting the one before it. The fee is on
-/// the transaction's own row, and only its sender paid it. A failed transaction is
-/// recorded like a reverted receipt, with no movement, a real fee and a failed
-/// outcome, and its internal calls moved nothing either.
+/// so they're summed into one record. The fee is on the transaction's own row, and
+/// only its sender paid it. A failed transaction is recorded like a reverted
+/// receipt, with no movement, a real fee and a failed outcome, and its internal
+/// calls moved nothing either.
 ///
-/// A fee in `receipt_fee_wei` stands in for the row's gas, which leaves out what
-/// the OP Stack charges apart from it.
+/// A fee in `receipt_fee_wei` replaces the one from the row's gas, which leaves out
+/// the OP Stack's L1 data fee.
 pub(crate) fn of_native(
     asset: AssetId,
     entry: &Watched,
@@ -362,7 +361,7 @@ pub(crate) fn of_native(
 ///
 /// A row moving nothing is dropped, as [`of_logs`] drops its log. The fee of an
 /// owner's transaction that moved no tokens is on its native row. A fee in
-/// `receipt_fee_wei` stands in for the row's gas, as in [`of_native`].
+/// `receipt_fee_wei` replaces the one from the row's gas, as in [`of_native`].
 pub(crate) fn of_tokens(
     tokens: &TokenTable,
     entry: &Watched,

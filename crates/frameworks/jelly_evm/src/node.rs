@@ -13,8 +13,8 @@ use crate::error::{self, EvmError};
 use crate::method::Method;
 use crate::params::EvmParams;
 
-/// A method and its parameter list, serialised once at construction so a
-/// rotation posts identical bytes to every endpoint.
+/// A method and its parameter list, serialized once so every endpoint the pool
+/// tries gets identical bytes.
 #[derive(Debug)]
 pub struct RpcCall {
     method: Method,
@@ -88,8 +88,7 @@ impl Answered {
                 format!("there is no answer at position {index}"),
             )
         })?;
-        // A parse failure is reported by position only, because serde's message
-        // quotes the input back.
+        // Report only the position, because serde's message quotes the input back.
         serde_json::from_str(raw.get()).map_err(|source| {
             EvmError::answer(
                 &self.endpoint,
@@ -211,7 +210,7 @@ impl EvmNode for PooledNode {
         }
         let batch = JsonRpcBatch::new(&items);
         let timeout = self.timeout;
-        // A batch mixes methods and never holds a broadcast, so it is walked as
+        // A batch mixes methods and never holds a broadcast, so it fails over like
         // an ordinary read.
         let method = first.method();
         self.pool
@@ -244,13 +243,13 @@ mod tests {
     use crate::test_util::endpoint;
 
     #[test]
-    fn a_call_serialises_its_parameter_list_once_and_keeps_its_method() {
+    fn a_call_serializes_its_parameter_list_once_and_keeps_its_method() {
         let call = RpcCall::new(Method::GetTransactionCount, &("0xabc", BlockTag::Pending))
-            .expect("it serialises");
+            .expect("it serializes");
         assert_eq!(call.method(), Method::GetTransactionCount);
         assert_eq!(call.params().get(), r#"["0xabc","pending"]"#);
 
-        let bare = RpcCall::bare(Method::BlockNumber).expect("it serialises");
+        let bare = RpcCall::bare(Method::BlockNumber).expect("it serializes");
         assert_eq!(bare.params().get(), "[]");
     }
 

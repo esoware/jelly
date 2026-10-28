@@ -9,7 +9,7 @@ use crate::record::Record;
 const SCAN_VERSION: u8 = 1;
 
 /// How far the history scan has read, stored per address as the `zcash.transactions` scan
-/// cursor, so its field names, and those of the records in it, are a stored format.
+/// cursor. Its field names and those of its records are a stored format.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Cursor {
@@ -17,9 +17,8 @@ pub(crate) struct Cursor {
     pub(crate) tip_height: u32,
     pub(crate) tip_hash: String,
     pub(crate) records: BTreeMap<String, Record>,
-    /// Records read against a tip a reorg has since replaced that no pass has fetched again.
-    /// They are never reused, and a complete pass either fetches each again or reports it
-    /// dropped.
+    /// Records read against a tip a reorg has since replaced, not yet fetched again. They're
+    /// never reused, and a complete pass either fetches each again or reports it dropped.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub(crate) unverified: BTreeMap<String, Record>,
     pub(crate) is_complete: bool,

@@ -10,7 +10,6 @@ use jelly_core::{ChainId, CoreError, EndpointHealthRecord, EndpointOverride};
 use crate::WalletEngine;
 
 impl WalletEngine {
-    /// Every chain's overrides, each with its chain.
     pub async fn list_endpoints(&self) -> Result<Vec<(ChainId, EndpointOverride)>, CoreError> {
         Ok(self.inner.store.list_endpoints().await?)
     }
@@ -50,9 +49,8 @@ impl WalletEngine {
         Ok(self.inner.store.list_endpoint_health().await?)
     }
 
-    /// Writes every record in one transaction. This runs on the exit path and the database
-    /// uses `synchronous = FULL`, so a transaction per row would add one fsync per row
-    /// before the process exits.
+    /// Writes every record in one transaction. This runs on exit, and with
+    /// `synchronous = FULL` a transaction per row would cost an fsync each.
     pub async fn put_endpoint_health(
         &self,
         records: Vec<EndpointHealthRecord>,

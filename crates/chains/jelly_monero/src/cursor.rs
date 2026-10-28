@@ -22,10 +22,9 @@ const SCAN_VERSION: u16 = 2;
 const SENDS_MAGIC: &[u8; 8] = b"JLYXMRIF";
 const SENDS_VERSION: u16 = 1;
 
-// Two disk formats, little endian throughout. They are separate because the port
-// treats them differently. The scan blob is progress and commits behind the rows a
-// pass emitted, while the sends blob is a reservation and is durable before any
-// signed bytes leave the process.
+// Two disk formats, both little endian. They're separate blobs because the scan blob
+// is progress, committed behind the rows its pass emitted, while the sends blob is a
+// reservation, durable before any signed bytes leave the process.
 //
 // Scan blob, after the eight-byte magic and the u16 version:
 //
@@ -51,7 +50,7 @@ const SENDS_VERSION: u16 = 1;
 //   ring count (4), then per ring: the spent output's key image (32), member
 //     count (1), and each member's position on the blockchain (8), ascending.
 
-/// Everything in the scan blob before its block ids.
+/// The scan blob up to its recent block count.
 const SCAN_HEADER_BYTES: usize = 82;
 
 /// One block id and its height.
@@ -60,18 +59,18 @@ const BLOCK_REF_BYTES: usize = 40;
 /// One output's height, timestamp, key image, and spend presence flag.
 const OUTPUT_BOOKKEEPING_BYTES: usize = 49;
 
-/// Everything in the sends blob before its first send.
+/// The sends blob up to its first send.
 const SENDS_HEADER_BYTES: usize = 46;
 
 /// One send's fixed fields: the transaction id, the height, the amount, the
-/// subaddress, and the four counts.
+/// subaddress, and the four count and length prefixes.
 const SEND_FIXED_BYTES: usize = 68;
 const TERMINAL_FIXED_BYTES: usize = 59;
 
 /// One ring's key image and member count.
 const RING_FIXED_BYTES: usize = 33;
 
-/// Serialises the scan state, without the sends in flight.
+/// Serializes the scan state without the sends.
 ///
 /// The blob is sized before anything is written, so it never grows and leaves no
 /// copy of a key offset behind, and each output is written straight into it.
@@ -82,7 +81,7 @@ fn encode_scan(state: &ScanState) -> Result<Vec<u8>, MoneroError> {
         .saturating_add(4);
     for owned in state.outputs() {
         let mut counted = ByteCount::default();
-        owned.output().write(&mut counted).map_err(|_| unserialisable())?;
+        owned.output().write(&mut counted).map_err(|_| unserializable())?;
         let spend = owned.spend().map_or(0, |_| 40);
         size = size
             .saturating_add(4)
@@ -115,14 +114,14 @@ fn encode_scan(state: &ScanState) -> Result<Vec<u8>, MoneroError> {
     for owned in state.outputs() {
         let length_at = encoded.len();
         encoded.extend_from_slice(&[0; 4]);
-        owned.output().write(&mut encoded).map_err(|_| unserialisable())?;
+        owned.output().write(&mut encoded).map_err(|_| unserializable())?;
         let length = persisted_count(
             encoded.len().saturating_sub(length_at).saturating_sub(4),
             "an output is too large",
         )?;
         encoded
             .get_mut(length_at..length_at.saturating_add(4))
-            .ok_or_else(unserialisable)?
+            .ok_or_else(unserializable)?
             .copy_from_slice(&length.to_le_bytes());
         encoded.extend_from_slice(&owned.height().to_le_bytes());
         encoded.extend_from_slice(&owned.timestamp_secs().to_le_bytes());
@@ -140,7 +139,8 @@ fn encode_scan(state: &ScanState) -> Result<Vec<u8>, MoneroError> {
     Ok(encoded)
 }
 
-/// Serialises reservations and terminal replay metadata, sized up front like the scan blob.
+/// Serializes the sends in flight, the terminal sends, and the rings, sized up front like
+/// the scan blob.
 fn encode_sends(state: &ScanState) -> Result<Vec<u8>, MoneroError> {
     let size = state.in_flight_sends().fold(SENDS_HEADER_BYTES, |size, send| {
         size.saturating_add(SEND_FIXED_BYTES)
@@ -203,10 +203,7 @@ fn encode_sends(state: &ScanState) -> Result<Vec<u8>, MoneroError> {
     Ok(encoded)
 }
 
-/// Reads back the scan state, refusing a blob bound to another account.
-///
-/// The blob is bound to the account's public spend key, so a blob written for
-/// other keys is refused rather than mis-attributed.
+/// Reads back the scan state, refusing a blob written for another account.
 fn decode_scan(blob: &[u8], public_spend: [u8; 32]) -> Result<ScanState, MoneroError> {
     let mut reader = Reader::new(blob, ends_early);
     if reader.take(SCAN_MAGIC.len())? != SCAN_MAGIC.as_slice() {
@@ -284,8 +281,8 @@ impl Sends {
     }
 }
 
-/// Bound to the account like the scan blob, so signed transactions written for
-/// other keys are refused rather than followed up as this account's.
+/// Refuses a blob written for another account, whose sends would otherwise be followed
+/// up as this one's.
 fn decode_sends(blob: &[u8], public_spend: [u8; 32]) -> Result<Sends, MoneroError> {
     let mut reader = Reader::new(blob, ends_early);
     if reader.take(SENDS_MAGIC.len())? != SENDS_MAGIC.as_slice() {
@@ -383,17 +380,17 @@ fn decode_sends(blob: &[u8], public_spend: [u8; 32]) -> Result<Sends, MoneroErro
     Ok(Sends { in_flight, terminal, rings })
 }
 
-/// The two persisted blobs, and the one place either is read or written.
+/// Reads and writes the two persisted blobs.
 ///
-/// Both are secret material, so the cursor port routes both to the vault. The
-/// scan blob carries every output's key offset, which is what spends it, and the
-/// sends blob carries key images, signed transaction bytes, and terminal attribution.
+/// Both are secret, so the cursor port routes both to the vault. The scan blob
+/// carries every output's key offset, and the sends blob carries key images, signed
+/// transactions, and recipients.
 #[derive(Debug)]
 pub(crate) struct Blobs {
     cursors: Arc<dyn CursorStore>,
-    /// Serialises writes of the sends blob. Each write encodes the whole set, so
-    /// two overlapping writes could land out of order and leave a sent
-    /// transaction unrecorded, its inputs free for a rebuild to pay twice.
+    /// Serializes writes of the sends blob. Each write encodes the whole set, so two
+    /// overlapping writes could land out of order and drop a sent transaction, freeing
+    /// its inputs for a rebuild that pays twice.
     writing_sends: AsyncMutex<()>,
 }
 
@@ -402,11 +399,11 @@ impl Blobs {
         Self { cursors, writing_sends: AsyncMutex::new(()) }
     }
 
-    /// An unreadable reservation refuses restoration before an adapter can spend.
+    /// An unreadable scan blob only costs a rescan, but an unreadable sends blob fails
+    /// the restore, so no adapter spends without its reservations.
     ///
-    /// A lower restore height or a wider subaddress window restarts the scan.
-    /// Pending sends are restored regardless, so a rescan cannot lose broadcast
-    /// follow-up.
+    /// A lower restore height or a wider subaddress window restarts the scan, and the
+    /// sends are restored either way, so a rescan can't lose a broadcast's follow-up.
     pub(crate) async fn restore(
         &self,
         public_spend: [u8; 32],
@@ -460,9 +457,9 @@ impl Blobs {
         Ok(state)
     }
 
-    /// Written with `advance` because it is progress, so it is durable only once
-    /// the rows its pass emitted are. It is encoded under the guard rather than
-    /// cloned, because the state holds every output this wallet owns.
+    /// Goes through `advance`, so it's durable only once the rows its pass emitted
+    /// are. Encoded under the guard instead of cloning a state that holds every
+    /// output the wallet owns.
     pub(crate) async fn write_scan(&self, state: &Mutex<ScanState>) -> Result<(), MoneroError> {
         let blob = encode_scan(&state.lock())?;
         self.cursors
@@ -471,10 +468,10 @@ impl Blobs {
             .map_err(MoneroError::Cursor)
     }
 
-    /// Returns only once the sends in flight are durable. This is a reservation,
-    /// so nothing may be broadcast before it has returned `Ok`.
+    /// Returns only once the sends are durable. Nothing may be broadcast before it
+    /// has returned `Ok`.
     pub(crate) async fn write_sends(&self, state: &Mutex<ScanState>) -> Result<(), MoneroError> {
-        let _serialised = self.writing_sends.lock().await;
+        let _serialized = self.writing_sends.lock().await;
         let blob = encode_sends(&state.lock())?;
         self.cursors
             .reserve(CursorScope::Wallet, SENDS_SLOT, CursorBytes::new(blob))
@@ -500,15 +497,15 @@ fn write_text(
     Ok(())
 }
 
-const fn unserialisable() -> MoneroError {
-    MoneroError::Internal { context: "an output did not serialise" }
+const fn unserializable() -> MoneroError {
+    MoneroError::Internal { context: "an output did not serialize" }
 }
 
 const fn ends_early() -> MoneroError {
     MoneroError::Blob { what: "it ends early" }
 }
 
-/// A length prefix, refused when it cannot address memory on this target.
+/// A length prefix, refused when it can't address memory on this target.
 fn read_length(reader: &mut Reader<'_>) -> Result<usize, MoneroError> {
     usize::try_from(reader.u32()?)
         .map_err(|_| MoneroError::Blob { what: "a length is out of range" })
@@ -609,7 +606,7 @@ mod tests {
     #[test]
     fn the_scan_and_sends_blobs_round_trip_byte_for_byte() {
         let state = state();
-        let blob = encode_scan(&state).expect("it serialises");
+        let blob = encode_scan(&state).expect("it serializes");
         let mut restored = decode_scan(&blob, PUBLIC_SPEND).expect("it restores");
         assert_eq!(restored.restore_height(), state.restore_height());
         assert_eq!(restored.next_height(), state.next_height());
@@ -617,17 +614,17 @@ mod tests {
         assert_eq!(restored.settled_through, state.settled_through);
         assert_eq!(restored.lookahead(), (3, 7));
         assert_eq!(restored.recent_blocks().count(), 2);
-        assert_eq!(encode_scan(&restored).expect("it serialises"), blob);
+        assert_eq!(encode_scan(&restored).expect("it serializes"), blob);
 
         // The sends are their own blob, so the scan blob restores without them.
         assert_eq!(restored.in_flight_sends().count(), 0);
-        let sends = encode_sends(&state).expect("it serialises");
+        let sends = encode_sends(&state).expect("it serializes");
         decode_sends(&sends, PUBLIC_SPEND).expect("it restores").restore_into(&mut restored);
         assert_eq!(restored.terminal_sends, state.terminal_sends);
         assert_eq!(restored.rings, state.rings);
         assert_eq!(restored.in_flight_sends().count(), 1);
         assert_eq!(restored.in_flight_sends().next(), state.in_flight_sends().next());
-        assert_eq!(encode_sends(&restored).expect("it serialises"), encode_sends(&state).unwrap());
+        assert_eq!(encode_sends(&restored).expect("it serializes"), encode_sends(&state).unwrap());
     }
 
     /// A blob that grew while it was written would have left a copy of what it
@@ -640,23 +637,22 @@ mod tests {
         for owned in outputs {
             state.record_output(owned);
         }
-        let blob = encode_scan(&state).expect("it serialises");
+        let blob = encode_scan(&state).expect("it serializes");
         assert_eq!(blob.capacity(), blob.len());
         let restored = decode_scan(&blob, PUBLIC_SPEND).expect("it restores");
         assert_eq!(restored.outputs().len(), state.outputs().len());
-        assert_eq!(encode_scan(&restored).expect("it serialises"), blob);
+        assert_eq!(encode_scan(&restored).expect("it serializes"), blob);
 
-        let sends = encode_sends(&state).expect("it serialises");
+        let sends = encode_sends(&state).expect("it serializes");
         assert_eq!(sends.capacity(), sends.len());
     }
 
-    /// The scan blob carries no signed transaction, so a rescan cannot lose a
-    /// payment in the air and a payment in the air cannot be rolled back by a
-    /// rescan.
+    /// The scan blob holds no signed transaction, so a rescan can neither lose nor
+    /// roll back a payment in flight.
     #[test]
     fn the_scan_blob_holds_no_send() {
         let state = state();
-        let blob = encode_scan(&state).expect("it serialises");
+        let blob = encode_scan(&state).expect("it serializes");
         let raw = vec![9u8; 64];
         assert!(
             !blob.windows(raw.len()).any(|window| window == raw.as_slice()),
@@ -664,7 +660,7 @@ mod tests {
         );
         assert!(
             encode_sends(&state)
-                .expect("it serialises")
+                .expect("it serializes")
                 .windows(raw.len())
                 .any(|window| window == raw.as_slice()),
             "the sends blob is where it belongs"
@@ -673,7 +669,7 @@ mod tests {
 
     #[test]
     fn a_sends_blob_is_refused_on_magic_version_account_or_trailing_bytes() {
-        let blob = encode_sends(&state()).expect("it serialises");
+        let blob = encode_sends(&state()).expect("it serializes");
         assert_eq!(decode_sends(&blob, PUBLIC_SPEND).expect("it restores").in_flight.len(), 1);
         for (case, damaged, public_spend, expected) in
             damaged(&blob, "it is not monero sends in flight")
@@ -681,7 +677,7 @@ mod tests {
             assert_refused(decode_sends(&damaged, public_spend), expected, &case);
         }
         // Neither blob may be read as the other.
-        let scan = encode_scan(&state()).expect("it serialises");
+        let scan = encode_scan(&state()).expect("it serializes");
         assert_refused(
             decode_sends(&scan, PUBLIC_SPEND),
             "it is not monero sends in flight",
@@ -710,7 +706,7 @@ mod tests {
 
     #[test]
     fn a_scan_blob_is_refused_on_magic_version_account_or_trailing_bytes() {
-        let blob = encode_scan(&state()).expect("it serialises");
+        let blob = encode_scan(&state()).expect("it serializes");
         for (case, damaged, public_spend, expected) in damaged(&blob, "it is not monero scan state")
         {
             assert_refused(decode_scan(&damaged, public_spend), expected, &case);
@@ -721,12 +717,12 @@ mod tests {
     #[test]
     fn an_empty_state_round_trips_too() {
         let state = ScanState::new(PUBLIC_SPEND, 0, (1, 1));
-        let blob = encode_scan(&state).expect("it serialises");
+        let blob = encode_scan(&state).expect("it serializes");
         let restored = decode_scan(&blob, PUBLIC_SPEND).expect("it restores");
         assert_eq!(restored.outputs().len(), 0);
         assert_eq!(restored.in_flight_sends().count(), 0);
 
-        let sends = encode_sends(&state).expect("it serialises");
+        let sends = encode_sends(&state).expect("it serializes");
         let Sends { in_flight, terminal, rings } =
             decode_sends(&sends, PUBLIC_SPEND).expect("it restores");
         assert!(in_flight.is_empty());
@@ -738,7 +734,7 @@ mod tests {
     fn a_ring_out_of_order_or_named_twice_is_refused() {
         let mut state = ScanState::new(PUBLIC_SPEND, 0, (1, 1));
         state.rings.insert([1; 32], vec![4, 9]);
-        let blob = encode_sends(&state).expect("it serialises");
+        let blob = encode_sends(&state).expect("it serializes");
         let mut swapped = blob;
         let members = swapped.len().saturating_sub(16);
         swapped[members..].copy_from_slice(&[9, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0]);
@@ -749,7 +745,7 @@ mod tests {
         );
 
         state.rings.insert([2; 32], vec![4, 9]);
-        let mut twice = encode_sends(&state).expect("it serialises");
+        let mut twice = encode_sends(&state).expect("it serializes");
         let second = twice.len().saturating_sub(16 + 1 + 32);
         twice[second..second + 32].copy_from_slice(&[1; 32]);
         assert_refused(decode_sends(&twice, PUBLIC_SPEND), "it names one ring twice", "a twin");

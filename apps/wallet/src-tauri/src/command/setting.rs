@@ -9,12 +9,8 @@ use crate::error::IpcError;
 use crate::state::AppState;
 use crate::window;
 
-/// Application settings as the interface sees them, with whether each API key is set
-/// but never the key.
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "each flag is a separate setting or key the user turns on alone, not a state of one thing"
-)]
+/// The settings as the frontend sees them: whether each API key is set, never the key.
+#[expect(clippy::struct_excessive_bools, reason = "independent settings")]
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AppSettings {
@@ -50,7 +46,6 @@ impl From<jelly_engine::AppSettings> for AppSettings {
     }
 }
 
-/// Returns API key presence, never key values.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, IpcError> {
@@ -58,7 +53,7 @@ pub(crate) async fn get_settings(state: State<'_, AppState>) -> Result<AppSettin
         .await
 }
 
-/// `None` removes the EVM history API key. Other chain operations do not need it.
+/// `None` removes the key. Only indexed EVM history uses it.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn set_etherscan_api_key(
@@ -77,7 +72,7 @@ pub(crate) async fn set_trongrid_api_key(
     with_engine(&state, async move |engine| engine.set_trongrid_api_key(key).await).await
 }
 
-/// Zero disables auto-lock. Changes apply to the current session.
+/// Zero turns auto-lock off. The change applies to the open session too.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn set_auto_lock_minutes(
@@ -87,8 +82,8 @@ pub(crate) async fn set_auto_lock_minutes(
     with_engine(&state, async move |engine| engine.set_auto_lock_minutes(minutes).await).await
 }
 
-/// Pauses or resumes polling without stopping the price-feed task. Also enters amounts in
-/// fiat when the feed comes on and in units when it goes off.
+/// Pauses or resumes price polling without stopping its task. Turning the feed on also
+/// switches amount entry to fiat, and turning it off switches it to units.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn set_price_feed_enabled(
@@ -127,8 +122,8 @@ pub(crate) async fn set_amount_entry(
     with_engine(&state, async move |engine| engine.set_amount_entry(entry).await).await
 }
 
-/// Validates and saves the proxy before applying it. Prices use it immediately, even while
-/// locked. The engine debounces adapter rebuilds to update chain connections.
+/// Validates and saves the proxy, then applies it. Prices switch to it at once, even while
+/// locked, and chain connections follow after a debounced adapter rebuild.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn set_proxy(
@@ -138,7 +133,7 @@ pub(crate) async fn set_proxy(
     with_services(&state, async move |services| services.set_proxy(proxy).await).await
 }
 
-/// Saves the backdrop and applies it to the window at once. A window that cannot blur
+/// Saves the backdrop and applies it to the window at once. A window that can't blur
 /// behind itself stays solid whatever is saved.
 #[tauri::command]
 #[specta::specta]

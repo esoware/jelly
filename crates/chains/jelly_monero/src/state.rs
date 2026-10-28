@@ -12,12 +12,10 @@ use crate::params::{LOCK_WINDOW, REORG_WINDOW};
 use crate::pending::{InFlight, TerminalSend};
 use crate::subaddress::Subaddress;
 
-/// Wall-clock seconds, which is what an output's own timelock is measured in.
+/// Wall-clock seconds, which a time-based timelock is measured in.
 ///
-/// Fails closed, because a clock that cannot be read reads as the epoch and an
-/// output whose timelock has not been reached is not spendable. Every other lock
-/// on this chain is counted in blocks, so this only concerns a transaction that
-/// set a time.
+/// Fails closed: a clock that can't be read reads as the epoch, so a time-locked
+/// output stays locked. Every other lock on this chain counts blocks.
 pub(crate) fn timelock_now_secs(clock: &dyn Clock) -> u64 {
     clock.now_secs().ok().and_then(|secs| u64::try_from(secs).ok()).unwrap_or_default()
 }
@@ -29,8 +27,8 @@ pub(crate) struct Spend {
     pub height: u64,
 }
 
-/// A block this wallet has scanned, kept so a reorganisation can be located
-/// exactly rather than guessed at.
+/// A block this wallet has scanned, kept so a reorganization can be located
+/// exactly instead of guessed at.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BlockRef {
     pub height: u64,
@@ -54,8 +52,8 @@ pub(crate) enum Recorded {
     /// idempotent, so this is silent.
     Again,
     /// A different output with an output key already seen, which is the burning
-    /// bug. Only one of them is spendable, so the later one is refused rather
-    /// than allowed to inflate the balance.
+    /// bug. Only one of them is spendable, so the later one is refused instead of
+    /// inflating the balance.
     Burnt,
 }
 
@@ -127,7 +125,7 @@ impl OwnedOutput {
         self.output.key().compress().to_bytes()
     }
 
-    /// The scanner reports the account's own primary address as `None`.
+    /// The scanner reports the primary address, `(0, 0)`, as `None`.
     pub(crate) fn subaddress(&self) -> Subaddress {
         self.output
             .subaddress()
@@ -138,7 +136,7 @@ impl OwnedOutput {
     /// any additional timelock the transaction carried. A miner's output carries
     /// its sixty-block lock as exactly such a timelock, so this covers it.
     ///
-    /// Whether the output is spent is a separate question this does not ask.
+    /// Doesn't check whether the output is spent.
     fn is_unlocked(&self, tip: u64, now_secs: u64) -> bool {
         if !is_unlocked_at(self.height, tip) {
             return false;
@@ -153,7 +151,7 @@ impl OwnedOutput {
     }
 }
 
-/// The ten-block lock in isolation.
+/// The ten-block lock alone, without any timelock.
 const fn is_unlocked_at(output_height: u64, tip: u64) -> bool {
     tip.saturating_add(1) >= output_height.saturating_add(LOCK_WINDOW)
 }
@@ -165,13 +163,13 @@ const fn widened(current: u32, wanted: u32, step: u32) -> u32 {
     if needed > stepped { needed } else { stepped }
 }
 
-/// Everything this adapter knows after scanning.
+/// The scanned outputs and chain position, plus the sends and rings that outlive a
+/// rescan.
 ///
 /// Two derived indexes and two dedup tables sit beside the output vector, so a
-/// spend lookup and a balance both touch only what they need. Every table is
-/// rebuilt from the vector by [`ScanState::reindex`], so the vector is the only
-/// thing a restore has to be sure of, and [`ScanState::with_scanned`] checks that
-/// it holds no output twice.
+/// spend lookup and a balance both touch only what they need. [`ScanState::reindex`]
+/// rebuilds every table from the vector, so a restore only has to trust the vector,
+/// and [`ScanState::with_scanned`] checks that it holds no output twice.
 pub(crate) struct ScanState {
     public_spend: [u8; 32],
     restore_height: u64,
@@ -203,9 +201,8 @@ pub(crate) struct ScanState {
     /// outlive a rescan.
     pub(crate) rings: BTreeMap<[u8; 32], Vec<u64>>,
     pub(crate) settled_through: u64,
-    /// Bumped by every reset and never persisted, so a pass that read the
-    /// frontier before a reset can tell its batch was scanned for a frontier and a
-    /// window that no longer exist.
+    /// Bumped by every reset and never persisted, so a pass can tell that the batch
+    /// it scanned predates a reset.
     generation: u64,
 }
 
@@ -297,10 +294,9 @@ impl ScanState {
         self.in_flight_sends.len()
     }
 
-    /// Takes `committed` as this state's scan, keeping the sends and rings, which
-    /// outlive any rescan, and says whether it acknowledged a terminal send. That
-    /// takes a settlement checkpoint at or past the send's and, for a send that
-    /// landed, the spend itself.
+    /// Takes `committed` as this state's scan, keeping the sends and rings, and says
+    /// whether it acknowledged a terminal send. That takes a settlement checkpoint at
+    /// or past the send's and, for a send that landed, the spend itself.
     pub(crate) fn replace_scan(&mut self, mut committed: Self) -> bool {
         let before = self.terminal_sends.len();
         self.terminal_sends.retain(|send| {
@@ -329,8 +325,7 @@ impl ScanState {
         }
     }
 
-    /// Widens the registered window to cover `wanted`, by at least `step` so a
-    /// run of new subaddresses costs one rescan rather than one each.
+    /// Widens the registered window to cover `wanted`, by at least `step`.
     ///
     /// Returns true when the window grew, which is the only thing that forces a
     /// rescan, because an index already inside the window was visible to every
@@ -348,7 +343,7 @@ impl ScanState {
     }
 
     /// Discards scan progress but keeps the birthday, the window, and anything in
-    /// flight, because a rescan does not undo a broadcast transaction.
+    /// flight, because a rescan doesn't undo a broadcast transaction.
     pub(crate) fn reset_scan(&mut self) {
         self.next_height = self.restore_height;
         self.outputs.clear();
@@ -371,8 +366,8 @@ impl ScanState {
         }
     }
 
-    /// The first height at which these blocks disagree with what was scanned, if
-    /// any. That height is the fork point.
+    /// The fork point: the first height at which these blocks disagree with what
+    /// was scanned, if any.
     pub(crate) fn fork_in(&self, links: &[BlockLink]) -> Option<u64> {
         for link in links {
             if let Some(known) = self.hash_at(link.height) {
@@ -396,7 +391,7 @@ impl ScanState {
     }
 
     /// Whether a block below `height` is remembered. A fork found at `height`
-    /// with nothing remembered under it may reach any depth, so it cannot be
+    /// with nothing remembered under it may reach any depth, so it can't be
     /// located.
     pub(crate) fn has_block_below(&self, height: u64) -> bool {
         self.recent_blocks.front().is_some_and(|oldest| oldest.height < height)
@@ -421,7 +416,7 @@ impl ScanState {
         self.reindex();
     }
 
-    /// Records a scanned block id, keeping only the window a reorganisation can
+    /// Records a scanned block id, keeping only the window a reorganization can
     /// be located within.
     pub(crate) fn note_block(&mut self, block: BlockRef) {
         if self.recent_blocks.back().is_some_and(|last| last.height >= block.height) {
@@ -447,7 +442,7 @@ impl ScanState {
     }
 
     /// Marks the output with this key image spent and returns its position, or
-    /// `None` when this wallet does not own it or has already seen the spend.
+    /// `None` when this wallet doesn't own it or has already seen the spend.
     pub(crate) fn mark_spent(
         &mut self,
         key_image: &[u8; 32],
@@ -516,8 +511,8 @@ impl ScanState {
         has_changed
     }
 
-    /// Forgets the ring of every output spent deeper than a reorganisation reaches, which
-    /// nothing can spend again, and says whether any went.
+    /// Forgets the ring of every output spent at least [`REORG_WINDOW`] blocks deep,
+    /// which nothing can spend again, and says whether any went.
     pub(crate) fn prune_rings(&mut self) -> bool {
         let before = self.rings.len();
         let tip = self.tip_height;
@@ -605,11 +600,11 @@ impl ScanState {
 
     /// Unspent, unlocked, unreserved outputs of one account, largest first.
     ///
-    /// Largest first minimises the input count, hence the weight and the fee. It
-    /// is a weaker privacy heuristic than wallet2's randomised selection and is a
-    /// deliberate trade for predictable fees. The tie-break on the output's index
-    /// makes it deterministic, so a rebuild selects the same inputs and therefore
-    /// conflicts with, rather than adds to, the transaction it replaces.
+    /// Largest first minimizes the input count, and with it the weight and the fee.
+    /// It's a weaker privacy heuristic than wallet2's randomized selection, traded
+    /// deliberately for predictable fees. The tie-break on the output's index makes
+    /// it deterministic, so a rebuild selects the same inputs and conflicts with the
+    /// transaction it replaces instead of adding to it.
     pub(crate) fn spendable_outputs(
         &self,
         major: u32,
@@ -649,8 +644,7 @@ impl ScanState {
     /// or `None` when two of the outputs share an identity or an output key.
     ///
     /// [`ScanState::record_output`] refuses both while scanning, so only a restore
-    /// can meet them, and a blob naming one output twice would count its amount
-    /// twice.
+    /// can meet them, and a blob naming one output twice would count it twice.
     pub(crate) fn with_scanned(
         mut self,
         recent_blocks: VecDeque<BlockRef>,
@@ -737,7 +731,7 @@ mod tests {
     }
 
     #[test]
-    fn a_ring_outlives_a_rescan_and_goes_once_its_spend_is_past_any_reorganisation() {
+    fn a_ring_outlives_a_rescan_and_goes_once_its_spend_is_past_any_reorganization() {
         let mut state = state();
         let outputs = recorded_outputs();
         let image = outputs.first().map(OwnedOutput::key_image).expect("a key image");
@@ -760,7 +754,7 @@ mod tests {
         state.set_tip_height(tip);
         assert!(!state.prune_rings(), "an unspent output keeps its ring");
         state.mark_spent(&image, [7; 32], tip - REORG_WINDOW + 1);
-        assert!(!state.prune_rings(), "a reorganisation could still undo the spend");
+        assert!(!state.prune_rings(), "a reorganization could still undo the spend");
         state.set_tip_height(tip + 1);
         assert!(state.prune_rings());
         assert_eq!(
@@ -834,7 +828,7 @@ mod tests {
     }
 
     #[test]
-    fn the_recent_window_is_bounded_and_replaces_a_reorganised_height() {
+    fn the_recent_window_is_bounded_and_replaces_a_reorganized_height() {
         let mut state = state();
         for height in 0..(REORG_WINDOW.saturating_mul(2)) {
             state.note_block(BlockRef { height, hash: [1; 32] });

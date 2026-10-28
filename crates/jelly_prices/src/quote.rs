@@ -25,11 +25,10 @@ impl QuoteRequest {
     /// pair per [`Ticker`] and one per [`FiatCurrency`].
     pub(crate) const MAX_BYTES: usize = 65_536;
 
-    /// The one request that prices all of `tickers`, or `None` when there are
-    /// none.
+    /// A single request that prices all of `tickers`, or `None` when there are none.
     ///
-    /// It also asks for the dollar's rate in every currency the wallet can show,
-    /// whichever one it shows, so the request says nothing about the user.
+    /// It asks for the dollar's rate in every currency the wallet can show, not just the
+    /// one it shows, so the request says nothing about the user.
     pub(crate) fn for_tickers(tickers: &BTreeSet<Ticker>) -> Option<Self> {
         if tickers.is_empty() {
             return None;
@@ -60,9 +59,8 @@ impl QuoteRequest {
         &self.url
     }
 
-    /// Decodes one response and looks up every requested ticker and currency in it.
-    /// A decode error or a refusal rejects the whole body. Individual ticker failures
-    /// go in `Quotes::rejected`, and rate failures in `Quotes::unrated`.
+    /// A decode error or a refusal rejects the whole body. A single ticker that fails goes
+    /// in `Quotes::rejected`, and a single rate in `Quotes::unrated`.
     pub(crate) fn decode(&self, body: &str) -> Result<Quotes, PriceError> {
         let result = kraken::result::<Entry>(body)?;
         let mut quotes = Quotes::default();
@@ -108,7 +106,7 @@ pub(crate) struct Quote {
     pub(crate) usd: Price,
 }
 
-/// One ticker the provider was asked for and did not usably answer.
+/// One ticker the provider was asked for and didn't usably answer.
 #[derive(Debug)]
 pub(crate) struct RejectedQuote {
     pub(crate) ticker: Ticker,
@@ -122,18 +120,17 @@ pub(crate) struct Rate {
     pub(crate) per_dollar: Price,
 }
 
-/// One currency the provider was asked a rate for and did not usably answer.
+/// One currency the provider was asked a rate for and didn't usably answer.
 #[derive(Debug)]
 pub(crate) struct RejectedRate {
     pub(crate) currency: FiatCurrency,
     pub(crate) reason: QuoteRejection,
 }
 
-/// What one answered request yielded, in the order things were asked for, or
-/// nothing at all when no request was answered.
+/// What one answered request yielded, in request order. Empty when nothing was answered.
 ///
-/// `accepted` and `rejected` together name every ticker an answered request
-/// asked for exactly once, and `rates` and `unrated` every currency.
+/// `accepted` and `rejected` together name each ticker an answered request asked for
+/// exactly once, and `rates` and `unrated` each currency.
 #[derive(Debug, Default)]
 pub(crate) struct Quotes {
     pub(crate) accepted: Vec<Quote>,

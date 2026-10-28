@@ -15,7 +15,7 @@ pub(crate) struct Watched {
     pub(crate) version: Version,
 }
 
-/// All or nothing: one foreign, keyless, or unreadable address, or one that is no wallet
+/// All or nothing: one foreign, keyless, or unreadable address, or one that isn't a wallet
 /// of its key, fails the whole set.
 pub(crate) fn resolve(addresses: &[WatchedAddress]) -> Result<Vec<Watched>, TonError> {
     let mut watched = Vec::with_capacity(addresses.len());

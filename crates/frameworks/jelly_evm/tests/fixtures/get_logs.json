@@ -1,5 +1,5 @@
 {
-  "_recorded": "eth_getLogs results for the ERC-20 Transfer topic over one window, in the shape a geth Ethereum mainnet node returns. The recipient-side and sender-side filters overlap, so the incoming log appears twice. One log belongs to a contract outside the registry, one carries a null transaction hash, and one was removed by a reorg.",
+  "_recorded": "eth_getLogs results for the ERC-20 Transfer topic over one window, shaped like a geth mainnet node's. The sender-side and recipient-side filters overlap, so the incoming log appears twice. One log belongs to a contract outside the registry, one carries a null transaction hash, and one was removed by a reorg. oversized_value is a transfer whose value doesn't fit in 128 bits.",
   "result": [
     {
       "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",

@@ -15,9 +15,8 @@ use crate::address::CashAddrCodec;
 /// Without segwit a rate per virtual byte is a rate per byte.
 const FEE_RATE_UNIT: &str = "sat/B";
 
-/// Bitcoin Cash has no segregated witness, so P2PKH is its only single-key form and
-/// there is nothing to choose. Its one fee level is a fixed rate, so there is no fee
-/// service to read.
+/// Without segwit, P2PKH is the only single-key script. The one fee level pays a fixed
+/// rate, so there's no fee service to read.
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::BitcoinCash,
     coin_name: "Bitcoin Cash",
@@ -32,8 +31,7 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: Some(FEE_RATE_UNIT),
     fee_levels: &[FeeLevel::Normal],
     custom_fee: Some(CustomFee::Rate),
-    // About $1.93 at the October 2026 price of $275. A 226-byte payment costs 226 sat at the
-    // 1 sat/B every wallet pays.
+    // About $2.
     high_fee: Amount::from_base_units(700_000),
     can_pin_nonce: false,
     can_carry_data: false,
@@ -52,27 +50,24 @@ pub const SPEC: ChainSpec = ChainSpec {
     needs_account_key: false,
 };
 
-/// Bitcoin Cash relay and consensus constants in weight units, from Bitcoin Cash
-/// Node.
+/// Rates are per kwu, from Bitcoin Cash Node.
 ///
-/// Bitcoin Cash has no segregated witness, so a transaction's weight is four times
-/// its size and a rate per virtual byte is a rate per byte. The dust threshold is
-/// three times the 1000 sat/kB `DUST_RELAY_TX_FEE`, Bitcoin's 3000, which is 546
-/// sat for P2PKH, and the minimum relay fee and the wallet's own minimum are both
-/// 1000 sat/kB, 250 per kwu.
+/// The dust threshold is three times its 1000 sat/kB `DUST_RELAY_TX_FEE`, the same 3000 as
+/// Bitcoin's and 546 sat for P2PKH, and the minimum relay fee and the wallet's own minimum
+/// are both 1000 sat/kB, or 250 per kwu.
 pub const PARAMS: UtxoParams = UtxoParams {
     chain: SPEC.chain,
     codec: &CashAddrCodec,
     script_kinds: SPEC.script_kinds,
     fee_rate_unit: FEE_RATE_UNIT,
-    // Bitcoin's block zero, which Bitcoin Cash kept when it split.
+    // Bitcoin's block zero, kept at the split.
     genesis: [
         0x00, 0x00, 0x00, 0x00, 0x00, 0x19, 0xd6, 0x68, 0x9c, 0x08, 0x5a, 0xe1, 0x65, 0x83, 0x1e,
         0x93, 0x4f, 0xf7, 0x63, 0xae, 0x46, 0xa2, 0xa6, 0xc1, 0x72, 0xb3, 0xf1, 0xb6, 0x0a, 0x8c,
         0xe2, 0x6f,
     ],
-    // Bitcoin Cash's own fourth halving, mined 2024-04-04, past its split from
-    // Bitcoin at 478559, from Bitcoin SV at 556767, and from eCash at 661648.
+    // Bitcoin Cash's own fourth halving (2024-04-04), after its splits from Bitcoin at
+    // 478559, Bitcoin SV at 556767, and eCash at 661648.
     checkpoint: Some(KnownBlock {
         height: 840_000,
         hash: [
@@ -86,8 +81,7 @@ pub const PARAMS: UtxoParams = UtxoParams {
     scan_stream: ScanStream::BitcoinCashElectrumStatus,
     dust: DustRule::RelayFee(FeeRate::from_sat_per_kwu(750)),
     min_relay_fee: FeeRate::from_sat_per_kwu(250),
-    // Nothing replaces on Bitcoin Cash, so only the mempool's own limiting reads
-    // it, at the relay floor.
+    // Nothing replaces on Bitcoin Cash, so only a node's mempool limiting uses this.
     incremental_relay_fee: FeeRate::from_sat_per_kwu(250),
     max_money: Amount::from_base_units(21_000_000 * 100_000_000),
     // `MAX_STANDARD_TX_SIZE` of 100000 bytes.
@@ -95,22 +89,21 @@ pub const PARAMS: UtxoParams = UtxoParams {
     min_tx_fee: FeeRate::from_sat_per_kwu(250),
     // Blocks hold 32 MB and more, and every wallet pays the 1 sat/B floor.
     fee_market: FeeMarket::Flat,
-    // Bitcoin Cash Node removed replacement in 2017, and Electron Cash writes the
-    // same non-signalling sequence.
+    // Bitcoin Cash dropped replacement when it split in 2017, and Electron Cash writes
+    // the same non-signaling sequence.
     replacement: Replacement::Never,
     bump_method: None,
     // The fork id is zero, so the sighash type is 0x41.
     sighash_fork_id: Some(0),
     has_cash_tokens: true,
-    // Electron Cash holds an SLP coin back from every plain spend, so a wallet on
-    // the same keys still has its tokens.
+    // Like Electron Cash, a plain spend leaves SLP coins alone, so a wallet on the same
+    // keys keeps its tokens.
     has_slp_tokens: true,
     confirmation_watch_depth: 6,
     coinbase_maturity: 100,
     pegout_maturity: 0,
-    // Bitcoin Cash kept Bitcoin's base58 version bytes, so a legacy address is the
-    // same string on both chains and cannot say which one its owner watches, and
-    // paying the wrong one may be unrecoverable.
+    // A legacy address is the same string on Bitcoin, and paying the wrong chain can
+    // be unrecoverable.
     address_notes: &[
         AddressNote {
             prefix: "1",
@@ -124,8 +117,7 @@ pub const PARAMS: UtxoParams = UtxoParams {
         },
     ],
     address_refusals: &[],
-    // A 226-byte payment at the 1 sat/B floor pays 226 sat, so this is nearly four
-    // orders of magnitude above anything normal.
+    // Nearly four orders of magnitude above a 226-byte payment at the 1 sat/B floor.
     fee_ceiling: Amount::from_base_units(2_000_000),
     long_term_fee_rate: FeeRate::from_sat_per_kwu(250),
 };
@@ -133,8 +125,8 @@ pub const PARAMS: UtxoParams = UtxoParams {
 pub const ENTRY: &dyn ChainEntry = &UtxoEntry {
     spec: &SPEC,
     params: &PARAMS,
-    // Bitcoin Cash kept Bitcoin's version byte, which is what Electron Cash writes, so
-    // a Bitcoin WIF imports here and an export reads as one.
+    // Bitcoin's version byte, which Electron Cash writes too, so a Bitcoin WIF imports
+    // here and an export reads as one.
     wif: WifFormat { version: 0x80, has_script_offsets: true, name: "Bitcoin WIF key" },
     is_scheme_prefix: true,
     default_endpoints: include_str!("../endpoints.json"),

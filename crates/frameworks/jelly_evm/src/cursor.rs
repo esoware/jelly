@@ -32,9 +32,9 @@ impl Window {
 
 /// The `eth_getLogs` window width, adapted to what endpoints will serve.
 ///
-/// Provider limits differ by orders of magnitude and are unpublished, so the
-/// width halves on a refusal and doubles back toward the ceiling after a clean
-/// window.
+/// Provider limits differ by orders of magnitude and are often unpublished, so
+/// the width halves on a refusal and doubles back toward the ceiling after a
+/// clean window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct WindowSize {
     blocks: u64,
@@ -43,8 +43,8 @@ pub(crate) struct WindowSize {
 }
 
 impl WindowSize {
-    /// A floor above the ceiling or a zero width is clamped rather than refused,
-    /// because a window size only shapes requests and never affects correctness.
+    /// A floor above the ceiling or a zero width is clamped, not refused, because a
+    /// window size only shapes requests and never affects correctness.
     pub(crate) const fn new(params: &EvmParams, config: &EvmConfig) -> Self {
         let ceiling = if params.log_window_blocks == 0 { 1 } else { params.log_window_blocks };
         let floor =
@@ -88,7 +88,7 @@ pub(crate) struct ScanCursor {
     pub(crate) backfill_from: Option<u64>,
     pub(crate) native_balance: Option<u128>,
     /// The account nonce read beside `native_balance`, which says which of the
-    /// address's own sends that balance already holds.
+    /// address's own sends that balance already reflects.
     pub(crate) native_nonce: Option<u64>,
     pub(crate) settled_through: u64,
 }
@@ -152,7 +152,7 @@ impl ScanCursor {
         }
     }
 
-    /// `None` when history is complete or the forward walk has not set a starting
+    /// `None` when history is complete or the forward scan hasn't set a starting
     /// point yet.
     pub(crate) fn next_backfill(self, floor: u64, window: u64) -> Option<Window> {
         let window = window.max(1);
@@ -290,7 +290,7 @@ mod tests {
         assert_eq!((next.from, next.to), (989, 1_050), "twelve blocks back, same upper edge");
         assert_eq!(cursor.next_forward(1_050, 100, 12).expect("a window").to, 1_050);
 
-        // A frontier at the tip is finished, so the overlap cannot loop the walk
+        // A frontier at the tip is finished, so the overlap can't loop the scan
         // forever.
         cursor.apply(next);
         assert_eq!(cursor.next_forward(1_050, 100, 12), None);

@@ -68,7 +68,7 @@ pub struct NewContact {
     pub note: Option<String>,
 }
 
-/// The chain is not editable, because the address was checked against it.
+/// The chain can't change, since the address was validated against it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContactEdit {
     pub address: String,

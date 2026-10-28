@@ -1,4 +1,4 @@
-//! The adapter's tunables, whose defaults are what ships. What the network fixes
+//! The adapter's tunables. The defaults are what ships, and what the network fixes
 //! lives in [`crate::params`].
 
 use std::time::Duration;
@@ -12,9 +12,9 @@ pub struct MoneroConfig {
     /// Upper bound on the blocks one pass scans, so a restore from a distant
     /// birthday returns partial progress instead of running for hours.
     pub blocks_per_pass: u64,
-    /// Blocks below the frontier a pass re-fetches once a fork has shown, so a
-    /// reorganisation of at most this depth is located by the same request that
-    /// does useful work. Re-scanning a block already scanned is idempotent.
+    /// Blocks below the frontier a pass re-reads after a fork shows, so a
+    /// reorganization this shallow is located by the same request that fetches new
+    /// blocks. Re-scanning a block is idempotent.
     pub reorg_overlap_blocks: u64,
     /// Minimum wall time between two scan-state checkpoints.
     pub checkpoint_interval: Duration,
@@ -28,11 +28,11 @@ pub struct MoneroConfig {
     /// Addresses per account registered with the scanner.
     pub lookahead_minor: u32,
     /// Decoys are chosen against one block, so a payload older than this many
-    /// blocks is refused rather than signed against a stale ring.
+    /// blocks is refused instead of signed against a stale ring.
     pub max_payload_age_blocks: u64,
-    /// A broadcast transaction still unseen after this many blocks, and that the
-    /// node it was sent to no longer holds, is treated as dropped, so its inputs are
-    /// released and its record is reported failed.
+    /// A broadcast transaction still unseen after this many blocks, and no longer held
+    /// by the node it was sent to, is treated as dropped: its inputs are released and
+    /// it's reported failed.
     pub abandon_after_blocks: u64,
 }
 

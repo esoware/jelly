@@ -1,9 +1,9 @@
 //! Crash-safe vault replacement. A synced temporary file in the destination directory is
 //! renamed over the vault, so a failure before the rename leaves the old vault intact.
 //!
-//! Unix creates directories as 0o700 and files as 0o600, and syncs the directory after
-//! the rename. Windows inherits directory permissions and has no directory sync here.
-//! Encryption and the keychain envelope provide confidentiality on both platforms.
+//! On Unix, new directories are 0o700, files are 0o600, and the directory is synced after
+//! the rename. Windows inherits the directory's permissions and gets no directory sync.
+//! Either way, confidentiality rests on the encryption, not on file permissions.
 
 use std::fs;
 use std::io::{ErrorKind, Write as _};
@@ -45,8 +45,8 @@ pub(crate) fn remove_if_present(path: &Path) -> Result<(), VaultError> {
 
 /// A synced temporary file in `directory`. Dropping it without persisting it removes it.
 fn stage(directory: &Path, bytes: &[u8]) -> Result<NamedTempFile, VaultError> {
-    // Only components this process creates are restricted to the owner. An existing
-    // directory keeps its permissions.
+    // Only directories created here are made owner-only. An existing one keeps its
+    // permissions.
     let mut directories = fs::DirBuilder::new();
     directories.recursive(true);
     #[cfg(unix)]
@@ -76,11 +76,11 @@ fn parent_of(path: &Path) -> &Path {
 }
 
 /// Best effort. The file itself is already durable, and a failure here only risks the
-/// new name not surviving an immediate power loss.
+/// rename not surviving a power loss right after it.
 #[cfg(unix)]
 fn sync_dir(directory: &Path) {
     if let Err(error) = fs::File::open(directory).and_then(|handle| handle.sync_all()) {
-        tracing::warn!(%error, "could not fsync the vault directory");
+        tracing::warn!(%error, "couldn't fsync the vault directory");
     }
 }
 

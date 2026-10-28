@@ -11,7 +11,7 @@ pub(crate) struct ChainHeights {
     pub(crate) tip_height: Option<u64>,
 }
 
-/// The one place a chain's heights live.
+/// Each chain's latest known heights.
 #[derive(Debug, Default)]
 pub(crate) struct StatusBoard {
     chains: Mutex<BTreeMap<ChainId, ChainHeights>>,
@@ -27,8 +27,8 @@ impl StatusBoard {
     /// confirmation count per row.
     ///
     /// The seeded synced height stands in until the first pass reports a real tip.
-    /// Without it, a freshly unlocked wallet's history would read every confirmed
-    /// transaction as one block deep, however old it is.
+    /// Without it, a freshly unlocked wallet's history would show every confirmed
+    /// transaction as one block deep, however old.
     pub(crate) fn tips(&self) -> BTreeMap<ChainId, u64> {
         self.chains
             .lock()
@@ -60,8 +60,8 @@ impl StatusBoard {
         });
     }
 
-    /// A missing height is unobserved rather than cleared, so the previous one stays
-    /// until the adapter supplies a new one.
+    /// A missing height means the adapter didn't observe one, not that it's cleared, so
+    /// the previous one stays.
     pub(crate) fn record_progress(&self, progress: ChainSyncProgress) {
         self.update(progress.chain(), |heights| {
             if progress.synced_height().is_some() {
@@ -118,8 +118,8 @@ mod tests {
         assert_eq!(found.synced_height, Some(800_000), "the seeded height survives");
         assert_eq!(found.tip_height, Some(800_010));
 
-        // A pass that states a height still decides it, even downwards, because a
-        // rescan from a birthday is lower than the height before it.
+        // A stated height still wins, even going down, since a rescan from a birthday
+        // restarts lower.
         board.record_progress(
             ChainSyncProgress::new(ChainId::Bitcoin).with_heights(Some(700_000), Some(800_011)),
         );

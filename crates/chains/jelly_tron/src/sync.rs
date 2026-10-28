@@ -1,9 +1,9 @@
-//! Pending sends are followed up first, and then each address in turn.
+//! A pass follows up pending sends first, then each address in turn.
 //!
 //! Each address reports its `/wallet` balances before its indexed history, so a
-//! history failure cannot hide them. The balances also decide whether the
-//! history is read at all, because they are read every pass anyway and the
-//! indexer is the endpoint with the tight budget.
+//! history failure can't hide them. The balances also decide whether the history
+//! is read at all, since they're read every pass anyway and the indexer is the
+//! endpoint with the tight budget.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
@@ -71,11 +71,11 @@ pub(crate) async fn run(
     Ok(progress(inputs, watched, tip))
 }
 
-/// The share of addresses that have finished their first full walk of every
-/// stream, because a TRON history has no floor to measure against.
+/// The share of addresses that have walked every stream all the way back once,
+/// because a TRON history has no floor height to measure against.
 ///
-/// `synced_height` stays absent until every address has finished, because a
-/// wallet still filling in history is not synced to the tip.
+/// `synced_height` stays absent until every address has finished, since a wallet
+/// still filling in history isn't synced to the tip.
 fn progress(inputs: &PassInputs<'_>, watched: &[Watched], tip: BlockRef) -> ChainSyncProgress {
     let total = watched.len();
     let done = watched.iter().filter(|entry| inputs.states.is_complete(entry.address_id)).count();
@@ -88,11 +88,11 @@ fn progress(inputs: &PassInputs<'_>, watched: &[Watched], tip: BlockRef) -> Chai
         .with_heights(synced, Some(tip.number))
 }
 
-/// A missing account row reads as a zero balance, and a failed token read is
-/// logged and skipped. If the account read fails, the token reads are skipped
-/// rather than repeating failing requests.
+/// A missing account reads as a zero balance, and a failed token read is logged
+/// and skipped. If the account read fails, the token reads are skipped too instead
+/// of repeating failing requests.
 ///
-/// Answers every balance an endpoint reported, in base units.
+/// Returns every balance an endpoint reported, in base units.
 async fn balances(
     inputs: &PassInputs<'_>,
     entry: &Watched,
@@ -138,18 +138,18 @@ fn emit_balance(events: &dyn EventSink, address_id: i64, asset: AssetId, balance
     }));
 }
 
-/// One receipt lookup per send, plus an existence lookup for a send with no
-/// receipt, which separates one still in a mempool from a dead one.
+/// One receipt lookup per send, plus an existence lookup when there's no receipt,
+/// to tell a send still in a mempool from a dead one.
 ///
-/// A build no endpoint was handed is not asked about, because no node can know
-/// it. It waits for a broadcast to claim it and is dropped without a record once
-/// its window closes, because it never was a transaction.
+/// A build never handed to an endpoint isn't asked about, since no node can know
+/// it. It waits for a broadcast and is dropped without a record once its window
+/// closes, because it never was a transaction.
 ///
 /// Nothing is rebuilt here. A resend is the identical bytes, because a rebuild
 /// would put two live transactions in the air.
 ///
-/// Answers the addresses whose sends this pass reported landed or dead, which
-/// is news for their history.
+/// Returns the addresses whose sends this pass reported landed or dead, which is
+/// news for their history.
 async fn follow_up(
     inputs: &PassInputs<'_>,
     tip: BlockRef,
@@ -185,19 +185,17 @@ async fn follow_up(
 /// What following up one send did.
 #[derive(Debug, Clone, Copy)]
 enum FollowedUp {
-    /// Nothing was reported, because the send was never handed to an endpoint
+    /// Nothing was reported, because the send hasn't been handed to an endpoint
     /// or is still in flight.
     Waiting,
-    /// The send was reported landed or dead. `forgotten` names the address whose
-    /// followed sends changed, once the send is no longer followed.
+    /// The send was reported landed or dead. `forgotten` is its address once the
+    /// send is no longer tracked, so that address's sends get rewritten.
     Reported { forgotten: Option<i64> },
 }
 
-/// Acts on one send.
-///
-/// Every time reported here comes from the head block's clock, the one the
-/// network judged the transaction by, so a machine with an unusable clock still
-/// files its own sends correctly.
+/// Every time reported here comes from the head block, the clock the network
+/// judges by, so a machine with a wrong clock still files its own sends
+/// correctly.
 async fn follow_up_send(
     inputs: &PassInputs<'_>,
     entry: &Tracked,
@@ -211,8 +209,8 @@ async fn follow_up_send(
         return Ok(FollowedUp::Waiting);
     }
     let info = inputs.client.transaction_info(&entry.txid).await?;
-    // The existence question is only asked when there is no receipt, which is the
-    // only time the answer changes anything.
+    // Ask whether a node holds it only when there's no receipt, the only time the
+    // answer matters.
     let is_held_by_network = if info.height().is_some() {
         true
     } else {
@@ -255,7 +253,7 @@ async fn follow_up_send(
 /// Resends the identical bytes, which is always safe because the network answers
 /// `DUP_TRANSACTION_ERROR` for a transaction it already holds.
 ///
-/// A failure is only logged, because a resend is a best effort on top of the
+/// A failure is only logged, since a resend is a best effort on top of the
 /// network's own relaying.
 async fn resend(inputs: &PassInputs<'_>, entry: &Tracked) {
     let Ok(signed) = hex::decode(&entry.raw) else {

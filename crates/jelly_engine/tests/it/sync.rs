@@ -14,9 +14,8 @@ const TIP: u64 = 100;
 /// A wallet with one watched address on a chain that has an adapter, as the wallet's id
 /// and the address's id.
 ///
-/// Unlocking starts a pass, and the address is added only once it has finished.
-/// A pass still running could otherwise find the address and sync it alongside the
-/// one a test kicks.
+/// Unlocking starts a pass, so the address is added only once that pass has finished.
+/// Otherwise it could find the address and sync it alongside the pass a test kicks.
 async fn watching(harness: &Harness) -> Fallible<(i64, i64)> {
     harness.builder.install(&[CHAIN]);
     let created = harness.seed_wallet("syncing").await?;
@@ -107,8 +106,8 @@ async fn a_pass_that_moves_the_tip_reannounces_confirmation_depths() {
     drain(&mut events);
 
     // The chain grows a block, and nothing new happens to the recorded transaction.
-    // The fake stops reporting new ones, so the announcement cannot depend on whether
-    // the pump wrote one before the pass read the store.
+    // The fake stops reporting new ones, so the announcement can't depend on whether the
+    // pump wrote one before the pass read the store.
     let state = harness.builder.state(CHAIN);
     state.stop_emitting();
     state.tip.store(TIP + 1, Ordering::SeqCst);
@@ -134,7 +133,7 @@ async fn a_pass_that_moves_the_tip_reannounces_confirmation_depths() {
 /// A tip that moves many blocks at once, such as the first pass after an unlock, carries
 /// a transaction straight past settled.
 ///
-/// It was unsettled at the tip the interface last counted from, so it is still announced.
+/// It was unsettled at the tip the interface last counted from, so it's still announced.
 #[tokio::test]
 async fn a_tip_that_jumps_past_settled_announces_what_was_unsettled() {
     let harness = harness().await.unwrap();
@@ -315,7 +314,7 @@ async fn through_partway(
     }
 }
 
-/// Adapters report the tip they are scanning against while the pass runs, so the board
+/// Adapters report the tip they're scanning against while the pass runs, so the board
 /// holds the new tip before the pass returns.
 #[tokio::test]
 async fn a_tip_first_reported_in_flight_is_still_announced() {

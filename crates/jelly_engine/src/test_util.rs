@@ -1,9 +1,8 @@
-//! Reads and plants of persisted state, probes of sessions, sync loops, and the event
-//! pump, and the fixtures, operations, and fakes only tests use. Only
-//! `[dev-dependencies]` enable the `test-util` feature.
+//! Test-only access to persisted state, sessions, sync loops, and the event pump, plus
+//! fixtures and fakes. Only `[dev-dependencies]` enable the `test-util` feature.
 //!
-//! The wallet database belongs to the engine alone, so a test that has to see where a
-//! cursor landed, or plant a row the engine would never write, does it through these.
+//! Only the engine holds the wallet database, so a test that has to see where a cursor
+//! landed, or plant a row the engine would never write, goes through these.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -24,9 +23,8 @@ use crate::{EngineConfig, WalletEngine, wallet};
 
 /// The shipped configuration with [`Argon2Params::MINIMUM`] as the vault profile.
 ///
-/// That is the Argon2id floor the vault accepts, not a weakened profile, so a fixture
-/// cannot write a file the shipped build would refuse, and a suite skips a 256 MiB
-/// derivation per wallet.
+/// That's the lowest profile the vault accepts, so a fixture can't write a file the
+/// shipped build would refuse, and a suite skips a 256 MiB derivation per wallet.
 pub fn config() -> EngineConfig {
     EngineConfig { vault_kdf: Argon2Params::MINIMUM, ..EngineConfig::default() }
 }
@@ -178,10 +176,10 @@ pub fn dropped_events(engine: &WalletEngine) -> u64 {
     engine.inner.events.dropped()
 }
 
-/// How long an authorisation stays submittable, so a test can step the clock past it.
+/// How long an authorization stays submittable, so a test can step the clock past it.
 pub const PENDING_TTL: Duration = pending::PENDING_TTL;
 
-/// Authorisations still awaiting a submit, stale ones already released.
+/// Authorizations still awaiting a submit, stale ones already released.
 pub async fn list_pending_txs(engine: &WalletEngine) -> Result<Vec<PreparedTx>, CoreError> {
     engine.list_pending_txs().await
 }

@@ -8,8 +8,8 @@ on:
 permissions:
   contents: read
 
-# Code that runs in any workflow on main can write a cache entry, and apt installs a cached .deb
-# whose size matches without checking its hash, so a release restores no cache.
+# Any workflow run on main can write a cache entry, and apt installs a cached .deb of the right
+# size without checking its hash.
 cache-mode: none
 
 concurrency:
@@ -29,7 +29,7 @@ jobs:
     outputs:
       notes: ${{ steps.notes.outputs.notes }}
     steps:
-      # git-cliff reads the commits since the previous tag, so the checkout needs the full history.
+      # git-cliff and the check that the tag is on main need the full history.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -147,8 +147,8 @@ jobs:
       - uses: $/.github/actions/setup
 
       # Tauri downloads any AppImage tool missing from its cache without checking a hash, and takes
-      # the AppImage plugin from a release tag that upstream overwrites. Verified copies placed there
-      # first mean Tauri downloads nothing.
+      # the plugin from a release tag that upstream overwrites. With verified copies already there,
+      # it downloads nothing.
       - name: Fetch the pinned AppImage tools
         if: runner.os == 'Linux'
         env:
@@ -205,8 +205,6 @@ jobs:
           path: target/THIRD-PARTY-NOTICES.txt
           if-no-files-found: error
 
-  # The job that holds the write token and signs the attestation runs only GitHub's own actions
-  # and gh, so no third-party code can swap a file before it is attested or released.
   release:
     name: Draft the release
     needs: [prepare, build]
@@ -222,7 +220,7 @@ jobs:
         with:
           path: artifacts
 
-      # Both Windows builds are named jelly.exe, so they get the names Tauri gives the other bundles.
+      # Both Windows builds are named jelly.exe, so they're renamed to match Tauri's other bundles.
       - name: Collect the release files
         run: |
           version=${GITHUB_REF_NAME#v}

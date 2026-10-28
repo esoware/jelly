@@ -9,16 +9,16 @@ use parking_lot::Mutex;
 /// Bytes of book-keeping every account carries on top of its data.
 const ACCOUNT_STORAGE_OVERHEAD_BYTES: u64 = 128;
 
-/// Lamports per byte-year before SIMD-0437 steps it down toward 696 during 2026,
-/// so every figure derived from it is a ceiling and never a quote.
+/// The rate before SIMD-0437 steps it down toward 696, so every figure derived from it
+/// is a ceiling, never a quote.
 const LAMPORTS_PER_BYTE_YEAR_CEILING: u64 = 6_960;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RentSource {
     /// The node answered.
     Node,
-    /// The node could not be asked, so this is the compiled-in ceiling and the
-    /// preview says so.
+    /// The node couldn't be asked, so this is the compiled-in ceiling and the preview
+    /// says so.
     Ceiling,
 }
 
@@ -33,8 +33,8 @@ impl RentQuote {
         Self { lamports, source: RentSource::Node }
     }
 
-    /// Used only when the node could not be asked. It saturates rather than
-    /// failing, so an uncomputable figure cannot make a transfer look free.
+    /// Used only when the node couldn't be asked. It saturates rather than failing, so
+    /// an uncomputable figure can't make a transfer look free.
     const fn ceiling(bytes: u64) -> Self {
         Self { lamports: rent_ceiling(bytes), source: RentSource::Ceiling }
     }
@@ -58,9 +58,8 @@ const fn rent_ceiling(bytes: u64) -> u64 {
         .saturating_mul(LAMPORTS_PER_BYTE_YEAR_CEILING)
 }
 
-/// One session's rent answers, keyed by account size. The rate moves only at a
-/// feature activation, so a session-long cache cannot go stale in a way that
-/// matters.
+/// One session's rent answers, keyed by account size. The rate moves only at a feature
+/// activation, so a session-long cache can't go stale in a way that matters.
 #[derive(Debug, Default)]
 pub(crate) struct RentCache {
     entries: Mutex<Vec<(u64, u64)>>,

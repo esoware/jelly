@@ -180,10 +180,7 @@ fn terminal_record(events: &[WalletEvent], signed: &SignedTx) -> Fallible<TxReco
     let mut found: Vec<_> =
         records(events).into_iter().filter(|row| row.txid == signed.txid).collect();
     if found.len() != 1 {
-        return Err(format!(
-            "terminal settlement must replay before committed acknowledgement: {found:?}"
-        )
-        .into());
+        return Err(format!("expected exactly one record for the send, got {found:?}").into());
     }
     found.pop().ok_or_else(|| "terminal record".into())
 }
@@ -262,7 +259,7 @@ async fn terminal_replay(
     if matches!(checkpoint, Checkpoint::Discarded) {
         cursors.discard();
     }
-    assert_eq!(stored_scan(cursors.as_ref()).await?, baseline, "secret progress still lags");
+    assert_eq!(stored_scan(cursors.as_ref()).await?, baseline, "the stored scan still lags");
     if matches!(session, Session::Restarted) {
         harness.adapter = build().build().await?;
         harness.adapter.set_watch_set(&watches).await?;
@@ -288,7 +285,7 @@ async fn terminal_replay(
         "acknowledged settlements stay quiet"
     );
     let cleaned = stored_sends(cursors.as_ref()).await?.ok_or("stored state")?;
-    assert!(cleaned.len() < saved.len(), "loaded coverage must clean terminal replay metadata");
+    assert!(cleaned.len() < saved.len(), "the pass after the commit drops the terminal metadata");
     Ok(())
 }
 
@@ -365,8 +362,8 @@ async fn a_send_that_lands_stops_being_in_flight_and_is_reported_once() {
     assert!(failed(&reported).is_none(), "a landed send is not a failure");
     assert_eq!(spend.confirmations, 4);
 
-    // The reservation is over on disk too, so an unlock does not resurrect it and
-    // hold coins the chain has already moved.
+    // The reservation is gone on disk too, so an unlock doesn't bring it back and
+    // hold coins the chain already moved.
     let raw = signed.raw.as_bytes();
     if let Some(blob) = stored_sends(&*harness.cursors).await.unwrap() {
         assert!(
@@ -376,8 +373,8 @@ async fn a_send_that_lands_stops_being_in_flight_and_is_reported_once() {
     }
 }
 
-/// The change comes back to the address that paid, in the same transaction. It is
-/// what the outgoing amount is net of, never a payment of its own.
+/// The change comes back to the paying address in the same transaction. The outgoing
+/// amount is net of it, so it's never a payment of its own.
 #[tokio::test]
 async fn the_change_of_a_landed_send_is_not_reported_as_a_payment_in() {
     let harness = Harness::new().await.unwrap();
@@ -469,8 +466,8 @@ async fn a_send_no_node_holds_is_resent_until_its_budget_runs_out() {
         "its inputs went back"
     );
 
-    // A reservation the follow-up ended is ended on disk too, so an unlock does
-    // not hold those coins again.
+    // The follow-up ended the reservation on disk too, so an unlock doesn't hold
+    // those coins again.
     let reopened =
         reopen(&harness, harness.account.clone(), harness.height, config()).await.unwrap();
     assert_eq!(in_flight(&reopened), 0, "a dead send does not come back at the next unlock");
@@ -536,12 +533,9 @@ async fn an_in_flight_send_survives_a_restart() {
 
 const MONERO: AssetId = AssetId::Native(ChainId::Monero);
 
-/// A payment to another account of this wallet is recorded as leaving the account it
-/// spent from.
-///
-/// The scanner watches account 1, and its primary address is paid out of account 0
-/// as surely as a stranger is. wallet2 nets an outgoing amount only against what came
-/// back to the spending account.
+/// The scanner watches account 1 too, but paying it from account 0 is still a payment
+/// out. wallet2 nets an outgoing amount only against what came back to the spending
+/// account.
 #[tokio::test]
 async fn a_payment_to_another_of_its_own_accounts_leaves_the_account_it_spent_from() {
     let harness = Harness::new().await.unwrap();
@@ -570,12 +564,11 @@ async fn a_payment_to_another_of_its_own_accounts_leaves_the_account_it_spent_fr
     );
 }
 
-/// A landed send is filed under the address it was sent from, even when another watched
-/// subaddress held its largest input.
+/// The engine files a send under the address the request named.
 ///
-/// The engine files the send it broadcast under the address the request named. Filed
-/// anywhere else once it lands, the engine's row for it would never resolve and the
-/// history would show one payment on two addresses.
+/// If the scan filed it under the watched subaddress that held its largest input instead,
+/// the engine's row would never resolve and the history would show one payment on two
+/// addresses.
 #[tokio::test]
 async fn a_landed_send_is_filed_under_the_address_it_was_sent_from_not_the_one_that_funded_it() {
     let (harness, swept) = cross_funded().await.unwrap();
@@ -611,11 +604,10 @@ async fn a_landed_send_is_filed_under_the_address_it_was_sent_from_not_the_one_t
     );
 }
 
-/// A send made right after a long lock stays in flight inside its budget.
+/// The abandon budget counts from the height the ring was chosen at, not the older tip in
+/// the saved scan state.
 ///
-/// The abandon budget counts blocks from the broadcast, so a send made right after an
-/// unlock is measured from the height its ring was chosen at, not from the tip the scan
-/// state was saved with, and the first pass does not abandon it just because no node
+/// Otherwise the first pass after an unlock would abandon a fresh send just because no node
 /// has it yet.
 #[tokio::test]
 async fn a_send_made_right_after_a_long_lock_stays_in_flight_inside_its_budget() {
@@ -642,7 +634,7 @@ async fn a_send_made_right_after_a_long_lock_stays_in_flight_inside_its_budget()
     let mut txid = [0u8; 32];
     hex::decode_to_slice(signed.txid.value(), &mut txid).unwrap();
 
-    // The first pass asks a node that has not seen the transaction yet.
+    // The first pass asks a node that hasn't seen the transaction yet.
     harness.node.forget(&txid);
     let events = FakeEventSink::new();
     adapter.sync(harness.clock.deadline_in(Duration::from_secs(30)), &events).await.unwrap();

@@ -4,8 +4,8 @@ use jelly_keypair::keccak_address_bytes;
 
 use crate::error::EvmError;
 
-/// Every EVM network shares one address format, because a key has the same address
-/// on all of them. The chain only tags errors and the [`Address`].
+/// A key has the same address on every EVM network, so the chain only tags errors
+/// and the [`Address`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EvmCodec {
     chain: ChainId,
@@ -33,11 +33,9 @@ pub(crate) fn checksummed(bytes: [u8; 20]) -> String {
     EvmAddress::from(bytes).to_checksum(None)
 }
 
-/// Mixed-case input must carry a correct EIP-55 checksum. Single-case input is
-/// accepted, as every wallet accepts an address typed in one case, though alloy's
-/// `parse_checksummed` would refuse it.
-///
-/// `chain` only tags the failure, because one address serves every EVM network.
+/// Mixed-case input must carry a valid EIP-55 checksum. Single-case input is
+/// accepted, as other wallets accept it, though alloy's `parse_checksummed` would
+/// refuse it. `chain` only tags the error.
 pub(crate) fn evm_address_bytes(chain: ChainId, value: &str) -> Result<[u8; 20], AddressError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -67,8 +65,8 @@ pub(crate) fn parse(chain: ChainId, text: &str) -> Result<EvmAddress, EvmError> 
     Ok(EvmAddress::from(bytes))
 }
 
-/// Derived by the same code as the address the wallet shows, so a signature is
-/// checked against the address the user was given.
+/// Derived by the same code as the address the wallet shows, so signing checks the
+/// key against the address the user was given.
 pub(crate) fn of_public_key(public_uncompressed: &[u8]) -> Result<EvmAddress, EvmError> {
     Ok(EvmAddress::from(keccak_address_bytes(public_uncompressed).map_err(EvmError::Signing)?))
 }

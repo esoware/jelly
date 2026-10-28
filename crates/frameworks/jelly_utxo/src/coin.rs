@@ -20,16 +20,16 @@ pub(crate) enum Origin {
     /// An output after the first of a Litecoin `HogEx`.
     Pegout,
     /// An output of a transaction that spends only the wallet's own coins, such
-    /// as change. Only the wallet can replace that transaction, so it is safe to
-    /// spend before it confirms, which Bitcoin Core calls a trusted coin.
+    /// as change. Only the wallet can replace that transaction, so it's safe to
+    /// spend unconfirmed. Bitcoin Core calls this a trusted coin.
     Own,
 }
 
-/// An output of the wallet's own with its script kind, confirmation height, and
+/// One of the wallet's outputs, with its script kind, confirmation height, and
 /// origin.
 ///
-/// `verified_unspents` takes the value from the funding transaction rather than
-/// `listunspent`, because a legacy input's sighash does not commit to it.
+/// `verified_unspents` takes the value from the funding transaction, not
+/// `listunspent`, because a legacy input's sighash doesn't commit to it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Utxo {
     outpoint: OutPoint,
@@ -37,9 +37,9 @@ pub(crate) struct Utxo {
     script: SpendableScript,
     height: Option<u32>,
     origin: Origin,
-    /// Whether it carries `CashTokens` or SLP tokens. A transaction that spent it
-    /// into plain outputs would burn them, so it counts toward the balance and is
-    /// never selected. A token wallet on the same keys can still move it.
+    /// Whether it carries `CashTokens` or SLP tokens. Spending it into plain outputs
+    /// would burn them, so it counts toward the balance but is never selected. A
+    /// token wallet on the same keys can still move it.
     has_tokens: bool,
 }
 
@@ -128,8 +128,8 @@ impl Utxo {
 
     /// Value net of what this input costs to spend, in thousandths of a base unit.
     ///
-    /// An `i128` because a scaled `u64` value does not fit in `i64`, and the
-    /// result is negative for a coin that costs more to spend than it is worth.
+    /// An `i128`, since a scaled `u64` doesn't fit in `i64` and the result goes
+    /// negative for a coin that costs more to spend than it's worth.
     pub(crate) fn effective_milli(&self, rate: FeeRate) -> i128 {
         let value_milli = milli(self.value).unwrap_or(i128::MAX);
         let cost_milli =
@@ -147,8 +147,8 @@ pub(crate) fn units(value: u64) -> Amount {
     Amount::from(value)
 }
 
-/// For amounts this crate built from `u64` output values, so a failure is a bug.
-/// It is still reported rather than asserted away.
+/// Only for amounts built from `u64` output values, so a failure is a bug, but it's
+/// still reported instead of asserted away.
 pub(crate) fn to_u64(amount: Amount) -> Result<u64, UtxoError> {
     u64::try_from(amount.base_units())
         .map_err(|_| UtxoError::overflow("an amount past any output value"))

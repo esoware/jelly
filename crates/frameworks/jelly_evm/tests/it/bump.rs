@@ -385,8 +385,8 @@ async fn a_cancel_of_a_send_this_adapter_is_not_following_is_refused() {
     assert!(refused.to_string().contains("not pending in this wallet"), "{refused}");
 }
 
-/// The cancel lands at depth. The original never can, so it is replaced, and the
-/// cancel is the send to itself that paid the fee.
+/// Once the cancel lands at depth, the original never can, so it's recorded as
+/// replaced and the cancel as a self-transfer that paid the fee.
 #[tokio::test]
 async fn a_cancel_that_lands_replaces_the_original_and_is_recorded_as_a_paid_self_transfer() {
     let sent = sent_with(Setup::default().one_window()).await.unwrap();

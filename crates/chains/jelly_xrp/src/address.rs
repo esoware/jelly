@@ -56,7 +56,8 @@ pub(crate) fn pubkey_address(pubkey: &[u8; 33]) -> String {
     xrp_address(&hash160::Hash::hash(pubkey).to_byte_array())
 }
 
-/// Keeps a tag embedded in a URI or X-address rather than discarding it.
+/// Parses a classic address, X-address, or payment URI, keeping any tag it carries. A
+/// URI's tag must agree with the X-address it names.
 pub(crate) fn xrp_destination(value: &str) -> Result<XrpDestination, AddressError> {
     let value = value.trim();
     if value.is_empty() {

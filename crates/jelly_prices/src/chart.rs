@@ -50,7 +50,7 @@ impl PriceCharts {
     /// Each candle converts at the close of the latest rate candle opened by then, so
     /// it keeps the dollar candle's shape. A candle older than every rate is left out.
     ///
-    /// An asset whose ticker is not configured is refused without a request.
+    /// An asset whose ticker isn't configured is refused without a request.
     pub async fn chart(
         &self,
         asset: AssetId,
@@ -70,8 +70,8 @@ impl PriceCharts {
         Ok(PriceChart { currency, candles: convert(&prices, &rates) })
     }
 
-    /// A caller asking for candles already in flight waits for that request rather
-    /// than sending its own. A failure is not kept, so the next caller asks again.
+    /// A caller asking for candles already in flight waits for that request instead of
+    /// sending its own. A failure isn't kept, so the next caller asks again.
     async fn candles(&self, request: CandleRequest) -> Result<Arc<[Candle]>, PriceError> {
         let slot = Arc::clone(
             self.slots.lock().await.entry((request.market(), request.interval())).or_default(),

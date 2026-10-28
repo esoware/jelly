@@ -1,10 +1,9 @@
-//! Scripted EVM services, network figures, and the chain crates' address vectors for
+//! Scripted EVM services, network params, and the chain crates' address vectors for
 //! tests. Only `[dev-dependencies]` enable the `test-util` feature.
 //!
-//! The networks' params here are copies of the chain crates' own, for this crate's
-//! unit tests. Those cannot take them from a chain crate, whose copy of this crate is a
-//! separate build with its own types. Each chain crate's tests assert that its params
-//! match its copy.
+//! The params are copies of the chain crates' own, for this crate's unit tests. Those
+//! can't import them, because a chain crate's copy of this crate is a separate build
+//! with its own types. Each chain crate's tests assert that its params match its copy.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -22,8 +21,8 @@ use crate::etherscan;
 use crate::history::{HistoryApi, HistoryPage, InternalRow, NativeRow, TokenRow};
 use crate::params::EvmParams;
 
-/// The address the all-abandon test phrase derives at `m/44'/60'/0'/0/0`, which every
-/// EVM network shares, so it is the address each chain crate's vector secret holds.
+/// The address the all-abandon test phrase derives at `m/44'/60'/0'/0/0`. Every EVM
+/// network shares that path, so each chain crate's vector secret holds this address.
 pub const PAYEE: &str = "0x9858EfFD232B4033E47d90003D41EC34EcaEda94";
 
 /// A chain crate's `tests/vectors/addresses.json`.

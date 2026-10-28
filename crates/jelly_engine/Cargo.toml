@@ -12,9 +12,8 @@ workspace = true
 [features]
 default = []
 ipc = ["dep:specta", "jelly_core/ipc"]
-# Reads and plants of persisted state, probes of sessions, sync loops, and the event
-# pump, and the fixtures, operations, and fakes only tests use. Enable only from
-# [dev-dependencies].
+# Fixtures, fakes, and test seams into stored state, sessions, sync loops, and the event
+# pump. Enable only from [dev-dependencies].
 test-util = ["jelly_core/test-util"]
 
 [dependencies]

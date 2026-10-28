@@ -8,10 +8,8 @@ use crate::error::blocking;
 use crate::{WalletEngine, derive, seed};
 
 impl WalletEngine {
-    /// The wallet's BIP-39 phrase.
-    ///
-    /// Re-authenticated inside the vault, which re-derives the key from the
-    /// password, so the check cannot be skipped by a caller.
+    /// The wallet's BIP-39 phrase. The vault checks the password itself, so a caller
+    /// can't skip it.
     pub async fn export_seed_phrase(
         &self,
         password: SecretString,
@@ -45,8 +43,7 @@ impl WalletEngine {
         Ok(entropy.with_bytes(|bytes| Zeroizing::new(hex::encode(bytes))))
     }
 
-    /// The seed words of the wallet's account on a chain whose ecosystem spells one, such
-    /// as Monero's 25 words.
+    /// The account's own seed words on a chain that has them, such as Monero's 25 words.
     pub async fn export_account_seed(
         &self,
         chain: ChainId,
@@ -79,7 +76,7 @@ impl WalletEngine {
         Ok(key)
     }
 
-    /// The blob of `kind`, behind a re-authentication the vault performs itself.
+    /// The blob of `kind`, behind a password check the vault performs itself.
     async fn reauthed_export(
         &self,
         password: SecretString,

@@ -40,8 +40,8 @@ const MONTHS: [&str; 12] =
 
 /// An IMF-fixdate such as `Sun, 06 Nov 1994 08:49:37 GMT`, in unix seconds.
 ///
-/// It is read leniently: the weekday is not checked, field widths are not enforced, the
-/// second is not range-checked, and any month takes a day up to 31.
+/// It's read leniently: the weekday isn't checked, field widths aren't enforced, the
+/// second isn't range-checked, and any month takes a day up to 31.
 fn imf_fixdate_unix_secs(value: &str) -> Option<i64> {
     let (_, rest) = value.split_once(", ")?;
     let mut fields = rest.split(' ');

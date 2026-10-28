@@ -17,16 +17,16 @@ use crate::record::{self, Record};
 use crate::state::States;
 use crate::watched::Watched;
 
-// A long history is committed in parts of this many transactions, so a pass that ends
-// early keeps what it read.
+// The most transactions one pass fetches for an address, so a long history is committed
+// over several passes.
 const MAX_FETCHES_PER_PASS: usize = 100;
 
-/// What every address of one pass reads against.
+/// The state one pass shares across every watched address.
 struct Pass<'a> {
     client: &'a ZcashClient,
     states: &'a States,
     tip: &'a Tip,
-    /// The addresses of the whole watch set, which a record tells apart from strangers.
+    /// Every watched address, so a record can tell the wallet's own from strangers'.
     own: &'a [&'a str],
     /// The outputs spent by history transactions that no pass has summarized yet.
     fetched_previous_outputs: &'a mut BTreeMap<OutPoint, TxOut>,
@@ -115,9 +115,9 @@ impl Pass<'_> {
                         is_complete = false;
                         break;
                     }
-                    // After some progress, a network failure ends the pass incomplete so that
-                    // progress is saved. With none, the failure is the answer, so a broken
-                    // endpoint is reported rather than passed off as an endless partial sync.
+                    // After some progress, a network failure ends the pass incomplete so the
+                    // progress is saved. With none, the failure is returned, so a broken
+                    // endpoint is reported instead of looking like an endless partial sync.
                     Err(ZcashError::Net(_)) if fetched_count > 0 => {
                         is_complete = false;
                         break;

@@ -14,10 +14,7 @@ async fn signed(harness: &Harness) -> Fallible<SignedTx> {
     Ok(harness.adapter.sign_tx(&unsigned, &[key_material(OWNER_KEY)])?)
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "a fixture helper outside a #[test] body is still test code and must fail loudly"
-)]
+#[expect(clippy::expect_used, reason = "test helper")]
 fn body(text: &str) -> Value {
     serde_json::from_str(text).expect("a broadcast body is json")
 }
@@ -137,7 +134,7 @@ async fn a_node_without_the_hex_route_takes_the_json_form_in_the_same_attempt() 
     assert_eq!(harness.fake.count(Route::BroadcastTransaction), 1);
 
     // java-tron rebuilds the transaction from the decoded object and ignores
-    // raw_data_hex, so the object has to be there and has to agree with the bytes.
+    // raw_data_hex, so the object must be there and agree with the bytes.
     let sent = body(&harness.fake.last_body(Route::BroadcastTransaction).expect("a body"));
     assert_eq!(sent.get("txID").and_then(Value::as_str), Some(signed.txid.value()));
     let raw_data = sent.get("raw_data").expect("the decoded raw_data object");

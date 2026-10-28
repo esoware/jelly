@@ -1,4 +1,4 @@
-//! The on-disk vault file: a JSON envelope whose only secret is `ciphertext`.
+//! The on-disk vault file: a JSON envelope around the encrypted payload.
 //!
 //! ```text
 //! field                    | type    | meaning
@@ -21,20 +21,19 @@
 //! header_tag               | hex 32B | HMAC-SHA-256(header mac key, canonical bytes)
 //! ```
 //!
-//! Every fixed-width field is length-checked by its hex decoder as it parses. Algorithm
-//! names are validated even though only one value is ever written, so a future version
-//! can add one cleanly.
+//! The hex decoder length-checks every fixed-width field as it parses. Algorithm names
+//! are checked even though only one value is ever written, so a later version can add
+//! another cleanly.
 //!
-//! `header_tag` covers the parsed field values in a canonical, length-prefixed encoding
-//! rather than the JSON text, so reformatting the file does not break it but any
-//! meaningful change does. It covers the ciphertext, the commitment, and the KDF
-//! parameters, which blocks a downgrade. It is verified before the password commitment
-//! is checked, under a key that depends on the master key alone. That ordering is what
-//! makes `Corrupt` and `WrongPassword` mean different things.
+//! `header_tag` covers the parsed field values in a canonical, length-prefixed encoding,
+//! not the JSON text, so reformatting the file doesn't break it but any real change does.
+//! Covering the KDF parameters blocks a downgrade. The tag is checked under a key from
+//! the master key alone, before the password commitment, which is what keeps `Corrupt`
+//! and `WrongPassword` distinct.
 //!
-//! The tag cannot prove freshness, so an earlier copy of the same wallet's file still
-//! verifies. Defending against rollback needs state outside the file, which this design
-//! deliberately does not have.
+//! The tag can't prove freshness, so an older copy of the same wallet's file still
+//! verifies. Rollback protection would need state outside the file, and the design
+//! deliberately keeps none.
 
 use serde::{Deserialize, Serialize};
 
@@ -44,20 +43,19 @@ use crate::keys::{
     COMMITMENT_LEN, HKDF_SALT_LEN, HeaderMac, KEY_LEN, MAC_LEN, NONCE_LEN, TAG_LEN, length_prefix,
 };
 
-/// Older versions are not read. The field exists so a file from another build is refused
-/// by name rather than misparsed.
+/// Older versions aren't read. The field lets a file from another build be refused by
+/// version instead of misparsed.
 const FORMAT_VERSION: u32 = 3;
 
-/// File magic, checked before anything else is trusted.
 const MAGIC: &str = "jelly-vault";
 
 const KDF_ALGORITHM: &str = "argon2id";
 const AEAD_ALGORITHM: &str = "xchacha20poly1305";
 const HKDF_HASH: &str = "sha256";
 
-/// AEAD associated data domain. On-disk contract.
+/// AEAD associated data domain. Part of the on-disk format.
 const AAD_DOMAIN: &[u8] = b"jelly-vault/v3/aad";
-/// Header MAC message domain. On-disk contract.
+/// Header MAC message domain. Part of the on-disk format.
 const MAC_DOMAIN: &[u8] = b"jelly-vault/v3/header";
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -117,7 +115,7 @@ impl AeadBlock {
     }
 }
 
-/// Holds no secrets. `ciphertext` is opaque and everything else is metadata.
+/// Holds no secrets. `ciphertext` is encrypted and everything else is metadata.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct VaultFile {
@@ -171,11 +169,11 @@ impl VaultFile {
         if self.mac(mac_key)?.verify(&self.header_tag) {
             Ok(())
         } else {
-            Err(VaultError::corrupt("the header integrity tag does not verify"))
+            Err(VaultError::corrupt("the header integrity tag doesn't verify"))
         }
     }
 
-    /// Every field except `header_tag`, which is the output.
+    /// Covers every field except `header_tag` itself.
     fn mac(&self, mac_key: &[u8; KEY_LEN]) -> Result<HeaderMac, VaultError> {
         let mut mac = HeaderMac::new(mac_key)?;
         mac.update(MAC_DOMAIN);
@@ -202,7 +200,7 @@ impl VaultFile {
         let file: Self = serde_json::from_slice(bytes).map_err(VaultError::Malformed)?;
 
         if file.magic != MAGIC {
-            return Err(VaultError::corrupt("the file magic is not a jelly vault"));
+            return Err(VaultError::corrupt("the file magic is wrong"));
         }
         if file.format_version != FORMAT_VERSION {
             return Err(VaultError::UnsupportedVersion {
@@ -211,13 +209,13 @@ impl VaultFile {
             });
         }
         if file.kdf.algorithm != KDF_ALGORITHM || file.kdf.version != u32::from(ARGON2_VERSION) {
-            return Err(VaultError::corrupt("the kdf is not argon2id v1.3"));
+            return Err(VaultError::corrupt("the kdf isn't argon2id v1.3"));
         }
         if file.hkdf.hash != HKDF_HASH {
-            return Err(VaultError::corrupt("the hkdf hash is not sha256"));
+            return Err(VaultError::corrupt("the hkdf hash isn't sha256"));
         }
         if file.aead.algorithm != AEAD_ALGORITHM {
-            return Err(VaultError::corrupt("the aead is not xchacha20poly1305"));
+            return Err(VaultError::corrupt("the aead isn't xchacha20poly1305"));
         }
         if file.ciphertext.len() < TAG_LEN {
             return Err(VaultError::corrupt("the ciphertext is shorter than its tag"));
@@ -290,8 +288,8 @@ mod tests {
         VaultFile::parse(&compact).unwrap().verify_integrity(&MAC_KEY).unwrap();
     }
 
-    /// Re-stamping after each mutation is the positive control. It proves the failure
-    /// came from the tag and not from the mutation itself.
+    /// Re-stamping after each mutation is the positive control. It shows the failure came
+    /// from the tag, not from the mutation itself.
     #[test]
     fn every_field_is_covered_by_the_tag() {
         let cases: [Mutation; 15] = [

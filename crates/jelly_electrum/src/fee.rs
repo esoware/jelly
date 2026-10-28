@@ -5,15 +5,14 @@ use serde_json::value::RawValue;
 
 /// Fraction digits of an exact `BTC/kvB` rendering.
 const BTC_SCALE: u32 = 8;
-/// Fraction digits this build reads from a base-unit-per-vbyte number. One
-/// thousandth of a base unit per vbyte is a quarter of one per kwu, so three digits
-/// is already finer than the stored unit.
+/// Fraction digits read from a sat/vB number. 0.001 sat/vB is 0.25 sat/kwu, already
+/// finer than the stored unit.
 const VBYTE_SCALE: u32 = 3;
-/// Base units per kilo-virtual-byte in one base unit per 1000 weight units.
+/// 1 sat/kwu is 4 sat/kvB.
 const PER_KWU_IN_PER_KVB: u128 = 4;
 
 wire_enum! {
-    /// The estimator `blockchain.estimatefee` runs.
+    /// The mode argument of `blockchain.estimatefee`.
     pub enum EstimationMode {
         Conservative => "CONSERVATIVE",
         Economical => "ECONOMICAL",
@@ -24,7 +23,7 @@ wire_enum! {
 pub enum FeeReading {
     Rate(FeeRate),
     /// The server has no estimate for this target and said so with a negative
-    /// number. This is not a rate of zero and must never be used as one.
+    /// number. Never treat it as a zero rate.
     Absent,
 }
 
@@ -63,7 +62,7 @@ impl<'de> Deserialize<'de> for HistogramBucket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[expect(
     clippy::struct_field_names,
-    reason = "the fields keep the names of Bitcoin Core's mempoolminfee, minrelaytxfee, and incrementalrelayfee"
+    reason = "mirrors Bitcoin Core's mempoolminfee, minrelaytxfee, and incrementalrelayfee"
 )]
 pub struct MempoolInfo {
     pub mempool_min_fee: Option<FeeRate>,
@@ -101,9 +100,8 @@ impl<'de> Deserialize<'de> for MempoolInfo {
     }
 }
 
-/// A relay fee the server declines to state, with a negative number or by
-/// leaving it out, reads as `None` rather than an error, so the caller falls back
-/// to the chain's compiled-in constant.
+/// A missing or negative fee reads as `None`, not an error, so the caller falls back to
+/// the chain's built-in floor.
 fn read_relay_fee<'de, D: Deserializer<'de>>(
     raw: Option<&RawValue>,
 ) -> Result<Option<FeeRate>, D::Error> {
@@ -114,26 +112,22 @@ fn read_relay_fee<'de, D: Deserializer<'de>>(
     }
 }
 
-/// Reads a `BTC/kvB` number token, which is what `blockchain.estimatefee` and
-/// `mempool.get_info` answer with.
-///
-/// One satoshi per kvB is exactly a quarter of one satoshi per 1000 weight
-/// units, so the whole conversion is integer.
+/// Reads a `BTC/kvB` number, the unit of `blockchain.estimatefee` and `mempool.get_info`.
 pub(crate) fn read_btc_per_kvb(token: &str) -> Option<FeeReading> {
     read_rate(token, BTC_SCALE)
 }
 
-/// Reads a base-unit-per-virtual-byte number token, the unit of
-/// `mempool.get_fee_histogram` and of mempool.space-style REST fee services.
+/// Reads a sat/vB number, the unit of `mempool.get_fee_histogram` and of
+/// mempool.space-style fee APIs.
 pub fn read_sat_per_vb(token: &str) -> Option<FeeReading> {
     read_rate(token, VBYTE_SCALE)
 }
 
-/// Parses decimal or exponent notation into base units per 1000 weight units,
-/// rounding up at `scale` and again at the division by four.
+/// Parses decimal or exponent notation into sat/kwu, rounding up at `scale` and again at
+/// the division by four.
 ///
-/// Python-based servers send exponents, which `Amount::parse` rejects, and it
-/// does not round up.
+/// Not `Amount::parse`, which rejects the exponents Python-based servers send and doesn't
+/// round up.
 fn read_rate(token: &str, scale: u32) -> Option<FeeReading> {
     let text = token.trim();
     let (is_negative, unsigned) = match text.strip_prefix('-') {

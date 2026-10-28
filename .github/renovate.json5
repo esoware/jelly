@@ -80,7 +80,7 @@
       matchPackageNames: ["tauri", "tauri-build", "tauri-plugin-*", "@tauri-apps/*"],
       groupName: "Tauri packages",
     },
-    // A new formatter or linter release can fail just ready, so these stay out of the npm group.
+    // A new oxc release can fail just ready, so these stay out of the npm group.
     {
       matchPackageNames: ["oxc-transform-react", "oxfmt", "oxlint", "oxlint-tsgolint"],
       groupName: "oxc packages",
@@ -123,9 +123,9 @@
       // These pins are exact versions, which Cargo's versioning would read as caret ranges.
       versioningTemplate: "semver",
     },
-    // AppRun and linuxdeploy stay on the release names that Tauri's bundler hardcodes, so only the
-    // AppImage plugin is tracked. Each Linux matrix entry in release.yml puts the plugin's URL right
-    // above its hash, so one match captures both the tag and the digest.
+    // Tauri's bundler hardcodes the AppRun and linuxdeploy releases, so only the AppImage plugin is
+    // tracked. Each Linux entry in release.yml puts the plugin's URL right above its hash, so one
+    // match captures both the tag and the digest.
     {
       customType: "regex",
       managerFilePatterns: ["/^\\.github/workflows/release\\.yml$/"],

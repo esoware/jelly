@@ -6,11 +6,11 @@ use crate::command::{RevealedSecret, TARGET, with_engine};
 use crate::error::IpcError;
 use crate::state::AppState;
 
-/// Requires the wallet password even during an open session.
+/// Takes the wallet password even while the wallet is open.
 ///
-/// The phrase crosses IPC as a plain string that cannot be wiped, so the export commands
-/// sit behind their own capability. The frontend must protect the window while it shows
-/// the phrase and keep it out of query caches.
+/// The phrase crosses IPC as a string we can't wipe, so the exports sit behind their own
+/// capability. The frontend must protect the window while it shows the phrase and keep it
+/// out of query caches.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn export_seed_phrase(
@@ -78,8 +78,8 @@ pub(crate) async fn export_private_key(
     .await
 }
 
-/// Requests capture protection while a secret is visible. The revealing component disables
-/// it on cleanup.
+/// Turns screen capture protection on while a secret is visible. The component that shows
+/// the secret turns it off on cleanup.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn set_secret_screen(

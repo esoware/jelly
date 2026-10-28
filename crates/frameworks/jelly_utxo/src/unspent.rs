@@ -11,9 +11,9 @@ use crate::prevout::PrevoutMap;
 use crate::script::SpendableScript;
 use crate::slp;
 
-/// Why an unspent entry a server listed was not believed.
+/// Why an unspent entry a server listed wasn't believed.
 ///
-/// A light client cannot verify that an output is still unspent, but it verifies
+/// A light client can't verify that an output is still unspent, but it verifies
 /// everything else against the funding transaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum UnspentRefusal {
@@ -25,15 +25,14 @@ enum UnspentRefusal {
 }
 
 impl UnspentRefusal {
-    /// The prose a log line carries.
     const fn describe(self) -> &'static str {
         match self {
             Self::NoFundingTransaction => {
-                "the server listed an unspent output whose transaction it did not return"
+                "the server listed an unspent output whose transaction it didn't return"
             }
-            Self::NoSuchOutput => "there is no such output in the funding transaction",
-            Self::WrongScript => "the listed output does not pay this address",
-            Self::WrongValue => "the listed value is not what the funding transaction says",
+            Self::NoSuchOutput => "there's no such output in the funding transaction",
+            Self::WrongScript => "the listed output doesn't pay this address",
+            Self::WrongValue => "the listed value isn't what the funding transaction says",
             Self::Duplicate => "the same output was listed more than once",
         }
     }
@@ -64,8 +63,8 @@ pub(crate) struct Funding<'a> {
 }
 
 impl Funding<'_> {
-    /// Whether every input of `tx` spends one of the wallet's own outputs. An
-    /// input whose prevout the pass could not read is not assumed to be ours.
+    /// Whether every input of `tx` spends one of the wallet's own outputs. An input
+    /// whose prevout the pass couldn't read isn't assumed to be ours.
     fn is_own(&self, tx: &Transaction) -> bool {
         !tx.is_coinbase()
             && tx.input.iter().all(|txin| {
@@ -78,18 +77,16 @@ impl Funding<'_> {
 }
 
 /// Verifies listed values and scripts against the funding transactions, so an
-/// inflated legacy prevout cannot turn into excess fee.
+/// inflated legacy prevout can't turn into excess fee.
 ///
-/// Duplicates are dropped so a balance cannot double and an input cannot repeat.
-/// Spentness is still the server's claim. The funding transaction also says
-/// whether a node holds the coin back until it matures, as a coinbase output or,
-/// for any output after the first of a `HogEx`, as a peg-out, whether the wallet
-/// made the coin itself, and whether it carries tokens, through a `CashTokens`
-/// prefix or an SLP message, which the server's own token report is not trusted to
-/// say.
+/// Duplicates are dropped so a balance can't double and an input can't repeat.
+/// Spentness is still the server's word. The funding transaction also tells whether
+/// the coin has to mature first (a coinbase output, or a peg-out after a `HogEx`'s
+/// first output), whether the wallet made it, and whether it carries tokens through a
+/// `CashTokens` prefix or an SLP message. The server's own token report isn't trusted.
 ///
-/// A coin in `verified` passed all of that in an earlier pass, so only its value
-/// is checked again and its funding transaction is not needed.
+/// A coin in `verified` passed all that in an earlier pass, so only its value is
+/// checked again and its funding transaction isn't needed.
 pub(crate) fn verified_unspents(
     listed: &[Unspent],
     script: &SpendableScript,
@@ -468,8 +465,8 @@ mod tests {
     }
 
     /// Change from a transaction that spends only the wallet's own coins is
-    /// trusted before it confirms. A payment whose input the wallet does not own,
-    /// or whose input the pass could not read, is not.
+    /// trusted before it confirms. A payment whose input the wallet doesn't own, or
+    /// whose input the pass couldn't read, isn't.
     #[test]
     fn only_a_transaction_spending_the_wallets_own_coins_makes_trusted_change() {
         let received = received().unwrap();

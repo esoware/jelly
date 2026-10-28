@@ -94,8 +94,8 @@ percent-encoding = "2.3.2"
 
 unicode-normalization = { version = "0.1.25", default-features = false, features = ["std"] }
 
-# No std or alloc, so its non-wiping normalizers and Vec-returning entropy are
-# compiled out, and no rand, because entropy comes from jelly_core::random_fill.
+# No std or alloc, which compiles out the normalizers that don't wipe and the Vec-returning
+# to_entropy. No rand either, since entropy comes from jelly_core::random_fill.
 bip39     = { version = "3.0.0", default-features = false, features = ["zeroize"] }
 bitcoin   = { version = "0.32.102", default-features = false, features = ["std", "serde", "base64"] }
 secp256k1 = { version = "0.29.1", default-features = false, features = ["std", "recovery"] }
@@ -104,8 +104,8 @@ reqwest       = { version = "0.13.5", default-features = false, features = ["htt
 rustls        = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 tokio-rustls  = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }
 webpki-roots  = "1.0.9"
-# Only the websocket protocol, with no TLS or connector. jelly_net's own dialler
-# supplies the socket, so its TLS stack and egress policy cover websockets too.
+# Protocol only, with no TLS or connector. jelly_net dials the socket itself, so websockets
+# go through its TLS stack and egress policy.
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
 futures-util      = { version = "0.3.34", default-features = false, features = ["std", "sink"] }
 
@@ -113,15 +113,13 @@ rusqlite = { version = "0.40.2", features = ["bundled"] }
 tempfile = "3.27.0"
 keyring  = { version = "4.2.0", default-features = false, features = ["v1"] }
 
-# Consensus encoding, the ABI codec, and primitives only. jelly_net owns the one
-# HTTP client and jelly_keypair the one secp256k1 signer, so alloy's transport,
-# provider, and signer stacks stay off.
+# Consensus types, the ABI codec, and primitives only. jelly_net makes the HTTP calls and
+# jelly_keypair signs, so alloy's transport, provider, and signer stacks stay off.
 alloy = { version = "2.5.0", default-features = false, features = [
     "std", "serde", "rlp", "consensus", "eips", "sol-types",
 ] }
-# The umbrella's primitives and ABI codec on their own, for jelly_evm's address
-# code and jelly_tron, which need no consensus types. Keep them on the alloy-core
-# release the umbrella resolves, so the tree holds one copy of each.
+# For jelly_tron and jelly_keypair's tests, which need no consensus types. Keep them on the
+# alloy-core release the umbrella resolves so the tree holds one copy of each.
 alloy-primitives = { version = "1.7.3", default-features = false, features = ["std"] }
 alloy-sol-types  = { version = "1.7.3", default-features = false, features = ["std"] }
 
@@ -156,9 +154,9 @@ prost-types = "0.14.4"
 prost-build = "0.14.4"
 protox      = "0.9.1"
 
-# monero-daemon-rpc is generic over HttpTransport, so jelly_monero reaches
-# monerod through jelly_net's shared client. monero-simple-request-rpc is left
-# out because its HTTPS client trusts the platform root store.
+# monero-daemon-rpc is generic over HttpTransport, so jelly_monero reaches monerod through
+# jelly_net's shared client. monero-simple-request-rpc stays out because its HTTPS client
+# trusts the platform root store.
 monero-wallet     = "=0.2.0"
 monero-interface  = "=0.2.0"
 monero-address    = "=0.1.0"
@@ -166,8 +164,8 @@ monero-daemon-rpc = "=0.2.0"
 rand_core_06      = { package = "rand_core", version = "0.6.4", features = ["getrandom"] }
 curve25519-dalek  = { version = "5.0.0", default-features = false, features = ["alloc", "precomputed-tables", "zeroize"] }
 monero-ed25519    = { version = "=0.1.0", default-features = false, features = ["std"] }
-# monero-oxide publishes monero-seed only from its wallet utilities repository; the
-# crates.io name holds an empty placeholder. It shares curve25519-dalek 4, zeroize, and
+# monero-oxide publishes monero-seed only from its wallet utilities repository, and the
+# crates.io name is an empty placeholder. This rev shares curve25519-dalek 4, zeroize, and
 # rand_core 0.6 with monero-wallet.
 monero-seed       = { git = "https://github.com/monero-oxide/monero-wallet-util", rev = "011f90d73f79bd96cc29f524e3a55d2cf9a5d7b1" }
 
@@ -182,7 +180,7 @@ specta-typescript             = "=0.0.12"
 tauri-specta                  = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 windows-version               = "0.1.7"
 raw-window-handle             = { version = "0.6.2", features = ["std"] }
-# The version tauri builds its webview on, so the controller it hands out is the same type.
+# Same version as tauri's, so the webview controller tauri hands out has the same type.
 webview2-com                  = "0.39.1"
 windows                       = { version = "0.62.2", features = [
     "Foundation", "System", "UI_Composition", "UI_Composition_Desktop", "UI_ViewManagement",
@@ -234,8 +232,7 @@ arbitrary_source_item_ordering    = "allow"
 # the denied as_conversions and absolute_paths lints then reject.
 assert_is_empty                   = "allow"
 big_endian_bytes                  = "allow"
-# Clippy expects restriction lints to be picked one at a time. This table turns the whole
-# group on and lists the exceptions instead, so the lint against doing that is off.
+# The restriction group is on wholesale with exceptions below, which this lint forbids.
 blanket_clippy_restriction_lints  = "allow"
 cognitive_complexity              = "allow"
 create_dir                        = "allow"

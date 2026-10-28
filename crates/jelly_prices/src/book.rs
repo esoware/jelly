@@ -13,8 +13,7 @@ pub(crate) const DISCARD_AFTER: Duration = Duration::from_hours(24);
 
 /// What one asset was worth, and when the quote was taken.
 ///
-/// A price is shown with its age so a reader can judge it, until it is older
-/// than a day and is dropped.
+/// A price is shown with its age so a reader can judge it, and dropped once a day old.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,9 +23,8 @@ pub(crate) struct PriceRecord {
     pub(crate) as_of_unix_secs: i64,
 }
 
-/// Everything the feed knows, as one value that readers see whole: each asset's
-/// price in US dollars, the dollar's rate in each other currency, and the
-/// currency the wallet shows.
+/// What the feed knows, as one value readers see whole: each asset's price in US
+/// dollars, the dollar's rate in each other currency, and the currency the wallet shows.
 #[derive(Debug, Clone)]
 pub struct PriceBook {
     currency: FiatCurrency,

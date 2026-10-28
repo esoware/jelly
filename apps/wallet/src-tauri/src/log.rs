@@ -17,18 +17,17 @@ const LOG_DIR: &str = "logs";
 const LOG_PREFIX: &str = "jelly.log";
 const FILTER_ENV: &str = "JELLY_LOG";
 
-/// Jelly's own targets at info, everything else only when it goes wrong. Every
-/// target in the workspace starts with `jelly`, so one directive covers them all.
+/// Jelly's own targets at info and everything else at warn. Every target in the workspace
+/// starts with `jelly`, so one directive covers them all.
 const DEFAULT_FILTER: &str = "warn,jelly=info";
 
 const KEEP_DAYS: usize = 14;
 
-/// The worker behind the non-blocking writer stops when its guard drops, so the
-/// guard is parked here for the life of the process. Buffered lines are lost
-/// without it.
+/// Kept for the life of the process. The non-blocking writer's worker stops when its guard
+/// drops, and any buffered lines are lost.
 static GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 
-/// The file subscriber also receives panics from background threads.
+/// Logs panics from every thread, background ones included.
 pub(crate) fn install_panic_hook() {
     let previous = panic::take_hook();
     panic::set_hook(Box::new(move |info| {
@@ -56,10 +55,9 @@ fn panic_payload<'a>(info: &'a PanicHookInfo<'a>) -> &'a str {
 
 /// Installs the process-wide subscriber.
 ///
-/// Infallible on purpose, because a wallet that cannot write a log file must still
-/// open and report an unwritable data directory in its window. When the log directory
-/// cannot be made, lines go only to stderr in a debug build, and nowhere otherwise, and the
-/// process carries on.
+/// Infallible on purpose, because a wallet that can't write a log file still has to open
+/// and report the unwritable data directory in its window. Without a log directory, lines
+/// go to stderr in a debug build and nowhere in a release build.
 pub(crate) fn install(data_dir: &Path) {
     let directory = data_dir.join(LOG_DIR);
     let (writer, failure) = match fs::create_dir_all(&directory) {
@@ -82,8 +80,7 @@ pub(crate) fn install(data_dir: &Path) {
         .try_init()
         .is_ok();
     if !is_installed {
-        // Something else in this process already installed a subscriber, and it
-        // stays.
+        // Another subscriber is already installed, and it stays.
         return;
     }
 
@@ -92,13 +89,13 @@ pub(crate) fn install(data_dir: &Path) {
         tracing::warn!(
             target: TARGET,
             %error,
-            "the log directory could not be created; this session is not being logged"
+            "the log directory couldn't be created; this session isn't being logged"
         );
     }
 }
 
-/// A daily rolling file, or nowhere if the file cannot be opened or the appender's guard
-/// cannot be parked.
+/// A daily rolling file, or nowhere if the file can't be opened or the appender's guard
+/// can't be parked.
 fn file_writer(directory: &Path) -> BoxMakeWriter {
     let Ok(appender) = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)

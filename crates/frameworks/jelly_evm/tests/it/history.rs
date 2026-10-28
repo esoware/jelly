@@ -172,7 +172,7 @@ async fn a_truncated_indexed_read_resumes_where_its_shortest_list_stopped() {
     let resume = 18_000_001 - ETHEREUM.rescan_overlap_blocks();
     assert!(
         after.iter().skip(before).all(|(_, start)| *start == resume),
-        "the next read continues from the frontier, less the reorganisation overlap: {after:?}"
+        "the next read continues from the frontier, less the reorganization overlap: {after:?}"
     );
 }
 
@@ -219,9 +219,8 @@ async fn a_second_indexed_pass_resumes_at_the_frontier_rather_than_the_floor() {
     harness.sync().await.unwrap();
     let after = history.reads();
     assert_eq!(after.len(), before.saturating_add(2));
-    // The frontier stops short of the tip by what the service may trail the node
-    // by, and the resume point sits one reorg depth below it, because rows in
-    // those blocks can still change.
+    // Coverage stops short of the tip by the service's allowed lag, and the next read
+    // starts one reorg depth below that, since rows in those blocks can still change.
     let resume = TIP - ETHEREUM.indexer_lag_blocks() - ETHEREUM.rescan_overlap_blocks();
     assert!(
         after.iter().skip(before).all(|(_, start)| *start == resume),
@@ -229,8 +228,8 @@ async fn a_second_indexed_pass_resumes_at_the_frontier_rather_than_the_floor() {
     );
 }
 
-/// BSC was at block 75,140,593 when Fermi moved it to 0.45-second blocks on 14
-/// January 2026, so it passed block 99,999,999 in May 2026.
+/// BSC moved to 0.45-second blocks at block 75,140,593 on 14 January 2026 and passed
+/// block 99,999,999 in May 2026.
 const BSC_HEIGHT_IN_2026: u64 = 120_000_000;
 
 const EMPTY_PAGE: &str = r#"{"status":"0","message":"No transactions found","result":[]}"#;
@@ -313,8 +312,8 @@ fn token_row(block: u64, hash: B256, contract: &str, value: &str) -> Value {
     })
 }
 
-/// An address that has received a thousand token transfers, one of them from a
-/// spam token whose value no 128-bit integer holds, which airdrop spam often uses.
+/// An address with a thousand token transfers, one of them airdrop spam whose value
+/// doesn't fit in 128 bits.
 #[tokio::test]
 async fn a_full_history_page_with_an_unreadable_row_does_not_end_the_walk() {
     const SPAM: &str = "0x00000000000000000000000000000000DeaDBeef";
@@ -353,9 +352,8 @@ async fn a_full_history_page_with_an_unreadable_row_does_not_end_the_walk() {
     let reaches_page_two = page.rows().iter().any(|row| row.hash == later);
     assert!(
         reaches_page_two || page.is_truncated(),
-        "the first page held a full thousand rows, so the history goes on, yet the read stopped \
-         after pages {asked:?} with {} rows, no truncation and nothing from block 18100000, so \
-         the cursor moves past every transfer it never fetched",
+        "a full first page means more history, but the read stopped after pages {asked:?} with \
+         {} rows, no truncation, and nothing from block 18100000",
         page.rows().len()
     );
 }
@@ -459,7 +457,7 @@ async fn an_indexer_a_few_seconds_behind_the_node_loses_no_rows() {
     // Nine seconds of BSC blocks behind the node, which the service often is.
     adapter.sync(clock.deadline_in(Duration::from_secs(60)), &events).await.unwrap();
 
-    // Nothing in the balances says so, so the sweep is the read that finds it.
+    // The balances don't show it, so only the sweep reads the service again.
     *indexer.head.lock() = TIP;
     node.always(Method::BlockNumber, Answer::ok(&quantity(u128::from(TIP + 2))));
     clock.advance(EvmConfig::default().history_sweep);
@@ -668,8 +666,8 @@ async fn a_coin_or_token_balance_change_is_read_in_the_pass_that_sees_it() {
     }
 }
 
-/// A send of the address's own moves its nonce, which also catches a payment in
-/// that exactly cancels what the send cost.
+/// The address's own send moves its nonce, which catches it even when a payment in
+/// exactly offsets what the send cost.
 #[tokio::test]
 async fn a_nonce_change_is_read_even_when_no_balance_moved() {
     let (harness, history) = quiet_indexer(5 * ETH).await.unwrap();
@@ -709,9 +707,9 @@ async fn the_sweep_reads_a_quiet_address_once_its_interval_has_passed() {
     );
 }
 
-/// An address the adapter has not read since it was built has no sheet to
-/// compare, so it is read on its first pass whatever its balances say. After a
-/// restart that is every address.
+/// An address the adapter hasn't read since it was built has no sheet to compare, so
+/// its first pass reads it whatever its balances say. After a restart, that's every
+/// address.
 #[tokio::test]
 async fn a_cold_address_is_read_on_its_first_pass() {
     let both =
@@ -754,8 +752,8 @@ async fn a_change_made_while_the_wallet_was_closed_is_news_after_a_restart() {
 
 /// The node shows a payment before the service has indexed it.
 ///
-/// The change waits rather than becoming a guess, the address is read again on the
-/// next pass, and once the service has reported the payment the address goes quiet.
+/// The change waits instead of becoming a delta, the next pass reads the address again, and
+/// once the service reports the payment the address goes quiet.
 #[tokio::test]
 async fn a_change_the_service_reports_a_pass_late_is_read_again_and_then_left_alone() {
     let (harness, history) = quiet_indexer(5 * ETH).await.unwrap();
@@ -779,11 +777,10 @@ async fn a_change_the_service_reports_a_pass_late_is_read_again_and_then_left_al
     assert!(harness.records().is_empty());
 }
 
-/// A solver sent the transaction that moved the owner's tokens.
+/// A solver sent the transaction that moved the owner's tokens, as in a gasless swap.
 ///
-/// That is how a gasless swap settles. The `tokentx` row's `from` is the token's
-/// sender and its gas numbers are the solver's transaction, and `txlist` has no row
-/// for it, because the owner sent nothing.
+/// The `tokentx` row's `from` is the owner but its gas figures are the solver's, and `txlist`
+/// has no row for it because the owner sent nothing.
 #[tokio::test]
 async fn a_token_transfer_someone_else_sent_is_recorded_without_their_fee() {
     let pulled = serde_json::json!({
@@ -826,7 +823,7 @@ async fn a_token_transfer_someone_else_sent_is_recorded_without_their_fee() {
 
 /// The owner's token transfer is its own call to the token contract, so `txlist`
 /// lists it too, moving no coin. The store keeps the token record, which carries the
-/// same fee, in place of the call's.
+/// same fee, and drops the call's.
 #[tokio::test]
 async fn a_token_transfer_the_owner_sent_carries_its_fee_and_explains_the_coin_it_took() {
     let only_the_send = |key: &str| -> Fallible<String> {
@@ -876,10 +873,9 @@ async fn a_token_transfer_the_owner_sent_carries_its_fee_and_explains_the_coin_i
     );
 }
 
-/// The OP Stack charges for posting a transaction's data to Ethereum apart from gas.
-///
-/// The service's rows leave that out, so the owner's send is priced by its receipt,
-/// and a payment someone else sent is asked about nothing.
+/// The OP Stack charges an L1 data fee on top of gas, which the service's rows leave
+/// out, so the owner's send is priced by its receipt. No receipt is fetched for a
+/// payment someone else sent.
 #[tokio::test]
 async fn an_op_stack_send_is_priced_by_its_receipt_rather_than_its_gas() {
     let sent = format!("0x{}", "5d".repeat(32));
@@ -953,9 +949,9 @@ async fn an_op_stack_send_is_priced_by_its_receipt_rather_than_its_gas() {
     );
 }
 
-/// Etherscan's free plan stopped covering BNB Smart Chain. The key still serves
-/// Ethereum, so the adapter is kept and walks logs instead, without failing a pass
-/// or asking again.
+/// Etherscan's free plan stopped covering BNB Smart Chain, but the key still works on
+/// Ethereum, so this adapter reads logs instead, without failing a pass or asking
+/// the service again.
 #[tokio::test]
 async fn a_free_key_on_bnb_smart_chain_falls_back_to_logs_and_stops_asking() {
     let history = FakeHistory::new();
@@ -983,7 +979,7 @@ async fn a_free_key_on_bnb_smart_chain_falls_back_to_logs_and_stops_asking() {
     );
 }
 
-/// Every list is read on to the tip, so a call in the newest blocks is not missed.
+/// No list is capped below the tip, so a call in the newest blocks isn't missed.
 #[tokio::test]
 async fn an_internal_read_names_the_chain_and_the_key_and_no_last_block() {
     let owner: Address = OWNER.parse().unwrap();

@@ -1,11 +1,9 @@
-//! The UTXO framework the Bitcoin, Litecoin, Bitcoin Cash, and Dogecoin crates share:
-//! the adapter over `jelly_electrum`, with sync, coin selection, building, signing, and
-//! fee bumping by replacement or by a child that pays for its parent, plus Bitcoin's
-//! address forms and wallet import format, and the one chain entry. Chain differences
-//! enter through one `UtxoParams` table and one `UtxoEntry` per chain crate.
+//! The UTXO framework behind the Bitcoin, Litecoin, Bitcoin Cash, and Dogecoin crates. It
+//! syncs over Electrum, selects coins, builds and signs, and bumps fees by replacement or
+//! child-pays-for-parent. Each chain plugs in with its `UtxoParams` and `UtxoEntry`.
 //!
-//! Money is checked integer base units, and coin selection scores candidates in
-//! integers too. Every fee comes from `fee::fee_for` and nothing else.
+//! Money stays in checked integer base units, coin selection included, and every fee
+//! comes from `fee::fee_for`.
 
 #![deny(clippy::float_arithmetic)]
 mod adapter;

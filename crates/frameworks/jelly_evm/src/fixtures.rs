@@ -1,5 +1,3 @@
-//! Fixtures the unit tests share.
-
 use alloy::primitives::{Address, B256, Bytes, keccak256};
 use jelly_core::{Amount, AssetId, ChainId};
 
@@ -40,7 +38,7 @@ pub(crate) fn held(from: Address, nonce: u64, cap: u128, now_millis: u64) -> Tra
     Tracked::held(payment(from, address(9)), nonce, pair(cap), now_millis)
 }
 
-/// The bytes a send signed from `seed` goes out as, which hash to its txid.
+/// Stand-in signed bytes for `seed`, paired with their keccak hash as the txid.
 pub(crate) fn envelope(seed: u8) -> Envelope {
     let raw = Bytes::from(vec![0x02, seed]);
     Envelope { txid: keccak256(&raw), raw }

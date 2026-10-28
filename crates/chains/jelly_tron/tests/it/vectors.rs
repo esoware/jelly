@@ -1,9 +1,9 @@
-//! Pinned bytes. The two recorded mainnet transactions are fixed outside this
+//! Rebuilds of two recorded mainnet transactions, whose bytes come from outside this
 //! workspace.
 //!
-//! Each mainnet rebuild runs through the shipped adapter over a head block
-//! reconstructed from the transaction's own TAPOS reference, so it proves this build
-//! produces the bytes the network accepted.
+//! Each runs through the shipped adapter over a head block rebuilt from the
+//! transaction's own TAPOS reference, so a match proves we produce the bytes the
+//! network accepted.
 
 use jelly_core::ChainAdapter as _;
 use jelly_tron::{Route, TronConfig};
@@ -74,9 +74,8 @@ async fn a_rebuild_reproduces_the_recorded_mainnet_usdt_transfer() {
     assert_eq!(raw_data_hex(&unsigned).unwrap(), tx.raw_data_hex);
     assert_eq!(detail(&unsigned.preview.details, "Transaction id").unwrap(), tx.txid);
 
-    // The network's receipt for the same transaction carries a transfer log, which
-    // is the chain's own reading of the calldata, so an argument order that drifted
-    // would disagree with it.
+    // The receipt's transfer log is the chain's own reading of the calldata, so a
+    // drifted argument order would disagree with it.
     let receipt: Value = serde_json::from_str(common::fixture!("tx_usdt_info")).unwrap();
     assert_eq!(text(&receipt, "id").unwrap(), tx.txid);
     let log = receipt.get("log").and_then(Value::as_array).and_then(|rows| rows.first());

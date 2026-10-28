@@ -1,5 +1,5 @@
-//! Polygon's node logs every native transfer, so the log walk records the coin's
-//! history without an indexer and a balance change is never also a delta.
+//! Bor logs every native transfer, so a Polygon wallet's coin history comes from the
+//! logs without an indexer, and a balance change never also becomes a delta.
 
 use jelly_core::{AssetId, ChainId, TxDetection, TxDirection};
 use jelly_evm::Method;
@@ -35,7 +35,7 @@ fn native_log(from: &str, to: &str, value: u128, block: u64) -> String {
     )
 }
 
-/// A Polygon wallet watching the owner, one quiet pass in at five coins.
+/// A Polygon wallet watching the owner, after one quiet pass at five coins.
 async fn quiet_wallet() -> Fallible<Harness> {
     let harness = Harness::new(Setup::on(POLYGON).one_window())?;
     harness.watch(&[watched(7, ChainId::Polygon, OWNER)]).await?;
@@ -84,9 +84,9 @@ async fn a_native_payment_the_walk_finds_is_a_full_record_and_never_a_delta() {
     }
 }
 
-/// The balance is read after the tip, so it can already hold a payment in a block
-/// the walk has not reached. That payment is the walk's to record on the next
-/// pass, and a delta now would record it twice.
+/// The balance is read after the tip, so it can already include a payment in a block
+/// the logs haven't covered yet. The next pass's log read records that payment, so a
+/// delta now would record it twice.
 #[tokio::test]
 async fn a_change_the_walk_has_not_reached_yet_waits_for_the_walk_instead_of_becoming_a_delta() {
     let harness = quiet_wallet().await.unwrap();

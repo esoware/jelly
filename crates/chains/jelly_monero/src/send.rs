@@ -21,8 +21,8 @@ use crate::preview;
 use crate::subaddress::Subaddress;
 use crate::watched::Watched;
 
-/// Everything a quote and a build both read off a request, so the two refuse
-/// exactly the same requests and a bad one fails at the quote.
+/// What a quote and a build both read off a request, so the two refuse exactly the
+/// same requests and a bad one fails at the quote.
 #[derive(Debug)]
 pub(crate) struct Request {
     pub recipient: Recipient,
@@ -52,8 +52,8 @@ impl Request {
     }
 }
 
-/// Everything one build needs, gathered by the adapter under its state lock so
-/// nothing here locks or reads a clock.
+/// What one build needs, gathered by the adapter under its state lock so nothing
+/// here locks or reads a clock.
 ///
 /// No `Debug`, because the candidates carry their key offsets.
 pub(crate) struct Plan {
@@ -61,9 +61,8 @@ pub(crate) struct Plan {
     /// The address the payment is made from, for the preview.
     pub from: String,
     pub subaddress: Subaddress,
-    /// The amount to pay, or `None` for a sweep, which cannot name its amount up
-    /// front because the amount is everything minus a fee that depends on the
-    /// weight.
+    /// The amount to pay, or `None` for a sweep, which can't name its amount up
+    /// front because it's everything minus a fee that depends on the weight.
     pub target_piconero: Option<u64>,
     /// `None` for a custom rate, which pays no priority.
     pub priority: Option<MoneroPriority>,
@@ -71,8 +70,8 @@ pub(crate) struct Plan {
     /// Unspent, unlocked, unreserved outputs of the account, largest first.
     pub candidates: Vec<Candidate>,
     /// True when the account holds more spendable outputs than one transaction
-    /// may carry, so running out of candidates means the send must be split
-    /// rather than that funds are short.
+    /// may carry, so running out of candidates means the send must be split, not
+    /// that funds are short.
     pub is_truncated: bool,
     pub balance: MoneroBalance,
     /// How far behind the chain tip this wallet's scan is.
@@ -94,9 +93,8 @@ pub(crate) struct Built {
 /// Rings from one node, an exact fee, a preview of the transaction that will be
 /// signed, and the framed payload.
 ///
-/// Every ring chosen goes into `chosen` by its output's key image as soon as its
-/// members were asked for, whether or not the build then succeeds, because the node
-/// asked has seen it either way.
+/// Every ring goes into `chosen` by its output's key image as soon as it's settled,
+/// whether or not the build then succeeds, because the node has seen it either way.
 pub(crate) async fn build(
     node: &dyn MoneroNode,
     config: &MoneroConfig,
@@ -152,7 +150,7 @@ async fn assemble(
     let change =
         Change::new(account.view_pair().clone(), plan.subaddress.account_primary().index());
     // The outgoing view key seeds this transaction's ephemeral secrets. Anyone
-    // holding it can identify the transaction and read its data, so it is drawn
+    // holding it can identify the transaction and read its data, so it's drawn
     // once per build and never reused. The loop below only re-prices the same
     // build, and at most one attempt becomes a transaction.
     let outgoing_view_key =
@@ -215,8 +213,8 @@ async fn assemble(
 /// Assembles the signable transaction, resolving a sweep against the exact fee.
 ///
 /// A sweep's amount is everything minus a fee that depends on the weight, and the
-/// weight does not depend on the amounts, which are encrypted and fixed size. So
-/// one correction resolves it, and the loop is only a bound.
+/// weight doesn't depend on the amounts, which are encrypted and fixed size. So one
+/// correction resolves it, and the loop is only a bound.
 fn resolve_sweep(
     inputs: &[OutputWithDecoys],
     plan: &Plan,

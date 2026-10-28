@@ -29,7 +29,7 @@ const MAX_PAGE_BYTES: usize = 4 * 1024 * 1024;
 
 /// The Etherscan-family envelope.
 ///
-/// A `status` of `0` is not always a failure. An empty history comes back as an
+/// A `status` of `0` isn't always a failure. An empty history comes back as an
 /// empty array or as a string result with a no-transactions message, and a
 /// refused key comes back as a string result.
 #[derive(Debug, Deserialize)]
@@ -42,18 +42,17 @@ struct Envelope<'a> {
     result: Option<&'a RawValue>,
 }
 
-/// One page of an answer.
 #[derive(Debug)]
 pub(crate) struct Page<T> {
     /// The rows this build could read.
     pub(crate) rows: Vec<T>,
-    /// Every row the service sent, readable or not, which is what says whether
-    /// another page follows.
+    /// Every row the service sent, readable or not. This, not `rows`, decides
+    /// whether another page follows.
     pub(crate) served: usize,
 }
 
 /// Rows are decoded one at a time, so an unreadable row costs that row and a
-/// warning rather than the page.
+/// warning, not the page.
 pub(crate) fn read_page<T: DeserializeOwned>(body: &str) -> Result<Page<T>, EvmError> {
     let envelope: Envelope<'_> = serde_json::from_str(body).map_err(|source| {
         EvmError::HistoryShape { line: source.line(), column: source.column() }
@@ -115,8 +114,6 @@ impl HistoryRefusal {
 }
 
 wire_enum! {
-    /// Every Etherscan action this crate asks for, so each name is spelled only
-    /// here.
     enum Action {
         TxList => "txlist",
         TxListInternal => "txlistinternal",
@@ -129,8 +126,7 @@ enum PageStep {
     /// A short page is the end of the history.
     Done,
     More,
-    /// A full page at the page ceiling, so the service has more than it will
-    /// give.
+    /// A full page at the page ceiling, so the service has more than it'll give.
     Truncated,
 }
 
@@ -188,7 +184,7 @@ impl EtherscanHistory {
         })
     }
 
-    /// A service that answers without a key, which is sent none.
+    /// For a service that answers without a key. It's never sent one.
     pub const fn keyless(pool: Arc<Pool<HttpEndpoint>>, params: &EvmParams) -> Self {
         Self { pool, api_key: None, chain_id: params.chain_id, timeout: params.request_timeout }
     }
@@ -226,8 +222,8 @@ impl EtherscanHistory {
         start_block: u64,
         page: u32,
     ) -> Result<String, EvmError> {
-        // No `endblock`, which the service treats as optional, because any fixed
-        // ceiling is one a fast chain eventually passes.
+        // No `endblock`: it's optional, and any fixed ceiling is one a fast chain
+        // eventually passes.
         let mut query = Zeroizing::new(format!(
             "chainid={}&module=account&action={action}&address={address}&startblock={start_block}\
              &page={page}&offset={PAGE_SIZE}&sort=asc",
@@ -284,8 +280,8 @@ impl HistoryApi for EtherscanHistory {
     }
 }
 
-/// A refused key or a malformed query gets the same answer everywhere, so it
-/// stops the walk. Anything else rotates.
+/// A refused key or a malformed query gets the same answer from every host, so it
+/// fails at once. Anything else rotates.
 const fn classify(error: &NetError) -> Outcome {
     match *error {
         NetError::Status { status: 400 | 401 | 403 | 404, .. } => Outcome::Fail,

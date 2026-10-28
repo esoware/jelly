@@ -67,8 +67,8 @@ fn the_shipped_endpoints_use_exactly_the_specs_transports() {
     assert_eq!(used, declared);
 }
 
-/// A keyless service is sent no key, so a saved Etherscan key must never be
-/// what history depends on, and must never reach another service.
+/// The adapter sends no key on this chain, so every shipped history service has to
+/// answer without one.
 #[test]
 fn every_shipped_history_service_answers_without_a_key() {
     let file: DefaultEndpoints = serde_json::from_str(ENTRY.default_endpoints()).unwrap();

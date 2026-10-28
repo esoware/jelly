@@ -31,10 +31,8 @@ struct SecretCursor {
     cursor: CursorBytes,
 }
 
-/// What a failed window keeps for retry, its lossless events, balances, and scan
-/// cursors. Progress is not kept, because the next pass reports it again.
-///
-/// Cursors replace by scope and stream.
+/// What a failed window keeps for retry. Progress isn't kept, because the next pass
+/// reports it again.
 #[derive(Debug, Default)]
 struct Carry {
     events: Vec<WalletEvent>,
@@ -51,10 +49,9 @@ impl Carry {
             && self.secrets.is_empty()
     }
 
-    /// Keeps the newest `capacity` events and balances. Losing an event also clears the
-    /// retained cursors and counts a loss, which refuses the cursors still queued behind
-    /// it, so a later commit cannot advance past lost history and the next pass rescans
-    /// from the last committed position.
+    /// Keeps the newest `capacity` events and balances. Losing an event also drops the
+    /// carried cursors and counts a loss, which refuses the cursors still queued behind
+    /// it, so the next pass rescans from the last committed position.
     fn bounded(mut self, capacity: usize, events: &Events) -> Self {
         let has_lost = drop_oldest(&mut self.events, capacity);
         drop_oldest(&mut self.balances, capacity);
@@ -68,10 +65,10 @@ impl Carry {
 
     /// Gives up on a window the database refused `attempts` times.
     ///
-    /// A lost row counts a loss, which refuses the advances still queued past it, and the
-    /// reconstructible scans of its addresses are forgotten, so the next pass rescans
-    /// them. Non-reconstructible streams retain their last committed checkpoint so the
-    /// next pass can reconcile it.
+    /// Losing rows counts a loss, which refuses the advances still queued behind them,
+    /// and forgets the reconstructible scans of their addresses so the next pass rescans
+    /// them. Other streams keep their last committed checkpoint for the next pass to
+    /// reconcile.
     async fn abandon(self, inner: &Inner, attempts: u32) {
         tracing::error!(
             target: TARGET,
@@ -135,8 +132,8 @@ struct Flush {
 }
 
 impl Flush {
-    /// A window that starts with what the previous one could not persist. The
-    /// carried values go in first, so anything newer overwrites them.
+    /// A window that starts with what the previous one couldn't persist. The carried
+    /// values go in first, so anything newer overwrites them.
     fn carrying(carry: Carry) -> Self {
         let mut flush = Self::default();
         for balance in carry.balances {
@@ -158,10 +155,8 @@ impl Flush {
             && self.secrets.is_empty()
     }
 
-    /// Latest wins for the coalescing kinds, scan progress among them, because a cursor
-    /// only moves forward.
-    ///
-    /// The lossless kinds keep arrival order and every one is delivered.
+    /// The coalescing kinds keep only the latest value, which for a cursor is the
+    /// furthest. The lossless kinds keep arrival order and every one is delivered.
     fn absorb(&mut self, item: Inbound) {
         let event = match item {
             Inbound::Advance { advance, .. } => {
@@ -192,9 +187,9 @@ impl Flush {
         }
     }
 
-    /// The window's transaction records in arrival order, the order the store answers
-    /// for them in, cut at each inclusion a reorganisation dropped. The records after the
-    /// last cut come back apart.
+    /// The window's transaction records in arrival order, which is the order the store
+    /// answers in, split at each inclusion a reorganization dropped. The records after the
+    /// last split come back on their own.
     fn txs(&self) -> (Vec<DroppedInclusion>, Vec<TxRecord>) {
         let mut dropped = Vec::new();
         let mut txs = Vec::new();
@@ -224,11 +219,8 @@ impl Flush {
             .collect()
     }
 
-    /// The window's coalesced database-backed scan progress, one entry per scope and
-    /// stream.
-    ///
-    /// The vault-backed streams are held apart, because they cannot join a `SQLite`
-    /// transaction and are written after it instead.
+    /// The window's database-backed cursors. Vault-backed ones can't join the `SQLite`
+    /// transaction, so they're written after it.
     fn advances(&self) -> Vec<ScanAdvance> {
         self.scans
             .iter()
@@ -239,8 +231,8 @@ impl Flush {
     /// Persists a window before publishing it, so the interface can query the announced
     /// rows. `SQLite` cursors commit with their rows, and vault cursors commit afterward.
     ///
-    /// A failed write keeps the durable events for retry without publishing them. Progress
-    /// is transient and is published regardless.
+    /// A failed write keeps the durable events for retry without publishing them.
+    /// Progress is published either way.
     async fn apply(self, inner: &Inner, capacity: usize) -> Carry {
         if self.is_empty() {
             return Carry::default();
@@ -273,8 +265,8 @@ impl Flush {
         let carry = match written {
             Err(error) => {
                 tracing::warn!(target: TARGET, %error, "a window of sync results was not persisted");
-                // Both coalesced maps go back, so the next attempt commits the rows
-                // and the cursors together or neither.
+                // The cursors go back with their rows, so the next attempt commits both or
+                // neither.
                 Carry { events: lossless, balances, scans, secrets }
             }
             Ok(writes) => {
@@ -290,25 +282,23 @@ impl Flush {
     }
 }
 
-/// An adapter reports an inclusion that a reorganisation removed as zero confirmations.
+/// An adapter reports an inclusion that a reorganization removed as zero confirmations.
 const fn is_dropped_inclusion(confirmation: &TxConfirmation) -> bool {
     confirmation.confirmations == 0
 }
 
-/// An inclusion a reorganisation removed, and the window's records that arrived before
+/// An inclusion a reorganization removed, and the window's records that arrived before
 /// it.
 ///
-/// A record without a height keeps the one its row holds, so the store clears the
-/// inclusion at its point in arrival order: after the records before it and before the
-/// ones after it.
+/// A record without a height keeps the one its row holds, so the clear has to land at
+/// its point in arrival order, after the records before it and before the ones after.
 #[derive(Debug)]
 struct DroppedInclusion {
     preceding: Vec<TxRecord>,
     txid: TxId,
 }
 
-/// `writes` answers for the window's transactions, and the records in `lossless` are
-/// those same records in the same order, so the two are walked together.
+/// `writes` holds one answer per transaction record in `lossless`, in the same order.
 fn rebroadcast(
     inner: &Inner,
     lossless: Vec<WalletEvent>,
@@ -339,8 +329,8 @@ async fn write_secrets(inner: &Inner, secrets: SecretScans) -> SecretScans {
     for ((scope, stream), secret) in secrets {
         match write_secret(inner, secret.wallet_id, scope, stream.as_str(), &secret.cursor).await {
             Ok(()) => {}
-            // No vault to write to, or not this wallet's any more. The generation that
-            // produced this cursor is gone, so retrying would only misfile it.
+            // The session that made this cursor is gone, so a retry could file it under the
+            // wrong wallet.
             Err(CoreError::Locked) => tracing::info!(
                 target: TARGET,
                 stream = stream.as_str(),
@@ -351,7 +341,7 @@ async fn write_secrets(inner: &Inner, secrets: SecretScans) -> SecretScans {
                     target: TARGET,
                     %error,
                     stream = stream.as_str(),
-                    "a secret scan cursor was not written; it is retried"
+                    "a secret scan cursor was not written and will be retried"
                 );
                 retries.insert((scope, stream), secret);
             }
@@ -363,8 +353,8 @@ async fn write_secrets(inner: &Inner, secrets: SecretScans) -> SecretScans {
 /// Drains the sink, coalesces one window, writes it in one transaction, then
 /// rebroadcasts.
 ///
-/// Ends on cancellation or when every sender is gone. The engine holds a sender for its
-/// whole life, so without the cancellation arm shutdown would wait forever.
+/// Ends on cancellation or once every sender is gone. The engine holds a sender for its
+/// whole life, so shutdown relies on the cancellation arm.
 pub(crate) async fn run(
     weak: Weak<Inner>,
     mut receiver: mpsc::Receiver<Inbound>,
@@ -394,8 +384,8 @@ pub(crate) async fn run(
                 () = sleep(config.event_flush) => {}
             }
         } else {
-            // A window is waiting to be retried. New events may join it, but the
-            // retry itself is paced so an unusable database is not hammered.
+            // A window is waiting to be retried. New events may join it, but the retry is
+            // paced so an unusable database isn't hammered.
             tokio::select! {
                 biased;
                 () = cancel.cancelled() => break,

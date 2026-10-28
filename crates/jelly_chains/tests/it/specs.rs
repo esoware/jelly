@@ -93,8 +93,8 @@ fn polygon_shares_ethereums_coin_type_and_trades_as_pol() {
     assert!(!ChainId::ALL.iter().any(|chain| chain.ticker() == "MATIC"));
 }
 
-/// Every rollup pays gas in ether, so a seed has Ethereum's address on it and its coin
-/// is Ethereum's coin, while the network keeps its own precise name.
+/// Every rollup pays gas in ether, so a seed has Ethereum's address on it and its coin is
+/// Ethereum's coin, while the network keeps its own name.
 #[test]
 fn the_rollups_share_ethereums_coin_type_and_coin() {
     let ethereum = chains().spec(ChainId::Ethereum);
@@ -110,8 +110,8 @@ fn the_rollups_share_ethereums_coin_type_and_coin() {
     assert_eq!(ChainId::Optimism.display_name(), "OP Mainnet");
 }
 
-/// The X-Chain and P-Chain derive at Avalanche's own coin type 9000, but every
-/// wallet derives the C-Chain at Ethereum's, so a seed has one address on both.
+/// The X-Chain and P-Chain derive at Avalanche's own coin type 9000, but wallets derive the
+/// C-Chain at Ethereum's, so a seed has one address on both.
 #[test]
 fn the_c_chain_shares_ethereums_coin_type_and_trades_as_avax() {
     let spec = chains().spec(ChainId::Avalanche);
@@ -142,15 +142,15 @@ fn every_chain_spec_is_complete() {
     }
 }
 
-/// A UTXO chain's flavours are output scripts, and TON's are the wallet contract
+/// A UTXO chain's flavors are output scripts, and TON's are the wallet contract
 /// versions one key can hold Gram in.
 #[test]
-fn only_the_utxo_chains_and_ton_have_script_flavours() {
+fn only_the_utxo_chains_and_ton_have_script_flavors() {
     for chain in ChainId::ALL {
         let spec = chains().spec(chain);
-        let has_flavours = chain.is_utxo() || chain == ChainId::Ton;
-        assert_eq!(!spec.script_kinds.is_empty(), has_flavours, "{}", chain.as_str());
-        assert_eq!(spec.default_script.is_some(), has_flavours, "{}", chain.as_str());
+        let has_flavors = chain.is_utxo() || chain == ChainId::Ton;
+        assert_eq!(!spec.script_kinds.is_empty(), has_flavors, "{}", chain.as_str());
+        assert_eq!(spec.default_script.is_some(), has_flavors, "{}", chain.as_str());
         if let Some(default) = spec.default_script {
             assert!(spec.script_kinds.contains(&default));
         }
@@ -158,7 +158,7 @@ fn only_the_utxo_chains_and_ton_have_script_flavours() {
 }
 
 #[test]
-fn script_flavours_and_defaults_match_what_each_chain_supports() {
+fn script_flavors_and_defaults_match_what_each_chain_supports() {
     for chain in [ChainId::Dogecoin, ChainId::BitcoinCash] {
         let spec = chains().spec(chain);
         assert_eq!(spec.script_kinds, [ScriptKind::P2pkh], "{}", chain.as_str());
@@ -176,8 +176,8 @@ fn script_flavours_and_defaults_match_what_each_chain_supports() {
     assert_eq!(ton.default_script, Some(ScriptKind::TonV5r1));
 }
 
-/// Zcash prices logical actions rather than bytes. A chain whose custom fee is a rate
-/// names the unit it is entered in.
+/// Zcash prices logical actions, not bytes. A chain whose custom fee is a rate names the
+/// unit it's entered in.
 #[test]
 fn byte_priced_chains_name_a_fee_rate_unit() {
     for chain in ChainId::ALL {
@@ -196,15 +196,14 @@ fn byte_priced_chains_name_a_fee_rate_unit() {
 
 /// Only the chains with a way to speed up or cancel a send offer one.
 ///
-/// Bitcoin and Dogecoin replace by BIP-125 and EVM by reusing the nonce, which on EVM
-/// also cancels a send by spending its nonce on nothing. Litecoin Core nodes refuse
-/// replacements unless `-mempoolreplacement` is set, so a Litecoin send is sped up by
-/// a child spending its change.
+/// Bitcoin and Dogecoin replace by BIP-125, and EVM chains reuse the nonce, which also
+/// cancels a send by spending its nonce on nothing. Litecoin Core nodes refuse replacements
+/// unless `-mempoolreplacement` is set, so a Litecoin send is sped up by a child spending
+/// its change.
 ///
-/// Bitcoin Cash nodes have no replacement at all, Solana, TRON, XRP, TON, and Zcash
-/// payments expire instead, and Monero has no replacement mechanism. Only an XRP account
-/// can be deleted, which `AccountDelete` does, and only an XRP payment carries a
-/// destination tag.
+/// Bitcoin Cash and Monero have no replacement at all, and Solana, TRON, XRP, TON, and
+/// Zcash payments expire instead. Only XRP can delete an account, with `AccountDelete`, and
+/// only an XRP payment carries a destination tag.
 #[test]
 fn capability_flags_agree_with_the_chains_that_have_them() {
     for chain in ChainId::ALL {
@@ -250,8 +249,8 @@ fn capability_flags_agree_with_the_chains_that_have_them() {
 /// Every chain whose fee follows a market offers the same three levels, slowest first.
 ///
 /// Dogecoin and Bitcoin Cash, whose reference wallets pay one flat rate, and XRP and
-/// Zcash, whose fee is one network figure, offer only the normal one beside a custom
-/// fee. TRON and TON charge what their protocol computes, so they offer neither.
+/// Zcash, whose fee is one network figure, offer only the normal level and a custom fee.
+/// TRON and TON charge what their protocol computes, so they offer neither.
 #[test]
 fn every_chain_offers_the_fee_levels_and_custom_fee_its_market_allows() {
     for chain in ChainId::ALL {

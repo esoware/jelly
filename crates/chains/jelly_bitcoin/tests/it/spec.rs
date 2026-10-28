@@ -24,7 +24,7 @@ fn the_spec_and_the_table_describe_one_chain() {
 }
 
 #[test]
-fn the_default_path_derives_the_default_flavour_at_the_chains_coin_type() {
+fn the_default_path_derives_the_default_flavor_at_the_chains_coin_type() {
     let default_script = SPEC.default_script.unwrap();
     assert!(SPEC.script_kinds.contains(&default_script));
     let first = PathTemplate::parse(SPEC.default_path).unwrap().path_at(0).unwrap();

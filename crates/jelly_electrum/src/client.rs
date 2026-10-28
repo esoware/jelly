@@ -22,11 +22,10 @@ const TARGET: &str = "jelly::electrum::client";
 
 /// One Electrum endpoint that reconnects after socket loss.
 ///
-/// Every socket negotiates a supported protocol version and proves its chain's
-/// blocks before it serves a request. The first socket proves it on first use, so the
-/// pool's identity check can be that use and report another chain as a
-/// mismatch. Reads retry once if the socket died without answering, and a
-/// broadcast never retries.
+/// Every socket negotiates a protocol version and proves its chain before it serves a
+/// request. The first socket waits for its first use to prove it, so the pool's identity
+/// check can report another chain as a mismatch. Reads retry once on a socket that died
+/// without answering. A broadcast never retries.
 pub struct ElectrumClient {
     sockets: Arc<dyn SocketSource>,
     chain: ElectrumChain,
@@ -44,8 +43,7 @@ impl fmt::Debug for ElectrumClient {
 }
 
 impl ElectrumClient {
-    /// Opens the first socket and negotiates on it, so a client that exists has
-    /// talked to its server.
+    /// Negotiates on the first socket, so a client that exists has reached its server.
     pub(crate) async fn open(
         sockets: Arc<dyn SocketSource>,
         chain: ElectrumChain,
@@ -69,16 +67,16 @@ impl ElectrumClient {
         self.connection.lock().await.as_ref().map(|connection| connection.protocol())
     }
 
-    /// The software string the cached socket's server introduced itself with, or
-    /// `None` while no socket is cached.
+    /// The software string the server gave in the cached socket's handshake, or `None`
+    /// while no socket is cached.
     #[cfg(feature = "test-util")]
     pub async fn software(&self) -> Option<String> {
         self.connection.lock().await.as_ref().map(|connection| connection.software().to_owned())
     }
 
-    /// A wrong block is an [`Identity::Mismatch`] rather than an error, and opening
-    /// a client only negotiates, so a probe reports a server on another chain as the
-    /// wrong network rather than as unreachable.
+    /// Opening a client doesn't prove its chain, and a wrong block here is an
+    /// [`Identity::Mismatch`] rather than an error, so a probe reports a server on another
+    /// chain as the wrong network instead of unreachable.
     pub async fn verify_identity(&self) -> Result<Identity, ElectrumError> {
         match self.connection().await {
             Ok(connection) => Ok(Identity::confirmed(format!(
@@ -93,8 +91,8 @@ impl ElectrumClient {
         }
     }
 
-    /// The height of the tip `blockchain.headers.subscribe` reports. Its header is
-    /// still decoded, so a malformed answer is refused.
+    /// The tip height from `blockchain.headers.subscribe`. A malformed header fails the
+    /// call.
     pub async fn tip_height(&self) -> Result<u32, ElectrumError> {
         self.read(async |connection| connection.tip_height().await).await
     }
@@ -124,7 +122,7 @@ impl ElectrumClient {
         self.read(async |connection| connection.txs(txids).await).await
     }
 
-    /// The mode is only sent to a server whose protocol version has the argument.
+    /// Sends the mode only to servers on protocol 1.6 or later.
     pub async fn estimate_fee(
         &self,
         target_blocks: u16,
@@ -141,28 +139,27 @@ impl ElectrumClient {
         self.read(async |connection| connection.mempool_info().await).await
     }
 
-    /// Registers tip and script subscriptions, then waits for a sync hint. A fresh
-    /// registration returns at once so a sync covers the time spent disconnected.
+    /// Registers tip and script subscriptions, then waits for a push. A fresh registration
+    /// returns at once, so a sync covers the time spent disconnected.
     ///
-    /// Socket errors go back to the caller for backoff. A refused script
-    /// subscription falls back to tip notifications rather than a retry loop.
-    /// Cancelling the wait keeps the registrations and unread notifications for
-    /// the next call.
+    /// Socket errors go back to the caller for backoff. If the server refuses the script
+    /// subscription, this falls back to tip notifications. Canceling the wait keeps the
+    /// registrations and any unread pushes for the next call.
     pub async fn watch(&self, scripts: &[ScriptBuf]) -> Result<(), ElectrumError> {
         self.connection().await?.watch(scripts).await
     }
 
-    /// Sends a signed transaction to this one server, at most once.
+    /// Sends a signed transaction to this server at most once.
     ///
-    /// A dead socket is replaced before the send, but a failure after it is never
-    /// retried here. A transport failure leaves the outcome unknown, so the caller
-    /// re-checks by txid and either re-sends the identical bytes or gives up.
+    /// A dead socket is replaced before the send, but nothing after it is retried. A
+    /// transport failure leaves the outcome unknown, so the caller checks by txid before
+    /// re-sending the same bytes.
     pub async fn broadcast(&self, tx: &Transaction) -> Result<Txid, ElectrumError> {
         self.connection().await?.broadcast(tx).await
     }
 
-    /// The lock is held across the dial and the proof so concurrent callers wait
-    /// for one reconnect rather than each opening a socket to the same host.
+    /// Holds the lock across the dial and the proof, so concurrent callers share one
+    /// reconnect.
     async fn connection(&self) -> Result<Arc<Connection>, ElectrumError> {
         let mut guard = self.connection.lock().await;
         if let Some(existing) = guard.as_ref()
@@ -198,11 +195,10 @@ impl ElectrumClient {
         Ok(connection)
     }
 
-    /// Runs an idempotent call, retrying once if the socket was dead.
+    /// Runs an idempotent call, retrying once on a fresh socket if this one was dead.
     ///
-    /// The retry is safe because [`ElectrumError::Closed`] means nothing was
-    /// answered, since the reader fails every pending request when the stream
-    /// ends. A timeout, server error, or malformed line is returned as is.
+    /// [`ElectrumError::Closed`] means nothing was answered, so the retry is safe. A
+    /// timeout, server error, or malformed line is returned as is.
     async fn read<T, F, Fut>(&self, call: F) -> Result<T, ElectrumError>
     where
         F: Fn(Arc<Connection>) -> Fut + Send,
@@ -227,7 +223,7 @@ impl ElectrumClient {
     }
 }
 
-/// The pool shares one client per endpoint across concurrent tasks. This pins
-/// `Send + Sync` here rather than leaving it to a distant error at a spawn site.
+/// The pool shares each client across tasks, so losing `Send + Sync` should fail here,
+/// not at a distant spawn site.
 const fn assert_send_sync<T: Send + Sync>() {}
 const _: () = assert_send_sync::<ElectrumClient>();

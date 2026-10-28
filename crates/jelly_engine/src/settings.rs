@@ -1,12 +1,12 @@
-//! The application settings, kept in `settings.json` in the data directory so the user
-//! can read and edit them by hand.
+//! The app settings, kept in `settings.json` in the data directory so the user can read
+//! and edit them by hand.
 //!
 //! The file is read once at startup and rewritten whole on every change, through a
 //! synced temporary file and a rename, so a crash mid-write leaves the previous file
-//! intact. A missing file means the defaults and is written so the user can find it. A
-//! file that does not parse is a startup failure rather than a silent fallback, because
-//! a malformed value must not silently change a setting. A missing key reads as its
-//! default; unknown keys are ignored and omitted from subsequent writes.
+//! intact. A missing file is written out with the defaults so the user can find it. A
+//! file that doesn't parse fails startup, because falling back would silently change a
+//! setting. A missing key reads as its default, and unknown keys are ignored and dropped
+//! on the next write.
 
 use std::collections::BTreeSet;
 use std::fmt;
@@ -47,8 +47,8 @@ wire_enum! {
     }
 }
 
-/// What `settings.json` holds. `Debug` reports only whether each API key is present, and
-/// an empty stored key counts as present, so a log never echoes one.
+/// What `settings.json` holds. `Debug` reports only whether each API key is present
+/// (an empty one counts), so a log never echoes a key.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
@@ -205,8 +205,8 @@ impl WalletEngine {
         self.inner.settings.get().await
     }
 
-    /// Retunes the live session's auto-lock, including from off to a value and
-    /// back. Zero switches it off.
+    /// Saves the setting and retunes the live session's auto-lock, including from off to
+    /// on and back. Zero switches it off.
     pub async fn set_auto_lock_minutes(&self, minutes: u32) -> Result<(), CoreError> {
         self.inner.settings.update(|settings| settings.auto_lock_minutes = minutes).await?;
         self.inner.session.set_timeout(auto_lock_duration(minutes));
@@ -270,7 +270,7 @@ mod tests {
     fn minutes_convert_to_a_timeout_and_zero_is_off() {
         assert_eq!(auto_lock_duration(0), Duration::ZERO);
         assert_eq!(auto_lock_duration(15), Duration::from_mins(15));
-        // The largest value stays a long timeout rather than wrapping into a short one.
+        // The largest value stays a long timeout instead of wrapping into a short one.
         assert!(auto_lock_duration(u32::MAX) > Duration::from_secs(60));
     }
 
@@ -412,7 +412,7 @@ mod tests {
         ));
     }
 
-    /// The file is there and cannot be read, which says nothing about whether the
+    /// The file is there but can't be read, which says nothing about whether the
     /// directory can be written.
     #[test]
     fn a_file_that_cannot_be_read_is_a_read_failure() {

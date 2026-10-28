@@ -21,26 +21,23 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 /// is never required.
 const API_KEY_HEADER: &str = "TRON-PRO-API-KEY";
 
-/// `TronGrid` is the only host that serves the `/v1` indexer routes. Its key is a
-/// `TronGrid` credential, so it goes to this host over TLS and to no other node in
-/// the pool, curated or added by the user.
+/// The only host that serves the `/v1` indexer routes. The API key is a `TronGrid`
+/// credential, so it goes only to this host, over TLS.
 const TRONGRID_HOST: &str = "api.trongrid.io";
 
 fn is_trongrid(endpoint: &EndpointLabel) -> bool {
     endpoint.scheme() == "https" && endpoint.host() == TRONGRID_HOST
 }
 
-/// A full node answers 404 for the `/v1` routes, so it is never asked for them.
+/// A full node answers 404 for the `/v1` routes, so it's never asked for them.
 fn indexer_standing(endpoint: &Endpoint) -> Standing {
     if is_trongrid(endpoint.label()) { Standing::Preferred } else { Standing::Excluded }
 }
 
-/// `TronGrid` serves the `/wallet` routes only behind every full node that is not
-/// failing.
+/// `TronGrid` serves the `/wallet` routes only after every healthy full node, so
+/// the balance reads every pass makes don't spend the free budget history needs.
 ///
-/// History runs on `TronGrid`'s free budget, and the balance reads every pass
-/// makes would spend it. A pin is the user's explicit choice and puts it back
-/// among the full nodes.
+/// Pinning it puts it back among the full nodes.
 fn wallet_standing(endpoint: &Endpoint) -> Standing {
     if is_trongrid(endpoint.label()) && endpoint.origin() != EndpointOrigin::Pinned {
         Standing::Fallback
@@ -51,10 +48,9 @@ fn wallet_standing(endpoint: &Endpoint) -> Standing {
 
 /// Every failure rotates.
 ///
-/// Only a transport failure reaches here, because [`TronNode`] returns the body
-/// unparsed and every decode happens after the walk. TRON's HTTP API has no
-/// transport-level refusal that every node would repeat, so a failure here is worth
-/// trying elsewhere.
+/// Only transport failures reach here, since [`TronNode`] returns the body
+/// unparsed and decoding happens after the pool returns. TRON's HTTP API has no
+/// transport-level refusal that every node would repeat.
 const fn classify(_: &NetError) -> Outcome {
     Outcome::Rotate
 }
@@ -63,7 +59,7 @@ const fn classify(_: &NetError) -> Outcome {
 ///
 /// When `/wallet/broadcasthex` answers 404 or 405, the broadcast tries the
 /// fallback route on the same endpoint. Any other transport failure leaves the
-/// outcome unknown. A response that fails decoding does not trigger failover.
+/// outcome unknown. A response that fails to decode doesn't trigger failover.
 #[async_trait]
 pub trait TronNode: Send + Sync + fmt::Debug {
     async fn call(&self, request: &Request) -> Result<Answered, TronError>;
@@ -75,8 +71,8 @@ pub trait TronNode: Send + Sync + fmt::Debug {
     ) -> Result<Answered, TronError>;
 }
 
-/// An unparsed body that carries its endpoint, so an unreadable shape is
-/// reported against the host that produced it.
+/// An unparsed body tagged with its endpoint, so a bad answer is reported against
+/// the host that sent it.
 #[derive(Debug, Clone)]
 pub struct Answered {
     endpoint: EndpointLabel,
@@ -89,10 +85,10 @@ impl Answered {
         Self { endpoint, route, body }
     }
 
-    /// A body carrying TRON's `{"Error": ...}` member becomes
-    /// [`TronError::Fault`], because several nodes report a refusal that way with
-    /// HTTP 200. An unreadable body is reported by line and column only, because
-    /// serde's message embeds the input.
+    /// A body with TRON's `{"Error": ...}` member becomes [`TronError::Fault`],
+    /// since several nodes report a refusal that way with HTTP 200. An unreadable
+    /// body is reported by line and column only, because serde's message embeds
+    /// the input.
     pub(crate) fn decode<T: DeserializeOwned>(&self) -> Result<T, TronError> {
         if let Ok(fault) = serde_json::from_str::<Fault>(&self.body)
             && let Some(detail) = fault.message()
@@ -111,14 +107,14 @@ impl Answered {
         })
     }
 
-    /// A field that parsed and cannot be used, named without quoting it.
+    /// A field that parsed but can't be used, named without quoting it.
     pub(crate) fn unusable(&self, what: &'static str) -> TronError {
         TronError::Shape { endpoint: self.endpoint.clone(), route: self.route, what }
     }
 }
 
-/// A few nodes answer a well-formed request with `{"Error": "..."}` and HTTP
-/// 200. `error` in lower case appears on some gateways.
+/// A few nodes answer a well-formed request with `{"Error": "..."}` and HTTP 200.
+/// Some gateways spell it `error`.
 #[derive(Debug, Deserialize)]
 struct Fault {
     #[serde(rename = "Error", default)]
@@ -136,11 +132,11 @@ impl Fault {
 /// TRON's HTTP API over the shared client and failover pool.
 ///
 /// The pool's connector runs [`crate::TronIdentity`]'s genesis check once per
-/// endpoint per session, so a host serving another network is disqualified before
-/// it can answer a balance.
+/// endpoint per session, so a host on another network is ruled out before it can
+/// answer a balance.
 ///
-/// The `/v1` routes go to `TronGrid` alone and the `/wallet` routes to the full
-/// nodes first, so one pool and one health record per host serve both.
+/// The `/v1` routes go only to `TronGrid` and the `/wallet` routes to the full
+/// nodes first, so one pool, with one health record per host, serves both.
 pub struct PooledNode {
     pool: Arc<Pool<HttpEndpoint>>,
     api_key: Option<SecretText>,
@@ -156,7 +152,7 @@ impl fmt::Debug for PooledNode {
 }
 
 impl PooledNode {
-    /// A pool for another chain or with no endpoints fails here as a
+    /// Fails on a pool for another chain or with no endpoints, since either is a
     /// configuration mistake.
     ///
     /// The API key lives only here, so no printable configuration value holds it.
@@ -191,8 +187,8 @@ impl PooledNode {
             Some(body) => HttpRequest::post_json(body, REQUEST_TIMEOUT),
             None => HttpRequest::get(REQUEST_TIMEOUT),
         };
-        // Always the merging form, which equals `send` for an empty query and is
-        // the only one that keeps a query in the endpoint's own address.
+        // `send_query` equals `send` for an empty query, and it's the only form
+        // that keeps a query already in the endpoint's URL.
         let body = endpoint
             .send_query(
                 request.path(),
@@ -232,7 +228,7 @@ impl TronNode for PooledNode {
                 async |endpoint: Arc<HttpEndpoint>| {
                     match self.exchange(&endpoint, preferred).await {
                         Ok(answer) => Ok(answer),
-                        // A 404 or 405 means the gateway does not serve that
+                        // A 404 or 405 means the gateway doesn't serve that
                         // route, so nothing was accepted. Anything else leaves
                         // the outcome unknown and must not be retried.
                         Err(NetError::Status { status: 404 | 405, .. }) => {

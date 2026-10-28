@@ -349,9 +349,9 @@ mod endpoints {
         }
     }
 
-    /// A node behind the tip has no status for a transaction in a block it has
-    /// not reached, so its silence says nothing while its own height is still
-    /// inside the window.
+    /// A node behind the tip has no status for a transaction in a block it hasn't
+    /// reached, so its silence says nothing while its own height is still inside the
+    /// window.
     #[tokio::test]
     async fn an_endpoints_silence_is_judged_against_its_own_block_height() {
         let ahead = FakeNode::new();

@@ -66,8 +66,8 @@ pub enum KeySource {
     Subaddress { major: u32, minor: u32 },
 }
 
-/// Public address data passed to adapters at the start of sync. It is neither persisted nor
-/// sent over IPC. TON needs the public key to deploy an unfunded wallet contract.
+/// Public address data the engine hands an adapter before each sync pass. It's never
+/// persisted or sent over IPC. TON needs `pubkey` to deploy the wallet contract.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WatchedAddress {
     pub id: i64,

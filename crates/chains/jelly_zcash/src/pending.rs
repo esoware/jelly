@@ -7,7 +7,7 @@ use crate::record::Record;
 use crate::state::States;
 use crate::watched::Watched;
 
-/// Settles what `entry` holds of its sends against the history `cursor` read.
+/// Settles the sends `entry` holds against the history `cursor` read.
 ///
 /// A send from several sources is reported only by its first, which is the address the
 /// engine recorded it under, and each source releases its own copy.

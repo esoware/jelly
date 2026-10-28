@@ -1,6 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 
-/// Opaque sRGB stored as lowercase #rrggbb. Display balancing does not change the saved color.
+/// Opaque sRGB stored as lowercase `#rrggbb`. Display balancing doesn't change the saved
+/// color.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(transparent)]

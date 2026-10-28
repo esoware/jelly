@@ -34,8 +34,8 @@ impl fmt::Display for SpkiPin {
 /// TLS trust-on-first-use pin storage. The certificate verifier calls it synchronously, so
 /// implementations must answer from memory without blocking I/O.
 ///
-/// `put` replaces the existing key. The verifier decides whether replacement is allowed.
-/// Store hosts exactly as given. Callers lowercase them first.
+/// `put` replaces any existing pin, and the verifier decides whether that's allowed.
+/// Callers lowercase hosts, so store them exactly as given.
 pub trait PinStore: Send + Sync + fmt::Debug {
     fn get(&self, chain: ChainId, host: &str) -> Result<Option<SpkiPin>, CoreError>;
 

@@ -46,9 +46,9 @@ impl AddressCodec for ZcashCodec {
     }
 }
 
-/// A mainnet transparent destination. A TEX address is ZIP 320's spelling of a key
-/// hash that accepts only transparent inputs, which every payment built here spends,
-/// so it pays that key hash.
+/// A mainnet transparent destination. A TEX address (ZIP 320) is a key hash that may only
+/// be paid from transparent inputs, which are all this adapter spends, so it's paid as
+/// that key hash.
 struct Destination(TransparentAddress);
 
 impl TryFromAddress for Destination {
@@ -76,9 +76,8 @@ impl TryFromAddress for Destination {
     }
 }
 
-/// The mainnet P2PKH address of `pubkey`, the only single-key form. An uncompressed key
-/// is read as its compressed form, so a pay-to-pubkey output to either spelling belongs
-/// to the same address.
+/// The mainnet P2PKH address of `pubkey`. An uncompressed key is read as its compressed
+/// form, so a pay-to-pubkey output to either encoding belongs to the same address.
 pub(crate) fn pubkey_address(pubkey: &[u8]) -> Result<String, KeyError> {
     let key = CompressedPublicKey::from_slice(pubkey).map_err(|_| KeyError::InvalidPublicKey)?;
     Ok(encode(TransparentAddress::PublicKeyHash(key.pubkey_hash().to_byte_array())))
@@ -113,8 +112,9 @@ fn parse(value: &str) -> Result<TransparentAddress, AddressError> {
     if value.is_empty() {
         return Err(AddressError::Empty { chain: CHAIN });
     }
-    // Bech32 permits an all-uppercase spelling, which `zcash_address` reads only in
-    // lowercase, and no Base58Check address of Zcash's is written in upper case alone.
+    // Bech32 allows an all-uppercase spelling, which `zcash_address` only reads in
+    // lowercase. A Zcash Base58Check address always has a lowercase letter, so it's never
+    // lowered.
     let lowered;
     let value = if value.bytes().any(|byte| byte.is_ascii_lowercase()) {
         value

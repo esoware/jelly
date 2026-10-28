@@ -1,52 +1,50 @@
-//! Signature history resumes with separate forward and backfill walks. Each gets
-//! the full page budget, so a one-page forward check cannot starve the backfill.
+//! An account's signature history is read by a forward walk over new signatures and a
+//! backfill over old ones. Each gets the full page budget, so a one-page forward check
+//! can't starve the backfill.
 //!
-//! Anchors advance only over rows turned into records, and the forward frontier
-//! moves only once catch-up finishes, so no gap opens across passes.
+//! A cursor moves only past rows that became records, and `newest` moves only once the
+//! forward walk has caught up, so no gap opens between passes.
 
 use serde::{Deserialize, Serialize};
 
 use crate::config::SolanaConfig;
 use crate::rpc::SignatureRow;
 
-/// The anchors one address's scan resumes from.
+/// Where one account's walks resume.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SignatureCursor {
-    /// The newest signature already turned into records. The next forward walk
-    /// stops locally when it reaches this signature.
+    /// The newest signature already recorded. A forward walk stops when it reaches it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) newest: Option<String>,
     /// Where a forward walk that ran out of budget picks up, as `before`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) forward_before: Option<String>,
-    /// The newest signature that interrupted walk saw. It becomes `newest` when
-    /// the walk finally terminates.
+    /// The newest signature that unfinished forward walk has seen. It becomes `newest`
+    /// once the walk finishes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) forward_newest: Option<String>,
-    /// Where the historical walk continues, as `before`.
+    /// Where the backfill continues, as `before`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) backfill_before: Option<String>,
-    /// True once the historical walk has reached the end of the address's
-    /// history.
+    /// True once the backfill has reached the account's oldest signature.
     #[serde(rename = "backfillComplete")]
     pub(crate) is_backfill_complete: bool,
 }
 
 impl SignatureCursor {
-    /// True while a forward walk is part way through a multi-pass run, so the
-    /// frontier has not moved yet.
+    /// True while a forward walk spans passes and `newest` hasn't moved yet.
     const fn is_forward_in_progress(&self) -> bool {
         self.forward_before.is_some()
     }
 
-    /// True when this address's whole history has been read at least once.
+    /// True once this account's whole history has been read at least once.
     pub(crate) const fn is_complete(&self) -> bool {
         self.is_backfill_complete && !self.is_forward_in_progress()
     }
 }
 
-/// One page request with a local stop signature, exclusive.
+/// `until` is an exclusive stop signature, applied locally.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PageRequest {
     pub(crate) limit: u32,
@@ -71,8 +69,8 @@ struct Position {
 }
 
 impl Position {
-    /// An address whose first walk found no history has no frontier, so its
-    /// forward walk runs with no `until` and covers whatever has arrived since.
+    /// An account whose first walk found no history has no `newest`, so its forward
+    /// walk runs with no `until` and covers whatever has arrived since.
     fn new(cursor: SignatureCursor) -> Self {
         let phase = if cursor.newest.is_some() || cursor.is_backfill_complete {
             Phase::Forward
@@ -113,8 +111,8 @@ impl Position {
                 }
             }
             Phase::Backfill => {
-                // The first backfill page of a wallet's first ever pass starts at
-                // the tip, so it is the only page that may seed the frontier.
+                // Only the first backfill page of the first pass starts at the tip,
+                // so only it may set `newest`.
                 if self.before.is_none() && self.cursor.newest.is_none() {
                     self.cursor.newest = newest;
                 }
@@ -125,19 +123,18 @@ impl Position {
         }
     }
 
-    /// Ends the phase when a whole page came back with fewer than `limit` rows,
-    /// and answers whether it did.
+    /// Ends the phase and returns true when a page came back with fewer than `limit`
+    /// rows.
     ///
-    /// The caller passes only whole pages, because a page it cut short still has
-    /// rows below it.
+    /// Pass only whole pages. A page the caller cut short still has rows below it.
     fn end_phase_if_short(&mut self, row_count: usize, limit: u32) -> bool {
         if u32::try_from(row_count).unwrap_or(u32::MAX) >= limit {
             return false;
         }
         match self.phase {
             Phase::Forward => {
-                // The walk reached the frontier, so everything between it and the
-                // newest signature seen is now accounted for.
+                // Caught up with `newest`, so everything up to the newest signature
+                // seen is now accounted for.
                 if let Some(found) = self.pending_newest.take() {
                     self.cursor.newest = Some(found);
                 }
@@ -174,9 +171,8 @@ impl Position {
 
 /// One account's walk in progress.
 ///
-/// A state machine rather than a loop, so a caller can advance every walk by one
-/// page per batched round trip. A pass then costs as many round trips as the
-/// deepest walk rather than the sum of them.
+/// A state machine rather than a loop, so a caller can advance every walk by one page
+/// per batched round trip, and a pass costs as many round trips as its deepest walk.
 #[derive(Debug, Clone)]
 pub(crate) struct Walk {
     /// Where this pass started, which [`Walk::finish`] replays the pages from.
@@ -228,20 +224,18 @@ impl Walk {
 
     /// The signatures found this pass, newest first.
     ///
-    /// One signature can appear in two walks, so the caller deduplicates across
-    /// them. Pages within one walk never overlap, because each starts below the
-    /// last one's oldest row and the two phases cover disjoint halves of the
-    /// history.
+    /// One signature can appear in two walks, so the caller deduplicates across them.
+    /// Pages within one walk never overlap, because each starts below the last one's
+    /// oldest row and the two phases cover disjoint ranges of the history.
     pub(crate) fn rows(&self) -> &[SignatureRow] {
         &self.found
     }
 
-    /// The cursor to persist once the first `recorded` of [`Walk::rows`] have
-    /// been turned into records.
+    /// The cursor to persist once the first `recorded` of [`Walk::rows`] have become
+    /// records.
     ///
-    /// A pass that ran out of time records only some of what it found, so the
-    /// pages are replayed over those rows alone and the walk resumes below the
-    /// last one recorded.
+    /// A pass that ran out of time records only some of what it found, so the pages are
+    /// replayed over those rows alone and the walk resumes below the last one recorded.
     pub(crate) fn finish(self, recorded: usize) -> SignatureCursor {
         let mut position = Position::new(self.start);
         let mut rest = self.found.as_slice();
@@ -471,8 +465,8 @@ mod tests {
         assert_eq!(cursor.newest.as_deref(), Some("sig00000"));
     }
 
-    /// A new address's first pass finds nothing, so it has no frontier, and its
-    /// forward walk asks for everything that has arrived since.
+    /// A new account's first pass finds nothing, so it has no `newest`, and its forward
+    /// walk asks for everything that has arrived since.
     #[test]
     fn the_walk_of_a_completed_address_with_no_frontier_still_looks_forward() {
         let cursor = SignatureCursor { is_backfill_complete: true, ..SignatureCursor::default() };

@@ -11,7 +11,7 @@ use crate::error::NetError;
 const TARGET: &str = "jelly::net::health";
 
 /// How an endpoint is behaving. The declaration order is preference order, so `Ord`
-/// ranks endpoints directly and a never-tried endpoint cannot outrank a proven one.
+/// ranks endpoints directly and a never-tried endpoint can't outrank a proven one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum HealthClass {
     Healthy,
@@ -30,13 +30,12 @@ const QUARANTINE_FOR: Duration = Duration::from_secs(20);
 const DECAY_HALF_LIFE_SECS: i64 = 3600;
 const MAX_HALVINGS: u32 = 16;
 
-/// How many outcomes `health` is built from. Zero means never tried, which is what
-/// separates [`HealthClass::Unknown`] from a real reading.
+/// How many outcomes `health` is built from. Zero means never tried.
 const fn samples(health: &EndpointHealth) -> u64 {
     health.successes.saturating_add(health.failures)
 }
 
-/// Coarse on purpose, so ordering does not flap because one call was 30 ms slower than
+/// Coarse on purpose, so ordering doesn't flap because one call was 30 ms slower than
 /// the last.
 const fn latency_tier(health: &EndpointHealth) -> u8 {
     match health.latency_ms {
@@ -57,7 +56,7 @@ const fn last_seen_unix_secs(health: &EndpointHealth) -> Option<i64> {
     }
 }
 
-/// Pulls a stored score back towards the untried baseline, one halving per half life.
+/// Pulls a stored score back toward the untried baseline, one halving per half life.
 fn decayed(mut health: EndpointHealth, age_secs: i64) -> EndpointHealth {
     if age_secs <= 0 {
         return health;
@@ -80,9 +79,9 @@ pub struct HealthEntry {
     /// The canonical URL this record is keyed on.
     pub url: String,
     pub class: HealthClass,
-    /// Whether an outcome reached this endpoint in this run. Until one does, a restored
-    /// record's score is aged to this run while its timestamps still say when it was last
-    /// heard from, so writing it back would have the next restore age it a second time.
+    /// Whether an outcome reached this endpoint in this run. An untouched restored record
+    /// is already aged but keeps its old timestamps, so writing it back would have the
+    /// next restore age it twice.
     pub is_touched: bool,
     pub health: EndpointHealth,
 }
@@ -90,15 +89,15 @@ pub struct HealthEntry {
 #[derive(Debug, Default)]
 struct Record {
     health: EndpointHealth,
-    /// A point on the clock's monotonic scale, so it is meaningful only within
-    /// one run and is never written out.
+    /// On the clock's monotonic scale, so it means nothing outside this run and is never
+    /// written out.
     quarantine_until_millis: Option<u64>,
     /// Set by an outcome and never by a restore.
     is_touched: bool,
 }
 
-/// The one place endpoint outcomes are recorded. The failover walk ranks on it, and the
-/// shell persists and restores it across runs.
+/// Records endpoint outcomes. Pools rank on it, and the shell persists and restores it
+/// across runs.
 #[derive(Debug)]
 pub struct HealthTracker {
     clock: Arc<dyn Clock>,
@@ -158,8 +157,7 @@ impl HealthTracker {
         });
     }
 
-    /// Applies one outcome and logs the endpoint's class if it moved. Both outcomes go
-    /// through here, so the class-change log line lives in one place.
+    /// Applies one outcome and logs the endpoint's class if it changed.
     fn update(&self, endpoint: &Endpoint, change: impl FnOnce(&mut Record)) {
         let (before, after) = {
             let mut records = self.records.lock();
@@ -184,13 +182,13 @@ impl HealthTracker {
         }
     }
 
-    /// Everything known about one endpoint right now.
+    /// One endpoint's health as of now.
     pub fn entry(&self, chain: ChainId, url: &str) -> HealthEntry {
         let records = self.records.lock();
         self.entry_of(url, records.get(&chain).and_then(|urls| urls.get(url)))
     }
 
-    /// The ordering key the failover walk sorts on, class first and then latency tier.
+    /// The key pools sort on, class first and then latency tier.
     pub(crate) fn rank(&self, chain: ChainId, url: &str) -> (HealthClass, u8) {
         let records = self.records.lock();
         records.get(&chain).and_then(|urls| urls.get(url)).map_or_else(
@@ -199,7 +197,7 @@ impl HealthTracker {
         )
     }
 
-    /// Everything known about one chain, ordered by canonical URL.
+    /// Every recorded endpoint of one chain, ordered by canonical URL.
     pub fn snapshot(&self, chain: ChainId) -> Vec<HealthEntry> {
         let mut rows: Vec<HealthEntry> = self
             .records
@@ -214,8 +212,8 @@ impl HealthTracker {
     }
 
     /// Seeds a record read back from the database, aged by how long ago the endpoint was
-    /// last heard from. A quarantine is never restored, because it is a judgment about
-    /// one run.
+    /// last heard from. A quarantine is never restored, because it's a judgment about one
+    /// run.
     pub fn restore(&self, chain: ChainId, url: impl Into<String>, health: EndpointHealth) {
         let now_unix_secs = self.clock.now_secs().unwrap_or_default();
         let age_secs =

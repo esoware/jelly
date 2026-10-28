@@ -10,8 +10,8 @@ use crate::payload::{Payment, SendKind};
 use crate::state::States;
 use crate::watched::Watched;
 
-// A payment is built on the node's view of the sender, so that view must be recent, and
-// the lead allows for a local clock that runs slightly behind the network.
+// A payment is built on the node's view of the sender, so that view must be recent. The
+// lead allows for a local clock running slightly behind the network.
 const MAX_NODE_LAG_SECONDS: i64 = 120;
 const MAX_NODE_LEAD_SECONDS: i64 = 60;
 
@@ -193,7 +193,7 @@ fn send_kind(request: &TxRequest) -> Result<SendKind, XrpError> {
 }
 
 /// Refuses what the recipient's account would refuse: a payment without the tag it
-/// requires, or one it has not authorized deposits from.
+/// requires, or one it hasn't authorized deposits from.
 async fn check_recipient(
     client: &XrpClient,
     from: &str,

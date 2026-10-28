@@ -26,7 +26,7 @@ pub(crate) struct Source {
 }
 
 /// Serialized inside `Payment`, so its field names are a stored format. `address` is the
-/// source whose coin it is.
+/// source that holds the coin.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Coin {
@@ -45,8 +45,8 @@ impl Coin {
 /// Serialized into the `UnsignedTx` payload and the `zcash.sends` reservation, so its field
 /// names are a stored format.
 ///
-/// `sources` are the addresses the payment moves coins of, in the order the request named
-/// them, and change returns to the first.
+/// `sources` are the request's addresses that the payment spends from or returns change
+/// to, in the order the request named them. Change goes to the first.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Payment {
@@ -59,7 +59,7 @@ pub(crate) struct Payment {
     pub(crate) change_zat: u64,
     pub(crate) fee_zat: u64,
     /// Change too small to keep, which `fee_zat` includes. Absent from a payment stored
-    /// before it was recorded.
+    /// before this field existed.
     #[serde(default)]
     pub(crate) dropped_change_zat: u64,
 }
@@ -73,8 +73,8 @@ impl Payment {
         let end = branch_at(target_height).height_bounds(&MAIN_NETWORK).and_then(|(_, end)| end);
         let expiry =
             target_height.checked_add(DEFAULT_TX_EXPIRY_DELTA).ok_or(ZcashError::Protocol)?;
-        // A transaction is valid only in the branch it was signed for, so, as zcashd does,
-        // expiry stops at the last block before the next network upgrade.
+        // A transaction is only valid in the branch it was signed for, so expiry stops at the
+        // last block before the next network upgrade, as zcashd does.
         Ok(end.map_or(expiry, |end| expiry.min(u32::from(end).saturating_sub(1))))
     }
 
@@ -164,8 +164,8 @@ impl Payment {
     }
 }
 
-/// The internal byte order of a hash in the 64 lowercase hex digits Blockbook and txids
-/// spell it in.
+/// Parses a hash written as 64 lowercase hex digits, as Blockbook and txids show it, into
+/// internal byte order, which is reversed.
 pub(crate) fn hash_bytes(hash: &str) -> Result<[u8; 32], ZcashError> {
     if hash.len() != 64 || !hash.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')) {
         return Err(ZcashError::Protocol);

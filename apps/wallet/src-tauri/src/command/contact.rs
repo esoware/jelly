@@ -6,7 +6,7 @@ use crate::command::with_engine;
 use crate::error::IpcError;
 use crate::state::AppState;
 
-/// The open wallet's address book, in chain then address order.
+/// The open wallet's address book, sorted by chain, then address.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn list_contacts(
@@ -15,8 +15,8 @@ pub(crate) async fn list_contacts(
     with_engine(&state, async move |engine| engine.list_contacts().await).await
 }
 
-/// Refuses an address the chain does not accept and saves the canonical spelling of one
-/// it does.
+/// Refuses an address the chain doesn't accept, and saves the canonical spelling of one it
+/// does.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn add_contact(
@@ -32,7 +32,7 @@ pub(crate) async fn add_contact(
     .await
 }
 
-/// The contact keeps the chain it was saved for.
+/// The contact keeps its chain, and the new address is checked against it.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn update_contact(

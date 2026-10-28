@@ -1,10 +1,9 @@
-//! Child-pays-for-parent, the fee bump of a chain whose nodes relay no replacement.
+//! Child-pays-for-parent, the fee bump for chains whose nodes don't relay replacements.
 //!
-//! The package arithmetic is Electrum's `get_child_fee_from_total_feerate`: the child
-//! pays what brings the package and itself together to the chosen rate, less what the
-//! package already paid. Electrum's package is the parent alone. Here it also holds
-//! every unconfirmed ancestor the parent waits on, because a miner scores the child
-//! with all of them.
+//! The arithmetic is Electrum's `get_child_fee_from_total_feerate`: the child pays what
+//! brings the package and itself to the chosen rate, less what the package already
+//! paid. Electrum's package is just the parent, but here it includes every unconfirmed
+//! ancestor too, since a miner scores the child with all of them.
 
 use std::iter::once;
 
@@ -92,20 +91,20 @@ fn child_fee(
 #[derive(Debug, Clone)]
 pub(crate) struct ChildRequest<'a> {
     pub(crate) rate: FeeRate,
-    /// The parent's sources, the address the child pays first.
+    /// The parent's sources. The child pays back to the first.
     pub(crate) sources: Vec<Source<'a>>,
     /// The parent's change, which the child spends first.
     pub(crate) change: &'a Utxo,
-    /// Coins of the sources the child may add when the change cannot pay. Only a
-    /// confirmed one is added, because an unconfirmed one brings ancestors of its own
-    /// that the package does not price.
+    /// Coins of the sources the child may add when the change can't pay. Only
+    /// confirmed ones are added, since an unconfirmed one brings ancestors the package
+    /// doesn't price.
     pub(crate) extras: &'a [Utxo],
     pub(crate) tip_height: u32,
     pub(crate) relay_floor: FeeRate,
 }
 
-/// The child spending the parent's change, with confirmed coins added one at a time
-/// until what is left after the fee is worth an output, paying it all back to the
+/// A child spending the parent's change, adding confirmed coins one at a time until
+/// what's left after the fee clears the dust threshold, and paying it all back to the
 /// first source.
 pub(crate) fn build_child(
     params: &UtxoParams,

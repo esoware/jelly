@@ -1,5 +1,4 @@
-//! Litecoin mainnet over the shared UTXO framework: its spec, its table, its key and
-//! address entry, and its adapter build.
+//! Litecoin mainnet.
 
 #![deny(clippy::float_arithmetic)]
 mod litecoin;

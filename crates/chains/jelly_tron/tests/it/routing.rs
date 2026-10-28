@@ -199,7 +199,7 @@ impl Hosts {
         Ok(registry.enabled(ChainId::Tron, Transport::TronHttp)?)
     }
 
-    /// Every host has answered as often and as fast as every other.
+    /// Gives every host the same good health record.
     fn equally_healthy(&self) {
         for url in self.seen.keys() {
             self.runtime.health().restore(ChainId::Tron, url, proven());
@@ -290,8 +290,8 @@ async fn wallet_reads_go_to_a_full_node_ahead_of_an_equally_healthy_trongrid() {
     }
 }
 
-/// An existing user's `TronGrid` has a long record of answers and the full nodes have
-/// none, which must not keep the balance reads on `TronGrid`.
+/// An existing user's `TronGrid` has a long health record and the full nodes have none.
+/// The balance reads still go to the full nodes.
 #[tokio::test]
 async fn history_goes_to_trongrid_and_wallet_reads_to_full_nodes_nobody_has_tried() {
     let hosts = Hosts::start(&[]).await.unwrap();
@@ -371,7 +371,7 @@ async fn a_pinned_full_node_takes_the_wallet_reads_and_never_history() {
 }
 
 /// Balances still come from the full nodes, and no host is asked for history it
-/// cannot serve.
+/// can't serve.
 #[tokio::test]
 async fn with_trongrid_turned_off_no_host_is_asked_for_history() {
     let hosts = Hosts::start(&[]).await.unwrap();

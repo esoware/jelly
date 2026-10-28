@@ -67,7 +67,7 @@ impl WifFormat {
     }
 
     /// The script type `version` carries, or [`KeyError::UnknownFormat`] when the byte
-    /// is not this format's.
+    /// isn't this format's.
     const fn script_of(self, version: u8) -> Result<Option<ScriptKind>, KeyError> {
         match version.checked_sub(self.version) {
             Some(0) => Ok(None),
@@ -79,7 +79,7 @@ impl WifFormat {
 }
 
 /// The WIF after an Electrum script type prefix, and the type it names. A colon after
-/// anything else, such as the list number in `1: abandon`, is not that form, and the
+/// anything else, such as the list number in `1: abandon`, isn't that form, and the
 /// text comes back whole.
 fn split_electrum_prefix(text: &str) -> (&str, Option<ScriptKind>) {
     let Some((prefix, wif)) = text.split_once(':') else {

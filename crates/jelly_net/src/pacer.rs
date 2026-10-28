@@ -98,11 +98,11 @@ impl Lane {
 
 /// Each endpoint URL gets one token bucket, one cooldown, and one concurrency cap.
 ///
-/// Lanes are keyed by URL across chains, because a provider's rate limit does not know
+/// Lanes are keyed by URL across chains, because a provider's rate limit doesn't know
 /// which chain asked.
 ///
 /// Nothing here waits. [`Pacer::try_acquire`] admits the attempt or says how long it
-/// would wait, and the pool rotates to another endpoint instead.
+/// would wait, and the pool moves on to another endpoint instead.
 #[derive(Debug)]
 pub(crate) struct Pacer {
     policy: PacerPolicy,
@@ -131,8 +131,8 @@ impl Pacer {
     }
 
     /// Takes one concurrency slot and one token, or reports how long the caller would
-    /// wait for one. The slot is held for the length of one attempt, and dropping the
-    /// permit frees it.
+    /// wait for one. The slot is held until the permit is dropped, which the pool does
+    /// after one attempt.
     pub(crate) fn try_acquire(&self, url: &str) -> Result<OwnedSemaphorePermit, Duration> {
         let now_millis = self.clock.elapsed_millis();
         let mut lanes = self.lanes.lock();
@@ -174,7 +174,7 @@ impl Pacer {
         lane.cooldown_until_millis = now_millis.saturating_add(wait_millis);
     }
 
-    /// Drops every endpoint's state, which is what a proxy change means.
+    /// Drops every endpoint's state, for a proxy change.
     pub(crate) fn reset(&self) {
         self.lanes.lock().clear();
     }
@@ -201,8 +201,8 @@ impl Pacer {
         lanes.entry(url.to_owned()).or_insert_with(|| Lane::new(policy, now_millis))
     }
 
-    /// The lane for `url`, brought up to date. Both readers go through this, so
-    /// what `ready_in` reports and what `try_acquire` decides cannot disagree.
+    /// The lane for `url`, brought up to date. Both readers go through this, so what
+    /// `ready_in` reports and what `try_acquire` decides can't disagree.
     fn ready_lane<'a>(
         lanes: &'a mut HashMap<String, Lane>,
         url: &str,

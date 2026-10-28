@@ -23,17 +23,16 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 const READ_CHUNK_BYTES: usize = 65_536;
 /// How many request lines may be queued for the writer before a caller waits.
 const QUEUE_DEPTH: usize = 32;
-/// A batch of transactions is the largest legitimate line a server sends. Past
-/// this the line is an attack rather than an answer.
+/// A batch of transactions is the largest legitimate line a server sends, so anything
+/// past this is treated as hostile.
 const MAX_FRAME_BYTES: usize = 32 * 1024 * 1024;
 
 /// One socket carrying JSON-RPC lines, with a bounded request queue and
 /// per-request replies.
 ///
-/// A timeout retires the socket, marking it dead and failing every waiter, so a
-/// half-answered connection is never reused. The stream and both tasks are torn
-/// down when the last handle drops. Negotiation and the meaning of each answer
-/// belong to `Connection`.
+/// A timeout retires the socket and fails every waiter, so a half-answered connection
+/// is never reused. Dropping it aborts both tasks and closes the stream. `Connection`
+/// handles negotiation and what each answer means.
 pub(crate) struct RpcSocket {
     inner: Arc<Inner>,
     outgoing: mpsc::Sender<Vec<u8>>,
@@ -41,8 +40,6 @@ pub(crate) struct RpcSocket {
     tasks: [JoinHandle<()>; 2],
 }
 
-/// Both tasks are aborted here, so no reader or writer outlives the socket that
-/// owns it.
 impl Drop for RpcSocket {
     fn drop(&mut self) {
         self.inner.retire(RetireReason::Gone);
@@ -122,8 +119,8 @@ impl RpcSocket {
         self.next_id.fetch_add(1, Ordering::Relaxed)
     }
 
-    /// Registers the answers before the line goes out, so a reply cannot arrive
-    /// before there is somewhere to put it.
+    /// Registers the waiter before the line goes out, so a reply can't arrive with
+    /// nowhere to go.
     async fn dispatch(
         &self,
         method: Method,
@@ -151,10 +148,10 @@ impl RpcSocket {
 /// Why the socket stopped serving requests.
 #[derive(Debug, Clone, Copy)]
 enum RetireReason {
-    /// The peer went away, a write failed, or this side gave up. Nothing in
-    /// flight was answered in any of the three, so they are one outcome.
+    /// The peer went away, a write failed, or we gave up. In each case nothing in
+    /// flight was answered.
     Gone,
-    /// The server sent a line that is not JSON-RPC.
+    /// The server sent a line that isn't JSON-RPC.
     Malformed,
     /// The server sent an unterminated line past the frame limit.
     Oversize,
@@ -229,8 +226,7 @@ impl Inner {
             let _ = group.reply.send(Err(reason.error(&self.endpoint, group.method)));
         }
         drop(pending);
-        // Wake every notification waiter so it observes the dead socket instead
-        // of waiting on a channel nothing will ever bump again.
+        // Wake every notice waiter so it sees the dead socket instead of waiting forever.
         self.notices.send_modify(|count| *count = count.wrapping_add(1));
     }
 
@@ -243,16 +239,14 @@ impl Inner {
     }
 
     fn deliver_single(&self, message: Message) -> Result<(), RetireReason> {
-        // A line with no id is a server push. Its content is not read, because
-        // the pass it triggers re-fetches everything it acts on, so delivery is
-        // one bump of the counter a watcher waits on.
+        // A line with no id is a server push. Its content is ignored, since the sync
+        // it triggers re-fetches everything it acts on.
         let Some(id) = message.id else {
             self.notices.send_modify(|count| *count = count.wrapping_add(1));
             return Ok(());
         };
         let mut pending = self.pending.lock();
-        // An id nobody waits on is an answer that arrived after its caller gave
-        // up, so it is dropped.
+        // An answer that arrived after its caller gave up.
         let Some(route) = pending.routes.get(&id).copied() else { return Ok(()) };
         pending.apply(&self.endpoint, route, message)
     }
@@ -270,9 +264,8 @@ impl Inner {
         else {
             return Ok(());
         };
-        // A short batch would leave slots unfilled until the request timed out
-        // and retired the socket, so a length mismatch fails the group at once
-        // with a typed error.
+        // Fail a short batch now, or its empty slots would wait until the timeout
+        // retired the socket.
         if messages.len() != requested {
             let failure = ElectrumError::BatchLength {
                 endpoint: self.endpoint.clone(),

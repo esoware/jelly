@@ -19,12 +19,12 @@ pub(crate) struct OutpointClaims {
 #[derive(Debug, Clone)]
 struct Hold {
     owner: Txid,
-    /// A mempool transaction already spent the coin when it was claimed, as it
-    /// spends every input a replacement takes over from its original.
+    /// A mempool transaction already spent the coin when it was claimed, as the
+    /// original does for every input a replacement takes over.
     is_spent_at_claim: bool,
-    /// The hold a replacement took the coin over from. The transaction it would
-    /// replace still spends the coin until the replacement is broadcast, so
-    /// releasing the replacement hands the hold back.
+    /// The hold a replacement took the coin over from. The original still spends the
+    /// coin until the replacement is broadcast, so releasing the replacement hands
+    /// the hold back.
     displaced: Option<Box<Self>>,
 }
 
@@ -43,13 +43,12 @@ impl OutpointClaims {
         Ok(())
     }
 
-    /// Claims every outpoint for `owner`, a replacement, taking over every claim
-    /// that holds any of them from the transaction it replaces. The members of
-    /// `already_spent` are the ones that transaction spends in the mempool.
+    /// Claims every outpoint for the replacement `owner`, taking over any claim that
+    /// holds one of them. `already_spent` lists the ones the replaced transaction
+    /// spends in the mempool.
     ///
-    /// A claim taken over is released whole, and its hold on each coin the
-    /// replacement spends is kept beneath the replacement's for [`Self::release`]
-    /// to hand back.
+    /// A claim taken over is released whole. Its hold on each coin the replacement
+    /// spends is kept beneath the replacement's, for [`Self::release`] to hand back.
     pub(crate) fn take_over(
         &self,
         owner: Txid,
@@ -108,18 +107,16 @@ impl OutpointClaims {
         self.held.lock().is_empty()
     }
 
-    /// The coins not committed to a pending transaction.
+    /// `coins` minus every claimed one.
     pub(crate) fn spendable(&self, coins: &[Utxo]) -> Vec<Utxo> {
         let held = self.held.lock();
         coins.iter().filter(|coin| !held.contains_key(&coin.outpoint())).cloned().collect()
     }
 
-    /// Releases every claim with a coin missing from `live` that was unspent when
-    /// it was claimed, because the transaction either confirmed or was replaced.
-    ///
-    /// A coin already spent at claim time says nothing by being missing, so a
-    /// claim lasts while it holds one live coin and loses none. One that holds no
-    /// live coin at all protects nothing and is released too.
+    /// Releases every claim that lost a coin which was unspent when claimed, since its
+    /// transaction confirmed or was replaced. A coin already spent at claim time says
+    /// nothing by being missing. A claim with no coin in `live` protects nothing and
+    /// is released too.
     pub(crate) fn retain_live(&self, live: &[OutPoint]) {
         let live: HashSet<OutPoint> = live.iter().copied().collect();
         let mut held = self.held.lock();
@@ -243,8 +240,8 @@ mod tests {
         assert!(claims.is_empty(), "a claim on nothing unspent protects nothing");
     }
 
-    /// Backing out of a replacement leaves the transaction it would have replaced,
-    /// which still spends the coins in the mempool, holding them as it did.
+    /// Backing out of a replacement hands the coins back to the transaction it would
+    /// have replaced, which still spends them in the mempool.
     #[test]
     fn releasing_a_replacement_hands_back_the_coins_it_took_over() {
         let scene = bitcoin_scene().unwrap();

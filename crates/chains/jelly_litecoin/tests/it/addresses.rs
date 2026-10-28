@@ -41,8 +41,8 @@ fn each_script_vector_gives_its_recorded_script_and_kind() {
     }
 }
 
-/// The superseded `3...` form is read and never written, so it validates to itself
-/// rather than to the `M...` spelling of the same script.
+/// A superseded `3...` address validates to itself, not to the `M...` spelling of the
+/// same script.
 #[test]
 fn valid_addresses_canonicalise_to_themselves() {
     let suite = vectors().unwrap();
@@ -51,7 +51,7 @@ fn valid_addresses_canonicalise_to_themselves() {
         let address = ENTRY.validate_address(case).unwrap();
         assert_eq!(address.value(), case);
         assert_eq!(address.chain(), ChainId::Litecoin);
-        // Surrounding whitespace is the caller's paste, not part of the value.
+        // Whitespace around a paste isn't part of the address.
         let padded = format!("  {case}  ");
         assert_eq!(ENTRY.validate_address(&padded).unwrap().value(), case);
     }
@@ -67,7 +67,7 @@ fn invalid_addresses_are_refused() {
 }
 
 #[test]
-fn the_codec_reports_the_flavour_a_path_derived() {
+fn the_codec_reports_the_flavor_a_path_derived() {
     for (text, kind) in [
         ("m/84'/2'/0'/0/0", ScriptKind::P2wpkh),
         ("m/49'/2'/0'/0/0", ScriptKind::P2shP2wpkh),
@@ -80,7 +80,7 @@ fn the_codec_reports_the_flavour_a_path_derived() {
 }
 
 #[test]
-fn a_path_without_a_purpose_takes_the_chains_default_flavour() {
+fn a_path_without_a_purpose_takes_the_chains_default_flavor() {
     assert_eq!(SPEC.default_script, Some(ScriptKind::P2wpkh));
     assert_eq!(
         address_at(ENTRY, "m/0/0", None).unwrap(),
@@ -88,7 +88,7 @@ fn a_path_without_a_purpose_takes_the_chains_default_flavour() {
     );
 }
 
-/// A taproot path fails rather than producing a P2WPKH address the user's other
+/// A taproot path fails instead of falling back to a P2WPKH address the user's other
 /// wallet would never show.
 #[test]
 fn litecoin_pays_taproot_without_deriving_it() {

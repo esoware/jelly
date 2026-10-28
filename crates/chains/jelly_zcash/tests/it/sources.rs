@@ -23,8 +23,8 @@ fn second_key() -> Result<KeyMaterial, ZcashError> {
     Ok(Secp256k1Key::from_secret_bytes(&[9; 32])?.key_material())
 }
 
-/// The owner, address 1, holding its 1 000 000 zatoshi coin, and a second address of
-/// the wallet holding 300 000, both watched.
+/// The owner, address 1, holding its 1,000,000 zatoshi coin, and a second watched address
+/// holding 300,000.
 async fn two_sources() -> Result<(Arc<Node>, ZcashAdapter, String), Box<dyn Error>> {
     let node = Node::new()?;
     let second = ENTRY.address(&second_key()?, Some(ScriptKind::P2pkh))?;
@@ -106,7 +106,6 @@ async fn a_first_source_with_no_coin_spent_still_receives_the_change() {
     assert_eq!(u64::from(bundle.vout[1].value()), 490_000);
 }
 
-/// A send-max quotes the total of every source.
 #[tokio::test]
 async fn a_send_max_spends_every_source() {
     let (_node, adapter, _second) = two_sources().await.unwrap();

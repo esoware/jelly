@@ -14,15 +14,15 @@ use crate::watched::{Watched, address_of};
 
 const VERSION: u8 = 1;
 
-/// Where an address's watched sends live. They are a reservation rather than scan
-/// progress, because a second send must not reuse their nonces.
+/// Where an address's watched sends live. They're a reservation, not scan progress,
+/// because another send mustn't reuse their nonces.
 const SENDS_SLOT: ReservationSlot = ReservationSlot::EvmNonces;
 
-/// The sent set of one address as it is stored.
+/// One address's sent set as stored.
 ///
-/// JSON, because nothing here is secret and a readable set is worth more in a bug
-/// report than the bytes it saves. Only sent transactions are written, because a
-/// held slot means nothing after a restart.
+/// JSON, because nothing here is secret and a readable set helps a bug report more
+/// than a smaller one would. Only sent transactions are written, because a held
+/// slot means nothing after a restart.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredSet {
@@ -138,8 +138,7 @@ impl Stored {
 impl TryFrom<Stored> for Tracked {
     type Error = EvmError;
 
-    /// Refuses bytes that do not hash to the txid, which no broadcast of this
-    /// adapter writes.
+    /// Refuses bytes that don't hash to the txid, which no broadcast of ours writes.
     fn try_from(stored: Stored) -> Result<Self, Self::Error> {
         if keccak256(&stored.raw) != stored.txid {
             return Err(EvmError::UnreadableState);
@@ -188,8 +187,8 @@ pub(crate) async fn store_pending(
 /// The stored sent sets of `address_ids`, to restore into a ledger whose watch set
 /// will be `watched`.
 ///
-/// A set that does not read back, or holds a send of another network or of an
-/// address its row does not watch, is [`EvmError::UnreadableState`].
+/// A set that doesn't read back, or holds a send of another network or of an
+/// address its row doesn't watch, is [`EvmError::UnreadableState`].
 pub(crate) async fn load_pending(
     cursors: &dyn CursorStore,
     chain: ChainId,

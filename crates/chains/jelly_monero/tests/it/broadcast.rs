@@ -30,8 +30,8 @@ async fn a_broadcast_reserves_its_inputs_and_persists_before_the_bytes_go_out() 
         "the coins it did not touch are still spendable"
     );
 
-    // The reservation is durable before the bytes go out and carries them, while
-    // the scan blob is progress and holds no signed transaction.
+    // The reservation is on disk before the bytes go out and carries them. The scan
+    // blob only records progress and holds no signed transaction.
     let held_blob = stored_sends(&*harness.cursors)
         .await
         .unwrap()
@@ -239,8 +239,8 @@ async fn a_refusal_the_network_will_never_accept_releases_the_inputs_at_once() {
         spendable,
         "the inputs went straight back"
     );
-    // The release is on disk too, so an unlock does not bring the reservation
-    // back for a transaction the network already refused.
+    // The release is on disk too, so an unlock doesn't bring back the reservation
+    // for a transaction the network already refused.
     let raw = signed.raw.as_bytes();
     if let Some(blob) = stored_sends(&*harness.cursors).await.unwrap() {
         assert!(

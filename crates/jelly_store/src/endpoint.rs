@@ -11,15 +11,15 @@ const HEALTH: &str = "endpoint health";
 const UNIQUE_COLUMNS: &str = "chain, url";
 
 statements! {
-    /// Re-adding a listed endpoint re-enables and relabels it but keeps its pin, because
-    /// typing it again is not a way to unpin it.
+    /// Re-adding a listed endpoint re-enables and relabels it but keeps its pin, since
+    /// typing it again isn't a way to unpin it.
     ADD =
         "INSERT INTO endpoint_overrides (chain, url, display, enabled, pinned) \
          VALUES (?1, ?2, ?3, 1, 0) \
          ON CONFLICT (chain, url) DO UPDATE SET \
            display = excluded.display, enabled = 1";
 
-    /// Creates the row if it is missing, and otherwise touches only this flag.
+    /// Creates the row if it's missing, and otherwise touches only this flag.
     SET_ENABLED =
         "INSERT INTO endpoint_overrides (chain, url, display, enabled, pinned) \
          VALUES (?1, ?2, ?2, ?3, 0) \
@@ -178,8 +178,8 @@ impl Writer<'_> {
 /// A user-added endpoint can carry a credential in userinfo, the path, or the query, so
 /// an error names only the [`EndpointLabel`] form.
 ///
-/// This is not a canonicalizer. The store keys on the string it is given, and `jelly_net`
-/// owns the canonical form.
+/// The store itself keys on the exact string it's given, and `jelly_net` owns the
+/// canonical form.
 fn redacted(url: &str) -> String {
     EndpointLabel::from_url(url).to_string()
 }

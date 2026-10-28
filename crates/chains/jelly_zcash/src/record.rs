@@ -76,9 +76,9 @@ impl Record {
 
 /// The record of `info` for `address`, one of the wallet's `own` addresses.
 ///
-/// When several of the wallet's addresses pay into the transaction, each one's record is
-/// what it lost or gained, and the fee is charged to the address of its first input of the
-/// wallet's, so the records of one transaction add up to what left the wallet.
+/// When several of the wallet's addresses pay into the transaction, each record is what its
+/// address lost or gained, and the fee is charged to the owner of the first input the
+/// wallet owns, so one transaction's records add up to what left the wallet.
 pub(crate) fn summarize(
     info: &TxInfo,
     address: &str,
@@ -161,8 +161,8 @@ pub(crate) fn summarize(
         let spent_zat =
             ours_in_zat.saturating_sub(ours_out_zat).saturating_sub(fee_zat.unwrap_or_default());
         // A transaction that pays no one else transparently is a self transfer, unless it
-        // has shielded parts and cost more than its fee, because the rest then went to a
-        // shielded recipient this adapter cannot see.
+        // has shielded parts and cost more than its fee. Then the rest went to a shielded
+        // recipient we can't see.
         if ours_out_zat > ours_in_zat {
             (TxDirection::Incoming, ours_out_zat.saturating_sub(ours_in_zat), sender)
         } else if others_out_zat == 0 && (!is_shielded || spent_zat == 0) {
@@ -228,9 +228,9 @@ mod tests {
         (TxInfo { tx, height: Some(HEIGHT), timestamp: None }, previous)
     }
 
-    /// Two addresses of the wallet pay a stranger, with change to the first. Each record
-    /// is what its address lost, the fee charged to the first input's, so together they
-    /// are the payment.
+    /// Two of the wallet's addresses pay a stranger, with change to the first. Each record
+    /// is what its address lost, with the fee charged to the first input's owner, so
+    /// together they're the payment.
     #[test]
     fn the_records_of_a_pooled_payment_add_up_to_the_payment() {
         let (first, second, theirs) = (key_address(7), key_address(8), key_address(9));
@@ -250,10 +250,8 @@ mod tests {
         }
     }
 
-    /// Change to an address that put nothing in is that address's income.
-    ///
-    /// The one address that spent less the change is the payment, and the payment names
-    /// the stranger ahead of the wallet's own change address.
+    /// The spender's record less the change is the payment, and it names the stranger
+    /// ahead of the wallet's own change address.
     #[test]
     fn change_to_another_of_the_wallets_addresses_is_its_income() {
         let (change, spender, theirs) = (key_address(7), key_address(8), key_address(9));

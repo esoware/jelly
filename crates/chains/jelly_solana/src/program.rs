@@ -257,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn a_token_2022_instruction_is_read_with_the_classic_layout_and_labelled_apart() {
+    fn a_token_2022_instruction_is_read_with_the_classic_layout_and_labeled_apart() {
         let keys = [OWNER, MINT, PEER, TOKEN_2022_PROGRAM];
         let instruction = CompiledInstruction {
             program_id_index: 3,

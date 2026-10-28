@@ -20,8 +20,8 @@ fn nonsense_is_refused_without_echoing_it_back() {
     }
 }
 
-/// Matching every variant means a new rejection does not compile until it is placed
-/// here, and the test below checks the placement against `UrlRejection::ALL`.
+/// Matching every variant means a new rejection doesn't compile until it's placed here,
+/// and the test below checks the placement against `UrlRejection::ALL`.
 const fn position(reason: UrlRejection) -> usize {
     match reason {
         UrlRejection::Empty => 0,

@@ -33,7 +33,7 @@ fn replaced(height: u64, extra: u64, salt: u8) -> Fallible<(Vec<ScannableBlock>,
 }
 
 #[tokio::test]
-async fn a_shallow_reorganisation_is_located_without_rescanning_the_wallet() {
+async fn a_shallow_reorganization_is_located_without_rescanning_the_wallet() {
     let harness = Harness::new().await.unwrap();
     let held = account_balance(&harness.adapter, 0).total();
     assert!(held > Amount::ZERO, "the payment was found");
@@ -63,8 +63,8 @@ async fn a_shallow_reorganisation_is_located_without_rescanning_the_wallet() {
 
 #[tokio::test]
 async fn a_fork_below_the_first_probe_is_found_by_widening_it() {
-    // An overlap of one block, so a fork six blocks down needs the doubling walk
-    // rather than the first probe.
+    // With an overlap of one block, a fork six blocks down is past the first probe,
+    // so the overlap has to double more than once.
     let harness =
         Harness::with(MoneroConfig { reorg_overlap_blocks: 1, ..config() }).await.unwrap();
     let held = account_balance(&harness.adapter, 0).total();
@@ -82,7 +82,7 @@ async fn a_fork_below_the_first_probe_is_found_by_widening_it() {
 }
 
 #[tokio::test]
-async fn a_payment_a_reorganisation_removed_stops_counting() {
+async fn a_payment_a_reorganization_removed_stops_counting() {
     let harness = Harness::new().await.unwrap();
     assert!(account_balance(&harness.adapter, 0).total() > Amount::ZERO);
 
@@ -133,9 +133,8 @@ async fn a_chain_that_shrank_resumes_from_its_new_tip() {
     );
 }
 
-/// A chain that grew on top of the last scanned block is read from where the
-/// last pass stopped, because the first new block's parent proves nothing under
-/// it changed.
+/// The first new block's parent proves nothing below it changed, so a pass picks up
+/// where the last one stopped.
 #[tokio::test]
 async fn a_pass_over_the_same_chain_downloads_only_the_new_blocks() {
     let harness = Harness::new().await.unwrap();
@@ -163,7 +162,7 @@ async fn a_pass_over_the_same_chain_downloads_only_the_new_blocks() {
 }
 
 #[tokio::test]
-async fn a_payment_a_reorganisation_removed_announces_the_empty_balance_it_left() {
+async fn a_payment_a_reorganization_removed_announces_the_empty_balance_it_left() {
     let harness = Harness::new().await.unwrap();
     assert!(account_balance(&harness.adapter, 0).spendable() > Amount::ZERO);
 
@@ -182,11 +181,9 @@ async fn a_payment_a_reorganisation_removed_announces_the_empty_balance_it_left(
     );
 }
 
-/// A lower tip from a lagging node undoes no block that was never reorganised.
-///
-/// A node one block behind the one the last pass read reports a lower tip, while
-/// every block it does hold is a block this wallet already scanned. Nothing about
-/// the chain changed, so nothing already scanned may be undone.
+/// A node one block behind reports a lower tip, but every block it holds is one this
+/// wallet already scanned. Nothing about the chain changed, so nothing scanned may be
+/// undone.
 #[tokio::test]
 async fn a_node_one_block_behind_does_not_bring_a_spent_coin_back() {
     let harness = Harness::new().await.unwrap();
@@ -205,7 +202,7 @@ async fn a_node_one_block_behind_does_not_bring_a_spent_coin_back() {
     let one_output = Amount::from(harness.recorded.output_amount);
     assert_eq!(account_balance(&harness.adapter, 0).total(), one_output, "one coin was spent");
 
-    // The next tip query reaches a node that has not received block `landed` yet.
+    // The next tip query reaches a node that hasn't received block `landed` yet.
     harness.node.set_tip(harness.tip);
     harness.sync().await.unwrap();
     let after = account_balance(&harness.adapter, 0);
@@ -219,21 +216,17 @@ async fn a_node_one_block_behind_does_not_bring_a_spent_coin_back() {
     );
 }
 
-/// A fork deeper than everything the wallet remembers is rescanned from the birthday
-/// with the overlap the adapter ships with.
+/// Runs with the overlap the adapter ships with.
 ///
-/// Locating it walks further back on every rewind, and a walk that runs out of rewinds
-/// or of remembered blocks gives up on locating the fork and rescans, rather than going
-/// on over the new chain as if nothing were wrong.
+/// Each rewind looks further back for the fork, and once the rewinds or remembered blocks
+/// run out, the adapter rescans from the birthday instead of carrying on over the new chain.
 #[tokio::test]
-async fn a_reorganisation_deeper_than_the_window_drops_a_payment_the_new_chain_lacks() {
+async fn a_reorganization_deeper_than_the_window_drops_a_payment_the_new_chain_lacks() {
     let shipped = MoneroConfig::default().reorg_overlap_blocks;
     let harness =
         Harness::with(MoneroConfig { reorg_overlap_blocks: shipped, ..config() }).await.unwrap();
     assert!(account_balance(&harness.adapter, 0).total() > Amount::ZERO, "the payment was found");
 
-    // The same replacement chain the window-sized walk handles, with the overlap the
-    // adapter ships with.
     let (blocks, tip) = replaced(harness.height, 4, 9).unwrap();
     harness.node.serve(blocks);
     harness.node.set_tip(tip);

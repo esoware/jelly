@@ -29,8 +29,8 @@ pub(crate) fn tauri_conf() -> Fallible<Value> {
     Ok(serde_json::from_str(&text)?)
 }
 
-/// Asks the price feed for nothing and uses the Argon2id test floor. Startup still uses the
-/// real database and network configuration but opens no sockets.
+/// Asks the price feed for nothing and uses the vault's minimum Argon2id profile. Startup
+/// still uses the real database and network configuration but opens no sockets.
 pub(crate) fn offline_config() -> ShellConfig {
     ShellConfig {
         engine: test_util::config(),

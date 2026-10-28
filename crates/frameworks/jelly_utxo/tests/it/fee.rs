@@ -148,8 +148,8 @@ async fn a_node_with_no_estimate_falls_through_to_the_mempool_histogram_at_each_
         harness.serve(Method::FeeHistogram, "[[30,2500000],[15,3000000],[1,20000000]]");
 
         let quote = quote_over(&harness, &wallet).await.unwrap();
-        // Three blocks of backlog clear at fifteen, and six only at one, which
-        // Litecoin's wallet floor then raises.
+        // Bitcoin's three blocks of backlog clear at fifteen. Litecoin's six only
+        // clear at one, which its wallet floor raises.
         let expected = if params.chain == BITCOIN.chain { kwu(3_750) } else { kwu(2_500) };
         assert_eq!(quoted_rate(&quote).unwrap(), expected, "{}", params.chain);
     }
@@ -430,9 +430,8 @@ async fn the_recorded_answers_produce_the_recorded_rates() {
             );
         }
 
-        // One adapter for the rest, with the reading expired between rows so each
-        // is a fresh trip to the server rather than the cached answer of the one
-        // before.
+        // One adapter for the rest, with the cached reading expired between rows so
+        // each one asks the server.
         let (harness, wallet) =
             synced(Setup::on(&params), ScriptKind::P2wpkh, &[FUNDING_SAT]).await.unwrap();
         let answer_at = format!("{}PerKvb", params.chain.ticker().to_ascii_lowercase());

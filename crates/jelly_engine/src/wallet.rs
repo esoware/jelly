@@ -22,17 +22,16 @@ use crate::{WalletEngine, derive};
 /// Sub-directory of the data directory that holds one vault file per wallet.
 const VAULT_DIR: &str = "vaults";
 
-/// How many wallet ids one creation may step over before it gives up.
+/// How many wallet ids one creation may skip before it gives up.
 ///
 /// Each skip is a vault file or keychain master key a forgotten wallet left behind, so
-/// only a machine holding hundreds of orphans reaches the bound.
+/// only a machine with hundreds of orphans reaches this.
 const MAX_SKIPPED_IDS: usize = 256;
 
 /// No caller offers a choice of account, so every seed wallet derives from the first.
 const ACCOUNT_INDEX: u32 = 0;
 
-/// One wallet as the interface sees it, with its passphrase policy and the chains it has
-/// switched on.
+/// One wallet as the interface sees it.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,8 +45,8 @@ pub struct WalletRecord {
     pub enabled_chains: Vec<ChainId>,
 }
 
-/// A wallet and the phrase that was generated for it. The phrase is handed out exactly
-/// once, at creation, and afterwards takes a re-authenticated export.
+/// A new wallet and the phrase generated for it. Every later read of the phrase is a
+/// password-checked export.
 pub struct CreatedWallet {
     pub wallet: WalletRecord,
     pub phrase: Zeroizing<String>,
@@ -59,8 +58,7 @@ impl fmt::Debug for CreatedWallet {
     }
 }
 
-/// The passphrase a caller supplied, with the policy it implies. It arrives over IPC, so
-/// it deserializes but never serializes.
+/// The passphrase a caller supplied, with the policy it implies.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -93,8 +91,7 @@ impl PassphraseInput {
     }
 }
 
-/// Where the vault of `wallet_id` lives under `data_dir`. One file per wallet id, under
-/// one directory.
+/// Where the vault of `wallet_id` lives under `data_dir`.
 pub(crate) fn vault_path(data_dir: &Path, wallet_id: i64) -> PathBuf {
     data_dir.join(VAULT_DIR).join(format!("wallet-{wallet_id}.vault"))
 }
@@ -245,11 +242,11 @@ impl WalletEngine {
         )
     }
 
-    /// Allocates a wallet id whose vault file and keychain master key are both absent. A
-    /// rebuilt database restarts ids while old vaults and their keys may remain, possibly
-    /// with the file moved elsewhere, and the vault refuses to create over either.
+    /// Allocates a wallet id with neither a vault file nor a keychain master key. A rebuilt
+    /// database restarts ids while old vaults and their keys may remain (a key can outlive
+    /// a file that was moved away), and the vault won't create over either.
     ///
-    /// Temporary rows occupy taken IDs until a free one is found, then are removed.
+    /// Placeholder rows hold the taken ids until a free one turns up, then are removed.
     async fn allocate_wallet(&self, new: &NewWallet) -> Result<WalletRow, CoreError> {
         let mut skipped: Vec<i64> = Vec::new();
         let outcome = loop {
@@ -281,7 +278,7 @@ impl WalletEngine {
                 tracing::warn!(
                     target: "jelly::engine::wallet",
                     %error,
-                    "could not release a wallet id that was stepped over"
+                    "could not release a skipped wallet id"
                 );
             }
         }
@@ -345,8 +342,8 @@ impl WalletEngine {
         Ok(record)
     }
 
-    /// Rebuilds the adapter set for a freshly opened session. A failure here leaves the
-    /// wallet usable and is logged, never reported as an unlock failure.
+    /// Rebuilds the adapter set for a freshly opened session. A failure leaves the wallet
+    /// usable, so it's logged instead of reported as an unlock failure.
     async fn publish_adapters(&self) {
         if let Err(error) = self.rebuild_adapters().await {
             tracing::warn!(
@@ -357,9 +354,8 @@ impl WalletEngine {
         }
     }
 
-    /// A wrong passphrase opens a different wallet, so the keychain is checked against
-    /// something the wallet already committed to, the first derived address if there is
-    /// one and the creation-time verifier otherwise.
+    /// A wrong passphrase opens a different wallet, so the keychain is checked against the
+    /// first derived address, or against the verifier stored at creation if there's none.
     async fn verify_passphrase(&self, session: &Session) -> Result<(), CoreError> {
         let rows = self.inner.store.list_addresses(session.wallet_id(), None).await?;
         let derived = rows.iter().find(|row| matches!(row.source, KeySource::Derived { .. }));
@@ -377,9 +373,9 @@ impl WalletEngine {
         if is_match { Ok(()) } else { Err(CoreError::WrongPassphrase) }
     }
 
-    /// Undoes a wallet whose vault could not be created, so a failed creation
-    /// leaves no row behind. Best effort, because the caller is already returning a
-    /// failure and must not mask it.
+    /// Removes a half-created wallet's vault and row, so a failed creation leaves nothing
+    /// behind. Best effort, because the caller is already returning a failure and mustn't
+    /// mask it.
     ///
     /// A create refused as already existing wrote nothing, and the file or keychain key
     /// that refused it belongs to another vault, so only the row is removed.
@@ -466,8 +462,8 @@ mod tests {
         assert!(engine.inner.session.current().is_none());
     }
 
-    /// A credential store that holds the first key it is handed until the test releases
-    /// it, so the test can act while a vault is being provisioned.
+    /// A credential store whose first `put` blocks until the test releases it, so the test
+    /// can act while a vault is being provisioned.
     #[derive(Debug)]
     struct PausedKeyStore {
         store: MemoryKeyStore,

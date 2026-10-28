@@ -91,7 +91,7 @@ const HISTORY_LEDGERS: RangeInclusive<u64> = 50_000_001..=50_000_602;
 ///
 /// The pool's default endpoints are both kinds. The account has one transaction in each
 /// history ledger. For the same position, rippled's `account_tx` marker names the next row
-/// it has not yet returned, and Clio's names the last row it returned, as both answer on
+/// it hasn't returned yet, and Clio's names the last row it returned, as both answer on
 /// mainnet.
 #[derive(Debug, Default)]
 struct SwitchingServers {

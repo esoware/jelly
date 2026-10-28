@@ -12,23 +12,22 @@ pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Avalanche,
     coin_name: "Avalanche",
     coin_chain: ChainId::Avalanche,
-    // Ethereum's coin type rather than Avalanche's own 9000, which only the X-Chain
-    // and P-Chain use. Core, MetaMask and Trust Wallet derive the C-Chain here, so a
-    // seed has the same address as on Ethereum.
+    // Ethereum's coin type, not Avalanche's 9000, which only the X-Chain and P-Chain
+    // use. Core, MetaMask, and Trust Wallet derive the C-Chain here too, so a seed has
+    // the same address as on Ethereum.
     slip44: 60,
     key_kind: KeyKind::Secp256k1,
     default_path: "m/44'/60'/0'/0/{index}",
     script_kinds: &[],
     default_script: None,
-    // An accepted block never reorganizes, and a node has a receipt only once the
-    // block has run, so the outcome it reports is the one that stands.
+    // An accepted block never reorganizes, and a node only has a receipt once the block
+    // has run, so the outcome it reports stands.
     settled_confirmations: 1,
     poll_secs: 8,
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::FeeCap),
-    // About $1.96 at the October 2026 price of $8.93. At the 2.5 nAVAX gas costs now, a
-    // plain transfer costs about 0.00005 AVAX and a token transfer about 0.00016 AVAX.
+    // About $2.
     high_fee: Amount::from_base_units(220_000_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,
@@ -52,9 +51,9 @@ pub const PARAMS: EvmParams = EvmParams {
     request_timeout: Duration::from_secs(10),
     // Each issuer's own deployment: Tether's USDt and XAUt0, Circle's USDC, and
     // Sky's USDS. The bridged USDT.e, USDC.e and DAI.e are left out, and so is
-    // PYUSD0, which LayerZero rather than Paxos issues. LINK and WETH have no
-    // issuer's deployment here, so they are the Avalanche Bridge's LINK.e and
-    // WETH.e, which exchanges and wallets use.
+    // PYUSD0, which LayerZero issues, not Paxos. LINK and WETH have no issuer's
+    // deployment here, so they're the Avalanche Bridge's LINK.e and WETH.e, which
+    // exchanges and wallets use.
     tokens: &[
         TokenId::LinkAvalanche,
         TokenId::WethAvalanche,
@@ -66,18 +65,18 @@ pub const PARAMS: EvmParams = EvmParams {
     token_standard: "ERC-20",
     // About one block a second since Granite made the minimum block delay dynamic.
     block_millis: 1_000,
-    // A pass per block is wasteful at this pace, so a burst of heads wakes one pass.
+    // A pass per block would be wasteful at this pace.
     watch_floor: Duration::from_secs(6),
     // A minute of blocks.
     fee_history_blocks: 60,
     // Nodes take a transaction that tips nothing.
     min_priority_fee_wei: 0,
-    // The most the node's own fee oracle suggests. Tips are burned and only order
-    // a block, and blocks are rarely full, so the few senders who tip gwei would
+    // The most the node's own fee oracle suggests. Tips are burned and only order a
+    // block, and blocks are rarely full, so the few senders who tip whole gwei would
     // otherwise nearly double every level's fee.
     max_priority_fee_wei: Some(150),
-    // Execution settles at least five seconds after a block runs, so this covers
-    // settlement and a public node that trails the one that reported the tip.
+    // Ten seconds. Execution settles at least five seconds after a block runs, and the
+    // rest covers a public node behind the one that reported the tip.
     confirmations_target: 10,
     // Every shipped endpoint that serves old logs takes a window this wide.
     log_window_blocks: 10_000,

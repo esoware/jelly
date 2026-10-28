@@ -1,5 +1,5 @@
 jelly_core::wire_enum! {
-    /// Every TON HTTP JSON-RPC method this crate sends, so each name is spelled only here.
+    /// The TON HTTP JSON-RPC methods this crate calls, each name spelled only here.
     pub enum Method {
         GetMasterchainInfo => "getMasterchainInfo",
         GetAddressInformation => "getAddressInformation",

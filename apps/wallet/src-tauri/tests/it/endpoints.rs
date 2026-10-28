@@ -1,5 +1,5 @@
-//! The shell's bridge between the engine's endpoint tables and the network layer, driven
-//! through real startup, reloads, and shutdown with the price feed asking for nothing.
+//! How the engine's endpoint tables reach the network layer, through real startup,
+//! reloads, and shutdown with the price feed asking for nothing.
 
 use std::path::Path;
 use std::pin::pin;
@@ -18,8 +18,7 @@ use crate::common::{Fallible, deps, offline_config};
 
 const CHAIN: ChainId = ChainId::Bitcoin;
 const TRANSPORT: Transport = Transport::ElectrumSsl;
-/// Already canonical, because the endpoint commands canonicalize a URL before it reaches
-/// a stored row.
+/// Already canonical, as the endpoint commands canonicalize a URL before storing it.
 const MY_NODE_URL: &str = "ssl://node.example:50002";
 const START_UNIX_MILLIS: u64 = 1_767_225_600_000;
 
@@ -168,7 +167,7 @@ async fn a_reload_that_read_before_a_concurrent_edit_does_not_revert_it() {
         let read_finished = Arc::new(ReadFinished(Notify::new()));
         let waker = Waker::from(Arc::clone(&read_finished));
         // On a busy machine the read can finish before the first poll checks on it, and the
-        // reload then completes without pausing, so reloads start until one pauses.
+        // reload then completes without pausing, so we keep starting reloads until one pauses.
         let mut paused_reload = None;
         for _ in 0..100 {
             let mut reload = Box::pin(services.endpoints_changed());
@@ -187,7 +186,7 @@ async fn a_reload_that_read_before_a_concurrent_edit_does_not_revert_it() {
             engine.set_endpoint_enabled(ChainId::Ethereum, shipped.clone(), false).await.unwrap();
             services.endpoints_changed().await.unwrap();
         });
-        // Reloads that wait for one another cannot let the second finish first, so after a
+        // Reloads that wait for one another can't let the second finish first, so after a
         // while the first is resumed and both run to the end.
         if timeout(Duration::from_secs(10), second_command.as_mut()).await.is_err() {
             let (first, ()) = tokio::join!(first_reload.as_mut(), second_command.as_mut());
@@ -213,8 +212,7 @@ async fn a_reload_that_read_before_a_concurrent_edit_does_not_revert_it() {
     );
 }
 
-/// No pool reads such a row and the endpoint list cannot show it for the user to
-/// delete.
+/// No pool reads such a row, and the endpoint list can't show it for the user to delete.
 #[tokio::test]
 async fn an_unreadable_endpoint_row_is_deleted_and_its_chain_keeps_the_curated_list() {
     let directory = tempfile::tempdir().unwrap();
@@ -233,7 +231,7 @@ async fn an_unreadable_endpoint_row_is_deleted_and_its_chain_keeps_the_curated_l
     services.shutdown().await;
 }
 
-/// A stored row on a transport its chain never uses still lets the shell start. It is
+/// A stored row on a transport its chain never uses still lets the shell start. It's
 /// deleted at the first start and never listed.
 #[tokio::test]
 async fn a_stored_endpoint_on_a_transport_its_chain_never_uses_is_deleted_at_startup() {
@@ -294,7 +292,7 @@ async fn health_crosses_a_restart_and_a_quarantine_does_not() {
     assert_eq!(entry.health.consecutive_failures, stored.health.consecutive_failures);
     assert_eq!(entry.health.latency_ms, stored.health.latency_ms);
     assert_eq!(entry.health.last_error, stored.health.last_error);
-    assert_ne!(entry.class, HealthClass::Quarantined, "a quarantine is a judgement about one run");
+    assert_ne!(entry.class, HealthClass::Quarantined, "a quarantine is a judgment about one run");
     second.shutdown().await;
 
     // The restored tracker writes back exactly the row it was built from.
@@ -326,7 +324,7 @@ async fn an_empty_table_restores_no_record() {
 /// A restored score is aged by how long ago the endpoint was last heard from.
 ///
 /// A run that sends the endpoint nothing learns nothing new, so the run after it must
-/// restore the same score rather than age the already aged one again from the same moment.
+/// restore the same score instead of aging the aged one again from the same moment.
 #[tokio::test]
 async fn a_restart_that_touches_no_endpoint_does_not_age_its_health_again() {
     let directory = tempfile::tempdir().unwrap();

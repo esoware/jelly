@@ -1,9 +1,8 @@
-//! Both fee numbers are shown on purpose.
+//! The preview shows two fees on purpose.
 //!
-//! The worst case is what the node reserves and what a send-max subtracts, and the
-//! expected cost is what a transaction landing in the next block pays. The
-//! preview's fee is the expected cost, so it matches the quote the user saw, and
-//! the worst case is a detail row.
+//! Its fee is the expected cost, what the transaction pays if it lands in the next block, so
+//! it matches the quote the user saw. The worst case, which the node reserves and a send-max
+//! subtracts, is a detail row.
 
 use alloy::hex;
 use jelly_core::{Amount, TxDetail, TxPreview, TxWarning, TxWarningKind};

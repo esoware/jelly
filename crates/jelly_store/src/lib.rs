@@ -1,6 +1,7 @@
-//! `SQLite` storage for wallet metadata and chain state, contacts, balances, history,
-//! public cursors, endpoints and their health, and pins. Key material and secret Monero state
-//! belong in the vault, and the application settings in the engine's settings file.
+//! `SQLite` storage for wallets and their chain state, addresses, contacts, balances, history,
+//! public scan cursors and reservations, endpoints and their health, and TLS pins. Key
+//! material and secret Monero state live in the vault, and app settings in the engine's
+//! settings file.
 
 #![deny(clippy::float_arithmetic)]
 

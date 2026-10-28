@@ -4,25 +4,24 @@ use jelly_core::duration_millis;
 
 use crate::poll::PassReport;
 
-/// Cadence after any pass that is not a failure. Jitter is added on top.
+/// Cadence after any pass that isn't a failure. Jitter is added on top.
 const POLL_INTERVAL: Duration = Duration::from_secs(60);
 
 /// The shortest wait after a pass that got nothing, and the base the backoff
 /// window doubles from.
 const BACKOFF_FLOOR: Duration = Duration::from_secs(30);
 
-/// The longest the backoff draw becomes. A longer Retry-After still wins.
+/// The longest a backoff draw can be. A longer `Retry-After` still wins.
 const BACKOFF_CEILING: Duration = Duration::from_mins(15);
 
 /// Caps the doubling so the shift and the multiplication stay in range.
 const MAX_SHIFT: u32 = 16;
 
-/// A pass that is not a failure waits [`POLL_INTERVAL`] plus up to a quarter of
-/// it in jitter.
+/// A pass that isn't a failure waits [`POLL_INTERVAL`] plus jitter of up to a quarter of it.
 ///
 /// A failed pass draws uniformly from
 /// `[BACKOFF_FLOOR, min(BACKOFF_CEILING, BACKOFF_FLOOR << failures)]` so retrying
-/// clients do not fall into step, and waits longer when the provider asked to.
+/// clients don't fall into step, and waits longer when the provider asked it to.
 #[derive(Debug, Clone)]
 pub(crate) struct Schedule {
     /// Consecutive passes that got nothing.

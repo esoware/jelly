@@ -6,8 +6,8 @@ use crate::error::TonError;
 use crate::state::{Stage, States};
 use crate::watched::Watched;
 
-/// Lets go of the send `entry` holds once the node's time at `sync_utime` is past its
-/// expiry, reporting a sent one as failed, and resends a sent one until then.
+/// Resends the payment `entry` holds, if it was sent, until the node's time passes its
+/// expiry. After that the hold is released, and a sent payment is reported as failed.
 pub(crate) async fn follow(
     client: &TonClient,
     states: &States,

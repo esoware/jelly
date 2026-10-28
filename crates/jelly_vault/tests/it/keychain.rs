@@ -2,7 +2,7 @@ use std::process;
 
 use jelly_vault::{KeyringStore, MasterKey, MasterKeyStore as _};
 
-/// A headless or locked session cannot serve the platform store.
+/// A headless or locked session can't serve the platform store.
 #[test]
 #[ignore = "writes to the platform credential store"]
 fn the_platform_store_round_trips_the_master_key() {

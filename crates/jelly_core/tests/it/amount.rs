@@ -64,10 +64,7 @@ impl ExpectedError {
     }
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "a fixture helper outside a #[test] body is still test code and must fail loudly"
-)]
+#[expect(clippy::expect_used, reason = "test helper")]
 fn vectors() -> Vectors {
     serde_json::from_str(VECTORS_JSON).expect("the vector file parses")
 }
@@ -201,7 +198,7 @@ mod non_ascii {
 
     #[test]
     fn a_non_ascii_digit_is_rejected_where_it_stands() {
-        // U+0660 ARABIC-INDIC DIGIT ZERO, built without a non-ascii literal.
+        // U+0660 ARABIC-INDIC DIGIT ZERO, built without a non-ASCII literal.
         let digit = char::from_u32(0x0660).expect("valid scalar");
         let text = format!("1{digit}");
         assert_eq!(Amount::parse(&text, 8), Err(DecimalError::InvalidDigit { position: 1 }));

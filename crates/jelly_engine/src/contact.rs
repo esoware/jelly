@@ -30,7 +30,7 @@ impl WalletEngine {
         Ok(rows.into_iter().map(ContactRecord::from).collect())
     }
 
-    /// Refuses an address the chain's codec does not accept, so a checksum typo never
+    /// Refuses an address the chain's codec doesn't accept, so a checksum typo never
     /// reaches the address book.
     pub async fn add_contact(
         &self,

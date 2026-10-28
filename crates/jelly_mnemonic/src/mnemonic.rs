@@ -7,18 +7,16 @@ use sha2::Sha512;
 use unicode_normalization::UnicodeNormalization as _;
 use zeroize::Zeroizing;
 
-/// Fixed by BIP-39 for interoperability, so it must never be raised. The phrase's
-/// entropy is what protects the wallet.
+/// Fixed by BIP-39, so never raise it. The phrase's entropy is what protects the wallet.
 const SEED_ROUNDS: u32 = 2048;
 
-/// The BIP-39 salt prefix. The passphrase is appended to it.
 const SEED_SALT_PREFIX: &str = "mnemonic";
 
 /// A checksum-validated BIP-39 phrase on the English word list.
 ///
-/// Holds the library's word indices, which its `zeroize` feature wipes on drop. The
-/// entropy the vault stores and the phrase are produced on demand into buffers that also
-/// wipe on drop.
+/// Holds the library's word indices, which its `zeroize` feature wipes on drop. The phrase
+/// and the entropy the vault stores are produced on demand into buffers that wipe on drop
+/// too.
 pub struct Mnemonic(bip39::Mnemonic);
 
 impl Mnemonic {
@@ -101,17 +99,17 @@ const fn key_error(error: bip39::Error) -> KeyError {
     }
 }
 
-/// Collapses whitespace, folds case, and normalizes to NFKD, because the library only
-/// splits on whitespace and matches words exactly.
+/// Collapses whitespace, folds case, and normalizes to NFKD, since the library splits only
+/// on whitespace and matches words exactly.
 ///
-/// The specification only requires NFKD. The rest is input hygiene, so a phrase pasted
-/// with odd spacing, capitals, or list numbers is the same phrase.
+/// BIP-39 requires only NFKD. The rest lets a phrase pasted with odd spacing, capitals, or
+/// list numbers still parse.
 fn normalize_phrase(phrase: &str) -> Zeroizing<String> {
     join_words(|| phrase_words(phrase).map(|word| word.chars().flat_map(char::to_lowercase).nfkd()))
 }
 
-/// Joins the words with single spaces. The output is measured before it is written, so
-/// the buffer never reallocates and leaves an unwiped copy behind.
+/// Joins the words with single spaces into a buffer sized up front, so it never
+/// reallocates and leaves an unwiped copy behind.
 fn join_words<W>(words: impl Fn() -> W) -> Zeroizing<String>
 where
     W: Iterator<Item: Iterator<Item = char>>,

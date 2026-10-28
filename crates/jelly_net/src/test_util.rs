@@ -1,5 +1,5 @@
-//! Test helpers behind the `test-util` feature, which only `[dev-dependencies]` enable: a
-//! network that opens nothing until asked, and an in-memory websocket JSON-RPC server.
+//! Test helpers: a direct network on a fake clock, and an in-memory websocket JSON-RPC
+//! server.
 //!
 //! The server speaks the real websocket protocol over a duplex pipe, so an offline test
 //! exercises the same handshake, framing, routing, and reconnection a TLS socket would.
@@ -21,7 +21,7 @@ use tokio::task::JoinSet;
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::connect::{Connect, Identity, IdentityCheck};
-use crate::dialler::Socket;
+use crate::dialer::Socket;
 use crate::endpoint::Endpoint;
 use crate::error::NetError;
 use crate::network::Network;
@@ -64,8 +64,8 @@ struct State {
     endpoint: EndpointLabel,
     queued: Mutex<HashMap<String, VecDeque<WsAnswer>>>,
     fallbacks: Mutex<HashMap<String, WsAnswer>>,
-    /// Live server tasks subscribe here, so a push reaches every open socket as soon as
-    /// it is queued and uncoupled from any answer, as a real notification arrives.
+    /// Every live server task subscribes here, so a push reaches each open socket at once
+    /// and apart from any answer, as a real notification does.
     pushes: broadcast::Sender<String>,
     hangups: broadcast::Sender<()>,
     calls: Mutex<Vec<WsCall>>,
@@ -116,7 +116,7 @@ impl FakeWs {
     }
 
     /// Sends an id-less push to every open socket, as a real subscription notification
-    /// arrives. With no open socket it reaches nobody.
+    /// arrives. With no socket open, it's lost.
     pub fn push_notification(&self, method: &str, params: &str) {
         let line = format!(r#"{{"jsonrpc":"2.0","method":"{method}","params":{params}}}"#);
         let _ = self.state.pushes.send(line);
@@ -141,8 +141,8 @@ impl FakeWs {
         self.state.calls.lock().iter().any(|call| call.method == method)
     }
 
-    /// How many sockets have been opened against this server. Every one carried
-    /// its own websocket handshake.
+    /// How many sockets have been opened against this server, each with its own websocket
+    /// handshake.
     pub fn sockets_opened(&self) -> u64 {
         self.state.sockets_opened.load(Ordering::SeqCst)
     }

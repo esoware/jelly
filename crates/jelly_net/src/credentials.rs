@@ -5,7 +5,7 @@ use percent_encoding::percent_decode_str;
 use url::Url;
 
 /// The userinfo of an address, percent-decoded the way the shared HTTP client decodes it,
-/// so one address authenticates alike on every transport.
+/// so one address authenticates the same way on every transport.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Credentials {
     pub(crate) username: String,

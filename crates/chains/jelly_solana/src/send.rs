@@ -65,11 +65,10 @@ pub(crate) struct Inputs<'a> {
     pub(crate) units: &'a UnitCache,
 }
 
-/// Reads the blockhash, balances and account existence in one request, with the
-/// optional estimates fetched alongside. Only shapes not yet measured this
-/// session are simulated.
+/// Reads the blockhash, balances, and accounts in one batch, with the optional estimates
+/// fetched alongside. Only shapes not yet measured this session are simulated.
 ///
-/// Quotes and builds share this, and each build reads a fresh blockhash.
+/// Quotes and builds both call this, and each call reads a fresh blockhash.
 pub(crate) async fn resolve(inputs: &Inputs<'_>, request: &TxRequest) -> Result<Plan, SolanaError> {
     let token = token::asset_token(request.asset)?;
     let chosen_fee = chosen_priority_fee(&request.fee)?;
@@ -175,7 +174,7 @@ async fn compute_units(
         Ok(None) => {
             tracing::debug!(
                 target: TARGET,
-                "the node would not simulate this transfer; the compiled limit is used"
+                "the simulation failed or reported no units; the compiled limit is used"
             );
             Ok(compiled)
         }
@@ -193,9 +192,9 @@ async fn compute_units(
 
 /// A provisional amount to measure compute units with.
 ///
-/// Compute units depend on the accounts touched, not the value moved, so any
-/// amount measures the same. It is clamped to the balance, because simulating an
-/// overdraft fails and loses the measurement.
+/// Compute units depend on the accounts touched, not the value moved, so any amount
+/// measures the same. It's clamped to the balance, because simulating an overdraft
+/// fails and loses the measurement.
 fn probe_amount(request: &TxRequest, balances: &Balances, token: Option<SolanaToken>) -> u64 {
     let held = match token {
         Some(_) => balances.token_spendable.unwrap_or(0),
@@ -212,8 +211,8 @@ fn probe_amount(request: &TxRequest, balances: &Balances, token: Option<SolanaTo
 #[derive(Debug, Clone)]
 pub(crate) struct Plan {
     pub(crate) route: Route,
-    /// Base units of the asset the route moves. A send-max resolves it from the
-    /// rest of the plan, so it is the last field settled.
+    /// Base units of the asset the route moves. A send-max resolves it from the rest of
+    /// the plan, so it's the last field settled.
     pub(crate) amount: u64,
     pub(crate) should_send_max: bool,
     pub(crate) units: ComputeUnits,
@@ -245,8 +244,8 @@ impl Plan {
             .ok_or(SolanaError::Overflow { what: "the priority fee" })
     }
 
-    /// A quote's custom fee names the priority fee in lamports, so a custom fee
-    /// starts from the level's.
+    /// Offers this plan's priority fee in lamports as the custom fee, so editing starts
+    /// from the current choice.
     pub(crate) fn quote(&self) -> Result<FeeQuote, SolanaError> {
         let fee = self.fee()?;
         let max_amount = self.should_send_max.then(|| Amount::from(self.amount));
@@ -311,9 +310,9 @@ impl Plan {
     }
 }
 
-/// A native send-max is the balance minus the fee, because a Solana account may
-/// be drained to exactly zero. A token send-max is the whole spendable token
-/// balance, because the fee comes from lamports.
+/// A native send-max is the balance minus the fee, because a Solana account may be
+/// drained to exactly zero. A token send-max is the whole spendable token balance,
+/// because the fee comes from lamports.
 fn send_max_amount(plan: &Plan) -> Result<u64, SolanaError> {
     if let Leg::Token { .. } = plan.route.leg {
         return Ok(plan.balances.token_spendable.unwrap_or(0));
@@ -329,7 +328,7 @@ fn send_max_amount(plan: &Plan) -> Result<u64, SolanaError> {
     })
 }
 
-/// Refuses a transfer the balances cannot cover, in the asset it falls short in.
+/// Refuses a transfer the balances can't cover, in the asset it falls short in.
 fn check_affordable(plan: &Plan) -> Result<(), SolanaError> {
     if plan.amount == 0 {
         return Err(SolanaError::AmountZero);

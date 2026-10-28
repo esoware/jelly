@@ -50,7 +50,7 @@
     {
       "address": "bitcoincash:ppawqn2h74a4t50phuza84kdp3794pq3ccvm92p8sh",
       "script_pubkey": "a9147ae04d57f57b55d1e1bf05d3d6cd0c7c5a8411c687",
-      "why": "pay-to-script-hash: payable, and no single-key flavour"
+      "why": "pay-to-script-hash: payable, and no single-key flavor"
     },
     {
       "address": "bitcoincash:rpawqn2h74a4t50phuza84kdp3794pq3cct3k50p0y",

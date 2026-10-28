@@ -9,12 +9,8 @@ use crate::pacer::{Pacer, PacerPolicy};
 use crate::pool::Pool;
 use crate::registry::{ChainEntries, EndpointRegistry};
 
-/// The bookkeeping every pool shares, one clock, health tracker, pacer, and endpoint
-/// registry.
-///
-/// The clock, health tracker, and pacer live together because they must agree on time.
-/// Splitting them would let a pool rotate on one clock and record on another. The
-/// registry rides along so every pool and the interface read one list.
+/// The clock, health tracker, pacer, and endpoint registry every pool shares, so all pools
+/// agree on time and read the same endpoint list as the interface.
 #[derive(Debug)]
 pub struct NetRuntime {
     clock: Arc<dyn Clock>,
@@ -66,8 +62,8 @@ impl NetRuntime {
         &self.registry
     }
 
-    /// A pool over `endpoints`. The caller decides what an empty rotation means for its
-    /// chain, so nothing is read from the registry here.
+    /// A pool over `endpoints`. Nothing is read from the registry here, so the caller
+    /// decides what an empty list means for its chain.
     pub fn pool<C: Send + Sync + 'static>(
         &self,
         chain: ChainId,

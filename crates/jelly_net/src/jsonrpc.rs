@@ -11,16 +11,15 @@ use crate::pool::Outcome;
 
 const TARGET: &str = "jelly::net::jsonrpc";
 
-/// A JSON-RPC 2.0 request document, serialized once before a rotation starts
-/// and reused for every attempt of that walk.
+/// A JSON-RPC 2.0 request, serialized once and reused for every attempt of a walk.
 #[derive(Debug, Clone)]
 pub struct JsonRpcRequest {
     id: u64,
     text: Arc<str>,
 }
 
-/// Requests joined into one batch document. It keeps every request's id, so the answers
-/// are matched against the requests that were actually sent.
+/// Requests joined into one batch document. It keeps their ids, so the answers are
+/// matched against the requests that were actually sent.
 #[derive(Debug, Clone)]
 pub struct JsonRpcBatch {
     ids: Arc<[u64]>,
@@ -36,7 +35,7 @@ struct RequestBody<'a, P> {
 }
 
 impl JsonRpcRequest {
-    /// `params` is any serializable value, so an HTTP call site never builds a
+    /// `params` is any serializable value, so a call site never builds a
     /// `serde_json::Value`.
     pub fn new<P: Serialize>(id: u64, method: &str, params: &P) -> Result<Self, NetError> {
         let text = serde_json::to_string(&RequestBody { jsonrpc: "2.0", id, method, params })
@@ -101,7 +100,6 @@ impl JsonRpcError {
         }
     }
 
-    /// Code 429 becomes [`NetError::RateLimited`]; other errors become [`NetError::Rpc`].
     fn into_error(self, label: &EndpointLabel) -> NetError {
         let code = self.code();
         if code == 429 {
@@ -115,7 +113,7 @@ impl JsonRpcError {
 /// Responses and server pushes share this shape, and a push carries no `id`.
 ///
 /// `R` is a `&RawValue` borrowed from an HTTP body, or a `Box<RawValue>` for a message
-/// read off a socket, which does not outlive the read.
+/// read off a socket, which doesn't outlive the read.
 #[derive(Debug, Deserialize)]
 #[serde(bound(deserialize = "R: Deserialize<'de>"))]
 pub struct JsonRpcResponse<R> {
@@ -128,9 +126,8 @@ pub struct JsonRpcResponse<R> {
 /// Keeps a `result` of `null` distinct from an absent one.
 ///
 /// A null result is an answer, as when `eth_getTransactionReceipt` reports a transaction
-/// not yet mined. `Option`'s own deserializer folds null into `None`, which a malformed
-/// response also produces, so the raw token is captured and the caller decodes it into
-/// its own `Option`.
+/// not yet mined. `Option`'s own deserializer would fold it into the same `None` as a
+/// missing member, so the raw token is kept for the caller to decode into its own `Option`.
 fn present_result<'de, D, R>(deserializer: D) -> Result<Option<R>, D::Error>
 where
     D: Deserializer<'de>,
@@ -139,7 +136,7 @@ where
     R::deserialize(deserializer).map(Some)
 }
 
-/// An answer that does not parse. It is logged by position, because serde's message
+/// An answer that doesn't parse. It's logged by position, because serde's message
 /// quotes the answer back.
 fn unparsed(label: &EndpointLabel, source: &serde_json::Error, detail: &'static str) -> NetError {
     tracing::debug!(
@@ -176,9 +173,8 @@ pub(crate) fn decode_result<T: DeserializeOwned>(
 
 /// The `result` members of a batch response, reordered to match `request_ids`.
 ///
-/// The length is checked before any element is consumed and every element is
-/// placed by its id, so a server that reorders or repeats cannot have an answer
-/// read against the wrong request.
+/// Every element is placed by its id, so a server that reorders, repeats, or drops
+/// answers can't have one read against the wrong request.
 pub(crate) fn json_rpc_decode_batch<'a>(
     label: &EndpointLabel,
     body: &'a str,
@@ -233,9 +229,9 @@ pub(crate) fn envelope_result<R>(
 
 /// What a failover walk does with a JSON-RPC error code.
 ///
-/// A malformed or unsupported request gets the same answer from every endpoint,
-/// so rotating is wasted work and hides the real cause. Only the codes JSON-RPC 2.0
-/// itself defines are read here, and a chain adds its own nodes' final codes.
+/// Every endpoint refuses a malformed or unsupported request alike, so rotating would
+/// only hide the cause. This reads only the codes JSON-RPC 2.0 defines, and a chain adds
+/// its own nodes' final codes.
 pub const fn json_rpc_outcome(code: i64) -> Outcome {
     match code {
         -32700 | -32600 | -32601 | -32602 => Outcome::Fail,

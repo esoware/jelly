@@ -10,9 +10,8 @@ const INDEX_PLACEHOLDER: &str = "{index}";
 /// components.
 const MAX_PATH_DEPTH: usize = 255;
 
-/// The one way text becomes a path. [`bip32::DerivationPath`]'s own `FromStr` refuses
-/// `M` and `H`, accepts a `+` before an index, and reports no position, so it is never
-/// used.
+/// Parses a derivation path. Use this, never [`bip32::DerivationPath`]'s `FromStr`,
+/// which refuses `M` and `H`, accepts a `+` before an index, and reports no position.
 ///
 /// The leading `m` or `M` is optional, and `'`, `h`, or `H` marks a hardened component,
 /// as does the typographic apostrophe U+2019 that note apps put in place of `'`.
@@ -105,8 +104,8 @@ impl PathTemplate {
     /// Reads a chain spec's default path, such as `m/44'/501'/{index}'/0'`, where the
     /// placeholder may carry a hardened marker.
     ///
-    /// A template with no placeholder, or more than one, is a build defect in the spec
-    /// that wrote it, so it is reported as internal.
+    /// A template without exactly one placeholder is a bug in the spec that wrote it, so
+    /// it's an internal error.
     pub fn parse(template: &str) -> Result<Self, KeyError> {
         let mut prefix = Vec::new();
         let mut suffix = Vec::new();
@@ -174,9 +173,8 @@ impl PathTemplate {
         Some(child_index(*varying))
     }
 
-    /// The lowest index this family does not already have a path for. Paths
-    /// that are not instances of the family, including unparsable ones, are
-    /// ignored.
+    /// The lowest index this family doesn't already have a path for. Paths outside the
+    /// family, including unparsable ones, are ignored.
     pub fn next_index<'a>(&self, used_paths: impl IntoIterator<Item = &'a DerivationPath>) -> u32 {
         let taken_indices: BTreeSet<u32> = used_paths
             .into_iter()

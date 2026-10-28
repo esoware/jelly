@@ -23,7 +23,7 @@ async fn a_trx_preview_describes_the_bytes_that_were_built() {
     assert_eq!(unsigned.preview.from, [OWNER]);
     assert_eq!(unsigned.preview.to, RECIPIENT);
     assert_eq!(unsigned.preview.amount, Amount::from_base_units(1_000_000));
-    // 600 free bandwidth points cover a 266 point transfer, so nothing burns.
+    // 600 free bandwidth points cover the transfer, so nothing burns.
     assert_eq!(unsigned.preview.fee, Amount::ZERO);
 
     let rows = &unsigned.preview.details;
@@ -73,7 +73,7 @@ async fn a_fresh_recipient_raises_the_activation_warning_and_its_charge() {
 
     assert!(warned(&unsigned.preview, TxWarningKind::AccountActivation));
     // One TRX creation fee plus the flat 0.1 TRX bandwidth charge. The free daily
-    // allowance cannot pay for an activation, and the sender has no stake.
+    // allowance can't pay for an activation, and the sender has no stake.
     assert_eq!(unsigned.preview.fee, Amount::from_base_units(1_100_000));
 }
 

@@ -65,8 +65,8 @@ fn the_params_carry_the_eip_155_chain_id_and_bnb_smart_chains_figures() {
     assert_eq!(PARAMS.log_window_blocks, 1_000);
 }
 
-/// Fermi has produced a block every 0.45 seconds since 14 January 2026, after
-/// Maxwell's 0.75 seconds.
+/// Fermi cut the block time to 0.45 seconds on 14 January 2026, down from Maxwell's
+/// 0.75.
 #[test]
 fn the_indexer_lag_lasts_two_minutes_of_bsc_blocks() {
     const BSC_BLOCK_MILLIS: u64 = 450;

@@ -25,7 +25,7 @@ pub(crate) fn hd_account(index: u32) -> KeyMaterial {
     material
 }
 
-/// A spend key whose account every test that needs one shares.
+/// The spend key of the account the unit tests share.
 pub(crate) const SPEND_KEY: [u8; 32] = [7u8; 32];
 
 /// The account a persisted blob is bound to, which need not be a curve point.

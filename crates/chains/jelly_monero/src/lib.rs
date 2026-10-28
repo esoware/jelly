@@ -1,15 +1,13 @@
-//! Monero mainnet support: the `CryptoNote` key hierarchy, its addresses and seed words,
-//! and the adapter. The view key finds outputs locally. The spend key also detects spends
-//! and signs. Account keys exist only during an unlocked session.
+//! Monero mainnet.
 //!
-//! Remote nodes can omit blocks, misreport tips, or influence decoys. Sync rejects gaps,
-//! detects reorgs from block IDs, and scans raw blocks locally. Fee ceilings limit node
-//! quotes. Each ring uses one node, which alone receives the transaction and every
-//! question about it until it cannot be reached. A rebuild offers an output with the ring
-//! it was first offered with.
+//! Remote nodes aren't trusted. Sync scans raw blocks locally, refuses a batch with a gap,
+//! and locates reorganizations by block id, and a fee quote above a fixed ceiling is
+//! refused. A ring, the transaction built on it, and every question about that transaction
+//! go to one node, and to another only when that node can't be reached. A rebuild reuses
+//! the ring an output was first offered with.
 //!
-//! Broadcast persists input reservations first. Only on-chain key images prove spending.
-//! Scanning deduplicates outputs by transaction and index, and rejects reused output keys.
+//! A broadcast persists its input reservations first, and only a key image on chain proves
+//! a spend.
 
 #![deny(clippy::float_arithmetic)]
 mod account;

@@ -1,8 +1,7 @@
-//! The endpoint editor's probe, which is the pool's identity guard asked once and on
-//! demand.
+//! The endpoint editor's probe: the pool's identity check, run once on demand.
 //!
 //! The caller passes the connector the endpoint's own pool uses, so the probe and the
-//! pool ask the same question and nothing here knows what any network looks like.
+//! pool ask the same question.
 
 use std::time::Duration;
 
@@ -25,27 +24,27 @@ wire_enum! {
     /// Why a probe got no usable answer. The interface words each one itself.
     pub enum ProbeFailure {
         TimedOut => "timed_out",
-        /// The connection could not be opened.
+        /// The connection couldn't be opened.
         NoConnection => "no_connection",
-        /// The TLS handshake failed or the certificate did not verify.
+        /// The TLS handshake failed or the certificate didn't verify.
         Tls => "tls",
         /// The connection closed before an answer arrived.
         Dropped => "dropped",
         /// The endpoint answered with an HTTP error status.
         HttpStatus => "http_status",
         RateLimited => "rate_limited",
-        /// The endpoint answered with something this build cannot use.
+        /// The endpoint answered with something this build can't use.
         BadAnswer => "bad_answer",
-        /// This build cannot check the endpoint, so nothing was asked.
+        /// This build can't check the endpoint, so nothing was asked.
         NotProbed => "not_probed",
     }
 }
 
 /// What one probe found.
 ///
-/// `Reachable` is the answer when there is no network to identify, as for the two
-/// REST transports, which are helper services. `WrongNetwork` leaves out what the host
-/// reported, because that is a raw wire value, and the log gets it instead.
+/// `Reachable` means there was no network to identify, as for the REST helper services.
+/// `WrongNetwork` leaves out what the host reported, a raw wire value that only the log
+/// gets.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -67,8 +66,8 @@ pub enum ProbeReport {
 
 impl ProbeReport {
     /// The answer for an endpoint on a transport the chain builds no pool for. The
-    /// registry refuses such an endpoint before it dispatches a probe, so only one built
-    /// outside the registry gets this answer, and it is the registry's own refusal.
+    /// registry never lists one, so only an endpoint built outside it gets here, and it
+    /// gets the registry's own refusal.
     pub fn unused_transport(endpoint: &EndpointLabel) -> Self {
         Self::from_failure(
             endpoint,
@@ -76,8 +75,8 @@ impl ProbeReport {
         )
     }
 
-    /// Turns a failure into the reportable outcome. The failure's own text is a
-    /// diagnostic, so it goes to the log and the report carries only its cause.
+    /// The report for a failure. Its text goes to the log, and the report carries only
+    /// its cause.
     pub fn from_failure(endpoint: &EndpointLabel, error: &NetError) -> Self {
         tracing::info!(target: TARGET, %endpoint, %error, "the probe failed");
         let failure = match *error {
@@ -111,9 +110,9 @@ impl ProbeReport {
 
 /// Connects to one endpoint through `connector` and asks which network it serves.
 ///
-/// These are the two steps a pool runs before an endpoint's first request, so
-/// `connector` must be the one the endpoint's pool is built with. A mismatch is
-/// reported here rather than disqualifying anything.
+/// A pool runs the same two steps before an endpoint's first request, so `connector` must
+/// be the one the endpoint's pool is built with. A mismatch is only reported, and
+/// disqualifies nothing.
 pub async fn probe<C, K>(connector: &K, clock: &dyn Clock, endpoint: &Endpoint) -> ProbeReport
 where
     C: Send + Sync,
@@ -128,10 +127,11 @@ where
     report(endpoint, outcome, clock.elapsed_millis().saturating_sub(started_millis))
 }
 
-/// The probe for the two REST transports, whose pools send nothing to identify a
-/// host, so the only question is whether it answers.
+/// The probe for the REST helper services, which have no network to identify, so the only
+/// question is whether the host answers.
 ///
-/// It sends one request to the endpoint's own address, with no invented path.
+/// It sends one GET to the endpoint's own address, adding no path. Any status below 500
+/// counts as an answer.
 pub async fn probe_reachable(
     http: &HttpClient,
     clock: &dyn Clock,

@@ -176,7 +176,7 @@ async fn a_first_attempt_asks_the_node_to_simulate_it() {
     assert!(!call.contains("maxRetries"), "the node keeps forwarding: {}", call.params);
 }
 
-/// The caller is told the send failed, so the bytes must never leave afterwards,
+/// The caller is told the send failed, so the bytes must never leave afterward,
 /// or a second payment the user makes in its place lands beside it.
 #[tokio::test]
 async fn a_send_whose_record_could_not_be_written_is_never_sent_later() {

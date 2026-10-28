@@ -14,7 +14,8 @@ use crate::token::TokenTable;
 use crate::watched::Watched;
 
 /// How many times a window may halve inside one pass before the group is left
-/// for the next one. Five halvings take the shipped ceiling to its floor.
+/// for the next one. Five halvings take a 1,000-block window to the default
+/// 32-block floor.
 const MAX_SHRINKS: u8 = 5;
 
 /// Addresses that share a frontier, so one window covers them all. The cursor
@@ -25,8 +26,8 @@ struct Group {
     members: Vec<Watched>,
 }
 
-/// Addresses converge on one frontier after their first pass, so usually there
-/// is one group. A new address forms its own group until it catches up.
+/// Caught-up addresses share one frontier, so usually there is one group. A new
+/// address forms its own group until it catches up.
 fn groups(watched: &[Watched], cursors: &BTreeMap<i64, ScanCursor>) -> Vec<Group> {
     let mut by_frontier: BTreeMap<(Option<u64>, Option<u64>), Vec<Watched>> = BTreeMap::new();
     for entry in watched {
@@ -93,8 +94,8 @@ pub(super) async fn log_history(
         let mut backfill_left = inputs.config.max_backfill_windows;
         let mut shrinks_left = MAX_SHRINKS;
         let mut is_clean = true;
-        // Only the first forward window overlaps, because the frontier the
-        // previous pass left is the part a reorg can have moved.
+        // Only the first forward window overlaps, because a reorg can only have
+        // moved the blocks the previous pass ended on.
         let mut overlap = inputs.params.rescan_overlap_blocks();
 
         loop {
@@ -138,8 +139,8 @@ pub(super) async fn log_history(
                 Err(error) if error.is_window_too_wide() => {
                     is_clean = false;
                     if size.is_at_floor() || shrinks_left == 0 {
-                        // The window is named here, because endpoint messages do not
-                        // reliably carry the width they refused.
+                        // Endpoint messages don't reliably say what width they
+                        // refused, so the window is logged here.
                         tracing::warn!(
                             target: TARGET,
                             %error,

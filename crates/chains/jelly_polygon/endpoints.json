@@ -1,11 +1,11 @@
 {
   "chain": "polygon",
-  "note": "Free public Polygon PoS JSON-RPC endpoints, verified with eth_chainId returning 0x89, a JSON-RPC batch, eth_feeHistory with reward percentiles, a Multicall3 eth_call, and an eth_getLogs window of 10,000 blocks. Endpoints that refused eth_getLogs or capped it below that width, needed a key, or were unreachable at verification time are omitted. PublicNode refuses logs below its recent history with HTTP 403, so the backfill reads older windows from the others. Pocket Network's gateway refuses the full width about half the time, when it routes to a node with a narrower cap, which the adaptive window absorbs. The websocket rows carry the newHeads subscription that wakes a sync pass when blocks land, and each was verified by subscribing and receiving a push. The history API row is the Etherscan v2 multichain service, which serves Polygon under chainid 137 on its free plan.",
+  "note": "Free public Polygon PoS JSON-RPC endpoints, each verified with eth_chainId returning 0x89, a JSON-RPC batch, eth_feeHistory with reward percentiles, a Multicall3 eth_call, and a 10,000-block eth_getLogs window. Endpoints that refused eth_getLogs or capped it below that width, needed a key, or were unreachable were left out. PublicNode refuses logs below its recent history with HTTP 403, so the backfill reads older windows from the others. Pocket Network's gateway refuses the full width about half the time, when it routes to a node with a narrower cap, and the adaptive window absorbs that. The websocket rows carry the newHeads subscription that wakes a sync pass when blocks land, and each was verified by subscribing and receiving a push. The history API row is the Etherscan v2 multichain service, which serves Polygon under chainid 137 on its free plan.",
   "endpoints": [
     {
       "url": "https://polygon-bor-rpc.publicnode.com",
       "transport": "http_jsonrpc",
-      "note": "PublicNode, no key"
+      "note": "PublicNode, no key, recent history only"
     },
     {
       "url": "https://poly.api.pocket.network",
@@ -20,7 +20,7 @@
     {
       "url": "https://rpc-mainnet.matic.quiknode.pro",
       "transport": "http_jsonrpc",
-      "note": "QuikNode public endpoint"
+      "note": "QuickNode public endpoint"
     },
     {
       "url": "https://polygon.gateway.tenderly.co",

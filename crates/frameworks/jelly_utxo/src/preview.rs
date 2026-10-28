@@ -10,8 +10,8 @@ use crate::weight::vsize;
 
 /// A rate more than this many times the fast level's gets a warning.
 const HIGH_RATE_MULTIPLE: u64 = 20;
-/// A rate under `1 / LOW_RATE_DIVISOR` of the network's slow rate gets a warning,
-/// because a rate just under it still confirms.
+/// A rate under `1 / LOW_RATE_DIVISOR` of the network's slow rate gets a warning.
+/// One just under the slow rate still confirms.
 const LOW_RATE_DIVISOR: u64 = 2;
 
 /// The fee context the preview warnings compare against.
@@ -20,7 +20,7 @@ pub(crate) struct PreviewQuote {
     pub(crate) relay_floor: FeeRate,
     /// The fast level's rate.
     pub(crate) fast: FeeRate,
-    /// What the network takes for a slow send, which unlike the slow level is not
+    /// What the network takes for a slow send. Unlike the slow level, it isn't
     /// raised to the wallet minimum.
     pub(crate) slow_market: FeeRate,
     /// Later mempool transactions a replacement cancels along with the original.
@@ -42,8 +42,8 @@ struct PreviewOutput<'a> {
     is_change: bool,
 }
 
-/// Everything the preview knows, before it is flattened into the rows the
-/// interface renders.
+/// Everything the preview knows, before it's flattened into the rows the interface
+/// renders.
 #[derive(Debug, Clone)]
 struct DecodedTx<'a> {
     inputs: Vec<PreviewInput>,
@@ -75,9 +75,9 @@ fn decode<'a>(params: &UtxoParams, payload: &'a UtxoPayload) -> Result<DecodedTx
         })
         .collect();
 
-    // An output paying the first source is change unless it is the recorded
-    // payment, which is found by the recipient the payload names. A child that only
-    // pays for its parent makes no payment, so all it pays back is change.
+    // An output paying the first source is change unless it's the payment, found by
+    // the recipient the payload names. A child only pays for its parent, so
+    // everything it pays back is change.
     let recipient_index = if intent.pays_for.is_some() {
         None
     } else {
@@ -183,8 +183,8 @@ fn warnings(
             TxWarningKind::Replacement,
             format!("This replaces {}, which is still unconfirmed.", replaced.txid),
         ));
-        // A child spending the original's outputs cannot outlive it, and Bitcoin
-        // Core refuses such a bump outright rather than drop the child silently.
+        // A child spending the original's outputs can't outlive it. Bitcoin Core
+        // refuses such a bump outright, but we allow it and say what it cancels.
         match quote.evicted {
             0 => {}
             1 => warnings.push(TxWarning::new(
@@ -213,12 +213,12 @@ fn warnings(
     warnings
 }
 
-/// A warning about the rate itself, when it is below what the network relays or far
-/// from what it currently takes.
+/// A warning when the rate is below what the network relays or far from what it
+/// currently takes.
 ///
-/// There is no warning kind for a low rate, so it uses `Other` rather than `HighFee`.
-/// A child's own rate is high by design, because it pays for others, so only the relay
-/// floor is checked for one.
+/// A low rate has no warning kind of its own, so it uses `Other`. A child's own rate
+/// is high by design since it pays for others, so only the relay floor is checked for
+/// one.
 fn rate_warning(
     params: &UtxoParams,
     decoded: &DecodedTx<'_>,
@@ -336,7 +336,7 @@ mod tests {
     }
 
     #[test]
-    fn change_back_to_the_spending_address_is_labelled_as_change() {
+    fn change_back_to_the_spending_address_is_labeled_as_change() {
         let scene = bitcoin_scene().unwrap();
         let built = scene.build(Some(50_000), ONE_PER_VB, &scene.coins(&[200_000])).unwrap();
         let decoded = decode(&scene.params, &built.payload).unwrap();

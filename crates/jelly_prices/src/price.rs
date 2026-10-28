@@ -21,27 +21,22 @@ const _: () = assert!(
 );
 
 impl Price {
-    /// Fraction digits of a currency unit. A base unit is a hundred millionth of
-    /// a currency unit, which prices the cheapest token the wallet holds to seven
-    /// significant figures.
+    /// A base unit is a hundred-millionth of a currency unit.
     ///
-    /// `PRICE_DECIMALS` in `apps/wallet/src/lib/fiat.ts` must stay equal to
-    /// this.
+    /// `PRICE_DECIMALS` in `apps/wallet/src/lib/fiat.ts` must stay equal to this.
     pub const DECIMALS: u8 = 8;
 
-    /// One billion currency units. A quote above this is a broken or hostile
-    /// feed rather than a market, and is refused instead of displayed.
+    /// One billion currency units. A quote above this is a broken or hostile feed, not a
+    /// market, and is refused.
     pub(crate) const CEILING: Self = Self(100_000_000_000_000_000);
 
     pub(crate) const fn is_zero(self) -> bool {
         self.0 == 0
     }
 
-    /// The one way a provider's decimal string becomes a price.
-    ///
-    /// Digits finer than [`Price::DECIMALS`] are dropped, never rounded, so a
-    /// displayed price never exceeds the quoted one. Surrounding whitespace is
-    /// tolerated.
+    /// Parses a provider's decimal string. Digits past [`Price::DECIMALS`] are dropped,
+    /// never rounded, so a displayed price never exceeds the quoted one. Surrounding
+    /// whitespace is allowed.
     pub(crate) fn quote(raw: &str) -> Result<Self, QuoteRejection> {
         let text = truncated(raw).ok_or(QuoteRejection::NotADecimal)?;
         let amount =
@@ -90,9 +85,8 @@ impl Serialize for Price {
 
 /// Keeps at most [`Price::DECIMALS`] fraction digits.
 ///
-/// Only precision is dropped, so a tail past the last kept digit that is not all
-/// digits is `None`. Everything else is left for the exact parse to refuse, so a
-/// trailing point stays a trailing point.
+/// Only precision is dropped. A tail past the last kept digit that isn't all digits is
+/// `None`, and anything else malformed is left for the exact parse to refuse.
 fn truncated(raw: &str) -> Option<&str> {
     let trimmed = raw.trim();
     let Some((_, fraction)) = trimmed.split_once('.') else {
@@ -111,12 +105,11 @@ fn truncated(raw: &str) -> Option<&str> {
 wire_enum! {
     /// Why one ticker or currency in an answered request has no price or rate.
     ///
-    /// A closed vocabulary that carries nothing from the response body, because a
-    /// provider's bytes must never reach a log through this crate.
+    /// Carries nothing from the response body, so a provider's bytes never reach a log.
     pub(crate) enum QuoteRejection {
         /// The provider answered without the pair, or without a last trade for it.
         Absent => "absent",
-        /// The price is not a decimal number.
+        /// The price isn't a decimal number.
         NotADecimal => "not_a_decimal",
         /// The price, or a rate after inversion, is zero, which would show every
         /// balance as worthless.
@@ -157,7 +150,7 @@ mod tests {
         ("1.2.3", QuoteRejection::NotADecimal),
         ("1e9", QuoteRejection::NotADecimal),
         // Truncation drops precision and nothing else, so a decimal point with no
-        // digits on one side is still not a number.
+        // digits on one side still isn't a number.
         ("1.", QuoteRejection::NotADecimal),
         (".5", QuoteRejection::NotADecimal),
         ("1 000", QuoteRejection::NotADecimal),

@@ -1,9 +1,8 @@
 //! Replacing an unconfirmed payment with a higher-paying one.
 //!
-//! The BIP-125 arithmetic belongs to the engine. These tests prove which address
-//! funds the replacement and who it keeps paying, both read off the transaction
-//! and the watch set, and that the floor follows what the server charges rather
-//! than the compiled constant.
+//! The BIP-125 arithmetic has its own unit tests in `src/`. These tests check which
+//! address funds the replacement, who it keeps paying, and that the floor follows what
+//! the server charges instead of the compiled constant.
 
 use std::slice::from_ref;
 use std::sync::Arc;
@@ -28,8 +27,8 @@ use crate::common::{
 
 const FUNDING_SAT: u64 = 500_000;
 const PAYMENT_SAT: u64 = 100_000;
-/// Four base units per virtual byte, well above either chain's relay floor, which
-/// leaves room to bid.
+/// Four base units per virtual byte, well above the relay floor, which leaves room to
+/// bid.
 const RATE: &str = "4";
 const HIGHER: FeeRate = FeeRate::from_sat_per_kwu(2_000);
 const LOWER: FeeRate = FeeRate::from_sat_per_kwu(1_000);
@@ -91,7 +90,7 @@ impl Sent {
     }
 }
 
-/// What the output a build puts change at pays.
+/// The value of the change output.
 fn change_of(tx: &Transaction) -> Fallible<u64> {
     let change =
         tx.output.get(usize::try_from(CHANGE_VOUT)?).ok_or("the transaction has no change")?;
@@ -395,7 +394,7 @@ async fn a_transaction_id_that_is_not_one_is_refused_before_anything_is_fetched(
 /// from the first.
 ///
 /// Replacing the first evicts the second, BIP-125 rule 3 makes the replacement
-/// pay at least what both paid, and the preview says the second is cancelled.
+/// pay at least what both paid, and the preview says the second is canceled.
 #[tokio::test]
 async fn a_replacement_pays_for_the_descendants_it_evicts() {
     let sent = sent(&BITCOIN).await.unwrap();
@@ -444,8 +443,8 @@ async fn a_replacement_pays_for_the_descendants_it_evicts() {
 /// A replacement that adds a confirmed coin claims it alongside the original's
 /// inputs, which are already spent in the mempool.
 ///
-/// A pass that does not list those inputs must not free the added coin while
-/// the replacement awaits broadcast.
+/// A pass that doesn't list those inputs must not free the added coin while the
+/// replacement awaits broadcast.
 #[tokio::test]
 async fn a_pass_keeps_the_claim_on_a_coin_a_pending_replacement_added() {
     for params in REPLACEABLE {
@@ -497,9 +496,8 @@ async fn a_pass_keeps_the_claim_on_a_coin_a_pending_replacement_added() {
     }
 }
 
-/// Once its replacement is mined the original can never confirm, so the row the
-/// engine recorded for it has to settle as replaced, the way an EVM send another
-/// takes the nonce of settles.
+/// Once its replacement is mined the original can never confirm, so the engine's row
+/// for it has to settle as replaced, like an EVM send whose nonce another send took.
 #[tokio::test]
 async fn a_replaced_original_is_reported_replaced_once_its_replacement_is_mined() {
     for params in REPLACEABLE {
@@ -577,7 +575,7 @@ async fn a_payment_from_a_previous_session_can_still_be_replaced() {
 }
 
 /// The wallet's own later payment spends the original's change, so the replacement
-/// evicts it, and the preview says it is cancelled.
+/// evicts it, and the preview says it is canceled.
 ///
 /// Once the replacement is in, that payment's input no longer exists and it can
 /// never confirm, so its row has to settle as replaced the way the original's does.
@@ -603,7 +601,7 @@ async fn a_later_payment_the_mined_replacement_cancels_is_reported_replaced() {
     let unsigned = sent.bump(HIGHER).await.unwrap();
     assert!(
         unsigned.preview.warnings.iter().any(|warning| warning.message.contains("also cancels")),
-        "the preview tells the user the later payment is cancelled: {:?}",
+        "the preview tells the user the later payment is canceled: {:?}",
         unsigned.preview.warnings
     );
     let signed = sent.harness.adapter.sign_tx(&unsigned, &[sent.wallet.ours.material()]).unwrap();
@@ -617,17 +615,17 @@ async fn a_later_payment_the_mined_replacement_cancels_is_reported_replaced() {
         .serve(&sent.harness);
     sent.harness.sync().await.unwrap();
 
-    let cancelled = later.compute_txid().to_string();
+    let canceled = later.compute_txid().to_string();
     let emitted = sent.harness.drain();
     let settled: Vec<TxOutcome> = records(&emitted)
         .into_iter()
-        .filter(|record| record.txid.value() == cancelled)
+        .filter(|record| record.txid.value() == canceled)
         .map(|record| record.outcome)
         .collect();
     assert_eq!(
         settled,
         vec![TxOutcome::Replaced],
-        "the payment the mined replacement cancelled should settle as replaced, but the pass \
+        "the payment the mined replacement canceled should settle as replaced, but the pass \
          reported {settled:?} for it, so its row stays pending forever"
     );
 }

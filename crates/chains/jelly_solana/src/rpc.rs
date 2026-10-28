@@ -1,7 +1,7 @@
 //! The JSON-RPC shapes this build sends and reads.
 //!
-//! Members the wallet does not use are not declared, and an amount that arrives
-//! as a decimal string is parsed here once.
+//! Members the wallet doesn't use aren't declared, and an amount that arrives as a
+//! decimal string is parsed here once.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -228,11 +228,11 @@ impl TransactionFailure {
 #[serde(untagged)]
 enum FailureWire {
     Named(String),
-    /// A single-member object whose one key is the variant name. The member's own
-    /// value is a runtime type this build does not read.
+    /// A single-member object whose one key is the variant name. The member's value is
+    /// a runtime type this build doesn't read.
     #[expect(
         clippy::zero_sized_map_values,
-        reason = "a map is what the wire shape is; the key is the whole answer"
+        reason = "the wire shape is a map, and only its key is read"
     )]
     Structured(BTreeMap<String, IgnoredAny>),
 }
@@ -447,12 +447,12 @@ mod tests {
     fn a_page_omits_the_anchors_it_does_not_have() {
         let bare = PageQuery { limit: 10, commitment: Commitment::Finalized, before: None };
         assert_eq!(
-            serde_json::to_string(&bare).expect("it serialises"),
+            serde_json::to_string(&bare).expect("it serializes"),
             r#"{"limit":10,"commitment":"finalized"}"#
         );
         let anchored = PageQuery { before: Some("a"), ..bare };
         assert_eq!(
-            serde_json::to_string(&anchored).expect("it serialises"),
+            serde_json::to_string(&anchored).expect("it serializes"),
             r#"{"limit":10,"commitment":"finalized","before":"a"}"#
         );
     }

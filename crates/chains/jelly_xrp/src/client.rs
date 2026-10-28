@@ -25,10 +25,10 @@ pub(crate) struct NetworkFee {
     pub(crate) minimum_drops: u64,
 }
 // rippled refuses to delete an account whose Sequence is within this many ledgers of the
-// current one, so a recreated account cannot replay its old transactions.
+// current one, so a recreated account can't replay its old transactions.
 const DELETION_SEQUENCE_GAP: u32 = 256;
 // rippled's largest `account_objects` page. An account owning more than 1000 objects
-// cannot be deleted at all, so three pages without the end in sight mean it cannot be.
+// can't be deleted at all, so three pages with no end in sight settle it.
 const OBJECTS_PAGE_LIMIT: u32 = 400;
 const MAX_OBJECT_PAGES: usize = 3;
 const HISTORY_PAGE_LIMIT: u32 = 200;
@@ -78,8 +78,9 @@ impl AccountRoot {
     /// Whether rippled's `AccountDelete` could refuse this account with `tecTOO_SOON`.
     ///
     /// It refuses while the account's Sequence, or its first NFT sequence plus the NFTs it
-    /// minted, is within [`DELETION_SEQUENCE_GAP`] ledgers of the ledger it is applied in.
-    /// That ledger follows the validated `ledger`, so the gap is measured from `ledger`.
+    /// minted, is within [`DELETION_SEQUENCE_GAP`] ledgers of the ledger it's applied in.
+    /// That ledger comes after the validated `ledger`, so measuring from `ledger` errs
+    /// toward refusing.
     pub(crate) fn is_too_new_to_delete(&self, ledger: &Ledger) -> bool {
         let nft_sequence = self
             .first_nftoken_sequence
@@ -130,11 +131,10 @@ pub(crate) enum Submission {
 
 impl Submission {
     fn classify(engine_result: &str) -> Self {
-        // These results mean the network took the payment. tesSUCCESS and tec results were
-        // applied to the open ledger, a tec one charging only the fee, terQUEUED waits in the
-        // queue, and tefALREADY means the same payment is already applied or queued. Any other
-        // tel, ter, or tef result is provisional, so the send stays tracked as unresolved until
-        // a validated ledger or the expiry proof settles it.
+        // tesSUCCESS and tec results were applied to the open ledger (a tec one charging only
+        // the fee), terQUEUED waits in the queue, and tefALREADY means the same payment is
+        // already applied or queued. Anything else stays tracked as unresolved until a
+        // validated ledger or the expiry proof settles it.
         if matches!(engine_result, "tesSUCCESS" | "terQUEUED" | "tefALREADY")
             || engine_result.starts_with("tec")
         {

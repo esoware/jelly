@@ -9,10 +9,10 @@ use serde::Serialize;
 use specta::Type;
 use tokio::task::JoinError;
 
-/// Process failures stay in Rust and never cross the IPC boundary.
+/// Failures that stop the app from running. They never cross IPC.
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
-    #[error("the async runtime could not be built")]
+    #[error("the async runtime couldn't be built")]
     Runtime {
         #[source]
         source: io::Error,
@@ -33,7 +33,7 @@ wire_enum! {
     pub enum ShellErrorCode {
         /// Startup timed out before the command ran.
         Starting => "starting",
-        /// The price provider did not answer, or prices are off.
+        /// The price provider didn't answer, or prices are off.
         PricesUnavailable => "prices_unavailable",
         /// The command task panicked.
         Panic => "panic",
@@ -62,11 +62,10 @@ impl fmt::Display for IpcErrorCode {
     }
 }
 
-/// Typed error details for the frontend. Amounts retain their base units so the frontend
-/// can apply the asset's decimals.
+/// Amounts stay in base units so the frontend can apply the asset's decimals.
 ///
-/// A missing adapter has no reason when the chain is switched off or the wallet's
-/// adapters are not built yet.
+/// `NoAdapter` has no reason when the chain is switched off or the wallet's adapters aren't
+/// built yet.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum IpcErrorDetail {
@@ -78,13 +77,8 @@ pub enum IpcErrorDetail {
     SchemaTooNew { found: u32, supported: u32 },
 }
 
-/// Command failure returned to the frontend.
-///
-/// `message` is user-facing prose. It must not contain secrets, raw URLs, file paths, or
-/// library error text. The frontend branches on `code` and `detail`, never on message
-/// wording.
-///
-/// Errors are serialized only, never accepted as command arguments.
+/// `message` is copy. It never holds a secret, a raw URL, a file path, or a library's error
+/// text. The frontend branches on `code` and `detail`, never on the wording.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type, thiserror::Error)]
 #[error("{code}: {message}")]
 #[serde(rename_all = "camelCase")]
@@ -115,14 +109,14 @@ impl IpcError {
         Self::new(ErrorCode::InvalidInput.into(), message)
     }
 
-    /// Accepts a fixed user message. Log diagnostic details separately.
+    /// Takes fixed copy. Log the details separately.
     pub(crate) fn internal(message: &'static str) -> Self {
         Self::new(ErrorCode::Internal.into(), message)
     }
 }
 
 /// Only invalid input carries its own text, which is copy by contract. Every other error
-/// gets a safe fallback, so node text, contexts, and base units stay in Rust.
+/// gets a fixed fallback, so node text, contexts, and base units stay in Rust.
 impl From<CoreError> for IpcError {
     fn from(error: CoreError) -> Self {
         let domain = error.code();
@@ -187,7 +181,7 @@ impl From<JoinError> for IpcError {
                 "Jelly encountered an internal error.",
             );
         }
-        Self::internal("The operation was cancelled.")
+        Self::internal("The operation was canceled.")
     }
 }
 

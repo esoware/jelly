@@ -35,9 +35,9 @@ pub struct ZcashAdapter {
     /// Serializes watch set changes, passes, quotes, builds, broadcasts, and discards, so
     /// `sync` is single-flight.
     ///
-    /// It holds the outputs spent by history transactions not yet summarized, kept across
-    /// sync passes so a transaction with more inputs than one pass can fetch is resumed
-    /// rather than started over. A complete pass leaves nothing in progress and empties it.
+    /// It also holds the outputs spent by history transactions not yet summarized, so a
+    /// transaction with more inputs than one pass can fetch picks up where the last pass
+    /// stopped. A complete pass empties it.
     gate: Mutex<BTreeMap<OutPoint, TxOut>>,
 }
 

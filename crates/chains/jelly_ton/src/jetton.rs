@@ -1,10 +1,8 @@
-//! The TEP-74 jettons this wallet carries, and the message bodies their history is read
-//! from.
+//! The TEP-74 jettons Jelly carries, and the message bodies their history is read from.
 //!
-//! The bodies are laid out as
-//! <https://github.com/ton-blockchain/TEPs/blob/master/text/0074-jettons-standard.md>
-//! lays them out. Symbols and decimals come from the compiled [`TokenId`] table, never
-//! from the chain.
+//! The body layouts follow
+//! <https://github.com/ton-blockchain/TEPs/blob/master/text/0074-jettons-standard.md>.
+//! Symbols and decimals come from the compiled [`TokenId`] table, never from the chain.
 
 use jelly_core::{AssetId, TokenId};
 use tonlib_core::cell::{Cell, CellParser};
@@ -24,9 +22,8 @@ const BOUNCED: u32 = 0xffff_ffff;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Jetton {
     pub(crate) token: TokenId,
-    /// The Gram a transfer attaches for the jetton wallets' gas, as `MyTonWallet`'s
-    /// `getToncoinAmountForTransfer` attaches it. The jetton wallets return what they
-    /// do not spend as an excess.
+    /// The Gram a transfer attaches for the jetton wallets' gas, matching `MyTonWallet`'s
+    /// `getToncoinAmountForTransfer`. What they don't spend comes back as an excess.
     pub(crate) attached_nanogram: u64,
 }
 
@@ -69,8 +66,8 @@ pub(crate) enum Body {
     Other,
 }
 
-/// Reads the head of `body` and nothing past the fields history needs, so a body that
-/// carries more than the standard lays out still reads.
+/// Reads only the fields history needs, so a body that carries more than the standard
+/// lays out still reads.
 pub(crate) fn read_body(body: &Cell) -> Body {
     let mut parser = body.parser();
     read(&mut parser).unwrap_or(Body::Other)

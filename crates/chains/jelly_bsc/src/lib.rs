@@ -1,5 +1,4 @@
-//! BNB Smart Chain, as the spec, the network figures, and the chain entry the EVM
-//! framework is run with.
+//! BNB Smart Chain.
 
 #![deny(clippy::float_arithmetic)]
 mod bsc;

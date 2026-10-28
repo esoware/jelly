@@ -17,7 +17,7 @@ impl ByteCount {
 impl io::Write for ByteCount {
     #[expect(
         clippy::renamed_function_params,
-        reason = "the trait names this `buf`, which this workspace's naming rules disallow"
+        reason = "the trait calls it `buf`, a name this workspace bans"
     )]
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         self.0 = self.0.saturating_add(bytes.len());

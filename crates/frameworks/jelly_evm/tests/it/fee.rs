@@ -111,11 +111,9 @@ async fn a_level_quote_pays_that_levels_pair_and_a_level_build_matches_it() {
     }
 }
 
-/// Every level is held at the C-Chain oracle's 150 wei.
-///
-/// Every recorded block tipped far above what the node's own oracle suggests, over
-/// a base fee resting at its 2.5 gwei floor, and the node predicted 2.5035 gwei
-/// next.
+/// Every recorded block tipped far above the node's own oracle, over a base fee at
+/// its 2.5 gwei floor, so every level is held at the oracle's 150 wei. The node
+/// predicted 2.5035 gwei next.
 #[tokio::test]
 async fn a_c_chain_quote_tips_what_its_own_oracle_would_over_its_base_fee() {
     let harness = Harness::new(Setup::on(AVALANCHE)).unwrap();
@@ -138,7 +136,7 @@ async fn a_quote_costs_one_batch_and_one_estimate() {
     harness.adapter.quote_fee(&request(PEER, ETHEREUM.native(), ETH)).await.unwrap();
 
     // The nonce, balance and fee history share one batch. The gas estimate needs
-    // the amount, so it is the second and last round trip.
+    // the amount, so it's the second and last round trip.
     assert_eq!(harness.node.calls_to(Method::GetTransactionCount).len(), 1);
     assert_eq!(harness.node.calls_to(Method::GetBalance).len(), 1);
     assert_eq!(harness.node.calls_to(Method::FeeHistory).len(), 1);

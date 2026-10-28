@@ -249,7 +249,7 @@ async fn a_zcash_reorg_clears_the_orphaned_mined_position_from_history() {
     assert_eq!(
         (after.height, after.confirmations),
         (None, 0),
-        "a zcash block that was reorganised away must stop counting as the transaction's \
+        "a zcash block that was reorganized away must stop counting as the transaction's \
          inclusion, but history still shows it mined at {:?} with {} confirmations",
         after.height,
         after.confirmations
@@ -268,7 +268,7 @@ async fn a_full_sink_drops_and_counts() {
     let sink = test_util::event_sink(&harness.engine);
 
     assert_eq!(test_util::dropped_events(&harness.engine), 0);
-    // The pump or the buffer takes the first one, and the rest cannot fit.
+    // The pump or the buffer takes the first one, and the rest can't fit.
     for units in 0..64u128 {
         sink.try_emit(WalletEvent::BalanceChanged(BalanceUpdate {
             address_id: 1,

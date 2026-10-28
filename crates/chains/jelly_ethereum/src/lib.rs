@@ -1,5 +1,4 @@
-//! Ethereum mainnet, as the spec, the network figures, and the chain entry the EVM
-//! framework is run with.
+//! Ethereum mainnet.
 
 #![deny(clippy::float_arithmetic)]
 mod ethereum;

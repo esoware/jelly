@@ -26,19 +26,18 @@ pub(crate) enum BalanceRead {
         owner: Address,
         token: TokenMeta,
     },
-    /// The owner's transaction count at the latest block, which every send it
-    /// makes moves.
+    /// The owner's transaction count at the latest block, which each of its sends
+    /// bumps.
     Nonce {
         owner: Address,
     },
 }
 
-/// A second look at sends no receipt answered for, every answer from the one node that
-/// served the batch. A nonce it says was taken and a receipt it says is missing
-/// therefore describe the same chain.
+/// A second look at sends with no receipt. One node answers the whole batch, so a
+/// nonce it says was taken and a receipt it says is missing describe the same chain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Recheck {
-    /// Each owner's account nonce as of the block the recheck was asked at.
+    /// Each owner's account nonce at the block the recheck asked about.
     pub(crate) nonces: Vec<(Address, u64)>,
     pub(crate) sightings: Vec<Sighting>,
 }
@@ -57,7 +56,7 @@ impl Recheck {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Sighting {
     pub(crate) txid: B256,
-    /// It has a receipt that puts the transaction in a block.
+    /// The node has a receipt that puts the transaction in a block.
     pub(crate) has_receipt: bool,
     /// `eth_getTransactionByHash` returned it, from a block or from the mempool.
     pub(crate) is_known: bool,
@@ -74,8 +73,8 @@ pub(crate) struct Preflight {
     pub(crate) fees: Option<FeeHistory>,
 }
 
-/// Every JSON-RPC call the adapter makes, typed and decoded into this crate's
-/// own shapes.
+/// The adapter's HTTP JSON-RPC calls, typed and decoded into this crate's own
+/// shapes.
 #[derive(Debug)]
 pub(crate) struct EvmClient {
     node: Arc<dyn EvmNode>,
@@ -163,7 +162,7 @@ impl EvmClient {
     }
 
     /// Tries one Multicall3 `eth_call` first, and falls back to a JSON-RPC batch
-    /// for an endpoint that will not serve it.
+    /// for an endpoint that won't serve it.
     pub(crate) async fn balances(
         &self,
         plan: &[BalanceRead],
@@ -182,11 +181,11 @@ impl EvmClient {
         self.balances_by_batch(plan).await
     }
 
-    /// An address with no code answers `0x`, which would otherwise surface as an
-    /// unhelpful ABI decode failure, so a missing contract is named here.
+    /// A call to an address with no code returns `0x`, so an empty answer is
+    /// reported as a missing contract instead of an ABI decode failure.
     ///
-    /// No contract can read a nonce, so nonces ride in the same JSON-RPC batch as
-    /// the aggregate, after it.
+    /// No contract can read a nonce, so nonces ride after the aggregate in the same
+    /// JSON-RPC batch.
     async fn balances_by_multicall(
         &self,
         plan: &[BalanceRead],
@@ -293,7 +292,7 @@ impl EvmClient {
         answered.decode(Method::FeeHistory)
     }
 
-    /// The nonce, balances and, given `fee_history_blocks`, the fee history in
+    /// The nonce, the balances, and with `fee_history_blocks` the fee history, in
     /// one batch.
     ///
     /// Public endpoints are paced at one request per 200 ms, so the reads share

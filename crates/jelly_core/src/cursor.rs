@@ -9,8 +9,8 @@ use crate::wire_enum;
 wire_enum! {
     /// Where one chain records how far a pass has read.
     ///
-    /// The string form is `<chain-or-family>.<stream>`. It is fixed in
-    /// [`ScanStream::as_str`] and never concatenated at runtime.
+    /// The string form is `<chain-or-family>.<stream>`, fixed in [`ScanStream::as_str`]
+    /// and never concatenated at runtime.
     pub enum ScanStream {
         BitcoinElectrumStatus => "bitcoin.electrum_status",
         LitecoinElectrumStatus => "litecoin.electrum_status",
@@ -28,8 +28,8 @@ wire_enum! {
 
 impl ScanStream {
     /// Whether the stream records only how much history a pass has covered, so forgetting
-    /// it costs a rescan and nothing else. The others keep their last committed
-    /// checkpoint, conflict and reconciliation state included, for the next pass to
+    /// it costs a rescan and nothing else. The other streams keep their last committed
+    /// checkpoint, including conflict and reconciliation state, for the next pass to
     /// reconcile against.
     pub const fn is_reconstructible(self) -> bool {
         match self {
@@ -65,8 +65,8 @@ wire_enum! {
 /// Opaque cursor bytes wiped on drop. Monero payloads can contain output keys, key images,
 /// and signed transactions.
 ///
-/// Read through `with_bytes`. No serialization or display is available, and `Debug` reveals
-/// only the length.
+/// Read through `with_bytes`. There's no serialization or `Display`, and `Debug` shows only
+/// the length.
 #[derive(Clone, Default, PartialEq, Eq, Zeroize)]
 pub struct CursorBytes(Zeroizing<Vec<u8>>);
 
@@ -138,13 +138,12 @@ pub struct HeldReservation {
 }
 
 /// Stores scan progress and transaction reservations. The engine routes each opaque payload
-/// to the database or vault without exposing that choice to adapters.
+/// to the database or the vault, and adapters never see which.
 ///
-/// - `advance` buffers progress until the database transaction containing the scanned rows
-///   commits. It must never persist progress ahead of those rows. A crash may require
-///   rescanning.
+/// - `advance` buffers progress until the database transaction holding the scanned rows
+///   commits, and never persists it ahead of them. A crash can cost a rescan.
 /// - `reserve` is durable on success. Every adapter that holds a `ReservationSlot` must
-///   record its reservation before broadcast. A failed write must stop the send.
+///   record its reservation before broadcast, and a failed write must stop the send.
 ///
 /// Adapters must include enough context in scan payloads to detect reorgs and rewind.
 #[async_trait]
@@ -169,9 +168,8 @@ pub trait CursorStore: Send + Sync + fmt::Debug {
         cursor: CursorBytes,
     ) -> Result<(), CoreError>;
 
-    /// Replaces the slot's payload in one write. An error means the slot still holds what
-    /// it held before, so an adapter that persists a send before broadcasting it can trust
-    /// that a failed write left no record of a send it never made.
+    /// Replaces the slot's payload in one write. On error the slot still holds its old
+    /// payload, so a failed write leaves no record of a send that never happened.
     async fn reserve(
         &self,
         scope: CursorScope,

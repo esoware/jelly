@@ -172,8 +172,8 @@ async fn a_payment_only_the_input_cap_prevents_says_split_it_rather_than_short_o
     let held = account_balance(&harness.adapter, 0).spendable();
     assert_eq!(held, Amount::from_base_units(20_000), "two outputs of 10_000 each");
 
-    // Two inputs cover 12_000 and the slow priority's fee of a few thousand, and one does
-    // not.
+    // Two inputs cover 12_000 and the slow priority's fee of a few thousand, but one
+    // doesn't.
     let mut request = harness.request(Some(12_000));
     request.fee = FeeSelection::Level { level: FeeLevel::Slow };
     let error = harness.adapter.build_tx(&request).await.expect_err("one input cannot pay it");
@@ -188,13 +188,11 @@ async fn a_payment_only_the_input_cap_prevents_says_split_it_rather_than_short_o
 /// Outputs on chain before the block that pays this wallet.
 const EARLIER_OUTPUTS: u64 = 1_000;
 
-/// A ring is chosen at a height where its real input is already unlocked.
+/// A build may reuse an earlier build's distribution while inside the distribution window.
 ///
-/// A build inside the distribution window may reuse the distribution an earlier build
-/// fetched, but not once the scan's newer tip has unlocked an input that was still
-/// locked at its height. A ring chosen there would hold a real input newer than every
-/// decoy it could draw, which would mark it as the real spend to anyone reading the
-/// chain.
+/// It can't once the scan's newer tip has unlocked an input that was still locked at the
+/// distribution's height. A ring chosen there would hold a real input newer than every decoy
+/// it could draw, which marks it as the real spend to anyone reading the chain.
 #[tokio::test]
 async fn a_ring_is_chosen_against_a_chain_on_which_its_real_input_is_unlocked() {
     let recorded = recorded().unwrap();
@@ -261,11 +259,8 @@ async fn a_ring_is_chosen_against_a_chain_on_which_its_real_input_is_unlocked() 
     );
 }
 
-/// A build retried after its ring node dropped chooses its ring from a node that answers.
-///
-/// A distribution whose node stopped answering ring requests leaves the cache, so the
-/// retry fetches a fresh one rather than failing the same way, however often the
-/// person retries, until the window closes.
+/// A distribution whose node stopped answering ring requests leaves the cache, so a
+/// retry fetches a fresh one instead of failing the same way until the window closes.
 #[tokio::test]
 async fn a_retry_after_the_ring_node_dropped_chooses_its_ring_from_a_node_that_answers() {
     let harness = Harness::new().await.unwrap();

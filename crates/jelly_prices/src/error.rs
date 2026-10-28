@@ -10,11 +10,11 @@ use jelly_net::NetError;
 pub enum PriceError {
     #[error(transparent)]
     Net(#[from] NetError),
-    #[error("the Kraken response is not the documented shape at line {line} column {column}")]
+    #[error("the Kraken response isn't the documented shape at line {line} column {column}")]
     Malformed { line: usize, column: usize },
     #[error("Kraken refused the request")]
     Refused,
-    #[error("the Kraken answer does not name the requested pair")]
+    #[error("the Kraken answer doesn't name the requested pair")]
     Absent,
     #[error(transparent)]
     Clock(#[from] ClockError),
@@ -28,8 +28,7 @@ impl From<serde_json::Error> for PriceError {
 }
 
 impl PriceError {
-    /// How long the provider asked to be left alone, if it said so. Only the
-    /// transport carries such a request.
+    /// How long the provider asked us to wait, if it did. Only a transport error says so.
     pub(crate) fn retry_after(&self, now_unix_secs: i64) -> Option<Duration> {
         match *self {
             Self::Net(ref net) => net.retry_after().map(|after| after.resolve(now_unix_secs)),
@@ -56,7 +55,7 @@ mod tests {
         "{\"error\":[],\"result\":{\"XXBTZUSD\":{\"c\":[\"SUPERSECRETMARKER\"]}}}",
     ];
 
-    /// Everything an error can be rendered as, including its whole source chain.
+    /// The error's display and debug forms, with its whole source chain.
     fn rendered(error: &PriceError) -> String {
         let mut parts = vec![format!("{error} {error:?}")];
         let mut current: Option<&dyn Error> = error.source();

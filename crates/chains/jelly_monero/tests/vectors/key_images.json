@@ -1,5 +1,5 @@
 {
-  "_source": "The outputs are the two in tests/fixtures/test_chain_block.json. The expected key images are the ones monero-wallet's own SignableTransaction::sign writes into a transaction spending them, so this vector pins Jelly's composition of the doc(hidden) ed25519 primitives against upstream's derivation. tests/it/sign.rs also checks that the two agree at run time.",
+  "_source": "The outputs are the two in tests/fixtures/test_chain_block.json, and the key images are the ones monero-wallet's SignableTransaction::sign writes into a transaction spending them. This pins our use of the doc(hidden) monero-ed25519 conversions to upstream's derivation, and tests/it/sign.rs also checks that the two agree at run time.",
   "spendKey": "ccf0ea10e1ea64354f42fa710c2b318e581969cf49046d809d1f0aadb3fc7a02",
   "cases": [
     {

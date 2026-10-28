@@ -17,8 +17,8 @@ use crate::watched::{Watched, address_of};
 /// What a landed send took out of its sender's native balance.
 ///
 /// A reverted one still paid its fee, and a token transfer or a send to itself
-/// moves no native value. A receipt that does not state its fee or its outcome
-/// cannot be netted.
+/// moves no native value. A receipt that doesn't state its fee or its outcome
+/// can't be netted.
 fn spent_by(tracked: &Tracked, receipt: &Receipt) -> Explained {
     let Some(fee) = receipt.fee_wei() else { return Explained::Wholly };
     let value = match receipt.execution() {
@@ -32,8 +32,8 @@ fn spent_by(tracked: &Tracked, receipt: &Receipt) -> Explained {
     fee.checked_add(value).map_or(Explained::Wholly, Explained::Spent)
 }
 
-/// One watched send at its nonce, with what it took out of its sender's native
-/// balance once a receipt says. `None` while no receipt has answered.
+/// One watched send at its nonce. `spent` is what it took out of its sender's
+/// native balance, or `None` until a receipt says.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Spend {
     pub(super) address_id: i64,
@@ -44,13 +44,15 @@ pub(super) struct Spend {
 /// Returns every watched send at its nonce, priced where a receipt answered for
 /// it.
 ///
-/// A send ends only by fact: its receipt lands at depth, or another transaction
-/// takes its nonce at depth. Until then it is watched however long that takes, and
-/// its signed bytes go out again whenever the node asked about it does not know it.
+/// A send stops being watched only when its receipt reaches the confirmation depth
+/// or another transaction takes its nonce at that depth. Until then it's watched
+/// however long that takes, and its signed bytes are resent whenever the rechecking
+/// node doesn't know it.
 ///
-/// Settlements stay in the durable ledger until a loaded checkpoint acknowledges
-/// their records and its native nonce includes their spend. Queue acceptance is
-/// not a commit, and a balance read can trail the receipt's node.
+/// A settlement stays in the persisted ledger until a loaded cursor's checkpoint
+/// covers its record and the cursor's native nonce includes its spend. The event
+/// queue accepting a record doesn't mean it's stored, and a balance read can lag
+/// the node that gave the receipt.
 pub(super) async fn poll_sends(
     inputs: &PassInputs<'_>,
     watched: &[Watched],
@@ -136,14 +138,12 @@ pub(super) async fn poll_sends(
     Ok(recovered_spends)
 }
 
-/// Asks one node, for every send no receipt answered for, whether its nonce was
-/// taken at depth, whether it has a receipt after all, and whether it knows the
-/// transaction.
+/// Asks one node, for every send with no receipt, whether its nonce was taken at
+/// depth, whether it has a receipt after all, and whether it knows the transaction.
 ///
 /// The depth is the confirmation target, so a nonce counts as taken only where a
-/// receipt would have retired the send that took it. A node that cannot answer
-/// leaves those sends as they are for the pass, because nothing about them is
-/// settled by its silence.
+/// receipt would have retired the send that took it. If the node can't answer,
+/// those sends stay as they are for this pass.
 async fn recheck(
     inputs: &PassInputs<'_>,
     in_flight: &[InFlight],
@@ -178,10 +178,10 @@ async fn recheck(
     }
 }
 
-/// Sends again the exact signed bytes of each send the rechecking node does not know.
+/// Resends the exact signed bytes of each send the rechecking node doesn't know.
 ///
-/// A refusal is expected when another transaction already took the nonce, and
-/// either way the send is judged on what the next pass finds.
+/// A refusal is expected when another transaction already took the nonce. Either
+/// way, the next pass judges the send on what it finds.
 async fn resend(inputs: &PassInputs<'_>, txids: &[B256]) {
     for txid in txids {
         let raw = inputs.ledger.lock().entry(*txid).and_then(Tracked::sent_bytes).cloned();
@@ -190,13 +190,13 @@ async fn resend(inputs: &PassInputs<'_>, txids: &[B256]) {
             Ok(_) => tracing::info!(
                 target: TARGET,
                 %txid,
-                "a node did not know a pending send, so its signed bytes went out again"
+                "a node didn't know a pending send, so its signed bytes went out again"
             ),
             Err(error) => tracing::debug!(
                 target: TARGET,
                 %txid,
                 %error,
-                "a pending send a node did not know was refused when it went out again"
+                "a pending send a node didn't know was refused when it went out again"
             ),
         }
     }
@@ -216,15 +216,15 @@ struct Verdicts {
     replaced: BTreeSet<B256>,
     /// Sends deep enough to stop watching, with receipts retained for replay.
     retired: Vec<(B256, Receipt)>,
-    /// Sends the rechecking node does not know, whose signed bytes go out again.
+    /// Sends the rechecking node doesn't know, whose signed bytes go out again.
     resends: Vec<B256>,
 }
 
-/// One rule ends a send without a receipt, whoever took its nonce.
+/// A send without a receipt is replaced once its nonce is taken at depth, whoever took it.
 ///
-/// A send of this wallet at the same nonce that landed at depth took it, and so
-/// did any transaction the rechecking node counts in the account's nonce at depth
-/// while it holds no receipt for this one.
+/// That's one of this wallet's sends at that nonce that landed at depth, or any transaction
+/// the rechecking node counts in the account's nonce at depth while it has no receipt for
+/// this one.
 fn judge(
     inputs: &PassInputs<'_>,
     ledger: &Ledger,
@@ -282,7 +282,7 @@ fn judge(
             tracing::warn!(
                 target: TARGET,
                 txid = %entry.txid,
-                "an inclusion was reorganised away and the transaction is pending again"
+                "an inclusion was reorganized away and the transaction is pending again"
             );
             verdicts.depths.push(TxConfirmation {
                 txid: TxId::new(chain, entry.txid.to_string()),

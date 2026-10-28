@@ -1,9 +1,8 @@
-//! TRON prices are set by governance rather than a market, and a transaction
-//! costs what the resource model says at the prices the chain publishes.
+//! TRON's resource prices are set by governance, not a market.
 //!
-//! Those prices move, as when `getEnergyFee` fell from 210 to 100 sun in August
-//! 2025, so they are read at most every five minutes and cached. The compiled
-//! figures are only a stand-in, and a quote says when it uses them.
+//! They do move (`getEnergyFee` fell from 210 to 100 sun in August 2025), so we
+//! read them at most every five minutes and cache them. The compiled figures are
+//! only a stand-in, and a quote says when it uses them.
 
 use std::time::Duration;
 
@@ -18,7 +17,6 @@ const TARGET: &str = "jelly::tron::params";
 /// How long the governance parameters are reused before being read again.
 const PARAMS_TTL: Duration = Duration::from_secs(300);
 
-/// Governance parameters. Prices and fees are in sun.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ChainParams {
     /// `getTransactionFee`, in sun per bandwidth point.
@@ -36,8 +34,7 @@ pub(crate) struct ChainParams {
     pub(crate) create_account_bandwidth_rate: u64,
     /// `getMaxFeeLimit`, the protocol ceiling on `raw_data.fee_limit`.
     pub(crate) max_fee_limit_sun: u64,
-    /// False when a node did not report a usable value for both prices a quote
-    /// is built on and the compiled figures are standing in.
+    /// True only when a node reported usable bandwidth and energy prices.
     pub(crate) is_from_chain: bool,
 }
 
@@ -57,11 +54,8 @@ impl ChainParams {
 
 impl From<&ChainParameters> for ChainParams {
     /// Keeps the compiled value for any key the node omits or reports as
-    /// negative.
-    ///
-    /// `is_from_chain` holds only when both prices a quote is built on were read
-    /// from the node, so a partial or unusable answer is still labelled as
-    /// compiled.
+    /// negative. `is_from_chain` needs both prices from the node, so a partial
+    /// answer is still labeled compiled.
     fn from(reported: &ChainParameters) -> Self {
         let reported_value = |key: &str| {
             let value = reported.get(key)?;
@@ -88,12 +82,11 @@ impl From<&ChainParameters> for ChainParams {
     }
 }
 
-/// The cached copy of the governance parameters.
+/// The mutex is held across the fetch, so a burst of quotes costs one read.
 ///
-/// The mutex is held across the fetch, so a burst of quotes costs one read. A
-/// failed read caches the compiled figures for the same interval rather than
-/// re-asking on every quote, and every quote built meanwhile says which figures
-/// it used.
+/// A failed read caches the compiled figures for the same interval instead of
+/// re-asking on every quote, and quotes built meanwhile say which figures they
+/// used.
 #[derive(Debug, Default)]
 pub(crate) struct ParamCache {
     held: AsyncMutex<Option<Held>>,
@@ -119,8 +112,8 @@ impl ParamCache {
                 tracing::debug!(
                     target: TARGET,
                     %error,
-                    "no node reported the fee parameters; the next five minutes of quotes use the \
-                     compiled figures and say so"
+                    "no node reported the fee parameters, so quotes use the compiled figures for \
+                     five minutes"
                 );
                 ChainParams::FALLBACK
             }

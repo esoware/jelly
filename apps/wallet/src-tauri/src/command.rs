@@ -1,13 +1,9 @@
-//! IPC handlers wait for startup, delegate to the engine or services, and map errors for
-//! the frontend.
+//! A startup timeout returns `Starting` without running the command. Work runs in a joined
+//! task so a panic becomes `Panic` instead of a promise that never settles.
 //!
-//! A startup timeout returns `Starting` without attempting the command. Work runs in a
-//! joined task so a panic returns `Panic` rather than leaving the frontend promise
-//! unresolved.
-//!
-//! IPC deserializes secret arguments into plain strings. Handlers move them into `secrecy`
-//! or `zeroize` types before use. Serialization can leave unwipeable copies, so secret
-//! exports require separate authorization.
+//! Secret arguments arrive as plain strings, and handlers move them into `secrecy` or
+//! `zeroize` types before use. Serializing a secret leaves copies we can't wipe, so the
+//! commands that return one sit in their own capability.
 
 #![expect(
     clippy::unreachable,
@@ -41,8 +37,7 @@ use crate::state::AppState;
 
 const TARGET: &str = "jelly::app::command";
 
-/// A secret a command hands the interface, kept in its zeroizing buffer until serde writes
-/// it out.
+/// A secret for the frontend, kept in its zeroizing buffer until serde writes it out.
 #[derive(Type)]
 #[specta(transparent, inline)]
 pub(crate) struct RevealedSecret(#[specta(type = String)] Zeroizing<String>);
@@ -91,8 +86,8 @@ where
     tokio::spawn(work(services)).await?
 }
 
-/// Opens a built-in explorer page in the system's default browser, which can block while
-/// it starts.
+/// Opens a built-in explorer URL in the default browser, on a blocking thread because
+/// launching the browser can block.
 async fn open_explorer(url: String) -> Result<(), IpcError> {
     spawn_blocking(move || {
         tauri_plugin_opener::open_url(url, None::<&str>)

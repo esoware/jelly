@@ -5,8 +5,8 @@ use crate::command::with_engine;
 use crate::error::IpcError;
 use crate::state::AppState;
 
-/// Wakes the sync loop of `chain`, or of every chain with an adapter when it is `None`,
-/// and returns the IDs it woke. It does not start overlapping passes.
+/// Wakes the sync loop of `chain`, or of every chain with an adapter when it's `None`, and
+/// returns the chains it woke. It never starts a pass of its own, so passes can't overlap.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn sync_now(
@@ -45,8 +45,7 @@ pub(crate) async fn set_poll_interval(
     with_engine(&state, async move |engine| engine.set_poll_interval(chain, poll_secs).await).await
 }
 
-/// Sets the block the chain's scan starts from. `None` clears it, so the scan starts from
-/// block zero.
+/// Sets the block the chain's scan starts from. `None` starts it from block zero.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn set_restore_height(

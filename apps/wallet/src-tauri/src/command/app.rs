@@ -7,27 +7,24 @@ use crate::error::IpcError;
 use crate::state::{AppState, StartupStatus};
 use crate::window::{WINDOW_CONTROLS, WindowBackdrop, WindowControls};
 
-/// Asset scale and symbol come from `AssetMeta`.
-/// Templates use `{index}`, `{txid}`, and `{address}` placeholders.
+/// Scale and symbol are in `AssetMeta`. The path and explorer templates use `{index}`,
+/// `{txid}`, and `{address}` placeholders.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "each flag is a separate capability the interface reads on its own, not a state of one thing"
-)]
+#[expect(clippy::struct_excessive_bools, reason = "independent capability flags")]
 pub(crate) struct ChainMeta {
     chain: ChainId,
     name: &'static str,
-    /// The chain the coin is native to, such as Ethereum on a rollup that pays fees in
+    /// The chain the coin is native to, such as Ethereum for a rollup that pays fees in
     /// ether.
     coin_chain: ChainId,
     fee_rate_unit: Option<&'static str>,
     /// The fee levels a send can pick from, slowest first. Empty on a chain whose
     /// protocol fixes the fee.
     fee_levels: &'static [FeeLevel],
-    /// What a custom fee names, or `None` when the chain takes only its levels.
+    /// What a custom fee sets, or `None` if the chain takes no custom fee.
     custom_fee: Option<CustomFee>,
-    /// Whether a send can replace the account's next nonce.
+    /// Whether a send can set its own nonce in place of the account's next one.
     can_pin_nonce: bool,
     /// Whether a send can carry calldata in place of the generated transfer.
     can_carry_data: bool,
@@ -39,22 +36,21 @@ pub(crate) struct ChainMeta {
     explorer_address_url: Option<&'static str>,
     can_bump_fee: bool,
     can_cancel: bool,
-    /// Whether a send can delete its sending account, as an XRP account deletion does.
+    /// Whether a send can delete the sending account, as XRP's `AccountDelete` does.
     can_delete_account: bool,
     /// Whether a payment can carry a destination tag, the number a shared receiving
     /// account files it under.
     has_destination_tags: bool,
-    /// Whether a payment can carry a comment, the text a recipient credits it by.
+    /// Whether a payment can carry a comment, the text a shared receiving account files
+    /// it under.
     has_comments: bool,
     has_subaddresses: bool,
     can_hold_standalone_keys: bool,
-    /// Whether one send can spend the coins of several addresses at once, which only a
-    /// UTXO chain can.
+    /// Whether one send can spend coins from several addresses, as only a UTXO chain can.
     can_pool_sources: bool,
 }
 
-/// Asset scale, symbol, and name used by the frontend. Contract addresses remain on
-/// `TokenId` for chain adapters.
+/// What the frontend shows for an asset. Contract addresses stay in Rust on `TokenId`.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AssetMeta {
@@ -66,7 +62,7 @@ pub(crate) struct AssetMeta {
     is_real_world_asset: bool,
 }
 
-/// Works before the engine starts, and touches no database, vault, or network.
+/// Works before the engine starts and touches no database, vault, or network.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn get_app_version(handle: AppHandle) -> Result<String, IpcError> {
@@ -79,7 +75,7 @@ pub(crate) async fn get_data_dir(state: State<'_, AppState>) -> Result<String, I
     Ok(state.data_dir().display().to_string())
 }
 
-/// Reports startup failures independently of commands that wait for the engine.
+/// Answers at once, unlike the commands that wait for startup.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn get_startup_status(
@@ -88,7 +84,8 @@ pub(crate) async fn get_startup_status(
     Ok(state.status())
 }
 
-/// Saves a replacement proxy without starting networking. Reopen Jelly afterward.
+/// Saves a replacement proxy without starting networking. It takes effect once Jelly is
+/// reopened.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn repair_proxy(
@@ -166,7 +163,6 @@ pub(crate) async fn list_chain_metadata() -> Result<Vec<ChainMeta>, IpcError> {
     Ok(metadata.collect())
 }
 
-/// Includes the decimals used to display amounts.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn list_asset_metadata() -> Result<Vec<AssetMeta>, IpcError> {

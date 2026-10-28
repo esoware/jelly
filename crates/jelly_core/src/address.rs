@@ -50,8 +50,7 @@ pub trait AddressCodec: Send + Sync + fmt::Debug {
         Err(AddressError::NoScript { chain: self.chain() })
     }
 
-    /// Script flavor of an already-valid address, for chains that have
-    /// flavors.
+    /// The script flavor of an already-valid address, for chains that have flavors.
     fn script_kind(&self, _value: &str) -> Option<ScriptKind> {
         None
     }
@@ -85,8 +84,8 @@ pub enum AddressError {
     WrongNetwork { chain: ChainId },
     #[error("The {} network does not use output scripts.", chain.display_name())]
     NoScript { chain: ChainId },
-    /// A payment URI asks for something the payment depends on and Jelly cannot send,
-    /// such as a Solana Pay reference or a Monero payment ID.
+    /// A payment URI asks for something the payment depends on and Jelly can't send, such
+    /// as a Solana Pay reference or a Monero payment ID.
     #[error(
         "This {} payment request needs something Jelly cannot send. Ask the recipient for a plain address.",
         chain.display_name()

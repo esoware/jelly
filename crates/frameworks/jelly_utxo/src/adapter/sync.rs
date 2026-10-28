@@ -1,6 +1,3 @@
-//! Runs sync using the current watch set and cursors. Emits an address's records before
-//! advancing its cursor, then reconciles claimed coins against the verified unspent set.
-
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -27,11 +24,9 @@ pub(crate) struct SyncOutcome {
     pub(crate) state: ChainState,
 }
 
-/// Never advances a cursor past data the interface did not receive.
-///
-/// A cursor is written only after its address's records were emitted, and
-/// nothing is written until the Electrum pass succeeds, so a pass that fails
-/// there leaves every stored cursor intact.
+/// Never advances a cursor past records that haven't been emitted. Each cursor is
+/// written after its address's records, and none is written unless the Electrum pass
+/// succeeds.
 ///
 /// `pending` holds the mempool transactions the last pass decoded, by address.
 pub(crate) async fn run(
@@ -91,9 +86,8 @@ pub(crate) async fn run(
 
 /// The stored cursors of `watched`, by address, in one read.
 ///
-/// A cursor that does not decode is [`UtxoError::UnreadableState`] rather than no
-/// cursor at all, because the pending bookkeeping it holds cannot be rebuilt from
-/// history.
+/// A cursor that doesn't decode is [`UtxoError::UnreadableState`], not a missing one,
+/// since its pending bookkeeping can't be rebuilt from history.
 pub(crate) async fn load_cursors<'a>(
     params: &UtxoParams,
     cursors: &dyn CursorStore,
@@ -116,12 +110,10 @@ pub(crate) async fn load_cursors<'a>(
         .collect()
 }
 
-/// Emits the lossless records first and the coalesced balance last, the order
-/// the pump expects.
+/// Emits the records first and the balance last, the order the pump expects.
 ///
-/// An unchanged address has no records but reports its balance all the same,
-/// because a full queue drops what `try_emit` offers and the history that has not
-/// moved would never send it again.
+/// An unchanged address still reports its balance. `try_emit` drops a report when the
+/// queue is full, and an unchanged history would never send it again.
 async fn publish(
     params: &UtxoParams,
     events: &dyn EventSink,

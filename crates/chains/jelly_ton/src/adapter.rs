@@ -161,12 +161,12 @@ impl PendingTracker for TonAdapter {
     }
 }
 
-/// Takes no part in sync's state, so it does not wait for a pass to finish.
+/// Reads no sync state, so it doesn't wait for a pass to finish.
 ///
-/// Every call is paced, so an address stops being asked about at the first sign of use:
-/// its own account first, then for each registry jetton the wallet the master names for
-/// it and that wallet's account. A wallet that only ever received jettons has no Gram
-/// history of its own, and its deployed jetton wallet is what shows it in use.
+/// Every call is paced, so the probe stops at an address's first sign of use: its own
+/// account first, then for each registry jetton the wallet the master names for it and
+/// that wallet's account. A wallet that only ever received jettons has no Gram history,
+/// so only its deployed jetton wallet shows it was used.
 #[async_trait]
 impl ScriptProbe for TonAdapter {
     async fn used(&self, addresses: &[Address]) -> Result<Vec<Address>, ChainError> {

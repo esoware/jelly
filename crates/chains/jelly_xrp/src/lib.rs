@@ -1,4 +1,4 @@
-//! XRP on the XRP Ledger mainnet: its chain entry, address codec, and native payments.
+//! XRP Ledger mainnet.
 
 #![deny(clippy::float_arithmetic)]
 

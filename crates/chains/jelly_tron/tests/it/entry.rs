@@ -74,8 +74,7 @@ fn imported_address(input: &str) -> Result<String, KeyError> {
     address_of(&ENTRY.import_key(input, None)?.material)
 }
 
-/// The TRON spelling of an EVM address, encoded by `bs58` rather than by the code under
-/// test.
+/// The TRON spelling of an EVM address, encoded by `bs58`, not by the code under test.
 fn tron_of_evm(evm_hex: &str) -> Result<String, hex::FromHexError> {
     let mut body = vec![0x41];
     body.extend(hex::decode(evm_hex)?);
@@ -265,8 +264,8 @@ fn a_keystore_document_asks_for_its_password_and_then_imports() {
     assert_eq!(ENTRY.export_key(&imported.material).expect("export").as_str(), suite.secret);
 }
 
-/// Another chain's key or a phrase is no TRON key. The chain table names the chain it
-/// belongs to.
+/// Another chain's key or a phrase isn't a TRON key. The chain table says what it is
+/// instead.
 #[test]
 fn keys_in_other_encodings_are_not_recognized() {
     for input in [

@@ -17,7 +17,7 @@ use crate::shape::{BlockRef, ContractResult, TransactionInfo};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Tracked {
-    /// The sixty-four character hex transaction id, which is `sha256(raw_data)`.
+    /// `sha256(raw_data)` as 64 hex characters.
     pub(crate) txid: String,
     /// The row of the watched address that paid for it.
     pub(crate) address_id: i64,
@@ -32,14 +32,14 @@ pub(crate) struct Tracked {
     pub(crate) expiration_millis: i64,
     /// The signed bytes, hex, for a resend. A signed transaction is public.
     pub(crate) raw: String,
-    /// False while the bytes have been signed but not yet handed to an endpoint.
+    /// False while the bytes are signed but not yet handed to an endpoint.
     #[serde(rename = "sent")]
     pub(crate) is_sent: bool,
 }
 
 impl Tracked {
-    /// The start of every record a follow-up writes for this send, decoded in full
-    /// and naming its recipient.
+    /// The base of every record follow-up writes for this send, fully decoded and
+    /// naming its recipient.
     fn record(&self, moved: Amount, outcome: TxOutcome, fee: Amount) -> TxRecordBuilder {
         let direction = if self.recipient == self.owner {
             TxDirection::SelfTransfer
@@ -64,22 +64,22 @@ impl Tracked {
     pub(crate) fn landed_record(&self, landed: &Landed, tip_height: u64) -> TxRecord {
         let outcome =
             if landed.result.is_success() { TxOutcome::Success } else { TxOutcome::Failed };
-        // A failed transaction moved nothing, and a record that says otherwise
-        // would contribute to a total that never happened.
+        // A failed transaction moved nothing, so its record mustn't add to any
+        // total.
         let moved = if landed.result.is_success() { self.amount } else { Amount::ZERO };
         self.record(moved, outcome, Amount::from(landed.fee_sun))
             .confirmed_at(landed.height, landed.timestamp_millis.map(millis_to_secs), tip_height)
             .build()
     }
 
-    /// Zero fee, because the network never accepted it. Stamped with head-block
-    /// time, which decided the expiry, rather than the local clock.
+    /// Zero fee, because the network never accepted it. Stamped with the head-block
+    /// time that decided the expiry, not the local clock.
     pub(crate) fn expired_record(&self, head_unix_secs: i64) -> TxRecord {
         self.record(Amount::ZERO, TxOutcome::Failed, Amount::ZERO).seen_at(head_unix_secs).build()
     }
 }
 
-/// TRON timestamps are milliseconds, and a record's timestamp is seconds.
+/// TRON timestamps are milliseconds, and a record's are seconds.
 pub(crate) const fn millis_to_secs(millis: i64) -> i64 {
     millis.saturating_div(1_000)
 }
@@ -94,10 +94,10 @@ pub(crate) struct Landed {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Verdict {
-    /// The transaction is in a block. `is_settled` is true once it is deep enough
-    /// that TRON considers it final, which is when the wallet stops following it.
+    /// The transaction is in a block. `is_settled` is true once it's deep enough
+    /// for TRON to consider it final, when the wallet stops tracking it.
     Landed { landed: Landed, is_settled: bool },
-    /// No receipt, and either a node still holds it or head-block time has not
+    /// No receipt, and either a node still holds it or head-block time hasn't
     /// reached its expiration. The same bytes are worth sending again.
     InFlight,
     /// No receipt, no node holds it, and head-block time has reached the
@@ -108,7 +108,7 @@ pub(crate) enum Verdict {
 /// Judges where a send stands from its receipt and the tip.
 ///
 /// `is_held` is whether any node answered `gettransactionbyid`, which covers the
-/// pool, so a transaction in a mempool is in flight however long it has waited.
+/// pool, so a transaction in a mempool is in flight however long it's waited.
 /// Expiry is judged by the tip's timestamp, the clock the network uses.
 pub(crate) fn verdict(
     info: &TransactionInfo,
@@ -132,8 +132,8 @@ pub(crate) fn verdict(
     Verdict::Expired
 }
 
-/// java-tron refuses a transaction whose expiration is not after the head block's
-/// timestamp, so from that block on none can include it.
+/// java-tron refuses a transaction whose expiration isn't after the head block's
+/// timestamp, so no block from then on can include it.
 pub(crate) const fn has_expired(tip: &BlockRef, expiration_millis: i64) -> bool {
     tip.timestamp_millis >= expiration_millis
 }
@@ -202,9 +202,8 @@ mod tests {
 
     #[test]
     fn a_send_that_expired_records_a_zero_fee_because_nothing_was_charged() {
-        // The head block that decided the expiry is what the record is stamped
-        // with, so it lands in history where it happened whatever the local
-        // clock says.
+        // Stamped with the head block that decided the expiry, so it lands in
+        // history where it happened whatever the local clock says.
         let record = tracked("aa", 7).expired_record(millis_to_secs(1_786_599_999_000));
         assert_eq!(record.outcome, TxOutcome::Failed);
         assert_eq!(record.fee, Some(Amount::ZERO));

@@ -16,17 +16,17 @@ use crate::params::UtxoParams;
 use crate::payload::UtxoPayload;
 use crate::script::{SpendableScript, UtxoScript};
 
-/// `SIGHASH_ALL`, the only type this build signs with.
+/// `SIGHASH_ALL`, the only ECDSA sighash type this build signs with.
 const SIGHASH_ALL: u32 = 0x01;
 
 /// `SIGHASH_FORKID`, which Bitcoin Cash requires on every signature.
 const SIGHASH_FORKID: u32 = 0x40;
 
-/// A signed transaction with its wire bytes and txid, produced together so
-/// nothing can serialize a different transaction than the one signed.
+/// A signed transaction's wire bytes and txid, produced together so nothing can
+/// serialize a different transaction than the one signed.
 ///
-/// The encoder emits the BIP-144 marker only when an input carries a witness,
-/// because nodes reject a witness serialization with no witness data.
+/// The encoder writes the BIP-144 marker only when an input has a witness, since
+/// nodes reject a witness serialization with no witness data.
 #[derive(Debug, Clone)]
 pub(crate) struct Signed {
     raw: Vec<u8>,
@@ -52,10 +52,10 @@ impl Signed {
 /// Signs every input with the key of the source it spends from, with no network I/O
 /// or retained state.
 ///
-/// `keys` holds one key per source of the payload, in its order, and each source's
-/// address is re-derived from its key and compared before anything is hashed.
+/// `keys` holds one key per payload source, in the same order. Each source's address
+/// is re-derived from its key and compared before any of its inputs is signed.
 ///
-/// An input that spends from no source is refused, so nothing leaves unsigned.
+/// An input that spends from no source is refused, so nothing goes out unsigned.
 pub(crate) fn sign_tx(
     params: &UtxoParams,
     payload: &UtxoPayload,
@@ -104,7 +104,7 @@ pub(crate) fn sign_tx(
 struct Signer<'a> {
     source: &'a str,
     own: &'a SpendableScript,
-    /// The inputs that spend from it.
+    /// Indices of the inputs that spend from it.
     ours: &'a [usize],
 }
 
@@ -117,9 +117,9 @@ fn sign_with(
     let mut key = SecretKey::from_slice(secret)
         .map_err(|_| UtxoError::signing("the key is not a valid secp256k1 scalar"))?;
     let mut keypair = Keypair::from_secret_key(signing_context(), &key);
-    // The keypair holds its own copy of the scalar from here on, so the loose one
-    // goes immediately. `fill` wipes each copy it derives for one signature, and
-    // the keypair is wiped on every path out of `Signer::sign`.
+    // The keypair has its own copy of the scalar, so wipe this one now. `fill` wipes
+    // each copy it derives for a signature, and the keypair is wiped below on every
+    // path out of `Signer::sign`.
     key.non_secure_erase();
 
     let outcome = signer.sign(params, &keypair, signing);
@@ -128,8 +128,7 @@ fn sign_with(
 }
 
 impl Signer<'_> {
-    /// Split out so the caller can wipe the key on every path out of it rather than
-    /// at each early return.
+    /// Split out so the caller can wipe the keypair once, whichever way this returns.
     fn sign(
         &self,
         params: &UtxoParams,
@@ -243,8 +242,8 @@ impl<'a> SigningTx<'a> {
                             (digest, sighash_type)
                         }
                     };
-                    // A script pushes the DER signature with the low byte of its sighash
-                    // type, whatever the digest committed to.
+                    // The pushed signature carries only the low byte of the sighash type,
+                    // even when the digest committed to all of it.
                     let mut secret = keypair.secret_key();
                     let signed =
                         signing_context().sign_ecdsa(&Message::from_digest(digest), &secret);
@@ -272,13 +271,12 @@ fn fork_id_sighash_type(fork_id: u32) -> Result<u32, UtxoError> {
         .ok_or(UtxoError::signing("the fork id does not fit the sighash type"))
 }
 
-/// Bitcoin Cash's replay-protected digest, the BIP-143 algorithm over a legacy
-/// input with `sighash_type` committed whole, which is what makes a Bitcoin node
-/// refuse the signature.
+/// Bitcoin Cash's replay-protected digest: BIP-143 over a legacy input, committing to
+/// all of `sighash_type`. A Bitcoin node checks a different digest, so it refuses the
+/// signature.
 ///
-/// Only `SIGHASH_ALL` is built, so every input, sequence, and output is hashed.
-/// The spent output carries no token prefix, because a coin with tokens is never
-/// spent.
+/// Only `SIGHASH_ALL` is built, so every input, sequence, and output is hashed. The
+/// spent output carries no token prefix, because a coin with tokens is never spent.
 fn fork_id_digest(
     tx: &Transaction,
     index: usize,
@@ -315,7 +313,7 @@ fn fork_id_digest(
 }
 
 /// One BIP-143 signature over `script_code`, with the `SIGHASH_ALL` byte attached.
-/// `secp256k1` signs with RFC-6979 nonces and normalizes to low S, so it is
+/// `secp256k1` signs with RFC-6979 nonces and normalizes to low S, so it's
 /// deterministic.
 fn segwit_v0(
     cache: &mut SighashCache<&Transaction>,
@@ -396,8 +394,6 @@ mod tests {
         }
     }
 
-    /// The encoder emits the BIP-144 marker only when an input carries a witness,
-    /// because nodes reject a witness serialization with no witness data.
     #[test]
     fn a_witnessless_transaction_goes_out_in_the_legacy_form() {
         // The version is followed directly by the input count, with no 0x00 0x01
@@ -465,7 +461,6 @@ mod tests {
         }
     }
 
-    /// The signature verifies over the BIP-143 digest with the address's own key.
     #[test]
     fn a_segwit_v0_signature_verifies_against_the_address_key() {
         let scene = bitcoin_scene().unwrap();
@@ -566,7 +561,7 @@ mod tests {
         ));
     }
 
-    /// Our own fixture keys, one of each kind, and coins of each worth `value`.
+    /// One fixture key per kind, each with one coin worth `value`.
     fn mixed(kinds: &[ScriptKind], value: u64) -> Fallible<(Vec<TestKey>, Vec<Utxo>)> {
         let mut keys = Vec::new();
         let mut coins = Vec::new();
@@ -697,7 +692,7 @@ mod tests {
     }
 
     /// Change goes to the first source even when none of its coins was needed, and
-    /// its key then has nothing to sign, which is not an error.
+    /// its key then has nothing to sign, which isn't an error.
     #[test]
     fn a_first_source_that_only_receives_change_still_signs() {
         let scene = bitcoin_scene().unwrap();

@@ -7,16 +7,16 @@ use jelly_keypair::verification_context;
 use crate::legacy::{Base58Versions, Legacy};
 use crate::script::UtxoScript;
 
-/// A 21-byte payload and its checksum never take more base58 characters than this, so
-/// longer text is refused by its length before any character is read.
+/// More base58 characters than a 21-byte payload and its checksum can take, so longer
+/// text is refused by length before any character is read.
 const MAX_LEGACY_CHARS: usize = 50;
 
-/// The codec of a chain that writes Bitcoin's address forms: segwit addresses in bech32
-/// and bech32m under the chain's human-readable part, and the base58 P2PKH and P2SH
-/// forms under its version bytes.
+/// The codec for chains that use Bitcoin's address forms: bech32 and bech32m segwit
+/// addresses under the chain's human-readable part, and base58 P2PKH and P2SH under
+/// its version bytes.
 ///
-/// A form this wallet derives no key for is still a form it can pay, so P2WSH and
-/// unknown witness versions produce an output script but answer `None` to
+/// The wallet can pay forms it derives no key for, so P2WSH and unknown witness
+/// versions produce an output script but answer `None` to
 /// [`AddressCodec::script_kind`].
 #[derive(Debug)]
 pub struct UtxoCodec {
@@ -28,7 +28,7 @@ pub struct UtxoCodec {
     pub base58: Base58Versions,
 }
 
-/// `kind` is the single-key flavour the output matches, if any.
+/// `kind` is the single-key flavor the output matches, if any.
 struct Parsed {
     canonical: String,
     script: ScriptBuf,
@@ -69,9 +69,8 @@ impl UtxoCodec {
         self.segwit_hrp.map(Hrp::parse_unchecked)
     }
 
-    /// Bech32 is tried first because it names the human-readable part, so an address
-    /// for another network is reported as such rather than as a broken base58
-    /// checksum.
+    /// Tries bech32 first because it names the network, so another network's address
+    /// is reported as one instead of as a bad base58 checksum.
     fn parse(&self, value: &str) -> Result<Parsed, AddressError> {
         let chain = self.chain;
         let trimmed = value.trim();
@@ -125,7 +124,7 @@ impl UtxoCodec {
     }
 
     /// A P2SH address reads as wrapped segwit on a chain with segwit, because the hash
-    /// hides the redeem script, and as no single-key flavour on a chain without it.
+    /// hides the redeem script, and as no single-key flavor on a chain without it.
     fn parse_base58(&self, value: &str) -> Result<Parsed, AddressError> {
         let legacy = self.base58.decode(self.chain, value)?;
         let kind = match legacy {
@@ -136,13 +135,13 @@ impl UtxoCodec {
     }
 }
 
-/// Why `value`, spelled as a segwit address of `chain`, does not decode as one. `None`
-/// when it decodes, or when it is not spelled as one and may be base58.
+/// Why `value`, spelled as a segwit address of `chain`, doesn't decode as one. `None`
+/// when it decodes, or when it isn't spelled as one and may be base58.
 ///
 /// A string the segwit decoder recognizes as bech32 is judged by that decoder alone, and
-/// so is one that begins with the chain's own `hrp` and separator, which no base58
-/// address on a chain with segwit does. A base58 reading of a mistyped segwit address
-/// would describe base58.
+/// so is one that starts with the chain's own `hrp` and separator, which no base58
+/// address on a segwit chain does. Otherwise a mistyped segwit address would get a
+/// base58 error.
 fn segwit_error(chain: ChainId, hrp: &str, value: &str) -> Option<AddressError> {
     let error = segwit::decode(value).err()?;
     Some(match error.0 {
@@ -177,7 +176,7 @@ fn segwit_error(chain: ChainId, hrp: &str, value: &str) -> Option<AddressError> 
     })
 }
 
-/// The output script `pubkey` pays in the `script` flavour.
+/// The output script that pays `pubkey` in the `script` flavor.
 ///
 /// P2TR is the BIP-86 key-path-only output. The internal key is tweaked by
 /// `tagged_hash("TapTweak", ser_x(P))` with no script tree, as an `m/86'` path

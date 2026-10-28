@@ -32,7 +32,7 @@ pub trait Clock: Send + Sync + fmt::Debug {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
 pub enum ClockError {
-    #[error("the system clock is before the unix epoch")]
+    #[error("the system clock is before the Unix epoch")]
     BeforeEpoch,
     #[error("the system clock is outside the representable range")]
     OutOfRange,
@@ -42,14 +42,14 @@ pub enum ClockError {
 pub struct SystemClock;
 
 impl Clock for SystemClock {
-    #[expect(clippy::disallowed_methods, reason = "this is the workspace's only wall clock")]
+    #[expect(clippy::disallowed_methods, reason = "the only wall clock")]
     fn now_millis(&self) -> Result<u64, ClockError> {
         let since_epoch =
             SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| ClockError::BeforeEpoch)?;
         u64::try_from(since_epoch.as_millis()).map_err(|_| ClockError::OutOfRange)
     }
 
-    #[expect(clippy::disallowed_methods, reason = "this is the workspace's only monotonic clock")]
+    #[expect(clippy::disallowed_methods, reason = "the only monotonic clock")]
     fn elapsed_millis(&self) -> u64 {
         // One process-wide origin, so every SystemClock agrees on the scale.
         static ORIGIN: OnceLock<Instant> = OnceLock::new();
@@ -58,8 +58,8 @@ impl Clock for SystemClock {
     }
 }
 
-/// An absolute deadline on a `Clock`'s monotonic scale. All endpoint attempts share this
-/// deadline so retries cannot multiply the request budget.
+/// An absolute deadline on a `Clock`'s monotonic scale. Every endpoint attempt shares one,
+/// so retries can't multiply the request budget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Deadline {
     at_elapsed_millis: u64,
@@ -71,19 +71,18 @@ impl Deadline {
 
     pub const EXPIRED: Self = Self { at_elapsed_millis: 0 };
 
-    /// How far past the deadline a pass that checks it may run before it is abandoned.
-    /// Such a pass notices the deadline only between requests, so this covers the request
-    /// in flight when it passes and the writes that keep what the pass did. It is shorter
-    /// than the engine's own watchdog grace, so a pass cut off here still reports its own
-    /// failure.
+    /// How long a pass may overrun its deadline before it's abandoned. A pass checks the
+    /// deadline only between requests, so this covers the request in flight and the writes
+    /// that save its progress. It's shorter than the engine's watchdog grace, so a pass cut
+    /// off here still reports its own failure.
     pub const GRACE: Duration = Duration::from_secs(15);
 
     pub fn remaining(self, clock: &dyn Clock) -> Duration {
         Duration::from_millis(self.at_elapsed_millis.saturating_sub(clock.elapsed_millis()))
     }
 
-    /// The real time from now until a pass under this deadline is abandoned, which is
-    /// [`Self::GRACE`] past the deadline itself.
+    /// The time from now until a pass under this deadline is abandoned, [`Self::GRACE`]
+    /// past the deadline itself.
     pub fn cutoff(self, clock: &dyn Clock) -> Duration {
         self.remaining(clock).saturating_add(Self::GRACE)
     }

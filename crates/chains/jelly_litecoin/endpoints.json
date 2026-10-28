@@ -1,6 +1,6 @@
 {
   "chain": "litecoin",
-  "note": "Public Fulcrum and ElectrumX-LTC servers, drawn from the electrum-ltc default list, the Cake Wallet and Stack Wallet lists, and known community servers, each verified with server.version, server.features reporting Litecoin's block zero, a blockchain.headers.subscribe tip read, and a batch of history reads over TLS. The protocol is the same as Bitcoin Electrum; only the network constants and the address encoding differ. Servers that failed to answer, refused the connection, or reported a tip days behind the network at verification time are omitted, and Fulcrum is listed ahead of older ElectrumX builds. The fee API row is the litecoinspace REST service.",
+  "note": "Public Fulcrum and ElectrumX servers from the electrum-ltc default list, the Cake Wallet and Stack Wallet lists, and known community servers, each checked over TLS with server.version, server.features reporting Litecoin's block zero, a blockchain.headers.subscribe tip read, and a batch of history reads. Servers that didn't answer, refused the connection, or were days behind the network were left out, and Fulcrum is listed ahead of ElectrumX. The fee API row is the litecoinspace.org REST service.",
   "endpoints": [
     {
       "url": "ssl://ltc-electrum.cakewallet.com:50002",

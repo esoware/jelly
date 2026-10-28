@@ -358,8 +358,8 @@ fn an_export_checks_the_password_before_it_looks_up_the_entry() {
         vault.verify_password(&password("not the password")),
         Err(VaultError::WrongPassword)
     ));
-    // The re-authentication happens before the lookup, so a wrong password
-    // cannot be used to ask what the vault holds.
+    // The password is checked before the lookup, so a wrong one can't probe what the
+    // vault holds.
     assert!(matches!(
         vault.export(&password("not the password"), BlobKind::SeedPassphrase),
         Err(VaultError::WrongPassword)

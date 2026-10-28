@@ -14,21 +14,20 @@ use crate::transport::Transport;
 use crate::wire_enum;
 
 wire_enum! {
-    /// A third-party service a stored API key unlocks. An adapter asks for the key of the
-    /// service it talks to, so which chains share a key is no concern of the engine's.
+    /// A third-party service a stored API key unlocks. Adapters ask by service, so the
+    /// engine doesn't need to know which chains share a key.
     pub enum KeyService {
         Etherscan => "etherscan",
         TronGrid => "trongrid",
     }
 }
 
-/// Session data and settings for one adapter rebuild, read once so every chain in a
-/// generation sees the same settings.
+/// Session data and settings for one adapter rebuild, read once so every chain in it sees
+/// the same settings.
 ///
-/// Cursors retain the wallet ID so a retired adapter cannot write into the next session's
-/// vault. The API keys are as stored, where a cleared one can be an empty string, and
-/// [`BuildRequest::with_api_key`] reads through that. `Debug` reports only which services have
-/// a key, so a log never echoes one.
+/// The cursor store keeps the wallet ID, so a retired adapter can't write into the next
+/// session's vault. Read API keys through [`BuildRequest::with_api_key`]. `Debug` lists only
+/// which services have a key.
 #[derive(Clone)]
 pub struct BuildRequest {
     pub chains: Vec<ChainId>,
@@ -36,8 +35,8 @@ pub struct BuildRequest {
     pub proxy: Option<ProxySetting>,
     pub api_keys: BTreeMap<KeyService, SecretText>,
     /// The height a chain's scan may start from, for a chain whose wallet records a
-    /// birthday. Zero is the safe default, because a height above the true birthday
-    /// silently misses funds while one below only costs scanning time.
+    /// birthday. Zero is the safe default: starting above the true birthday silently misses
+    /// funds, while starting below it only costs scan time.
     pub restore_heights: BTreeMap<ChainId, u64>,
     /// The account key of each chain whose spec needs one to scan, when the open wallet
     /// holds it.
@@ -45,8 +44,8 @@ pub struct BuildRequest {
 }
 
 impl BuildRequest {
-    /// A cleared field is stored as an empty string. A blank key must mean no service,
-    /// because a history client rejects one and would fail the whole adapter.
+    /// Trims the key and reads a blank one as none. Clearing a key stores an empty string,
+    /// which a history client would reject, failing the whole adapter.
     pub fn with_api_key<R>(&self, service: KeyService, read: impl FnOnce(Option<&str>) -> R) -> R {
         match self.api_keys.get(&service) {
             Some(key) => key.with_str(|key| read(Some(key.trim()).filter(|key| !key.is_empty()))),
@@ -81,18 +80,15 @@ impl fmt::Debug for BuildRequest {
 pub enum BuildError {
     #[error("{} has no {transport} endpoint configured", chain.display_name())]
     NoEndpoints { chain: ChainId, transport: Transport },
-    /// The chain cannot be scanned from public data, so an adapter for it exists only
-    /// while the session holds the account key.
-    #[error("{} cannot sync without its account key", chain.display_name())]
+    /// The chain can't be scanned from public data, so it has an adapter only while the
+    /// session holds the account key.
+    #[error("{} can't sync without its account key", chain.display_name())]
     NoKeys { chain: ChainId },
     #[error(transparent)]
     Failed(#[from] ChainError),
 }
 
 impl BuildError {
-    /// An empty rotation and a missing key are answers rather than failures, and the
-    /// registry reports them differently from a build that broke. Everything else is a
-    /// failed build that the next rebuild retries.
     pub const fn skip_reason(&self) -> SkipReason {
         match *self {
             Self::NoEndpoints { .. } => SkipReason::NoEndpoints,
@@ -104,26 +100,22 @@ impl BuildError {
 
 wire_enum! {
     #[cfg_attr(feature = "ipc", derive(specta::Type))]
-    /// Why a chain has no adapter after a rebuild. The engine already knows which chains
-    /// the wallet switched off, so a builder never reports that.
-    ///
-    /// The reasons are separate because each is a different problem. An empty rotation is
-    /// configuration, a missing key is a permanent property of the wallet, and anything
-    /// else is a failure the next rebuild retries.
+    /// Why a chain has no adapter after a rebuild. A builder never reports a chain the
+    /// wallet switched off, since the engine already knows.
     pub enum SkipReason {
-        /// The endpoint registry offered nothing to talk to.
+        /// The endpoint registry offered nothing to talk to, which is a configuration
+        /// problem.
         NoEndpoints => "no_endpoints",
-        /// This wallet holds no key the chain can be scanned or spent with, and
-        /// no rebuild will change that.
+        /// This wallet holds no key the chain can be scanned or spent with, and no rebuild
+        /// will change that.
         NoKeys => "no_keys",
-        /// Endpoints exist but the adapter could not be constructed.
+        /// Endpoints exist but the adapter couldn't be built. The next rebuild retries.
         BuildFailed => "build_failed",
     }
 }
 
-/// What a builder decided about one chain. A chain either has an adapter or has
-/// a reason, so a chain that is silently missing is a builder defect the engine
-/// can name.
+/// What a builder decided about one chain. Every requested chain gets one, so a chain
+/// missing from the set is a builder defect the engine can name.
 #[derive(Debug, Clone)]
 pub enum ChainOutcome {
     Built(Arc<dyn ChainAdapter>),
@@ -132,9 +124,8 @@ pub enum ChainOutcome {
 
 /// The adapters for one unlocked wallet.
 ///
-/// Published as one immutable generation, so the sync loops and the command
-/// layer always read the same set and never a half-rebuilt one. Build one by
-/// collecting outcomes, because there is deliberately no mutating insert.
+/// Immutable and published whole, so the sync loops and commands never see a half-rebuilt
+/// set. Build one by collecting outcomes.
 #[derive(Debug, Default)]
 pub struct AdapterSet {
     outcomes: BTreeMap<ChainId, ChainOutcome>,
@@ -172,8 +163,8 @@ impl FromIterator<(ChainId, ChainOutcome)> for AdapterSet {
     }
 }
 
-/// How the engine obtains adapters. Implemented by the chain registry, because building
-/// one needs endpoints and every chain crate.
+/// How the engine obtains adapters. The chain registry implements it, since building one
+/// needs endpoints and every chain crate.
 #[async_trait]
 pub trait AdapterBuilder: Send + Sync + fmt::Debug {
     async fn build(&self, request: &BuildRequest) -> AdapterSet;

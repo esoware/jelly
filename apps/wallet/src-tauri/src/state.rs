@@ -20,11 +20,11 @@ use crate::services::{Services, ShellDeps, proxy_refused};
 
 const TARGET: &str = "jelly::app::state";
 
-/// Bounds command waits while startup opens storage and networking. A stalled startup must
-/// not leave IPC promises unresolved.
+/// How long a command waits for startup, so a stalled startup can't leave IPC promises
+/// unsettled.
 const READY_WAIT: Duration = Duration::from_secs(20);
 
-/// The ready state owns services, so readiness cannot disagree with their availability.
+/// The ready state owns services, so readiness can't disagree with their availability.
 #[derive(Debug, Clone)]
 pub(crate) enum Phase {
     Starting,
@@ -119,7 +119,7 @@ impl AppState {
         self.phase.subscribe()
     }
 
-    /// Does not wait, for callers such as exit that cannot block on startup.
+    /// Doesn't wait, for callers such as exit that can't block on startup.
     pub(crate) fn services_now(&self) -> Option<Arc<Services>> {
         match *self.phase.borrow() {
             Phase::Ready(ref services) => Some(Arc::clone(services)),
@@ -135,8 +135,7 @@ impl AppState {
             match settled {
                 Ok(Phase::Ready(services)) => Ok(services),
                 Ok(Phase::Failed { error, .. }) => Err(error),
-                // `self` owns the sender, so the channel cannot close and the wait cannot
-                // end on a phase that is still starting.
+                // Unreachable: `self` holds the sender, and only a terminal phase ends the wait.
                 Ok(Phase::Starting) | Err(_) => {
                     Err(IpcError::internal("Jelly did not finish starting."))
                 }
@@ -206,7 +205,7 @@ impl AppState {
         let phase = match outcome {
             Ok(services) => Phase::Ready(services),
             Err(StartFailure { error, rebuilt }) => {
-                tracing::error!(target: TARGET, %error, "jelly could not start");
+                tracing::error!(target: TARGET, %error, "jelly couldn't start");
                 let can_repair_proxy = matches!(error, StartupError::NetworkSettings { .. });
                 Phase::Failed { error: IpcError::from(error), can_repair_proxy, rebuilt }
             }

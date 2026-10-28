@@ -1,8 +1,8 @@
 //! Per-address history cursors and pending sends, held in one map but persisted as
-//! separate blobs, so a scan write cannot overwrite a concurrent send.
+//! separate blobs, so a scan write can't overwrite a concurrent send.
 //!
 //! `persist_scan` commits with the history rows, and `mark_sent` is durable
-//! before a broadcast. An async mutex serialises send writes. Scan writes are
+//! before a broadcast. An async mutex serializes send writes, and scan writes are
 //! already single-flight.
 
 use std::collections::BTreeMap;
@@ -21,11 +21,10 @@ use crate::pending::Tracked;
 
 const TARGET: &str = "jelly::tron::state";
 
-/// Where this adapter's history walks record their frontiers, all three in one
-/// blob.
+/// Where the history cursors live, all three streams in one blob.
 const SCAN_STREAM: ScanStream = ScanStream::TronTransfers;
 
-/// Where this adapter records the sends that have not settled yet.
+/// Where sends that haven't settled yet are recorded.
 const SENDS_SLOT: ReservationSlot = ReservationSlot::TronSends;
 
 const SCAN_VERSION: u8 = 1;
@@ -120,7 +119,7 @@ impl AddressState {
 pub(crate) struct States {
     cursors: Arc<dyn CursorStore>,
     map: Mutex<BTreeMap<i64, AddressState>>,
-    /// Held across composing the send blob and writing it, so two writers cannot
+    /// Held across composing the send blob and writing it, so two writers can't
     /// land out of order.
     write: AsyncMutex<()>,
     is_blocked: AtomicBool,
@@ -143,8 +142,9 @@ impl States {
         Ok(())
     }
 
-    /// Re-reading durable coverage replays a dropped event window without changing
-    /// the sends already held in memory.
+    /// Reloads the stored cursors of every address given, so history whose events
+    /// were dropped before they committed is walked again. Sends are loaded only
+    /// for addresses not already held, so the ones in memory are kept.
     pub(crate) async fn load(&self, address_ids: &[i64]) -> Result<(), TronError> {
         let _writing = self.write.lock().await;
         self.ensure_readable()?;
@@ -229,7 +229,7 @@ impl States {
         *self.map.lock().entry(address_id).or_default().cursor_mut(stream) = cursor;
     }
 
-    /// Every send being followed, in address order for determinism.
+    /// Every tracked send, in address order for determinism.
     pub(crate) fn pending(&self) -> Vec<Tracked> {
         self.map.lock().values().flat_map(|state| state.pending.iter().cloned()).collect()
     }
@@ -238,7 +238,7 @@ impl States {
         self.map.lock().values().map(|state| state.pending.len()).sum()
     }
 
-    /// Records a send, replacing any earlier entry for the same transaction id.
+    /// Records a send, replacing any earlier entry for the same txid.
     pub(crate) fn track(&self, entry: Tracked) {
         let mut map = self.map.lock();
         let state = map.entry(entry.address_id).or_default();
@@ -246,12 +246,12 @@ impl States {
         state.pending.push(entry);
     }
 
-    /// Records a send as handed to an endpoint, durably, and answers which
-    /// address it belongs to.
+    /// Durably records a send as handed to an endpoint, and returns the address
+    /// it belongs to.
     ///
-    /// The flag is set only once the write lands. A failed write leaves the send
-    /// unsent, so no later pass or writer treats as sent the bytes the broadcast
-    /// reported it never sent.
+    /// The flag is set only once the write lands. If the write fails, the send
+    /// stays unsent, so nothing later treats bytes the broadcast never sent as
+    /// sent.
     pub(crate) async fn mark_sent(&self, txid: &str) -> Result<Option<i64>, TronError> {
         let _writing = self.write.lock().await;
         self.ensure_readable()?;
@@ -279,7 +279,7 @@ impl States {
         Ok(Some(address_id))
     }
 
-    /// Stops following a send, and answers which address it belonged to.
+    /// Stops tracking a send, and returns the address it belonged to.
     pub(crate) fn forget(&self, txid: &str) -> Option<i64> {
         let mut map = self.map.lock();
         for (id, state) in map.iter_mut() {
@@ -292,7 +292,7 @@ impl States {
         None
     }
 
-    /// Stops following an unsent transaction. Its id is `sha256(raw_data)`, which
+    /// Stops tracking an unsent transaction. Its txid is `sha256(raw_data)`, which
     /// the unsigned payload already fixes, so an abandoned build is named exactly.
     ///
     /// Nothing is written back, because an unsent build was never persisted.
@@ -319,8 +319,8 @@ impl States {
             .map_err(TronError::Cursor)
     }
 
-    /// Rewrites the address's sends after one stopped being followed. Durable
-    /// when this returns.
+    /// Rewrites the address's sends after one stops being tracked. Durable when
+    /// this returns.
     pub(crate) async fn persist_sends(&self, address_id: i64) -> Result<(), TronError> {
         let _writing = self.write.lock().await;
         self.ensure_readable()?;
@@ -508,7 +508,7 @@ mod tests {
         assert!(store.is_empty());
     }
 
-    /// A send recorded before a broadcast cannot be undone by a pass writing its
+    /// A send recorded before a broadcast can't be undone by a pass writing its
     /// cursors, because the two are separate rows.
     #[tokio::test]
     async fn progress_and_sends_are_separate_rows() {

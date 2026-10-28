@@ -10,7 +10,7 @@ use crate::params::EvmParams;
 use crate::payload::EvmPayload;
 
 /// Makes no network call and keeps no key. Refuses a payload for another chain id
-/// and a key that does not derive the payload's sender.
+/// and a key that doesn't derive the payload's sender.
 pub(crate) fn sign(
     params: &EvmParams,
     payload: &EvmPayload,
@@ -46,9 +46,9 @@ pub(crate) fn sign(
 
 /// Splits `r || s || recovery id` into the y-parity a typed transaction carries.
 ///
-/// Recovery ids two and three occur only when r exceeded the curve order, with
-/// probability around 2^-128. They are refused rather than folded onto a parity
-/// that would verify against the wrong key.
+/// Recovery ids two and three occur only when R's x-coordinate is at least the
+/// curve order, with probability around 2^-128. They're refused rather than folded
+/// onto a parity that would verify against the wrong key.
 fn signature_from_compact(compact: &[u8; 65]) -> Result<Signature, EvmError> {
     let [body @ .., recovery] = *compact;
     let parity = match recovery {

@@ -16,7 +16,7 @@ const DEFAULT_SEED_SALT: &[u8] = b"TON default seed";
 const SEED_VERSION_ROUNDS: u32 = 390;
 const SEED_VERSION_SALT: &[u8] = b"TON seed version";
 
-/// A single round, which is what ton-crypto spends on the password-seed check.
+/// The single round ton-crypto spends on the password-seed check.
 const FAST_SEED_VERSION_ROUNDS: u32 = 1;
 const FAST_SEED_VERSION_SALT: &[u8] = b"TON fast seed version";
 
@@ -34,10 +34,9 @@ fn is_listed(word: &str) -> bool {
 /// The ed25519 seed a 24-word TON mnemonic expands to, following ton-crypto's
 /// `mnemonicToEntropy` and `mnemonicValidate`.
 ///
-/// tonlib's `Mnemonic` implements the same scheme, but it holds the words, the password,
-/// and the entropy in plain `Vec` and `String` buffers that are never wiped, and its
-/// password check inverts ton-crypto's final one, so it refuses a protected seed under
-/// its own password.
+/// tonlib's `Mnemonic` implements the same scheme, but it never wipes the words, the
+/// password, or the entropy, and its password check inverts ton-crypto's final one, so it
+/// refuses a protected seed under its own password.
 pub(crate) fn decode_ton_seed(
     input: &str,
     password: Option<&SecretText>,

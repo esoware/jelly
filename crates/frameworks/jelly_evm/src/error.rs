@@ -9,7 +9,7 @@ use jelly_net::{NetError, Outcome, json_rpc_outcome};
 use crate::broadcast::BroadcastRefusal;
 use crate::method::Method;
 
-/// A node's own wording appears only in a classified [`Rejection`] and in
+/// A node's own wording appears only in a classified [`Rejection`],
 /// [`EvmError::Rpc`] and [`EvmError::Reverted`].
 ///
 /// Endpoints are always an [`EndpointLabel`], and no variant interpolates key
@@ -18,23 +18,23 @@ use crate::method::Method;
 pub enum EvmError {
     #[error(transparent)]
     Net(NetError),
-    /// The node refused a broadcast, classified once.
+    /// A broadcast refusal whose wording matched a known reason.
     #[error("{0}")]
     Rejected(Rejection),
     /// A JSON-RPC error with no more specific variant.
     #[error("{endpoint}: {method} failed with rpc error {code}: {message}")]
     Rpc { endpoint: EndpointLabel, method: Method, code: i64, message: String },
-    /// The call reverted on chain, which is the same answer everywhere.
+    /// The call reverts, and every endpoint would say the same.
     #[error("{endpoint}: {method} reverted: {message}")]
     Reverted { endpoint: EndpointLabel, method: Method, message: String },
-    /// Not a host failure. The window shrinks and the walk retries.
+    /// Not a host failure. The log scan shrinks the window and retries.
     #[error("{endpoint}: the log window is wider than this endpoint allows")]
     LogWindowTooWide { endpoint: EndpointLabel },
-    /// An answer this build cannot read, attributed to the endpoint so the walk
+    /// An answer this build can't read, blamed on the endpoint so the pool
     /// rotates.
     #[error("{endpoint}: the {method} answer cannot be used: {detail}")]
     Answer { endpoint: EndpointLabel, method: Method, detail: String },
-    /// Mapped explicitly rather than with `#[from]`, so no other [`CoreError`] is
+    /// Mapped explicitly, not with `#[from]`, so no other [`CoreError`] is
     /// reported as a storage failure.
     #[error("the cursor store failed")]
     Cursor(#[source] CoreError),
@@ -61,16 +61,16 @@ pub enum EvmError {
     InvalidAddress { detail: String },
     #[error("Enter a 64-digit hexadecimal transaction ID.")]
     NotATxid,
-    /// The adapter is not following this transaction, so there is no reserved
-    /// nonce slot to send or replace it with.
+    /// The adapter isn't tracking this transaction, so it holds no nonce slot to
+    /// send or replace it in.
     #[error("Transaction {txid} is not pending in this wallet.")]
     NotOurs { txid: String },
     /// A replacement of a transaction already seen in a block. Its nonce is
     /// spent, so the network would refuse it.
     #[error("Transaction {txid} is already confirmed and cannot be replaced.")]
     AlreadyConfirmed { txid: String },
-    /// Carried as typed amounts rather than as text, so the interface formats
-    /// them with the asset's own decimals.
+    /// Typed amounts, not text, so the frontend formats them with the asset's own
+    /// decimals.
     #[error(
         "{} needed and only {} available in {}",
         needed.format(asset.decimals()),
@@ -122,7 +122,7 @@ pub enum EvmError {
         #[source]
         source: serde_json::Error,
     },
-    #[error("the {what} could not be serialised")]
+    #[error("the {what} could not be serialized")]
     Encode {
         what: &'static str,
         #[source]
@@ -152,16 +152,16 @@ pub enum EvmError {
     UnencodableRecovery { got: u8 },
 }
 
-/// Why the history API would not answer.
+/// Why the history API wouldn't answer.
 ///
-/// A closed vocabulary rather than the service's text, so no third-party text is
-/// kept and the user sees whether to fix the key or wait.
+/// A closed set, not the service's text, so no third-party text is kept. It
+/// still tells a key to fix from a limit to wait out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
 pub enum HistoryRefusal {
     #[error("the api key was rejected")]
     InvalidKey,
-    /// The key is good, but its plan does not include this network, which no
-    /// amount of waiting changes.
+    /// The key is valid, but its plan doesn't cover this network. Waiting won't
+    /// help.
     #[error("the api key's plan does not cover this network")]
     ChainNotCovered,
     #[error("the api key is over its rate limit")]
@@ -325,8 +325,8 @@ impl EvmError {
         }
     }
 
-    /// Transport failures, unreadable answers and non-final RPC errors rotate,
-    /// because they say something about one host. Everything else stops the walk.
+    /// Transport failures, unreadable answers and non-final RPC errors are about
+    /// one host, so they rotate. Everything else fails without trying another host.
     pub(crate) const fn outcome(&self) -> Outcome {
         match *self {
             Self::Net(_) | Self::Answer { .. } => Outcome::Rotate,
@@ -385,7 +385,7 @@ impl EvmError {
     }
 
     /// A history failure that waiting cures, such as a busy, slow or unreachable
-    /// service. A refused key or query and an unreadable answer are not.
+    /// service. A refused key or query and an unreadable answer aren't.
     pub(crate) const fn is_transient(&self) -> bool {
         match *self {
             Self::Net(NetError::Status { status, .. }) => status >= 500,
@@ -514,7 +514,7 @@ impl From<EvmError> for NetError {
     }
 }
 
-/// The classifier every idempotent read is walked with.
+/// The pool classifier for idempotent reads.
 pub(crate) fn classify(error: &NetError) -> Outcome {
     match *error {
         NetError::Rpc { code, ref message, .. } => {
@@ -542,13 +542,12 @@ pub(crate) fn classify(error: &NetError) -> Outcome {
     }
 }
 
-/// The classifier a log read is walked with.
+/// The pool classifier for log reads.
 ///
-/// A window complaint or an answer past the size cap stops the walk so the window
-/// shrinks at once, rather than spending one request per endpoint on a width that is
-/// already too wide. A host that does not serve this query is skipped without a
-/// penalty, because a backed off host would also be lost to the balance reads that
-/// follow.
+/// A window complaint or an answer past the size cap fails at once so the window
+/// shrinks, instead of costing one request per endpoint at a width that's already too
+/// wide. A host that won't serve this query is skipped without a penalty, because
+/// backing it off would also lose it for the balance reads that follow.
 pub(crate) fn classify_logs(error: &NetError) -> Outcome {
     match *error {
         NetError::Rpc { ref message, .. } if is_range_complaint(message) => Outcome::Fail,
@@ -571,7 +570,7 @@ pub(crate) fn classify_logs(error: &NetError) -> Outcome {
     }
 }
 
-/// The classifier a broadcast is walked with.
+/// The pool classifier for broadcasts.
 ///
 /// A classified refusal counts as an answer, so the typed rejection reaches the
 /// caller instead of being lost in an all-endpoints-failed report.
@@ -603,9 +602,9 @@ pub(crate) fn classify_broadcast(error: &NetError) -> Outcome {
 /// True when a JSON-RPC failure means the `eth_getLogs` window is too wide.
 ///
 /// No provider reports this with a code, so the wording is the only signal. A
-/// bare `limit exceeded` is not one, because the BNB Chain data seeds answer it
-/// to every `eth_getLogs` whatever the width, and reading it as one pins the walk
-/// to a host that will never serve a log.
+/// bare `limit exceeded` doesn't count: the BNB Chain data seeds send it for every
+/// `eth_getLogs` at any width, and reading it as a range complaint would keep
+/// shrinking the window for a host that never serves a log.
 fn is_range_complaint(message: &str) -> bool {
     const NEEDLES: [&str; 11] = [
         "block range",
@@ -640,15 +639,15 @@ fn is_behind_head(lowercase: &str) -> bool {
     lowercase.contains("beyond current head")
 }
 
-/// True when a JSON-RPC failure means the call reverted on chain, which every
-/// endpoint would repeat.
+/// True when a JSON-RPC failure means the call reverts, which every endpoint
+/// would repeat.
 fn is_revert(message: &str) -> bool {
     let text = message.to_ascii_lowercase();
     text.contains("execution reverted") || text.contains("gas required exceeds allowance")
 }
 
-/// How geth and its forks report a reverted call, which every endpoint would repeat.
-/// The standard JSON-RPC codes are `json_rpc_outcome`'s.
+/// The code geth and its forks give a reverted call. `json_rpc_outcome` handles
+/// the standard JSON-RPC codes.
 const GETH_REVERT_CODE: i64 = 3;
 
 #[cfg(test)]
@@ -736,7 +735,7 @@ mod tests {
 
     /// The BNB Chain data seeds answer this to a one-block window too.
     ///
-    /// The walk moves on to a host that serves logs instead of shrinking forever,
+    /// The pool moves on to a host that serves logs instead of shrinking forever,
     /// and leaves the seed healthy for the balance reads it does serve.
     #[test]
     fn a_host_that_serves_no_logs_is_skipped_rather_than_shrinking_the_window() {
@@ -746,8 +745,8 @@ mod tests {
         assert!(!error.is_window_too_wide(), "{error:?}");
     }
 
-    /// Another host can serve the same window at full width, so the walk moves on
-    /// rather than shrinking it for every host.
+    /// Another host can serve the same window at full width, so the pool moves on
+    /// instead of shrinking it for every host.
     #[test]
     fn a_host_behind_the_tip_is_skipped_rather_than_shrinking_the_window() {
         let behind = rpc(
@@ -760,7 +759,7 @@ mod tests {
     }
 
     /// A public node without archive access answers a log query below its recent
-    /// window with http 403, and a pruned node with header not found. Neither says
+    /// window with HTTP 403, and a pruned node with header not found. Neither says
     /// anything about a balance.
     #[test]
     fn a_host_without_the_history_a_log_query_needs_is_skipped() {
@@ -789,8 +788,8 @@ mod tests {
 
     #[test]
     fn a_log_window_complaint_is_never_read_as_a_send_refusal() {
-        // A range complaint shares the words too large with a size refusal, so
-        // the size row matches whole wordings.
+        // Range complaints also say `too large`, so the oversized row matches
+        // whole phrases only.
         for message in [
             "eth_getLogs block range is too large, max 1000",
             "query returned more than 10000 results",
@@ -806,7 +805,7 @@ mod tests {
     }
 
     #[test]
-    fn a_range_complaint_is_recognised_in_every_wording_providers_use() {
+    fn a_range_complaint_is_recognized_in_every_wording_providers_use() {
         for message in [
             "eth_getLogs block range is too large, max 1000",
             "query returned more than 10000 results",

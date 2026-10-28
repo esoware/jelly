@@ -124,8 +124,7 @@ fn a_pool_is_given_only_the_enabled_endpoints_of_its_own_transport() {
         jsonrpc.len().saturating_add(sockets.len()).saturating_add(history.len())
     );
 
-    // Configured order, which is what the pool's own index tiebreak reproduces
-    // before it applies health.
+    // Configured order, which the pool falls back on to break ties in health.
     registry.load_overrides(overrides(
         CHAIN,
         vec![EndpointOverride { is_pinned: true, ..EndpointOverride::new(MINE) }],
@@ -246,8 +245,8 @@ fn an_address_on_a_transport_the_chain_never_uses_is_refused() {
     }
 }
 
-/// A stored row the registry cannot use never fails the load. It is skipped, and the rest
-/// of the chain's rows still load.
+/// A stored row the registry can't use never fails the load. It's skipped, and the rest of
+/// the chain's rows still load.
 #[test]
 fn a_stored_row_on_a_transport_the_chain_never_uses_is_skipped_when_overrides_load() {
     let registry = registry();

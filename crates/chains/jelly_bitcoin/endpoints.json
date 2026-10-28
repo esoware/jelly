@@ -1,6 +1,6 @@
 {
   "chain": "bitcoin",
-  "note": "Public Electrum, ElectrumX and Fulcrum servers, drawn from the Electrum client's own default list and community lists, each verified with server.version and a blockchain.headers.subscribe tip read over TLS. Most present a self-signed certificate, which is why the connection pins the key on first use instead of requiring a CA chain. Servers that failed to answer, refused the connection, or reported a stale tip at verification time are omitted. Newer server software (Fulcrum 2.x, ElectrumX 1.15+) is listed ahead of older builds. The fee API rows are the mempool.space REST service the fee quoter reads and two independently run instances of the same software, each verified to serve both /v1/fees/precise and /v1/fees/recommended.",
+  "note": "Public Fulcrum, ElectrumX, and electrs servers from the Electrum client's default list and community lists, each checked over TLS with server.version and a blockchain.headers.subscribe tip read. Most present a self-signed certificate, which works because Electrum connections pin the server's key on first use. Servers that didn't answer, refused the connection, or had a stale tip were left out, and newer server software is listed ahead of older builds. The fee API rows are mempool.space and two independently run instances of the same software, each checked to serve both /v1/fees/precise and /v1/fees/recommended.",
   "endpoints": [
     {
       "url": "ssl://electrum.jhoenicke.de:50002",

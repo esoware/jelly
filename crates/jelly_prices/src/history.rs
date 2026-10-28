@@ -21,11 +21,11 @@ use crate::ticker::Ticker;
 const DAY_SECS: i64 = CandleInterval::Day.secs();
 /// Kraken's OHLC endpoint returns at most 720 candles.
 const HISTORY_SECS: i64 = 720 * DAY_SECS;
-/// How long a series that failed waits before it is asked for again.
+/// How long a failed series waits before it's asked for again, or longer if the provider
+/// asks.
 ///
-/// A provider that asks for longer gets longer. A daily close changes once a day, so
-/// nothing is lost by waiting, and an unreachable provider is not asked every few
-/// seconds.
+/// A daily close changes once a day, so nothing is lost by waiting, and an unreachable
+/// provider isn't asked every few seconds.
 const RETRY_DELAY: Duration = Duration::from_mins(5);
 
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
@@ -190,7 +190,7 @@ impl PriceHistoryLoader {
                     retry_after = retry_after.max(asked);
                 }
                 Err(error) => {
-                    tracing::warn!(target: TARGET, %error, "price history task did not finish");
+                    tracing::warn!(target: TARGET, %error, "a price history task didn't finish");
                 }
             }
         }

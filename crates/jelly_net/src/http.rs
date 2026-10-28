@@ -19,8 +19,8 @@ use crate::proxy;
 use crate::retry_after::RetryAfter;
 use crate::tls;
 
-/// reqwest dials the HTTP transports itself, so this is their only dial bound, and the
-/// pool's connect budget for the transports it dials is the same value.
+/// reqwest's dial bound for the HTTP transports, and the pool's connect budget for every
+/// transport.
 pub(crate) const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 const USER_AGENT: &str = "jelly";
@@ -31,8 +31,6 @@ const USER_AGENT: &str = "jelly";
 /// gigabytes. A request that expects more, such as a Monero block batch, sets its own.
 const DEFAULT_MAX_BYTES: usize = 32 * 1024 * 1024;
 
-/// This is the workspace's only HTTP client.
-///
 /// Cloning shares the connection pool, HTTP/2 sessions, and TLS session cache, so the
 /// process needs only one per proxy setting.
 #[derive(Clone)]
@@ -40,7 +38,7 @@ pub struct HttpClient {
     inner: reqwest::Client,
 }
 
-/// reqwest's own `Debug` names the proxy host, which this crate keeps out of logs.
+/// reqwest's own `Debug` would print the proxy host.
 impl fmt::Debug for HttpClient {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HttpClient").finish_non_exhaustive()
@@ -48,16 +46,14 @@ impl fmt::Debug for HttpClient {
 }
 
 impl HttpClient {
-    /// There is no default client to fall back to, so a failure is returned to the
-    /// caller.
     #[expect(
         clippy::disallowed_methods,
-        reason = "this is the one place the workspace builds a reqwest client"
+        reason = "the one place the workspace builds a reqwest client"
     )]
     pub fn new(proxy: Option<&ProxySetting>) -> Result<Self, NetError> {
         let config = tls::ca_validated_client_config()?;
-        // The plaintext policy and the pools judged the configured address alone, so a
-        // redirect may move along that origin but never to another scheme, host, or port.
+        // The plaintext policy and the pools vetted only the configured origin, so a
+        // redirect may stay on it but never move to another scheme, host, or port.
         let hop_limit = RedirectPolicy::default();
         let redirect = RedirectPolicy::custom(move |attempt| {
             let is_same_origin = attempt
@@ -87,10 +83,8 @@ impl HttpClient {
         self.send_to(endpoint.label(), &url, request).await
     }
 
-    /// The same exchange against a whole address.
-    ///
-    /// For the price feed, which has no [`Endpoint`] to join a path onto, and for
-    /// [`HttpEndpoint::send_query`], which has already merged its query.
+    /// The same exchange against a whole URL, for the price feed, which has no
+    /// [`Endpoint`], and for [`HttpEndpoint::send_query`], which has already built its URL.
     pub async fn send_to(
         &self,
         label: &EndpointLabel,
@@ -124,10 +118,8 @@ impl HttpClient {
     }
 }
 
-/// Reads the whole body, refusing to grow past `max_bytes`.
-///
-/// The cap is checked as chunks arrive, so a hostile or broken endpoint cannot
-/// make the process allocate more than the caller allowed.
+/// Reads the whole body, checking `max_bytes` as each chunk arrives so a hostile or
+/// broken endpoint can't make the process allocate more.
 async fn read_body(
     label: &EndpointLabel,
     mut response: reqwest::Response,
@@ -160,10 +152,8 @@ struct HttpBody<'a> {
 
 /// One request, with no address of its own.
 ///
-/// [`HttpClient::send`] appends a path to an [`Endpoint`]'s canonical URL and
-/// [`HttpClient::send_to`] takes a whole URL. A caller holding an [`Endpoint`] sends
-/// through the first rather than assemble an address, so a query string that carries an
-/// API key is never dropped.
+/// A caller holding an [`Endpoint`] sends through [`HttpClient::send`], not
+/// [`HttpClient::send_to`], so an API key in the endpoint's query string is never dropped.
 #[derive(Clone)]
 pub struct HttpRequest<'a> {
     method: HttpMethod,
@@ -236,9 +226,8 @@ impl<'a> HttpRequest<'a> {
 
 /// One HTTP exchange that completed, whatever its status.
 ///
-/// What a non-success status means is the caller's decision, so the body and the status
-/// are both here, and only [`HttpResponse::into_bytes`] and [`HttpResponse::into_body`]
-/// interpret the status.
+/// The caller decides what a status means. Only [`HttpResponse::into_bytes`] and
+/// [`HttpResponse::into_body`] treat a non-success status as a failure.
 #[derive(Debug, Clone)]
 pub struct HttpResponse {
     label: EndpointLabel,
@@ -267,8 +256,8 @@ impl HttpResponse {
         Err(NetError::Status { endpoint: self.label, status: self.status })
     }
 
-    /// The body as text. A body that is not UTF-8 is a protocol failure, because every
-    /// text API this crate speaks to is JSON.
+    /// The body as text. A body that isn't UTF-8 is a protocol failure, because every text
+    /// API this crate speaks to is JSON.
     pub fn into_body(self) -> Result<String, NetError> {
         let label = self.label.clone();
         let bytes = self.into_bytes()?;
@@ -277,10 +266,8 @@ impl HttpResponse {
     }
 }
 
-/// One endpoint bound to the shared client.
-///
-/// This is what an HTTP chain's [`crate::Pool`] caches, so no chain crate builds
-/// its own client, URL, or rotation.
+/// One endpoint bound to the shared client. An HTTP chain's [`crate::Pool`] caches one
+/// per endpoint.
 #[derive(Debug, Clone)]
 pub struct HttpEndpoint {
     client: HttpClient,
@@ -304,11 +291,8 @@ impl HttpEndpoint {
         self.client.send(&self.endpoint, path, request).await
     }
 
-    /// One request to a REST service that takes its arguments in the query
-    /// string.
-    ///
-    /// `query` is merged into the endpoint's own query rather than replacing it, so a
-    /// key there survives.
+    /// One request to a REST service that takes its arguments in the query string.
+    /// `query` is merged into the endpoint's own query, so a key there survives.
     pub async fn send_query(
         &self,
         path: &str,
@@ -330,9 +314,8 @@ impl HttpEndpoint {
         json_rpc_decode(self.label(), &body)
     }
 
-    /// One JSON-RPC batch to the endpoint's own address. The response is length-checked
-    /// and reordered against the batch's own request ids before any element is handed
-    /// back.
+    /// One JSON-RPC batch to the endpoint's own address, with the answers checked and
+    /// reordered against the batch's request ids.
     pub async fn rpc_batch(
         &self,
         batch: &JsonRpcBatch,
@@ -345,8 +328,8 @@ impl HttpEndpoint {
     }
 }
 
-/// Hands every endpoint of an HTTP transport the shared client, and runs the chain's
-/// identity check once before the endpoint's first request.
+/// Binds every endpoint of an HTTP transport to the shared client, and runs the chain's
+/// identity check as its [`Connect::identify`].
 #[derive(Debug, Clone)]
 pub struct HttpConnector {
     client: HttpClient,
@@ -374,10 +357,8 @@ impl Connect<HttpEndpoint> for HttpConnector {
     }
 }
 
-/// Classifies a reqwest failure for the whole workspace.
-///
-/// The error is stripped of its URL, because reqwest's `Display` embeds the full
-/// address, query string included.
+/// Classifies a reqwest failure and strips its URL, which reqwest's `Display` prints in
+/// full, query string included.
 fn transport_error(label: &EndpointLabel, timeout: Duration, source: reqwest::Error) -> NetError {
     if source.is_timeout() {
         return NetError::timed_out(label, timeout);
@@ -395,8 +376,8 @@ fn transport_error(label: &EndpointLabel, timeout: Duration, source: reqwest::Er
 /// Whether a failed connection failed in its TLS handshake, which reqwest reports as a
 /// connect failure like any other.
 ///
-/// The rustls error sits inside `io::Error` wrappers, and an `io::Error`'s `source` skips
-/// the error it wraps, so each wrapper is opened with `get_ref` instead.
+/// The rustls error sits inside `io::Error` wrappers, whose `source` skips the error they
+/// wrap, so each one is opened with `get_ref` instead.
 fn is_tls_failure(error: &reqwest::Error) -> bool {
     let mut cause: Option<&(dyn StdError + 'static)> = Some(error);
     while let Some(current) = cause {

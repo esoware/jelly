@@ -6,7 +6,7 @@ use jelly_core::{
     ChainId, Clock, FailureKind, PinStore, Transport,
     test_util::{FakeClock, MemoryPinStore},
 };
-use jelly_net::{Dialler, Endpoint, NetError};
+use jelly_net::{Dialer, Endpoint, NetError};
 use rustls::crypto::ring;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use rustls::server::{ClientHello, ResolvesServerCert};
@@ -26,7 +26,7 @@ use tokio_rustls::TlsAcceptor;
 const V1_CERTIFICATE: &[u8] = include_bytes!("../fixtures/v1_self_signed.der");
 const V1_KEY: &[u8] = include_bytes!("../fixtures/v1_self_signed.key.der");
 
-/// A P-256 key in PKCS #8 that the version 1 certificate does not hold.
+/// A P-256 key in PKCS #8 that the version 1 certificate doesn't hold.
 const OTHER_KEY: &[u8] = include_bytes!("../fixtures/other_p256.key.der");
 
 #[derive(Debug)]
@@ -64,24 +64,23 @@ async fn signing_server(
     Ok((port, server))
 }
 
-/// Connects a pinned dialler with an empty pin store to the loopback `port`.
+/// Connects a pinned dialer with an empty pin store to the loopback `port`.
 async fn first_use(port: u16) -> Result<(), NetError> {
     let pins: Arc<dyn PinStore> = Arc::new(MemoryPinStore::new());
     let clock: Arc<dyn Clock> = Arc::new(FakeClock::default());
-    let dialler = Dialler::pinned(pins, clock, ChainId::Bitcoin, None, Duration::from_secs(5))?;
+    let dialer = Dialer::pinned(pins, clock, ChainId::Bitcoin, None, Duration::from_secs(5))?;
     let endpoint = Endpoint::parse(
         ChainId::Bitcoin,
         Transport::ElectrumSsl,
         &format!("ssl://127.0.0.1:{port}"),
     )?;
-    dialler.connect(&endpoint).await.map(drop)
+    dialer.connect(&endpoint).await.map(drop)
 }
 
 /// A self-signed version 1 certificate is trusted on first use like any other.
 ///
-/// Electrum may fall back to trust on first use for a self-signed server, and the pin is
-/// taken from the key whether or not the certificate carries a version field, so a
-/// server whose self-signed certificate is version 1 must be reachable as well.
+/// The pin is taken from the key whether or not the certificate carries a version field,
+/// so a server whose self-signed certificate is version 1 must be reachable as well.
 #[tokio::test]
 async fn a_self_signed_version_1_certificate_is_trusted_on_first_use() {
     let (port, server) =

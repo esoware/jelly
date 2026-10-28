@@ -1,6 +1,6 @@
 {
   "chain": "solana",
-  "note": "Free public Solana mainnet-beta RPC, verified with getGenesisHash against the mainnet genesis. Keyless public Solana RPC is scarce, so this list is shorter than the EVM ones; a user-supplied provider key added through the endpoint settings is the recommended upgrade. The websocket rows carry the accountSubscribe registrations on each owner and its associated token accounts that wake a sync pass the moment a watched balance moves, and each was verified by subscribing and receiving a push. PublicNode without a personal token refuses getTokenAccountsByOwner and any batch with more than one getTransaction, and never answers logsSubscribe, so the adapter reads token accounts by address and fetches transactions one per request.",
+  "note": "Free public Solana mainnet-beta RPC, verified with getGenesisHash against the mainnet genesis. Keyless public Solana RPC is scarce, so a provider key added in the endpoint settings is the recommended upgrade. The websocket rows carry accountSubscribe on each owner and its associated token accounts, which wakes a sync pass when a watched balance moves, and each was verified by subscribing and receiving a push. Without a personal token, PublicNode refuses getTokenAccountsByOwner and any batch with more than one getTransaction, and never answers logsSubscribe, so the adapter reads token accounts by address and fetches each transaction in its own request.",
   "endpoints": [
     {
       "url": "https://solana-rpc.publicnode.com",

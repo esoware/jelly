@@ -24,18 +24,19 @@ struct AddressState {
 /// What a replacement evicts besides the original.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Descendants {
-    /// What they pay, which BIP-125 rule 3 makes the replacement pay at least.
+    /// Their total fee, which BIP-125 rule 3 makes the replacement cover on top of
+    /// the original's.
     pub(crate) fee: Amount,
     pub(crate) count: usize,
 }
 
-/// What the last pass left behind, which builds, confirmation counts, and
-/// replacements read instead of making a fresh round trip.
+/// What the last pass saw, read by builds, confirmation counts, and replacements
+/// instead of asking a server again.
 ///
-/// Each pass replaces it wholesale. An address's coins come from its unspent set,
-/// or from its stored cursor when the history has not moved, and its depths from
-/// the history the pass read. Nothing here can outlive the history it came from
-/// or fall behind a cursor that a cut pass advanced.
+/// Each pass rebuilds it from scratch. An address's coins come from its unspent set,
+/// or from its stored cursor when the history hasn't moved, and its depths come from
+/// the history the pass read. Nothing carries over, so the next full pass picks up
+/// any cursor a cut pass advanced.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ChainState {
     tip: Option<u32>,
@@ -43,7 +44,7 @@ pub(crate) struct ChainState {
 }
 
 impl ChainState {
-    /// The state a pass that read `tip_height` starts filling in.
+    /// An empty state for a pass that read `tip_height`.
     pub(crate) const fn at_tip(tip_height: u32) -> Self {
         Self { tip: Some(tip_height), addresses: BTreeMap::new() }
     }
@@ -72,8 +73,8 @@ impl ChainState {
             .collect()
     }
 
-    /// The unspent set of `address_id` with everything committed to a built but
-    /// unbroadcast transaction removed, absent until a pass has reported on it.
+    /// The unspent coins of `address_id` minus claimed ones, or `None` until a pass
+    /// has reported on it.
     pub(crate) fn spendable(&self, address_id: i64, claims: &OutpointClaims) -> Option<Vec<Utxo>> {
         self.addresses.get(&address_id).map(|state| claims.spendable(&state.coins))
     }
@@ -93,7 +94,7 @@ impl ChainState {
         sightings.peek().is_some() && sightings.all(Option::is_none)
     }
 
-    /// The mempool transactions the last pass saw descend from `txid`, across
+    /// The mempool transactions the last pass saw that descend from `txid`, across
     /// every watched address. A replacement of `txid` evicts all of them.
     pub(crate) fn descendants(&self, txid: Txid) -> Result<Descendants, UtxoError> {
         let mut pending: BTreeMap<Txid, &PendingTx> = BTreeMap::new();
@@ -124,9 +125,8 @@ impl ChainState {
 
     /// Drops every address that is no longer watched.
     ///
-    /// Outpoint claims are untouched, because the engine replaces the watch set
-    /// before every pass and releasing them here would hand the same coin to a
-    /// second build every poll interval.
+    /// Leaves claims alone. The engine resets the watch set before every pass, so
+    /// releasing them here would free every claimed coin each poll.
     pub(crate) fn retain(&mut self, watched: &[Watched]) {
         self.addresses.retain(|id, _| watched.iter().any(|entry| entry.address_id == *id));
     }

@@ -3,8 +3,7 @@ use crate::wire_enum;
 
 wire_enum! {
     #[cfg_attr(feature = "ipc", derive(specta::Type))]
-    /// The supported chains. Endpoint file names and database values use these wire
-    /// strings.
+    /// The supported chains. The database and IPC use these wire strings.
     ///
     /// The wallet lists chains as declared, so the rollups that pay fees in ether follow
     /// Ethereum.
@@ -90,8 +89,6 @@ impl ChainId {
         format!("{} {}", amount.format(self.native_decimals()), self.ticker())
     }
 
-    /// User-facing chain name. Do not display the wire string.
-    ///
     /// Arbitrum One and OP Mainnet take their network's full name, because Arbitrum Nova
     /// and the rest of the Superchain share their brands.
     pub const fn display_name(self) -> &'static str {
@@ -119,7 +116,7 @@ impl ChainId {
 
 wire_enum! {
     #[cfg_attr(feature = "ipc", derive(specta::Type))]
-    /// The flavours one key's address can take: a UTXO output script type, or the TON
+    /// The flavors one key's address can take: a UTXO output script type, or the TON
     /// wallet contract that holds the key. The same private key produces a different
     /// address for each.
     pub enum ScriptKind {
@@ -138,8 +135,8 @@ wire_enum! {
 }
 
 impl ScriptKind {
-    /// The BIP-44 purpose component this flavour derives under. A TON wallet contract
-    /// derives under the same path whatever its version, so it has none.
+    /// The BIP-44 purpose this flavor derives under. A TON wallet contract derives under
+    /// one path whatever its version, so it has none.
     pub const fn purpose(self) -> Option<u32> {
         match self {
             Self::P2tr => Some(86),

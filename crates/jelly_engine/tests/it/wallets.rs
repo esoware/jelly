@@ -398,7 +398,7 @@ async fn missing_vault_cleanup_preserves_a_moved_vaults_master_key() {
 
     for supplied in [secret("wrong password"), secret(PASSWORD)] {
         let refused = harness.engine.delete_wallet(wallet.id, supplied, "keep").await;
-        assert!(refused.is_err(), "a missing vault authorises nothing");
+        assert!(refused.is_err(), "a missing vault authorizes nothing");
         assert!(harness.keystore.contains(&wallet.id.to_string()));
         assert_eq!(harness.engine.list_wallets().await.unwrap(), vec![wallet.clone()]);
         moved.unlock(&password(PASSWORD)).unwrap().lock();
@@ -411,7 +411,7 @@ async fn missing_vault_cleanup_preserves_a_moved_vaults_master_key() {
 }
 
 #[tokio::test]
-async fn an_unreadable_vault_does_not_authorise_cleanup() {
+async fn an_unreadable_vault_does_not_authorize_cleanup() {
     let harness = harness().await.unwrap();
     let wallet = harness.seed_wallet("keep").await.unwrap().wallet;
     harness.engine.lock_wallet().await;
@@ -480,7 +480,7 @@ async fn new_wallets_and_password_rotations_require_nonempty_passwords() {
 }
 
 /// A credential store whose next delete fails once, the way a platform store does when
-/// it is briefly unavailable.
+/// it's briefly unavailable.
 #[derive(Debug, Default)]
 struct FailOnceDeleteKeyStore {
     store: MemoryKeyStore,
@@ -525,7 +525,7 @@ async fn a_wallet_delete_can_retry_after_a_transient_master_key_deletion_failure
         .engine
         .delete_wallet(wallet.id, secret(PASSWORD), "doomed")
         .await
-        .expect("retrying an authorised deletion must finish after the keychain recovers");
+        .expect("retrying an authorized deletion must finish after the keychain recovers");
     assert!(!path.exists());
     assert!(!keystore.store.contains(&wallet.id.to_string()));
     assert!(harness.engine.list_wallets().await.unwrap().is_empty());

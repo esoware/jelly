@@ -1,8 +1,6 @@
-//! Fixtures every suite in this crate shares.
-//!
-//! Everything goes through the shipped [`EvmAdapter`] over a scripted node, so a
-//! test exercises the same JSON-RPC documents, decoders, nonce ledger and cursor
-//! routing a socket would.
+//! Tests drive the shipped [`EvmAdapter`] over a scripted node, so they exercise the
+//! same JSON-RPC documents, decoders, nonce ledger, and cursor routing a real socket
+//! would.
 
 use std::collections::{HashMap, VecDeque};
 use std::error::Error;
@@ -44,8 +42,8 @@ pub(crate) const OPTIMISM: &EvmParams = &jelly_optimism::PARAMS;
 pub(crate) const BSC: &EvmParams = &jelly_bsc::PARAMS;
 pub(crate) const POLYGON: &EvmParams = &jelly_polygon::PARAMS;
 pub(crate) const AVALANCHE: &EvmParams = &jelly_avalanche::PARAMS;
-/// Ethereum with a confirmation target deep enough that a fixture receipt does not
-/// retire its send in the pass that observes it.
+/// Ethereum with a confirmation target deep enough that a fixture receipt doesn't
+/// retire its send in the pass that sees it.
 pub(crate) static DEEP_ETHEREUM: EvmParams = EvmParams { confirmations_target: 1_000, ..*ETHEREUM };
 pub(crate) const NETWORKS: [&EvmParams; 7] =
     [ETHEREUM, ARBITRUM, BASE, OPTIMISM, BSC, POLYGON, AVALANCHE];
@@ -118,7 +116,7 @@ pub(crate) fn pinned(
         .build()
 }
 
-/// One coin to `to` at 30 gwei over 1 gwei and 21,000 gas, at `nonce`.
+/// One coin to `to` at `nonce`, with a 30 gwei cap, a 1 gwei tip, and 21,000 gas.
 pub(crate) fn payment(to: &str, nonce: u64) -> TxRequest {
     TxRequestBuilder::new(7, to, ETHEREUM.native(), Amount::from_base_units(ETH))
         .fee(evm_fee(Some(21_000), Some(30 * GWEI), Some(GWEI)))
@@ -361,10 +359,7 @@ impl FakeNode {
     }
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "clippy's allow-expect-in-tests covers a test body, not a helper beside one"
-)]
+#[expect(clippy::expect_used, reason = "test helper")]
 fn raw(json: &str) -> Box<RawValue> {
     RawValue::from_string(json.to_owned()).expect("a scripted answer is json")
 }

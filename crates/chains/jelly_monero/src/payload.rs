@@ -14,15 +14,15 @@ const MAGIC: &[u8; 8] = b"JLYXMRTX";
 // subaddress major (4) and minor (4), the endpoint length (2) and its utf-8
 // bytes, then `SignableTransaction::write` for the rest.
 
-/// Everything in the frame before the endpoint's bytes.
+/// The frame up to the endpoint's bytes.
 const HEADER_BYTES: usize = 58;
 
-/// Unsigned Monero payment plus signing context. The signable transaction owns inputs,
-/// ring, outputs, and fee.
+/// A signable transaction, which holds the inputs, rings, outputs, and fee, and the
+/// context signing and broadcast need beside it.
 ///
-/// Additional fields identify the source account, ring-selection height, selecting
-/// endpoint, and sending subaddress. They prevent cross-wallet signing, reject stale rings,
-/// send the transaction to the selecting node, and attribute pending sends.
+/// The public spend key lets signing refuse another account's payload, and the build
+/// height a stale ring. The endpoint is the ring node the transaction goes to, and the
+/// subaddress picks the signing key and files the pending send.
 pub(crate) struct UnsignedPayload {
     pub signable: SignableTransaction,
     pub public_spend: [u8; 32],
@@ -32,16 +32,16 @@ pub(crate) struct UnsignedPayload {
 }
 
 impl UnsignedPayload {
-    /// The signable transaction carries the outgoing view key, so it is written
-    /// straight into a frame sized for it up front, which never grows and leaves
-    /// no copy behind.
+    /// The signable transaction carries the outgoing view key, so it's written
+    /// straight into a frame sized up front, which never grows and so leaves no
+    /// copy behind.
     pub(crate) fn encode(&self) -> Result<TxPayload, MoneroError> {
         let endpoint = self.endpoint.as_bytes();
         let length = u16::try_from(endpoint.len()).map_err(|_| MoneroError::Internal {
             context: "the ring endpoint does not fit in an unsigned transaction",
         })?;
         let mut counted = ByteCount::default();
-        self.signable.write(&mut counted).map_err(|_| unserialisable())?;
+        self.signable.write(&mut counted).map_err(|_| unserializable())?;
         let mut framed = Vec::with_capacity(
             HEADER_BYTES.saturating_add(endpoint.len()).saturating_add(counted.total()),
         );
@@ -52,7 +52,7 @@ impl UnsignedPayload {
         framed.extend_from_slice(&self.subaddress.minor.to_le_bytes());
         framed.extend_from_slice(&length.to_le_bytes());
         framed.extend_from_slice(endpoint);
-        self.signable.write(&mut framed).map_err(|_| unserialisable())?;
+        self.signable.write(&mut framed).map_err(|_| unserializable())?;
         Ok(TxPayload::from_bytes(framed))
     }
 
@@ -79,6 +79,6 @@ const fn truncated() -> MoneroError {
     MoneroError::Payload { detail: "it is truncated" }
 }
 
-const fn unserialisable() -> MoneroError {
-    MoneroError::Internal { context: "a signable transaction did not serialise" }
+const fn unserializable() -> MoneroError {
+    MoneroError::Internal { context: "a signable transaction did not serialize" }
 }

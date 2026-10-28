@@ -95,8 +95,8 @@ pub struct TxRequest {
     pub asset: AssetId,
     pub amount: SendAmount,
     pub fee: FeeSelection,
-    /// Replaces the sending account's next nonce. Only a chain whose spec allows it takes
-    /// one.
+    /// Used instead of the sending account's next nonce. Only a chain whose spec allows it
+    /// takes one.
     pub nonce: Option<u64>,
     /// Calldata as hex, with or without `0x`, sent in place of the generated transfer.
     /// Only a chain whose spec allows it takes any.
@@ -179,8 +179,8 @@ impl fmt::Debug for RawTx {
     }
 }
 
-/// Unsigned transaction retained by the engine and returned to its adapter. It never
-/// crosses IPC. Its chain is recorded only in the preview.
+/// Unsigned transaction the engine holds and returns to its adapter. It never crosses IPC,
+/// and its chain is recorded only in the preview.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnsignedTx {
     pub preview: TxPreview,

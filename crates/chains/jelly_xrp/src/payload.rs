@@ -26,14 +26,15 @@ pub(crate) struct Payment {
     pub(crate) from: String,
     pub(crate) to: String,
     pub(crate) destination_tag: Option<u32>,
-    /// What the recipient receives. A deletion pays whatever the account holds when it is
+    /// What the recipient receives. A deletion pays whatever the account holds when it's
     /// applied, so this is what it held when the send was built, less the fee.
     pub(crate) amount_drops: u64,
     pub(crate) fee_drops: u64,
     pub(crate) sequence: u32,
     pub(crate) first_ledger: u32,
     pub(crate) last_ledger: u32,
-    /// The base and owner reserve the sender keeps, which a deletion recovers instead.
+    /// The base and owner reserve the sender must keep. A deletion sends it too, so it's zero
+    /// there.
     pub(crate) reserve_drops: u64,
     /// The ledger's base reserve, the least a payment must bring to create an account.
     pub(crate) base_reserve_drops: u64,

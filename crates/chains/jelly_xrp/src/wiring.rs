@@ -21,8 +21,8 @@ pub async fn build(
 
 /// Asks one endpoint which network it serves, through the connector its pool uses.
 ///
-/// The registry refuses an XRP endpoint on any other transport, so only one built
-/// outside the registry gets the registry's refusal here.
+/// An endpoint on any other transport is reported as unused. The registry refuses one, so
+/// only an endpoint built outside the registry gets that answer.
 pub async fn probe(network: &Network, endpoint: &Endpoint) -> ProbeReport {
     if endpoint.transport() == Transport::HttpJsonrpc {
         jelly_net::probe(&rpc(network), network.clock().as_ref(), endpoint).await

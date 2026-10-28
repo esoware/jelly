@@ -33,16 +33,14 @@ use crate::watched::{self, Watched};
 
 const TARGET: &str = "jelly::solana::adapter";
 
-/// Short enough to re-register a recovered endpoint well inside one poll
-/// interval, long enough not to hammer a dead one.
+/// Short enough to re-register a recovered endpoint within one poll interval, long
+/// enough not to hammer a dead one.
 const WATCH_RETRY: Duration = Duration::from_secs(5);
 
-/// The least time between two push-driven wakes. Pushes for a quiet wallet are
-/// rare, so the floor only collapses a burst into one pass.
+/// The least time between push-driven wakes, so a burst of pushes becomes one pass.
 const WATCH_FLOOR: Duration = Duration::from_secs(2);
 
-/// Every push failure rotates, because no endpoint's subscription failure says
-/// anything about the next endpoint.
+/// One endpoint's subscription failure says nothing about the next.
 const fn classify_watch(_: &NetError) -> Outcome {
     Outcome::Rotate
 }
@@ -57,7 +55,7 @@ pub struct SolanaAdapter {
     watch: RwLock<Arc<[Watched]>>,
     rent: RentCache,
     units: UnitCache,
-    /// Held for a whole pass, which makes `sync` single-flight.
+    /// Makes `sync` and `set_watch_set` single-flight.
     pass: AsyncMutex<()>,
 }
 
@@ -172,12 +170,11 @@ impl ChainAdapter for SolanaAdapter {
         Ok(())
     }
 
-    /// Single-flight per instance, so a second call waits for the running pass.
+    /// A second call waits for the running pass.
     ///
-    /// The tip and balances are always read. Follow-up and the history walk check
-    /// the deadline and stop early with the progress they have. The whole pass
-    /// also runs under a timeout [`Deadline::GRACE`] past the deadline, so a call
-    /// that outlasts both is reported rather than waited on.
+    /// The tip and balances are always read. Follow-up and the history walk are skipped
+    /// or cut short once the deadline passes, and a pass still running
+    /// [`Deadline::GRACE`] past the deadline is abandoned and reported as a failure.
     async fn sync(
         &self,
         deadline: Deadline,
@@ -205,15 +202,12 @@ impl ChainAdapter for SolanaAdapter {
         Ok(progress?)
     }
 
-    /// Wakes sync on pushes without trusting their contents.
+    /// Wakes sync on any push without reading what it says, and never resolves without
+    /// a push pool.
     ///
-    /// `accountSubscribe` on the owner catches every change to its lamports, and on
-    /// each of its associated token accounts every change to a token balance.
-    /// Public endpoints never answer `logsSubscribe`, so a registration that waited
-    /// on it would time out on every endpoint.
-    ///
-    /// Only the subscription goes through pool failover. Without a push pool this
-    /// never resolves.
+    /// `accountSubscribe` on the owner and on each associated token account covers every
+    /// lamport and token balance change. Public endpoints never answer `logsSubscribe`,
+    /// so registering it would time out everywhere.
     async fn wait_activity(&self) {
         let Some(pushes) = self.pushes.as_ref() else {
             future::pending::<()>().await;
@@ -254,11 +248,11 @@ impl ChainAdapter for SolanaAdapter {
         Ok(send::build(&plan)?)
     }
 
-    /// Makes no network call. This is the last point where the signature and the
-    /// payload are both in hand, so the send starts being followed here.
+    /// Makes no network call. Following starts here, the last point where the signature
+    /// and the payload are both in hand.
     ///
-    /// Nothing is persisted yet, because a build that is never broadcast is not a
-    /// transaction. Its in-memory entry ages out with its blockhash.
+    /// Nothing is persisted until broadcast, and an entry that's never broadcast ages
+    /// out with its blockhash.
     fn sign_tx(&self, tx: &UnsignedTx, keys: &[KeyMaterial]) -> Result<SignedTx, ChainError> {
         let key = sole_key(keys)?;
         let payload = SolanaPayload::decode(tx.payload.as_bytes())?;
@@ -287,12 +281,10 @@ impl ChainAdapter for SolanaAdapter {
 
     /// One attempt against one endpoint.
     ///
-    /// The send is persisted before the bytes leave, so a crash after sending still
-    /// leaves a transaction this wallet knows to ask about. If that write fails the
-    /// send stops, because refusing is free only until the bytes leave. A pass
-    /// leaves the send alone until this attempt answers. A refusal stops the
-    /// follow-up only when no other attempt could have forwarded the bytes, and
-    /// anything ambiguous keeps it.
+    /// The send is persisted before the bytes leave, so a crash mid-send still leaves a
+    /// transaction to ask about, and a failed write stops the send. Sync passes leave it
+    /// alone until this attempt answers. A refusal drops the send only if no other
+    /// attempt could have forwarded the bytes.
     async fn broadcast(&self, tx: &SignedTx) -> Result<TxId, ChainError> {
         let chain = tx.chain();
         if chain != CHAIN {
@@ -330,11 +322,8 @@ impl ChainAdapter for SolanaAdapter {
 
 #[async_trait]
 impl PendingTracker for SolanaAdapter {
-    /// Solana has no nonce or output to release, so this only stops following an
-    /// unsent transaction before its blockhash ages it out.
-    ///
-    /// The transaction is found by its message, because the caller of an
-    /// abandoned build has no signature.
+    /// Solana has no nonce or output to release, so this only stops following an unsent
+    /// build. It's matched by message, because the caller has no signature.
     async fn discard(&self, tx: &UnsignedTx) -> Result<(), ChainError> {
         let payload = SolanaPayload::decode(tx.payload.as_bytes())?;
         self.states.forget_unsent(|held| held.is_signed_message(payload.message_bytes()));

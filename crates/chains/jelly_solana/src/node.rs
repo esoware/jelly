@@ -21,7 +21,7 @@ const TARGET: &str = "jelly::solana::node";
 /// rotation separately.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 
-/// A method and its parameter list, serialised once at construction so a
+/// A method and its parameter list, serialized once at construction so a
 /// rotation posts identical bytes to every endpoint.
 #[derive(Debug)]
 pub struct RpcCall {
@@ -153,7 +153,7 @@ impl PooledNode {
         Ok(Self { pool, next_id: AtomicU64::new(1), is_batching: AtomicBool::new(true) })
     }
 
-    /// True while this deployment's endpoints still accept batch documents.
+    /// True until an endpoint refuses or drops a batch document this session.
     #[cfg(feature = "test-util")]
     pub fn is_batching(&self) -> bool {
         self.is_batching.load(Ordering::SeqCst)
@@ -183,7 +183,7 @@ impl PooledNode {
             .map_err(|error| SolanaError::from_net(method, error))
     }
 
-    /// Every call, one at a time, for an endpoint that will not take a document.
+    /// Every call, one at a time, for an endpoint that won't take a batch document.
     async fn sequentially(
         &self,
         first: &RpcCall,
@@ -215,8 +215,7 @@ impl SolanaNode for PooledNode {
         // length before any is read.
         let items = calls.iter().map(|call| self.document(call)).collect::<Result<Vec<_>, _>>()?;
         let batch = JsonRpcBatch::new(&items);
-        // A document mixes methods, so it is walked as an ordinary read labelled
-        // with the first call's method.
+        // A document mixes methods, so the pool reports it under the first call's method.
         let method = first.method();
         let walked = self
             .pool
@@ -242,10 +241,10 @@ impl SolanaNode for PooledNode {
                     self.is_batching.store(false, Ordering::SeqCst);
                 }
                 let singly = self.sequentially(first, rest).await;
-                // Singles answering where the document did not is the only
-                // evidence of a host that hangs on batch documents instead of
-                // refusing them. Without this, every operation would burn a full
-                // timeout on that host for the whole session.
+                // Single calls answering where the document didn't is the only sign
+                // of a host that hangs on batch documents instead of refusing them.
+                // Without this, every operation would burn a full timeout on that
+                // host for the rest of the session.
                 if singly.is_ok() && self.is_batching.load(Ordering::SeqCst) {
                     tracing::info!(
                         target: TARGET,
@@ -287,8 +286,8 @@ impl SolanaNode for PooledNode {
 /// True when the batch document itself was refused, by a non-batch answer, a
 /// wrong answer count, an oversized payload or an unparseable body.
 ///
-/// A per-call error such as `-32601` or `-32602` does not count, because the
-/// same call sent alone would fail too.
+/// A per-call error such as `-32601` or `-32602` doesn't count, because the same call
+/// sent alone would fail too.
 const fn is_document_refusal(error: &SolanaError) -> bool {
     matches!(
         *error,
@@ -298,9 +297,9 @@ const fn is_document_refusal(error: &SolanaError) -> bool {
     )
 }
 
-/// Batch refusals and timeouts earn one retry as single calls, because some
-/// gateways ignore batches but answer single calls. Connection failures do not,
-/// because singles would fail too.
+/// Batch refusals and timeouts earn one retry as single calls, because some gateways
+/// ignore batches but answer single calls. Connection failures don't, because single
+/// calls would fail too.
 fn should_retry_singly(error: &SolanaError) -> bool {
     if is_document_refusal(error) {
         return true;
@@ -348,11 +347,11 @@ mod tests {
 
     fn slot_call() -> RpcCall {
         RpcCall::new(Method::GetSlot, &(CommitmentQuery { commitment: Commitment::Confirmed },))
-            .expect("it serialises")
+            .expect("it serializes")
     }
 
     #[test]
-    fn a_call_serialises_its_parameter_list_and_keeps_its_method() {
+    fn a_call_serializes_its_parameter_list_and_keeps_its_method() {
         let call = RpcCall::new(
             Method::GetBalance,
             &(
@@ -360,7 +359,7 @@ mod tests {
                 CommitmentQuery { commitment: Commitment::Confirmed },
             ),
         )
-        .expect("it serialises");
+        .expect("it serializes");
         assert_eq!(call.method(), Method::GetBalance);
         assert_eq!(
             call.params().get(),

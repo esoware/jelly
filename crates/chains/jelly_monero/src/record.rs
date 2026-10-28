@@ -66,9 +66,9 @@ pub(crate) fn record_block(
 /// What one block paid this wallet, in piconero.
 #[derive(Debug, Default)]
 struct Receipts {
-    /// What each transaction paid each account of this wallet. A spend is net of
-    /// what came back to the account it spent from, and what it paid another
-    /// account left this one as surely as a payment to anybody else.
+    /// What each transaction paid each account of this wallet. A spend is netted only
+    /// against what came back to the account it spent from, because a payment to
+    /// another of this wallet's accounts left it like any other payment.
     received_by_txid_and_account: BTreeMap<([u8; 32], u32), u64>,
     /// One payment is every output of one transaction that landed on one
     /// subaddress, newly found by this scan.
@@ -137,13 +137,13 @@ fn payment_records(
 
 /// Records what one block spent of this wallet's coins.
 ///
-/// A send in flight or awaiting scan acknowledgement is filed under the
-/// subaddress it was made from, which is where the engine filed it when it went
-/// out. Any other spend is filed under the subaddress that funded most of it.
+/// A send in flight or awaiting scan acknowledgment is filed under the subaddress
+/// it was made from, which is where the engine filed it when it went out. Any other
+/// spend is filed under the subaddress of its largest input.
 ///
-/// A send returns its change to its account's primary address, so whatever a
-/// spend paid there is taken out of `receipts.payments`. It is part of the spend,
-/// which is netted against it, and not a payment in.
+/// A send returns its change to its account's primary address, so whatever a spend
+/// paid there is taken out of `receipts.payments`. That's netted against the spend,
+/// not recorded as a payment in.
 fn record_spends(
     watched: &Watched,
     state: &mut ScanState,

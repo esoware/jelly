@@ -7,14 +7,14 @@ use crate::secp256k1::Secp256k1Key;
 /// The byte after the key that marks its public key as compressed.
 const COMPRESSED_SUFFIX: u8 = 0x01;
 
-/// A decoded wallet import format key. The version byte names the network, and what
-/// it means is the chain's business.
+/// A decoded wallet import format key. The version byte names the network, and the
+/// chain decides what it means.
 #[derive(Debug)]
 pub struct Wif {
     pub version: u8,
     pub key: Secp256k1Key,
-    /// Whether the `0x01` suffix was present. A key's addresses all come from its
-    /// compressed public key, so an uncompressed WIF's funds sit elsewhere.
+    /// Whether the `0x01` suffix was present. We derive every address from the compressed
+    /// public key, so an uncompressed WIF's funds are somewhere else.
     pub is_compressed: bool,
 }
 

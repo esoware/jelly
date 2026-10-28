@@ -1,18 +1,17 @@
-//! The workspace's one entry point to OS entropy. A failure is propagated, never replaced
-//! by a userspace fallback, because a key or nonce that is not random is worse than one
-//! that was never made.
+//! Every crate's path to OS entropy. A failure propagates and never falls back to a
+//! userspace RNG, because a key or nonce that isn't random is worse than none at all.
 //!
-//! The exception is `jelly_monero`, whose Monero library takes a `rand_core` 0.6
-//! RNG, so it passes `rand_core_06::OsRng`. That reads the same OS source but cannot
-//! report failure through here.
+//! The exception is `jelly_monero`: its Monero library takes a `rand_core` 0.6 RNG, so it
+//! passes `rand_core_06::OsRng`, which reads the same OS source but can't report a failure
+//! through here.
 
 use zeroize::Zeroizing;
 
 #[derive(Debug, thiserror::Error)]
-#[error("the os entropy source failed")]
+#[error("the OS entropy source failed")]
 pub struct EntropyError(#[source] getrandom::Error);
 
-#[expect(clippy::disallowed_methods, reason = "this is the workspace's only entropy source")]
+#[expect(clippy::disallowed_methods, reason = "the only entropy source")]
 pub fn random_fill(target: &mut [u8]) -> Result<(), EntropyError> {
     getrandom::fill(target).map_err(EntropyError)
 }

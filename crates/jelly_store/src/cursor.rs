@@ -26,8 +26,8 @@ statements! {
          WHERE address_id IN (SELECT value FROM json_each(?1)) \
            AND namespace IN (SELECT value FROM json_each(?2))";
 
-    /// The caller names only scan streams, because reservations share this table and are
-    /// not safe to drop.
+    /// The caller names only scan streams, since reservations share this table and aren't
+    /// safe to drop.
     FORGET_SCANS =
         "DELETE FROM scan_cursors \
          WHERE address_id IN (SELECT value FROM json_each(?1)) \
@@ -72,10 +72,9 @@ impl Reader<'_> {
         })
     }
 
-    /// The rows of `scopes` under `names`. Scan streams and reservation slots share the
-    /// table, so the caller decodes the namespace as the kind it asked for.
-    ///
-    /// A cursor is filed under its address row, so a wallet scope has nothing here.
+    /// Scan streams and reservation slots share the table, so the caller decodes the
+    /// namespace as the kind it asked for. A wallet scope has no address row, so it finds
+    /// nothing.
     fn load_cursors<T>(
         &self,
         scopes: &[CursorScope],
@@ -93,9 +92,8 @@ impl Writer<'_> {
         self.put_cursor(advance.scope, advance.stream.as_str(), &advance.cursor)
     }
 
-    /// The one cursor write that does not ride a [`crate::SyncBatch`]. Every adapter that
-    /// holds a plain `ReservationSlot` calls it before signed bytes leave the process, so
-    /// its transaction must commit before broadcast.
+    /// The only cursor write outside a [`crate::SyncBatch`], because a reservation has to
+    /// commit before the signed bytes leave the process.
     pub(crate) fn reserve(
         &self,
         scope: CursorScope,
@@ -105,7 +103,7 @@ impl Writer<'_> {
         self.put_cursor(scope, slot.as_str(), payload)
     }
 
-    /// A wallet scope has no address row to file the cursor under, so it is refused.
+    /// A wallet scope has no address row to file the cursor under, so it's refused.
     fn put_cursor(
         &self,
         scope: CursorScope,

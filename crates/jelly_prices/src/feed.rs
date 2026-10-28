@@ -10,19 +10,17 @@ use crate::fetch::Fetch;
 use crate::poll::PricePoller;
 use crate::quote::Quotes;
 
-/// The published side of the price feed, what the wallet currently believes
-/// things are worth.
+/// The published side of the price feed: what the wallet currently thinks things are worth.
 ///
-/// Cheap to clone and read from anywhere. Nothing here waits on the network, so
-/// a wallet operation is never delayed by a price.
+/// Cheap to clone and read from anywhere. Nothing here waits on the network, so a price
+/// never delays a wallet operation.
 #[derive(Debug, Clone)]
 pub struct PriceFeed {
     book: watch::Sender<PriceBook>,
 }
 
 impl PriceFeed {
-    /// Builds the feed and the poller that fills it. It cannot fail, because the
-    /// provider is compiled in.
+    /// Can't fail, because the provider is compiled in.
     pub fn new(
         config: &PriceFeedConfig,
         currency: FiatCurrency,
@@ -34,8 +32,7 @@ impl PriceFeed {
         (feed, poller)
     }
 
-    /// Everything known right now, in the currency the wallet shows, as one
-    /// coherent value.
+    /// Every price known now, in the currency the wallet shows, as one consistent value.
     pub fn snapshot(&self) -> PriceSnapshot {
         self.book.borrow().snapshot()
     }

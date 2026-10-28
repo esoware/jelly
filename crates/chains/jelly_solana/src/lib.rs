@@ -1,10 +1,7 @@
-//! Solana mainnet-beta: the chain's entry, its address codec and key formats, and its
-//! adapter.
+//! Solana mainnet-beta.
 //!
-//! Payloads carry their last valid block height, so signing needs no network and
-//! a pending send can detect expiry. A broadcast persists the signed bytes first.
-//! An unresolved send is retried with those exact bytes and never rebuilt with a
-//! new blockhash, because both versions could land.
+//! A send is persisted before broadcast and only ever resent as the same signed bytes,
+//! because a rebuild with a fresh blockhash could land alongside the original.
 
 #![deny(clippy::float_arithmetic)]
 mod adapter;

@@ -1,9 +1,9 @@
-/// The words of a pasted phrase, BIP-39, Monero, or TON.
+/// The words of a pasted BIP-39, Monero, or TON phrase.
 ///
-/// Commas and semicolons separate words as whitespace does, and a list number before a
-/// word, as in `1. abandon` or `12)abandon`, is dropped, so a phrase copied from a
-/// numbered backup is the same phrase. No word in any of the lists has a digit or that
-/// punctuation in it.
+/// Commas and semicolons separate words like whitespace, and a list number before a word,
+/// as in `1. abandon` or `12)abandon`, is dropped, so a phrase copied from a numbered
+/// backup still parses. No word in any of the lists contains a digit or any of this
+/// punctuation.
 pub fn phrase_words(phrase: &str) -> impl Iterator<Item = &str> {
     phrase
         .split(|c: char| c.is_whitespace() || c == ',' || c == ';')

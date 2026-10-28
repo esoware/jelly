@@ -1,9 +1,8 @@
 //! Which endpoints the probe identifies and which it only reaches, through the
 //! connectors the pools are built with.
 //!
-//! Electrum and websocket endpoints need TLS or a websocket handshake, so their checks
-//! are proved through the same connectors in `jelly_electrum` and the chain crates
-//! instead.
+//! Electrum and websocket endpoints need TLS or a websocket handshake, so their checks are
+//! tested through the same connectors in `jelly_electrum` and the chain crates instead.
 
 use jelly_chains::probe;
 use jelly_core::{ChainId, Transport};
@@ -13,8 +12,8 @@ use crate::common::{direct_network, serve};
 
 const BSC_CHAIN_ID_REPLY: &str = r#"{"jsonrpc":"2.0","id":1,"result":"0x38"}"#;
 
-/// The probe asks with the connector the Ethereum pool is built with, so a node
-/// that answers for BNB Smart Chain is reported rather than verified.
+/// The probe asks with the connector the Ethereum pool is built with, so a node that
+/// answers for BNB Smart Chain is reported as the wrong network.
 #[tokio::test]
 async fn an_ethereum_node_is_held_to_ethereums_chain_id() {
     let (url, server) = serve(vec![("200 OK", BSC_CHAIN_ID_REPLY)]).await.unwrap();

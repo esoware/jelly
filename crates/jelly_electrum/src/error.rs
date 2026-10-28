@@ -9,8 +9,8 @@ use jelly_net::{NetError, Outcome};
 use crate::method::Method;
 use crate::version::ProtocolVersion;
 
-/// Every endpoint inside is an [`EndpointLabel`], redacted at construction, so
-/// no address, userinfo, or query string can reach a message or a `Debug` print.
+/// Every endpoint inside is an [`EndpointLabel`], so no userinfo, path, or query string
+/// can reach a message or a `Debug` print.
 #[derive(Debug, thiserror::Error)]
 pub enum ElectrumError {
     /// A failure from the shared network layer, such as the dial, the TLS
@@ -22,8 +22,8 @@ pub enum ElectrumError {
     Closed { endpoint: EndpointLabel },
     #[error("{endpoint}: {method} timed out after {elapsed_millis} ms")]
     Timeout { endpoint: EndpointLabel, method: Method, elapsed_millis: u64 },
-    /// The server answered with something this build cannot read or accept. The
-    /// detail is a fixed reason, so no library's message can reach the interface.
+    /// The server answered with something we can't read or accept. `detail` is a fixed
+    /// string, never a library's message.
     #[error("{endpoint}: {method}: {detail}")]
     Protocol { endpoint: EndpointLabel, method: Method, detail: &'static str },
     /// The server answered with a JSON-RPC error member, as an object or a bare
@@ -45,12 +45,12 @@ pub enum ElectrumError {
         since: ProtocolVersion,
         negotiated: ProtocolVersion,
     },
-    /// A socket is on another chain than this client was built for. Every socket
-    /// proves its chain's blocks before it serves, so an endpoint that switches
-    /// backends mid-session cannot slip in a foreign chain's history.
+    /// A socket serves another chain than this client expects. Every socket is checked, so
+    /// an endpoint that switches backends mid-session can't slip in another chain's
+    /// history.
     ///
-    /// The hashes are boxed because two inline would make every `Result` that
-    /// carries this error trip `clippy::result_large_err`.
+    /// The hashes are boxed so a `Result` carrying this error doesn't trip
+    /// `clippy::result_large_err`.
     #[error("{endpoint}: serves block {height} as {found}, not {expected}")]
     WrongChain {
         endpoint: EndpointLabel,
@@ -98,8 +98,7 @@ impl ElectrumError {
         }
     }
 
-    /// The class the health tracker records. Nothing re-derives it from a
-    /// message.
+    /// The class the health tracker records.
     pub const fn kind(&self) -> FailureKind {
         match *self {
             Self::Net(ref net) => net.kind(),
@@ -117,15 +116,12 @@ impl ElectrumError {
         }
     }
 
-    /// What a read's failover walk does with this failure.
+    /// What a read's failover does with this failure.
     ///
-    /// Everything rotates except a refusal the node has made up its mind about,
-    /// which every other node will make the same way, and a method the negotiated
-    /// protocol lacks. That one never reached the wire and says nothing about the
-    /// server's health, and most public servers negotiate below the protocol that
-    /// added it, so rotating would penalise every server in the pool at once. A
-    /// broadcast uses [`classify_broadcast`] instead, because a refusal there is
-    /// an answer the caller has to see rather than an endpoint failure.
+    /// Everything rotates except a settled refusal, which every node would repeat, and a
+    /// method the negotiated protocol lacks. That call never reached the wire, and most
+    /// public servers negotiate below the protocol that added it, so rotating would
+    /// penalize the whole pool at once. A broadcast uses [`classify_broadcast`] instead.
     pub const fn outcome(&self) -> Outcome {
         match *self {
             Self::Rejected { ref rejection, .. } => match rejection.retry {
@@ -152,8 +148,8 @@ impl ElectrumError {
         if let Self::Rejected { ref rejection, .. } = *self { Some(rejection) } else { None }
     }
 
-    /// `chain` comes from the caller because nothing in this crate knows which
-    /// coin it is talking to.
+    /// Takes `chain` from the caller, since this crate doesn't know which coin it's
+    /// talking to.
     pub fn into_chain_error(self, chain: ChainId) -> ChainError {
         match self {
             Self::Net(net) => ChainError::from(net),
@@ -174,8 +170,8 @@ impl ElectrumError {
     }
 }
 
-/// Puts an Electrum failure into the shape the pool classifies, keeping the
-/// original as the source so the typed value survives the round trip.
+/// Keeps the original as the source, so the typed value survives the round trip through
+/// the pool.
 impl From<ElectrumError> for NetError {
     fn from(error: ElectrumError) -> Self {
         let endpoint = match error {
@@ -204,18 +200,16 @@ impl From<NetError> for ElectrumError {
     }
 }
 
-/// The classifier every Electrum read is walked with. It applies
-/// [`ElectrumError::outcome`] to a typed Electrum failure and rotates on anything
-/// else.
+/// The classifier for every Electrum read. It applies [`ElectrumError::outcome`] to an
+/// Electrum failure and rotates on anything else.
 pub fn classify(error: &NetError) -> Outcome {
     error.source_of::<ElectrumError>().map_or(Outcome::Rotate, ElectrumError::outcome)
 }
 
-/// The classifier a broadcast is walked with.
+/// The classifier for a broadcast.
 ///
-/// A refusal is an answer, so the attempt counts as a success for the endpoint
-/// and the typed rejection reaches the caller instead of being lost in an
-/// all-endpoints-failed report.
+/// A refusal is an answer, so it counts as a success for the endpoint and the typed
+/// rejection reaches the caller instead of getting lost in an all-endpoints-failed report.
 pub fn classify_broadcast(error: &NetError) -> Outcome {
     if matches!(error.source_of::<ElectrumError>(), Some(ElectrumError::Rejected { .. })) {
         Outcome::Accept

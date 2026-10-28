@@ -1,11 +1,7 @@
 //! Signing makes no network call.
 //!
-//! TRON signs `sha256(raw_data)` with secp256k1. This build appends `r || s ||
-//! recovery_id` with the raw `0..=3` recovery id, which java-tron accepts
-//! alongside the form offset by 27.
-//!
-//! The digest is the transaction id, so the id is known before broadcast and an
-//! ambiguous send can be looked up by it.
+//! TRON signs `sha256(raw_data)` with secp256k1. That digest is also the txid, so
+//! it's known before broadcast and an ambiguous send can be looked up by it.
 
 use jelly_core::{KeyKind, KeyMaterial, RawTx, SignedTx, TxId, UnsignedTx};
 use jelly_keypair::Secp256k1Key;
@@ -16,11 +12,10 @@ use crate::error::TronError;
 use crate::payload::{Facts, TronPayload};
 use crate::raw;
 
-/// Refuses a payload that does not decode, facts that differ from the preview, and
-/// a key that does not hold the owner address inside the signed bytes.
+/// Refuses a payload that doesn't decode, facts that differ from the preview, and
+/// a key that doesn't hold the owner address in the signed bytes.
 ///
-/// Answers the facts the signed bytes state alongside them, so following the send
-/// needs no second decode.
+/// Also returns the facts, so tracking the send needs no second decode.
 pub(crate) fn sign(
     unsigned: &UnsignedTx,
     key: &KeyMaterial,
@@ -46,7 +41,7 @@ pub(crate) fn sign(
     Ok((facts, signed))
 }
 
-/// Nothing may be signed that was not previewed.
+/// Nothing gets signed that wasn't previewed.
 fn matches_preview(unsigned: &UnsignedTx, facts: &Facts) -> Result<(), TronError> {
     let preview = &unsigned.preview;
     if preview.chain != CHAIN {
@@ -184,7 +179,7 @@ mod tests {
         let mut tx = unsigned(OWNER, RECIPIENT, 1_000_000);
         let raw_data = TronPayload::decode(&tx.payload).expect("a payload").raw_data().to_vec();
         tx.payload = TxPayload::from_bytes(raw_data);
-        // Zero is not a secret key, so reading the key first would fail as Signing.
+        // Zero isn't a valid secret key, so reading the key first would fail as Signing.
         let unusable = key_material(KeyKind::Secp256k1, 0);
         let error = sign(&tx, &unusable).expect_err("an unframed payload");
         assert!(matches!(error, TronError::Payload { .. }), "{error:?}");

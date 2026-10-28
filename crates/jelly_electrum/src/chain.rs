@@ -9,22 +9,19 @@ pub struct Checkpoint {
     pub hash: BlockHash,
 }
 
-/// What a server must prove about the chain it serves, and how that chain frames its
-/// headers.
+/// The blocks a server must serve to prove its chain, and how that chain frames headers.
 ///
-/// The wire protocol is identical across coins and their server populations share
-/// ports, so the blocks a server serves are the only thing that says which chain
-/// answered. This crate knows no chain, so the caller supplies the blocks.
+/// Every coin speaks the same protocol on the same ports, so the blocks a server serves
+/// are the only way to tell which chain answered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ElectrumChain {
     pub genesis: BlockHash,
-    /// A block past the last split from a chain that shares block zero, which a
-    /// server of the other chain serves differently. Bitcoin and Bitcoin Cash share
-    /// block zero, so without one each would take the other's servers.
+    /// A block after the split from a chain that shares this one's block zero. Without
+    /// it, Bitcoin and Bitcoin Cash would each accept the other's servers.
     pub checkpoint: Option<Checkpoint>,
     /// Whether a header may carry its parent chain's proof of work after the eighty
-    /// bytes, as Dogecoin's merge-mined headers do. The proof is not verified, because
-    /// a header is only read for its hash, its parent, and its time.
+    /// bytes, as Dogecoin's do. The proof isn't checked, since only a header's hash,
+    /// parent, and time are read.
     pub is_merge_mined: bool,
 }
 

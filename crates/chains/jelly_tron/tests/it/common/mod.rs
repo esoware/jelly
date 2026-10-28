@@ -1,12 +1,11 @@
-//! A scripted TRON node and the harness every suite drives the shipped adapter
-//! over.
+//! A scripted TRON node and the harness that runs the shipped adapter over it.
 //!
-//! The fake implements the production [`TronNode`] port, so the decoders,
-//! request encoders, history walk and pending ledger all run as shipped.
+//! The fake implements [`TronNode`], so the decoders, request encoders, history
+//! walk, and pending ledger all run as shipped.
 //!
-//! A route is scripted by [`Route`] and optionally by a needle the request must
-//! contain, and the longest matching needle wins. A route with several queued
-//! answers hands them out in order and then repeats the last one.
+//! A script matches a [`Route`] and, optionally, a needle the request must
+//! contain. The longest matching needle wins. A script with several queued
+//! answers hands them out in order, then repeats the last one.
 
 use std::collections::VecDeque;
 use std::error::Error;
@@ -36,7 +35,7 @@ use serde_json::Value;
 
 pub(crate) type Fallible<T> = Result<T, Box<dyn Error>>;
 
-/// A second recipient, used where a test scripts an account row that is absent.
+/// A recipient the tests script with no account row.
 pub(crate) const FRESH: &str = "TEpPGH6bFVgD7J4tnGfFqAstxTS3e6bPiF";
 /// The account `token_page1.json` was recorded for.
 pub(crate) const TOKEN_HISTORY: &str = "TBdQCi6AvGhCNk17Pmhqx9eoXMRFqEBiqo";
@@ -44,15 +43,15 @@ pub(crate) const TOKEN_HISTORY: &str = "TBdQCi6AvGhCNk17Pmhqx9eoXMRFqEBiqo";
 /// The length of the `0x41 || tail` body TRON's protobuf and HTTP API carry.
 pub(crate) const BODY_BYTES: usize = 21;
 
-/// The canonical spelling of an address a fixture carries as hex, encoded by `bs58`
-/// rather than by the code under test.
+/// The canonical spelling of an address a fixture carries as hex, encoded by `bs58`,
+/// not by the code under test.
 pub(crate) fn canonical(value: &str) -> Fallible<String> {
     let hex = value.strip_prefix("0x").unwrap_or(value);
     let body = <[u8; BODY_BYTES]>::try_from(hex::decode(hex)?.as_slice())?;
     Ok(bs58::encode(body).with_check().into_string())
 }
 
-/// The body of a `T...` address, decoded by `bs58` rather than by the code under test.
+/// The body of a `T...` address, decoded by `bs58`, not by the code under test.
 pub(crate) fn body_of(address: &str) -> Fallible<[u8; BODY_BYTES]> {
     let decoded = bs58::decode(address).with_check(None).into_vec()?;
     Ok(<[u8; BODY_BYTES]>::try_from(decoded.as_slice())?)
@@ -101,8 +100,7 @@ pub(crate) fn number(value: &Value, key: &str) -> Option<i64> {
     value.get(key).and_then(Value::as_i64)
 }
 
-/// A transaction as an endpoint reported it, which is the anchor a rebuild is
-/// compared against.
+/// A transaction as an endpoint reported it, for a rebuild to be compared against.
 #[derive(Debug, Deserialize)]
 pub(crate) struct Recorded {
     pub(crate) raw_data_hex: String,
@@ -141,7 +139,6 @@ pub(crate) struct RecordedValue {
     pub(crate) data: Option<String>,
 }
 
-/// The recorded transaction a fixture holds.
 pub(crate) fn recorded(fixture: &str) -> serde_json::Result<Recorded> {
     serde_json::from_str(fixture)
 }
@@ -190,8 +187,8 @@ pub(crate) fn send_max(asset: AssetId, to: &str) -> TxRequest {
 #[derive(Debug, Clone)]
 pub(crate) enum Answer {
     Body(String),
-    /// A completed exchange with a non-success status, which is what a gateway that
-    /// does not serve a route reports.
+    /// A completed exchange with a non-success status, as from a gateway that
+    /// doesn't serve the route.
     Status(u16),
     /// The exchange never completed, so the outcome is unknown.
     Transport,
@@ -254,7 +251,7 @@ impl FakeNode {
         self.queue(route, "", answer)
     }
 
-    /// Scripts one answer for a route whose path, query or body contains
+    /// Scripts one answer for a route whose path, query, or body contains
     /// `needle`.
     pub(crate) fn on_matching(
         self: &Arc<Self>,
@@ -265,8 +262,8 @@ impl FakeNode {
         self.queue(route, needle, answer)
     }
 
-    /// Replaces every script for a route with one standing answer, which is how a
-    /// test overrides a route the shared fixtures already scripted.
+    /// Replaces every script for a route with one standing answer, so a test can
+    /// override what the shared fixtures scripted.
     pub(crate) fn always(self: &Arc<Self>, route: Route, answer: Answer) -> Arc<Self> {
         let mut state = self.state.lock();
         state.scripts.retain(|script| script.route != route);
@@ -315,7 +312,7 @@ impl FakeNode {
     }
 
     /// Records the call and hands out the answer scripted for it. An unscripted
-    /// request panics, because it is a test that is missing a script.
+    /// request panics, since the test is missing a script.
     #[expect(clippy::panic, reason = "an error here could pass for the failure a test expects")]
     fn dispatch(&self, request: &Request) -> Answer {
         let route = request.route();
@@ -423,7 +420,7 @@ pub(crate) fn resources(free_used: u64, staked_limit: u64, energy_limit: u64) ->
     Answer::Body(account_resource(free_used, staked_limit, energy_limit))
 }
 
-/// Scripts the head block, governance parameters and sender's pools that every
+/// Scripts the head block, governance parameters, and sender's pools that every
 /// build and quote reads.
 pub(crate) fn base(fake: &Arc<FakeNode>) -> Arc<FakeNode> {
     fake.on(Route::NowBlock, Answer::body(fixture!("now_block")))
@@ -466,7 +463,7 @@ pub(crate) fn sender() -> Arc<FakeNode> {
     quiet_history(&fake)
 }
 
-/// An empty page on every history stream, which is a wallet with no history.
+/// An empty page on every history stream, as for a wallet with no history.
 pub(crate) fn quiet_history(fake: &Arc<FakeNode>) -> Arc<FakeNode> {
     fake.on(Route::NativeHistory, Answer::body(fixture!("page_empty")))
         .on(Route::TokenHistory, Answer::body(fixture!("page_empty")))
@@ -474,7 +471,7 @@ pub(crate) fn quiet_history(fake: &Arc<FakeNode>) -> Arc<FakeNode> {
 }
 
 /// A wallet holding 7 TRX whose token balances answer and that no contract has
-/// paid, so a test scripts only the native and TRC-20 history it is about.
+/// paid, so a test scripts only the native and TRC-20 history it's about.
 pub(crate) fn balances_only(address: &str) -> Arc<FakeNode> {
     let fake = FakeNode::new();
     base(&fake)

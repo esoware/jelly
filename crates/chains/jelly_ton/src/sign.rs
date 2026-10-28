@@ -110,8 +110,8 @@ mod tests {
         serde_json::from_str(include_str!("../tests/vectors/signing.json")).unwrap()
     }
 
-    /// The payment a vector signs, with the Gram it attaches even where that is not what
-    /// Jelly attaches, so a reference vector of another wallet still pins the layout.
+    /// The payment a vector signs. It attaches the vector's Gram even where Jelly would
+    /// attach another amount, so another wallet's reference vector still pins the layout.
     fn payment(vector: &Vector, pubkey: [u8; 32]) -> Payment {
         let (to, transfer) = match vector.jetton {
             None => (

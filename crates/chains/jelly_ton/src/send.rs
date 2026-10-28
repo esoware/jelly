@@ -27,7 +27,7 @@ pub(crate) struct Inputs<'a> {
     pub(crate) watched: &'a [Watched],
 }
 
-/// What every payment from one sender starts from.
+/// The sender's state that every payment from it is built on.
 struct Sender<'a> {
     watched: &'a Watched,
     balance_nanogram: u64,
@@ -152,8 +152,8 @@ async fn native_payment(
     }
     let TonDestination { address: recipient, is_bounceable, comment } = destination;
     // A raw address carries no bounce flag, so the recipient's state decides one: a
-    // deployed contract can bounce what it refuses, and an account that is not deployed
-    // yet must keep the payment rather than send it back.
+    // deployed contract can bounce what it refuses, and an account that isn't deployed yet
+    // must keep the payment.
     let is_bounceable = if is_bounceable == Some(false) {
         false
     } else {

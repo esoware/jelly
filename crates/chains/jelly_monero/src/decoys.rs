@@ -21,16 +21,16 @@ use crate::params::RING_LEN;
 
 const TARGET: &str = "jelly::monero::decoys";
 
-/// The cumulative `RingCT` output distribution, the height it covers and the
+/// The cumulative `RingCT` output distribution, the height it covers, and the
 /// endpoint that served it.
 ///
 /// Decoy selection needs the whole distribution from block zero, tens of
 /// megabytes on mainnet, so one is reused for a fixed window and each build
 /// records the height its ring was chosen against.
 ///
-/// The endpoint is the canonical URL, because the ring goes back to that node and so
-/// does the transaction built on it. Only the URL tells two endpoints on one host
-/// apart. It can carry credentials, so `Debug` leaves it out.
+/// The ring and the transaction built on it go back to that endpoint, which is kept
+/// as its canonical URL because only the URL tells two endpoints on one host apart.
+/// It can carry credentials, so `Debug` leaves it out.
 pub struct Distribution {
     cumulative_outputs: Vec<u64>,
     height: u64,
@@ -76,14 +76,14 @@ pub(crate) struct Candidate {
     pub ring: Option<Vec<u64>>,
 }
 
-/// What [`monero_wallet`] reads an output with decoys back from: the output's key, its
-/// key offset, and its commitment, then the decoys.
+/// The output's key (32), key offset (32), and commitment (40), which precede the
+/// decoys in the encoding `OutputWithDecoys::read` takes.
 const OUTPUT_DATA_BYTES: usize = 104;
 
 /// Feeds `monero-wallet` decoy selection the cached output distribution and ring
 /// candidates from one endpoint.
 ///
-/// The original error is stashed separately because `InterfaceError` cannot carry
+/// The original error is stashed separately because `InterfaceError` can't carry
 /// it.
 struct RingSource<'a> {
     node: &'a dyn MoneroNode,
@@ -138,15 +138,15 @@ impl ProvidesUnvalidatedDecoys for RingSource<'_> {
     }
 }
 
-/// The ring for each candidate against one endpoint's view of the chain.
+/// A ring for each candidate, against one endpoint's view of the chain.
 ///
 /// Each ring's member positions go into `chosen` by the candidate's key image the
-/// moment it is settled, so a failure on a later candidate loses none of them.
+/// moment it's settled, so a failure on a later candidate loses none of them.
 ///
-/// A candidate offered with a ring before is offered with that exact ring again, so
-/// whoever saw both learns nothing from comparing them, unless the ring no longer
-/// holds on this chain. All the members come from one node, because a ring stitched
-/// from two nodes' answers tells each of them something about which member is real.
+/// A candidate offered with a ring before gets that exact ring again, unless it no
+/// longer holds on this chain, so whoever sees both learns nothing by comparing them.
+/// All the members come from one node, because a ring stitched from two nodes'
+/// answers tells each of them something about which member is real.
 pub(crate) async fn select_rings(
     node: &dyn MoneroNode,
     distribution: &Distribution,
@@ -181,7 +181,7 @@ pub(crate) async fn select_rings(
 }
 
 /// `output` with the ring at `positions`, or `None` when that ring no longer holds on
-/// the chain `distribution` reads, as after a reorganisation moved the output or a
+/// the chain `distribution` reads, as after a reorganization moved the output or a
 /// member.
 ///
 /// It holds while it has [`RING_LEN`] members that the chain had at the distribution's

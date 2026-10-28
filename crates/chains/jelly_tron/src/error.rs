@@ -6,40 +6,40 @@ use jelly_net::NetError;
 use crate::fee::trx_text;
 use crate::route::Route;
 
-/// A node's own wording appears only in a classified [`Rejection`],
-/// [`TronError::Fault`] and [`TronError::CallFailed`].
+/// Only a classified [`Rejection`], [`TronError::Fault`], and
+/// [`TronError::CallFailed`] carry a node's own wording.
 ///
-/// Endpoints are always an [`EndpointLabel`], and no variant interpolates key
-/// material, a URL or a query string, so `Debug` output is safe to log.
+/// Endpoints are always an [`EndpointLabel`], and no variant carries key material,
+/// a URL, or a query string, so `Debug` output is safe to log.
 #[derive(Debug, thiserror::Error)]
 pub enum TronError {
     #[error(transparent)]
     Net(NetError),
-    /// The network refused a broadcast, classified once.
+    /// The network refused a broadcast.
     #[error("{0}")]
     Rejected(Rejection),
-    /// An answer this build cannot read, reported by position because serde's
-    /// message quotes the answer back.
+    /// An unreadable answer, reported by position because serde's message quotes
+    /// the answer back.
     #[error("{endpoint}: the {route} answer is unreadable at line {line} column {column}")]
     Answer { endpoint: EndpointLabel, route: Route, line: usize, column: usize },
-    /// The answer parsed but a field this build needs is missing or unusable,
-    /// such as a block id that is not thirty-two bytes.
+    /// The answer parsed, but a field we need is missing or unusable, such as a
+    /// block id that isn't 32 bytes.
     #[error("{endpoint}: the {route} answer has no usable {what}")]
     Shape { endpoint: EndpointLabel, route: Route, what: &'static str },
     /// TRON reports several faults as HTTP 200 with an `Error` member.
     #[error("{endpoint}: {route} was refused: {detail}")]
     Fault { endpoint: EndpointLabel, route: Route, detail: String },
-    /// A read-only contract call did not execute cleanly. The detail is the node's
+    /// A read-only contract call didn't execute cleanly. The detail is the node's
     /// message.
     #[error("the contract call was refused: {detail}")]
     CallFailed { detail: String },
-    /// Mapped explicitly rather than with `#[from]`, so no other [`CoreError`] is
-    /// reported as a storage failure.
+    /// Not `#[from]`, so no other [`CoreError`] gets reported as a storage
+    /// failure.
     #[error("the cursor store failed")]
     Cursor(#[source] CoreError),
-    /// A broadcast of bytes this adapter is not following, because they were
-    /// never signed here or stopped being followed first. No record of the send
-    /// can be written before they leave, so they never do.
+    /// The signed bytes aren't tracked, because they weren't signed here or
+    /// stopped being tracked first. With no record of the send to write, they're
+    /// never broadcast.
     #[error("the signed transaction has no reservation")]
     Untracked,
 
@@ -53,8 +53,8 @@ pub enum TronError {
     NotWatched { address_id: i64 },
     #[error("Choose one address to send from.")]
     NotOneSource,
-    /// The spending address left the watch set between build and signature, so
-    /// there is no row to record the send against.
+    /// The sending address left the watch set between build and signing, so
+    /// there's no row to record the send against.
     #[error("The sending address is no longer available in this wallet.")]
     OwnerNotWatched,
     /// The detail comes from the address codec, whose messages never carry a
@@ -68,8 +68,8 @@ pub enum TronError {
     AmountZero,
     #[error("The amount exceeds TRON's limit.")]
     AmountTooLarge,
-    /// Carried as typed amounts rather than as text, so the interface formats
-    /// them with the asset's own decimals.
+    /// Typed amounts, not text, so the frontend formats them with the asset's own
+    /// decimals.
     #[error(
         "{} needed and only {} available in {}",
         needed.format(asset.decimals()),
@@ -78,7 +78,6 @@ pub enum TronError {
     )]
     InsufficientFunds { asset: AssetId, needed: Amount, available: Amount },
 
-    /// Both limits are in sun, and the message shows them in TRX.
     #[error(
         "The fee limit of {} exceeds the network maximum of {}.",
         trx_text(*requested_sun),
@@ -96,13 +95,13 @@ pub enum TronError {
     Payload { detail: &'static str },
     #[error("a tron transaction could not be decoded")]
     Protobuf(#[from] prost::DecodeError),
-    /// A decoded transaction this build did not produce, such as a contract it
-    /// never writes, a field it never stamps, calldata that is not a TRC-20
-    /// transfer, or a signed form that is not one signature over one `raw_data`.
+    /// A decoded transaction we didn't build: an unknown contract, a field we
+    /// never set, calldata that isn't a TRC-20 transfer, or a signed form that
+    /// isn't one signature over one `raw_data`.
     #[error("the transaction is not one this build produced: {detail}")]
     Foreign { detail: &'static str },
-    /// The preview handed back for signing does not state what the payload's
-    /// bytes do, so it is not the preview this build rendered for them.
+    /// The preview handed back for signing doesn't match what the payload's bytes
+    /// do.
     #[error("the preview does not describe the transaction it was built with")]
     PreviewMismatch,
 
@@ -170,8 +169,7 @@ mod tests {
     use super::*;
     use crate::test_util::endpoint;
 
-    /// The engine and the interface both branch on these classes. The conversion
-    /// has no wildcard arm, so this pins what each class is for.
+    /// The engine and the frontend both branch on these classes.
     #[test]
     fn a_failure_reaches_the_engine_in_the_class_that_describes_it() {
         assert!(matches!(
@@ -194,9 +192,8 @@ mod tests {
             ChainError::from(TronError::invalid_address("recipient", "wrong length")),
             ChainError::InvalidAddress(_)
         ));
-        // A transport failure keeps `jelly_net`'s own vocabulary rather than
-        // becoming an internal one, so the engine can still see it was the
-        // network.
+        // A transport failure stays a `jelly_net` error, so the engine can tell it
+        // was the network.
         let net = TronError::Net(NetError::Status { endpoint: endpoint(), status: 500 });
         assert!(!matches!(ChainError::from(net), ChainError::Internal { .. }));
     }

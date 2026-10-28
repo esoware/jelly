@@ -1,6 +1,6 @@
 {
   "chain": "arbitrum",
-  "note": "Free public Arbitrum One JSON-RPC endpoints, verified with eth_chainId returning 0xa4b1, a JSON-RPC batch, eth_feeHistory with reward percentiles, a Multicall3 eth_call, an eth_getLogs window of 50,000 blocks, and logs from the first supported deployment. Endpoints that refused eth_getLogs or capped it below that width, needed a key, or were unreachable at verification time are omitted. PublicNode refuses every receipt, and any log window wider than a few dozen blocks, with HTTP 403, so receipts and log windows come from the others. Pocket Network's gateway sometimes routes to a node with a narrower cap, which the adaptive window absorbs. The websocket rows carry the newHeads subscription that wakes a sync pass when blocks land, and each was verified by subscribing and receiving a push. The history API row is the Etherscan v2 multichain service, which serves Arbitrum One under chainid 42161 on its free plan.",
+  "note": "Free public Arbitrum One JSON-RPC endpoints, each verified with eth_chainId returning 0xa4b1, a JSON-RPC batch, eth_feeHistory with reward percentiles, a Multicall3 eth_call, a 50,000-block eth_getLogs window, and logs from the first supported deployment. Endpoints that refused eth_getLogs or capped it below that width, needed a key, or were unreachable were left out. PublicNode refuses every receipt and any log window wider than a few dozen blocks with HTTP 403, so receipts and log windows come from the others. Pocket Network's gateway sometimes routes to a node with a narrower cap, which the adaptive window absorbs. The websocket rows carry the newHeads subscription that wakes a sync pass when blocks land, and each was verified by subscribing and receiving a push. The history API row is the Etherscan v2 multichain service, which serves Arbitrum One under chainid 42161 on its free plan.",
   "endpoints": [
     {
       "url": "https://arb1.arbitrum.io/rpc",
@@ -10,7 +10,7 @@
     {
       "url": "https://arbitrum-one-rpc.publicnode.com",
       "transport": "http_jsonrpc",
-      "note": "PublicNode, no key, recent history only"
+      "note": "PublicNode, no key, no receipts or wide log windows"
     },
     {
       "url": "https://arb-one.api.pocket.network",

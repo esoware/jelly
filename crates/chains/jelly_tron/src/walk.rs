@@ -1,8 +1,7 @@
-//! One address's walk through the indexer history streams its [`Gate`] says are
-//! due, in one pass.
+//! Walks the indexer history streams that an address's [`Gate`] says are due.
 //!
-//! Records are emitted before each cursor advances, so persisted progress never
-//! skips unreported history.
+//! Records are emitted before the cursor advances, so saved progress never skips
+//! unreported history.
 
 use std::collections::{HashMap, HashSet};
 
@@ -19,15 +18,13 @@ use crate::watched::Watched;
 
 const TARGET: &str = "jelly::tron::walk";
 
-/// Reads each of one address's history streams that `gate` says is due.
+/// Reads each of the address's history streams that `gate` says is due. Reading
+/// every stream of every address each pass would push even a few addresses past a
+/// keyless `TronGrid` budget.
 ///
-/// A stream is read only when it is due, because reading every stream of every
-/// address every pass would take a wallet of a few addresses past a keyless
-/// `TronGrid` budget.
-///
-/// A failure is logged and swallowed, because the `/v1` routes have one host,
-/// `TronGrid`, which may be down, out of budget, or turned off. The cursor does not
-/// move, so the next read retries and the stream is not marked complete.
+/// A failure is logged and swallowed, since the `/v1` routes have one host,
+/// `TronGrid`, which may be down, out of budget, or turned off. The cursor doesn't
+/// move, so the next read retries.
 pub(crate) async fn run(
     inputs: &PassInputs<'_>,
     entry: &Watched,
@@ -71,23 +68,21 @@ pub(crate) async fn run(
     gate.reconcile(&walk.explained);
 }
 
-/// One address's walk through every history stream in one pass.
 struct AddressWalk<'a> {
     inputs: PassInputs<'a>,
     entry: &'a Watched,
     tip: BlockRef,
     deadline: Deadline,
     events: &'a dyn EventSink,
-    /// The block of every row this pass has read that named one, by txid. A
-    /// TRC-20 row names none, and when the native stream, walked first, holds the
-    /// same transaction, its block saves the receipt lookup.
+    /// Block heights by txid, from the rows this pass has read that name one. A
+    /// TRC-20 row names none, so a height from the native stream, walked first,
+    /// saves a receipt lookup.
     heights: HashMap<String, u64>,
-    /// Every transaction whose TRX this pass has reported whole, from a native
-    /// row, which lists its internal transfers, or from an internal transfer's
-    /// parent row.
+    /// Transactions whose TRX this pass has reported in full, from a native row
+    /// (which lists its internal transfers) or an internal transfer's parent row.
     reported_whole: HashSet<String>,
-    /// Every transaction this pass reported with no block. A forward walk keeps
-    /// its frontier below them, so a later walk reads them again and places them.
+    /// Transactions this pass reported with no block. The forward frontier stays
+    /// below them, so a later walk reads them again and places them.
     unplaced_txids: HashSet<String>,
     explained: Explained,
 }
@@ -104,8 +99,7 @@ impl AddressWalk<'_> {
             self.backfill(stream, &mut cursor).await?;
         }
 
-        // A cursor is written only when it moved, so a quiet pass costs no
-        // database transaction.
+        // A quiet pass shouldn't cost a database transaction.
         if cursor != before {
             states.set_cursor(address_id, stream, cursor);
             states.persist_scan(address_id).await?;
@@ -113,10 +107,9 @@ impl AddressWalk<'_> {
         Ok(())
     }
 
-    /// Walks from the newest end and stops at the transaction this wallet last
-    /// reported, so a quiet address costs one page. The per-pass budget bounds a
-    /// busy one, and a walk an earlier pass left short of the frontier goes on
-    /// from where it stopped.
+    /// Reads from the newest end down to the last transaction we reported, so a
+    /// quiet address costs one page. The per-pass budget bounds a busy one, and a
+    /// walk an earlier pass left short of the frontier resumes where it stopped.
     ///
     /// The frontier never moves above a row reported with no block, so the next
     /// walk reads that row again and places it once a node has its receipt.
@@ -142,8 +135,8 @@ impl AddressWalk<'_> {
                 has_unplaced,
                 is_caught_up: is_frontier_reached,
             } = self.read_page(stream, fingerprint.as_deref(), Some(&*cursor)).await?;
-            // A row with no block takes the frontier below it, wherever an
-            // earlier page of this walk had put it.
+            // A row with no block pulls the frontier below it, even if an earlier
+            // page of this walk set it higher.
             if has_unplaced || newest.is_none() {
                 newest = seen;
             }
@@ -155,14 +148,12 @@ impl AddressWalk<'_> {
             }
         }
 
-        // The frontier moves only when everything above it has been reported,
-        // which is when the walk reached it, the stream ended, or there was no
-        // frontier and the backfill takes over where this walk stopped. A walk
-        // that ran out short of the frontier records where it stopped instead, so
-        // the next pass reads the rows between there and the frontier rather than
-        // the same newest pages again. Duplicate records are idempotent in the
-        // store, but a frontier moved over unreported history would lose it for
-        // good.
+        // Move the frontier only once everything above it is reported: the walk
+        // reached it, the stream ended, or there was no frontier and the backfill
+        // picks up where this walk stopped. A walk that ran out short of the
+        // frontier saves where it stopped instead, so the next pass reads the gap
+        // rather than the same newest pages. Duplicate records are harmless, but
+        // moving the frontier over unreported history would lose it for good.
         if has_prior_frontier && !is_caught_up && !has_ended {
             if let Some(fingerprint) = fingerprint {
                 let (txid, timestamp_millis) = newest.unzip();
@@ -187,7 +178,7 @@ impl AddressWalk<'_> {
         Ok(())
     }
 
-    /// The walk into older pages, a few per pass.
+    /// Reads older pages, a few per pass.
     async fn backfill(
         &mut self,
         stream: Stream,
@@ -207,8 +198,8 @@ impl AddressWalk<'_> {
         Ok(())
     }
 
-    /// Emits the records on one page, stopping at the frontier when `frontier`
-    /// is `Some`. It is `Some` on the forward walk and `None` on the backfill.
+    /// Emits the records on one page. `frontier` is `Some` on the forward walk,
+    /// which stops there, and `None` on the backfill.
     async fn read_page(
         &mut self,
         stream: Stream,
@@ -255,7 +246,7 @@ impl AddressWalk<'_> {
         self.inputs.client.history(stream, &self.entry.address, fingerprint).await
     }
 
-    /// Emits the records one row means.
+    /// Emits a row's records and remembers its block.
     async fn report<T: Recorded + Sync>(
         &mut self,
         stream: Stream,
@@ -275,11 +266,10 @@ impl AddressWalk<'_> {
     /// Emits what the transaction behind an internal transfer moved for this
     /// address.
     ///
-    /// The transfer is one step of that transaction and the store keeps one TRX
-    /// record per transaction, so the record comes from the whole transaction,
-    /// the same row read the same way as on the native stream, never from this
-    /// step alone. A transaction this pass already reported whole is not read
-    /// again.
+    /// The store keeps one TRX record per transaction, so the record comes from
+    /// the whole transaction, read the same way as on the native stream, never
+    /// from this one step. A transaction this pass already reported whole is
+    /// skipped.
     async fn internal(&mut self, row: &InternalRow, is_forward: bool) -> Result<(), TronError> {
         let txid = row.txid();
         if !row.pays(&self.entry.address) || self.reported_whole.contains(txid) {
@@ -341,9 +331,8 @@ impl AddressWalk<'_> {
         Ok(())
     }
 
-    /// The block a row that names none was mined in, from a row this pass has
-    /// already read or else from its receipt. A transaction with no receipt yet
-    /// stays unplaced.
+    /// The block of a row that doesn't name one, from a row this pass already read
+    /// or else from the receipt. `None` while there's no receipt yet.
     async fn height_of(&self, txid: &str) -> Result<Option<u64>, TronError> {
         if let Some(height) = self.heights.get(txid) {
             return Ok(Some(*height));
@@ -356,10 +345,9 @@ impl AddressWalk<'_> {
 struct PageRead {
     row_count: usize,
     fingerprint: Option<String>,
-    /// The row the forward frontier may move to. That is the newest on the page,
-    /// or, when the page reported a transaction with no block, the newest row
-    /// below the oldest such one that is not one of them. `None` when there is
-    /// no such row on the page.
+    /// The row the forward frontier may move to: the newest on the page or, if the
+    /// page reported a transaction with no block, the newest row below the oldest
+    /// such row that isn't itself unplaced. `None` if the page has no such row.
     newest: Option<(String, Option<i64>)>,
     /// True when the page reported a transaction with no block.
     has_unplaced: bool,
@@ -368,7 +356,7 @@ struct PageRead {
 }
 
 /// The rows above the forward frontier, which are the ones to report. With no
-/// frontier every row is.
+/// frontier, that's every row.
 fn above_frontier<'page, T: Row>(rows: &'page [T], frontier: Option<&StreamCursor>) -> &'page [T] {
     let fresh_count = frontier
         .and_then(|cursor| {
@@ -419,8 +407,8 @@ mod tests {
         assert_eq!(placed.newest, Some((String::from("aa"), Some(3))));
         assert!(!placed.has_unplaced);
 
-        // A frontier on the second row of the same transaction would stop the
-        // next walk at the first one.
+        // Both "aa" rows share a txid, so a frontier on the older one would stop
+        // the next walk at the newer one.
         let held = page_read(&page, 4, &HashSet::from([String::from("aa")]));
         assert_eq!(held.newest, Some((String::from("cc"), Some(1))));
         assert!(held.has_unplaced);

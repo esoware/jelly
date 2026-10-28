@@ -25,9 +25,8 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &[],
     custom_fee: None,
-    // About $4.95 at the October 2026 price of $0.33. It sits above the 6.5 to 13.4 TRX a
-    // USDT transfer that no staked energy covers always burns, so such a transfer does not
-    // warn. A TRX transfer costs nothing or about 0.27 TRX of bandwidth.
+    // About $5. That's above the 6.5 to 13.4 TRX a USDT transfer burns without staked
+    // energy, so an ordinary token send doesn't warn.
     high_fee: Amount::from_base_units(15_000_000),
     can_pin_nonce: false,
     can_carry_data: false,
@@ -86,8 +85,8 @@ impl ChainEntry for TronEntry {
         address::from_pubkey(&Secp256k1Key::from_key_material(key)?.public_uncompressed())
     }
 
-    /// TRON shares both the curve and the key with Ethereum, so it reads the same two
-    /// forms an Ethereum wallet exports.
+    /// TRON keys are Ethereum keys, so this accepts the same two forms an Ethereum
+    /// wallet exports.
     fn recognize_key(&self, input: &str) -> Option<&'static str> {
         recognize_web3_key(input)
     }

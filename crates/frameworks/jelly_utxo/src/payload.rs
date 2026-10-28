@@ -15,11 +15,11 @@ use crate::weight;
 /// The BIP-174 proprietary key prefix every Jelly field carries.
 const PREFIX: &[u8] = b"jelly";
 
-/// Proprietary global field subtypes, which are wire format.
+/// Proprietary global field subtypes. They're wire format, so a number is never
+/// reused for another meaning.
 ///
-/// A number is never reused for another meaning. A source's field is keyed by its
-/// position as a big-endian `u32`, so the fields sort in position order, and every
-/// other field has an empty key.
+/// A source's field is keyed by its position as a big-endian `u32`, so the fields
+/// sort in position order. Every other field has an empty key.
 const FIELD_SOURCE: u8 = 0;
 pub(crate) const FIELD_TO: u8 = 1;
 const FIELD_STRATEGY: u8 = 2;
@@ -45,12 +45,11 @@ pub(crate) struct Replaced {
 /// What a build decided beyond what the transaction already says.
 ///
 /// The fee, weight, script kinds, and inputs are read back off the PSBT rather
-/// than recorded, so a payload cannot disagree with itself.
+/// than recorded, so a payload can't disagree with itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Intent {
-    /// The sending addresses the transaction moves coins of, in the order the request
-    /// named them. Change goes to the first, and the signer refuses a key that does not
-    /// reproduce the address it is handed for.
+    /// The sending addresses, in the request's order. Change goes to the first, and
+    /// the signer refuses a key that doesn't match its address.
     pub(crate) sources: Vec<String>,
     /// Where the payment is going, so the preview can tell the payment from the
     /// change when both pay the same address.
@@ -60,8 +59,8 @@ pub(crate) struct Intent {
     /// output of that size is worth less than it costs.
     pub(crate) donated: Amount,
     pub(crate) replaces: Option<Replaced>,
-    /// The unconfirmed transaction whose change this one spends only to pay for it,
-    /// which makes it a child-pays-for-parent speed-up that moves nothing else.
+    /// For a child-pays-for-parent bump, the unconfirmed parent whose change it
+    /// spends. Such a child moves nothing else.
     pub(crate) pays_for: Option<Txid>,
 }
 
@@ -78,16 +77,15 @@ impl SpentOutput {
     }
 }
 
-/// A BIP-174 PSBT with the proprietary metadata previews and replacements need,
-/// so signing and preview read the same transaction.
+/// A BIP-174 PSBT plus the proprietary fields previews and replacements need, so
+/// signing and the preview read the same transaction.
 ///
 /// Parsing requires spendable prevout scripts, inputs that cover the outputs, and
 /// the sender, recipient, and strategy fields.
 ///
-/// Every input uses `witness_utxo`, legacy ones included. That is safe only
-/// because sync verified values against funding transactions and the payload
-/// never leaves the process. A hardware signer would need full parent
-/// transactions.
+/// Every input uses `witness_utxo`, legacy ones included. That's safe only because
+/// sync checked values against the funding transactions and the payload never
+/// leaves the process. A hardware signer would need the full parent transactions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct UtxoPayload {
     psbt: Psbt,
@@ -223,7 +221,7 @@ fn stamp(intent: &Intent) -> Result<BTreeMap<ProprietaryKey, Vec<u8>>, UtxoError
         || intent.sources.iter().any(String::is_empty)
         || intent.to.is_empty()
     {
-        return Err(UtxoError::payload("a payload names both the sender and the recipient"));
+        return Err(UtxoError::payload("the sender or the recipient is missing"));
     }
     let mut fields = BTreeMap::new();
     for (position, source) in (0u32..).zip(&intent.sources) {

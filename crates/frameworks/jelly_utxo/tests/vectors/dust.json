@@ -1,5 +1,5 @@
 {
-  "_note": "Dust thresholds at each chain's own rule. Bitcoin's DUST_RELAY_TX_FEE is 3000 per kvB, or 750 per 1000 weight units, Litecoin Core's is ten times that, and Bitcoin Cash Node triples its 1000 per kB, landing on Bitcoin's figure, which gives the 546 Trezor's Bitcoin Cash definition also lists. That is why the engine takes the rate from UtxoParams instead of calling minimal_non_dust. Dogecoin Core's soft dust limit is a fixed 0.01 DOGE for every spendable output, the figure Trezor's Dogecoin definition lists. Each chain lists the scripts its codec can pay.",
+  "_note": "Dust thresholds at each chain's own rule. Bitcoin's DUST_RELAY_TX_FEE is 3000 per kvB, or 750 per 1000 weight units, Litecoin Core's is ten times that, and Bitcoin Cash Node triples its 1000 per kB, landing on Bitcoin's figure, which gives the 546 Trezor's Bitcoin Cash definition also lists. That is why the framework takes the rate from UtxoParams instead of calling minimal_non_dust. Dogecoin Core's soft dust limit is a fixed 0.01 DOGE for every spendable output, the figure Trezor's Dogecoin definition lists. Each chain lists the scripts its codec can pay.",
   "chains": [
     {
       "chain": "bitcoin",

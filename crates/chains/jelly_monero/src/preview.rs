@@ -10,8 +10,8 @@ const STALE_SCAN_WARN_BLOCKS: u64 = 720;
 
 /// What a person is shown before they sign.
 ///
-/// Every figure comes off the assembled transaction rather than an estimate, so
-/// the fee is the one it commits to and the change is what the inputs leave.
+/// Every figure comes off the assembled transaction, not an estimate, so the fee
+/// is the one it commits to and the change is what the inputs leave.
 /// `ring_height` is the block its rings were chosen against.
 pub(crate) fn of(config: &MoneroConfig, plan: &Plan, built: &Built, ring_height: u64) -> TxPreview {
     TxPreview {

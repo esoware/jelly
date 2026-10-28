@@ -68,8 +68,8 @@ fn an_exported_key_imports_to_the_same_address_with_or_without_a_prefix() {
     }
 }
 
-/// tonlib-core 0.26.11's `test_ton_wallet_create`, which derives the V3R2 and V4R2
-/// wallets of a TON mnemonic as the TON wallets that use one show them.
+/// tonlib-core 0.26.11's `test_ton_wallet_create`, which derives a TON mnemonic's V3R2
+/// and V4R2 wallets as TON wallet apps show them.
 #[test]
 fn a_ton_seed_holds_its_v3r2_and_v4r2_wallets_at_the_reference_addresses() {
     let phrase = "fancy carpet hello mandate penalty trial consider property top vicious exit rebuild tragic profit urban major total month holiday sudden rib gather media vicious";
@@ -88,7 +88,7 @@ fn a_ton_seed_holds_its_v3r2_and_v4r2_wallets_at_the_reference_addresses() {
 }
 
 #[test]
-fn the_wallet_versions_are_flavours_no_path_names_and_v5r1_is_the_default() {
+fn the_wallet_versions_are_flavors_no_path_names_and_v5r1_is_the_default() {
     assert_eq!(SPEC.resolve_script(Some(44), None).unwrap(), DEFAULT);
     assert_eq!(
         SPEC.resolve_script(Some(44), Some(ScriptKind::TonV4r2)).unwrap(),
@@ -127,8 +127,8 @@ fn a_ton_seed_is_named_and_imports_with_its_password() {
     assert!(matches!(ENTRY.import_key(PROTECTED_TON_SEED, None), Err(KeyError::PasswordRequired)));
 }
 
-/// Naming a BIP-39 seed phrase is the engine's job, so the entry reports why the
-/// phrase is no TON seed.
+/// Naming a BIP-39 seed phrase is the engine's job, so the entry only reports why the
+/// phrase isn't a TON seed.
 #[test]
 fn a_seed_phrase_fails_as_a_ton_seed() {
     assert_eq!(ENTRY.recognize_key(TEST_PHRASE), None);

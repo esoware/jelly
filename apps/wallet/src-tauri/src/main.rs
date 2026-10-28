@@ -9,10 +9,9 @@ fn main() -> ExitCode {
     }
     match jelly_lib::run() {
         Ok(()) => ExitCode::SUCCESS,
-        // This reaches the log file only if the start got far enough to install the
-        // subscriber, which needs the data directory.
+        // Logged only if startup found the data directory and installed the subscriber.
         Err(error) => {
-            tracing::error!(target: "jelly::app", %error, "jelly could not run");
+            tracing::error!(target: "jelly::app", %error, "jelly couldn't run");
             ExitCode::FAILURE
         }
     }
@@ -20,10 +19,9 @@ fn main() -> ExitCode {
 
 /// Runs a copy of Jelly without any `WEBVIEW2_*` environment variable and waits for it.
 ///
-/// The Windows webview reads those variables when it starts, and any program running as the
-/// user can set them to open a remote debugging port into the page or to load a different
-/// browser runtime. Removing a variable from this process takes `unsafe`, so Jelly starts a
-/// copy of itself without them instead.
+/// The Windows webview reads those variables at startup, so any program running as the user
+/// could set them to open a remote debugging port into the page or load another browser
+/// runtime. Removing them from this process would take `unsafe`.
 #[cfg(windows)]
 fn relaunch_without_webview2_overrides() -> Option<ExitCode> {
     use std::env;

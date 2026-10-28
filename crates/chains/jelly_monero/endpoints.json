@@ -1,11 +1,11 @@
 {
   "chain": "monero",
-  "note": "Public Monero remote nodes on their restricted RPC, verified with POST /json_rpc get_info returning mainnet and status OK, get_fee_estimate, get_block_headers_range, a pruned get_blocks.bin read of one scan batch, and the full get_output_distribution.bin a send reads its decoys from. The later rows come from the monero.fail, Feather and Cake Wallet lists. Every shipped row is TLS with a CA-valid certificate, because the client accepts no other: the MoneroDevs, StormyCloud, HashVault and xmr.support nodes now present self-signed certificates and xmr-tw an expired one, so they are omitted. A plaintext node is reachable only when the user adds it and marks it insecure. Scanning is client-side with the view key, so no secret ever reaches the node; the node only learns which block ranges were requested. A user who minds that metadata should point Jelly at their own node.",
+  "note": "Public Monero nodes on their restricted RPC, each checked with a get_info that reports mainnet and status OK, get_fee_estimate, get_block_headers_range, a pruned get_blocks.bin read of one scan batch, and the full get_output_distribution.bin that a send picks its decoys from. The later rows come from the monero.fail, Feather, and Cake Wallet lists. Over TLS the client only accepts a CA-valid certificate, so the MoneroDevs, StormyCloud, HashVault, and xmr.support nodes (self-signed) and xmr-tw (expired) were left out. A plaintext node has to be added by the user, who also has to allow insecure access unless it's on loopback. Scanning runs locally with the view key, so the node never sees a secret, only which block ranges were requested. A user who minds that should point Jelly at their own node.",
   "endpoints": [
     {
       "url": "https://xmr-node.cakewallet.com:18081",
       "transport": "monero_rpc",
-      "note": "Cake Wallet public node, CA-valid certificate"
+      "note": "Cake Wallet public node"
     },
     {
       "url": "https://monero.stackwallet.com:18081",

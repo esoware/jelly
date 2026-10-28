@@ -3,20 +3,16 @@ use sha2::{Digest as _, Sha256};
 const SEQUENCE: u8 = 0x30;
 const BIT_STRING: u8 = 0x03;
 
-/// SHA-256 over the DER encoding of a certificate's `SubjectPublicKeyInfo`,
-/// header included.
-///
-/// Every pinning implementation hashes this element, including HPKP, `OkHttp`, and
-/// `curl --pinnedpubkey`.
+/// SHA-256 over the DER encoding of a certificate's `SubjectPublicKeyInfo`, header
+/// included, the same element HPKP, `OkHttp`, and `curl --pinnedpubkey` hash.
 pub(crate) fn spki_sha256(certificate: &[u8]) -> Option<[u8; 32]> {
     subject_public_key_info(certificate).map(|spki| Sha256::digest(spki).into())
 }
 
 /// The DER `SubjectPublicKeyInfo` element of a certificate, header included.
 ///
-/// webpki's parser refuses v1 and some self-signed certificates that public Electrum
-/// servers present, so the key is found by this walk instead. A version 1 certificate has
-/// no version tag, and the walk reaches its key all the same.
+/// webpki's parser refuses version 1 certificates and some other self-signed ones that
+/// public Electrum servers present, so this walks the DER itself, version tag or not.
 ///
 /// ```text
 /// Certificate     ::= SEQUENCE { tbsCertificate, signatureAlgorithm, signature }

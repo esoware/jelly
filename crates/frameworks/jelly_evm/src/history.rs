@@ -8,8 +8,8 @@ use crate::error::EvmError;
 
 /// A transfer history service.
 ///
-/// Without one, native transfers leave no log to find and sync falls back to
-/// watching the balance.
+/// Without one, sync reads `eth_getLogs`, and native transfers show up only as
+/// balance changes unless the network logs them.
 #[async_trait]
 pub trait HistoryApi: Send + Sync + fmt::Debug {
     /// Normal transactions sent from or to `address`, at or after `start_block`.
@@ -50,8 +50,8 @@ impl<T> HistoryPage<T> {
         &self.rows
     }
 
-    /// True when the service stopped short of the whole history, so the frontier
-    /// may only move as far as the rows reach.
+    /// True when the service stopped short of the whole history, so the cursor
+    /// can only advance as far as the rows reach.
     pub const fn is_truncated(&self) -> bool {
         self.is_truncated
     }
@@ -132,8 +132,8 @@ impl HistoryRow for TokenRow {
 
 /// One call inside a transaction as the `txlistinternal` action reports it.
 ///
-/// It carries no fee, because only the transaction's sender pays for gas, and
-/// that is on the transaction's own row.
+/// It carries no fee. Only the transaction's sender pays gas, and that's on the
+/// transaction's own row.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InternalRow {
@@ -141,8 +141,7 @@ pub struct InternalRow {
     pub block_number: u64,
     #[serde(rename = "timeStamp", deserialize_with = "text::decimal")]
     pub timestamp: i64,
-    /// The hash of the transaction the call ran in, which that transaction's own
-    /// row shares.
+    /// The hash of the transaction the call ran in.
     pub hash: B256,
     pub from: Address,
     /// Absent when the call created a contract.
@@ -164,7 +163,7 @@ impl HistoryRow for InternalRow {
     }
 }
 
-/// Deserialisers for the string-encoded fields the service sends.
+/// Deserializers for the string-encoded fields the service sends.
 mod text {
     use std::str::FromStr;
 

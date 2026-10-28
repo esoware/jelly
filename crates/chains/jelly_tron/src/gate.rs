@@ -1,8 +1,8 @@
-//! When a pass asks the indexer for an address's history.
+//! Decides when a pass reads an address's history from the indexer.
 //!
-//! The balances every pass reads anyway are the signal, so a pass that finds
-//! them where the last one left them asks the indexer nothing. None of this is
-//! persisted, so after a restart every address is read once.
+//! Every pass reads balances anyway, so they're the main signal, and a pass that
+//! finds them unchanged usually leaves the indexer alone. None of this is
+//! persisted, so every address is read once after a restart.
 
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
@@ -12,50 +12,46 @@ use jelly_core::{AssetId, Clock, Deadline, TxDirection, TxRecord};
 use crate::config::TRX;
 use crate::cursor::{Stream, StreamCursor};
 
-/// How long news keeps an address's history read every pass.
+/// How long after a balance moves the address's history is read every pass.
 ///
 /// The indexer can list a transfer a few blocks after the balance shows it. A
-/// move still unexplained when the window runs out was not a transfer, such as
-/// TRX staked or unstaked, and is let go.
+/// move still unexplained after this wasn't a transfer (staking or unstaking TRX,
+/// say) and is dropped.
 const NEWS_WINDOW: Duration = Duration::from_secs(60);
 
-/// How long an address's history streams go unread while nothing says it has
-/// news.
+/// How long an address's history goes unread when nothing suggests news.
 ///
-/// A pass reads a stream only while its walk is unfinished, for up to
-/// [`NEWS_WINDOW`] after a balance moved by more than the records already
-/// reported explain, or while a send of the address's own lands, so this sweep is
-/// what finds a transfer no balance showed, such as a payment in and out between
-/// two passes. Every pass reads one balance per asset, which costs 7,200
-/// requests an asset a day at a twelve-second interval. Reading the three
-/// streams every pass would add 21,600 an address a day, and at ten minutes the
-/// sweep adds 432.
+/// Apart from the sweep, a stream is read only while its walk is unfinished,
+/// within [`NEWS_WINDOW`] of a balance move the reported records don't explain, or
+/// while the address's own send lands. The sweep catches what no balance showed,
+/// such as a payment in and out between two passes. At a 12-second poll, reading
+/// all three streams every pass would cost 21,600 requests per address a day, and
+/// a 10-minute sweep costs 432.
 const HISTORY_SWEEP: Duration = Duration::from_secs(600);
 
-/// What decides when the indexer next reads one address's history streams.
+/// Decides when an address's history streams are next read.
 ///
-/// A stream is due while its walk is unfinished, once its sweep comes round,
-/// which on the first pass that sees the address is at once, and while there is
-/// news.
+/// A stream is due while its walk is unfinished, when its sweep comes round (at
+/// once on the first pass that sees the address), and while there's news.
 #[derive(Debug, Default)]
 pub(crate) struct Gate {
-    /// The balances the passes so far read, in base units. A failed read keeps
-    /// the one before it, so a move is still seen once a read succeeds.
+    /// The last balances read, in base units. A failed read keeps the previous
+    /// one, so a move still shows once a read succeeds.
     balances: BTreeMap<AssetId, u128>,
-    /// How far each balance moved since the news began beyond what the records
-    /// reported since then account for.
+    /// How far each balance has moved since the news began, net of what the
+    /// records reported since then explain.
     unexplained: BTreeMap<AssetId, i128>,
-    /// Set while there is news.
+    /// When the current news expires, if there is any.
     news_until: Option<Deadline>,
-    /// When each stream is next read whatever the news. A stream with no entry
-    /// has not been read since the adapter was built.
+    /// When each stream is next read regardless of news. No entry means it hasn't
+    /// been read since the adapter was built.
     sweeps: HashMap<Stream, Deadline>,
 }
 
 impl Gate {
-    /// Takes the balances this pass read. A move is news, which lasts until the
-    /// walks have reported records that account for every move since it began,
-    /// or until its window runs out.
+    /// Takes the balances this pass read. A move starts news, which lasts until
+    /// the walks report records that explain every move since, or until its window
+    /// runs out.
     pub(crate) fn observe(&mut self, balances: &[(AssetId, u128)], clock: &dyn Clock) {
         if self.news_until.is_some_and(|until| until.is_expired(clock)) {
             self.news_until = None;
@@ -75,10 +71,9 @@ impl Gate {
         }
     }
 
-    /// The native and TRC-20 streams are read on news, and while a send of the
-    /// address's own lands or settles. The internal stream is read on news only
-    /// while what the other two reported leaves a TRX move unexplained, such as a
-    /// payment a contract made.
+    /// The native and TRC-20 streams are read on news and while the address's own
+    /// send lands or settles. The internal stream is read on news only while the
+    /// other two leave a TRX move unexplained, such as a payment from a contract.
     pub(crate) fn is_due(
         &self,
         stream: Stream,
@@ -101,17 +96,16 @@ impl Gate {
             || self.sweeps.get(&stream).is_none_or(|at| at.is_expired(clock))
     }
 
-    /// A stream that was read, cleanly or not, waits for the next news or for
-    /// the next sweep, so a transaction no endpoint can place is not asked about
-    /// every pass.
+    /// After a read, clean or not, a stream waits for news or the next sweep, so a
+    /// transaction no endpoint can place isn't asked about every pass.
     pub(crate) fn schedule_sweep(&mut self, stream: Stream, clock: &dyn Clock) {
         self.sweeps.insert(stream, clock.deadline_in(HISTORY_SWEEP));
     }
 
-    /// Nets what the walks reported against the news, and ends it once they
-    /// reported records and nothing is left unexplained. A walk that reported
-    /// nothing has not seen the news yet, even when the moves since it began
-    /// cancel out.
+    /// Nets what the walks reported against the news, and ends the news once
+    /// they've reported records and nothing is left unexplained. A walk that
+    /// reported nothing hasn't seen the news yet, even if the moves since cancel
+    /// out.
     pub(crate) fn reconcile(&mut self, walked: &Explained) {
         if self.news_until.is_none() {
             return;
@@ -127,8 +121,8 @@ impl Gate {
     }
 }
 
-/// What the records the forward walks reported this pass moved. The backfill is
-/// left out, because it reads history older than the balances the last pass saw.
+/// What the records from this pass's forward walks moved. The backfill doesn't
+/// count, since it reads history older than the balances the last pass saw.
 #[derive(Debug, Default)]
 pub(crate) struct Explained {
     /// By asset, in base units.

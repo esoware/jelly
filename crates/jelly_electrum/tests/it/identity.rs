@@ -69,11 +69,7 @@ async fn a_failed_genesis_proof_discards_the_socket_before_the_next_use() {
 }
 
 /// Both hashes reach the probe's log line and the pool's `WrongNetwork` error, so
-/// they must be in the reversed order explorers print for a reader to look them
-/// up.
-///
-/// The recorded header and its recorded hash are the reference, and the genesis
-/// the client expects is a fixture of its own.
+/// they must be in the reversed byte order explorers print.
 #[tokio::test]
 async fn a_mismatch_names_block_zero_in_the_order_explorers_print() {
     let expected = BlockHash::all_zeros();

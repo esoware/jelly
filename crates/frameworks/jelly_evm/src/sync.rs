@@ -31,10 +31,10 @@ use crate::record;
 use crate::token::TokenTable;
 use crate::watched::Watched;
 
-/// Records are built inside a pass, so the record builders log under it too.
+/// The record builders run inside a pass, so they log under this target too.
 pub(crate) const TARGET: &str = "jelly::evm::sync";
 
-/// Where an address's log-scan frontiers live.
+/// Where each address's [`ScanCursor`] lives.
 const SCAN_STREAM: ScanStream = ScanStream::EvmLogScan;
 
 pub(crate) struct PassInputs<'a> {
@@ -73,13 +73,13 @@ impl PassInputs<'_> {
 #[derive(Debug)]
 pub(crate) struct Carried {
     window: WindowSize,
-    /// The history service said its plan does not cover this network, so passes
-    /// walk logs until the adapter is rebuilt.
+    /// The history service said its plan doesn't cover this network, so passes
+    /// read logs until the adapter is rebuilt.
     pub(crate) is_history_unserved: bool,
     indexing_by_address: HashMap<i64, Indexing>,
-    /// The tip each address's unstored balance delta was first recorded at. A
-    /// pass that fails to store its judgement leaves the next to judge the same
-    /// change again, which then keeps the txid the failed pass gave it.
+    /// The tip at which each address's unstored balance delta was first recorded.
+    /// If a pass fails to store its judgment, the next one judges the same change
+    /// again and keeps the txid the failed pass gave it.
     deltas: HashMap<i64, u64>,
 }
 
@@ -97,11 +97,10 @@ impl Carried {
 /// Reads the tip, then receipts, then the balance sheet, then history, and judges
 /// the native balances last.
 ///
-/// Receipts and history come before the judgement so it can tell an explained
-/// native change from one nothing accounts for, which is the only signal a native
-/// transfer leaves without an indexer, unless the node logs native transfers. The
-/// sheet comes before history, because an indexed pass reads only the addresses
-/// whose sheet says they have news.
+/// Receipts and history come before the judgment so it can tell an explained
+/// native change from an unexplained one, which is the only trace a native transfer
+/// leaves without an indexer or native transfer logs. The sheet comes before
+/// history, because an indexed pass reads only the addresses whose sheet shows news.
 pub(crate) async fn run(
     inputs: &PassInputs<'_>,
     watched: &[Watched],
@@ -140,8 +139,8 @@ pub(crate) async fn run(
     if !is_indexed {
         carried.window =
             log_history(inputs, watched, &mut cursors, tip, floor, carried.window).await;
-        // The walk records every native transfer, so a change it has not reached
-        // yet is one it will, and a delta would record the transfer twice.
+        // The log scan records every native transfer eventually, so a delta for a
+        // change it hasn't reached yet would record the transfer twice.
         if inputs.params.has_native_transfer_logs {
             explanations =
                 watched.iter().map(|entry| (entry.address_id, Explained::Wholly)).collect();
@@ -157,21 +156,18 @@ pub(crate) async fn run(
     }
     store_cursors(inputs, &stored, &cursors).await?;
 
-    let judgement = |cursor: &ScanCursor| (cursor.native_balance, cursor.native_nonce);
+    let judgment = |cursor: &ScanCursor| (cursor.native_balance, cursor.native_nonce);
     carried.deltas.retain(|address_id, _| {
         cursors
             .get(address_id)
-            .is_some_and(|cursor| stored.get(address_id).map(judgement) == Some(judgement(cursor)))
+            .is_some_and(|cursor| stored.get(address_id).map(judgment) == Some(judgment(cursor)))
     });
 
     Ok(progress(chain, watched, &cursors, floor, tip))
 }
 
-/// Progress is averaged over the watch set.
-///
-/// The synced height is the lowest frontier, and absent while any address is
-/// unscanned, because a wallet is not synced to a height one of its addresses has
-/// not reached.
+/// Progress is averaged over the watch set. The synced height is the lowest
+/// forward frontier, and absent while any address is unscanned.
 fn progress(
     chain: ChainId,
     watched: &[Watched],

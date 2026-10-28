@@ -12,24 +12,22 @@ use tokio_rustls::client::TlsStream;
 use url::Url;
 
 use crate::credentials::Credentials;
-use crate::dialler::Socket;
+use crate::dialer::Socket;
 use crate::error::NetError;
 use crate::tls;
 
 const UNUSABLE: &str = "the proxy address is not usable";
 
 /// The environment variable a raw socket reads for [`ProxySetting::System`], in both
-/// spellings.
-///
-/// curl and the shared HTTP client's environment lookup both read it.
+/// spellings, as curl and the shared HTTP client do.
 const SYSTEM_PROXY_VARS: [&str; 2] = ["ALL_PROXY", "all_proxy"];
 
 const MAX_CONNECT_HEAD_BYTES: usize = 8 * 1024;
 
 /// Routes the shared HTTP client.
 ///
-/// No proxy at all means a direct connection, enforced with `no_proxy` so a proxy the
-/// environment names cannot pick the traffic up after the user chose direct.
+/// No proxy means a direct connection, enforced with `no_proxy` so a proxy the
+/// environment names can't pick the traffic up after the user chose direct.
 pub(crate) fn route_client(
     builder: ClientBuilder,
     proxy: Option<&ProxySetting>,
@@ -47,16 +45,14 @@ pub(crate) fn route_client(
 
 /// The address a named proxy setting means, or `None` for [`ProxySetting::System`].
 ///
-/// The shared HTTP client and the raw-socket dialler both route by this one reading, so
-/// one setting cannot take two routes.
+/// The shared HTTP client and the raw-socket dialer both route by this one reading, so
+/// one setting can't take two routes.
 ///
-/// A SOCKS route resolves names on the proxy, which Tor needs, so no hostname reaches a
-/// local resolver. reqwest reads where a name resolves from the scheme, and `socks5`
-/// resolves it on this machine, so a SOCKS address is respelled `socks5h` whatever was
-/// typed, and a bare `host:port`, which the settings page suggests for Tor, gets that
-/// scheme too. An HTTP address without a scheme is `http`, as reqwest reads one. An HTTP
-/// address with any scheme but `http` or `https` is refused, because reqwest skips a proxy
-/// whose scheme it cannot speak and connects directly instead.
+/// A SOCKS address is always respelled `socks5h`, a bare `host:port` included, because
+/// reqwest resolves `socks5` names on this machine and Tor needs the proxy to resolve
+/// them. An HTTP address without a scheme is `http`, as reqwest reads one. Any scheme but
+/// `http` or `https` on an HTTP address is refused, because reqwest would skip a proxy it
+/// can't speak and connect directly.
 fn named_url(proxy: &ProxySetting) -> Result<Option<Url>, NetError> {
     let unusable = |source| NetError::config(UNUSABLE, source);
     let parsed = match proxy {
@@ -89,10 +85,9 @@ fn named_url(proxy: &ProxySetting) -> Result<Option<Url>, NetError> {
     Ok(Some(parsed))
 }
 
-/// A stream to `host:port`, tunnelled through `proxy` when there is one.
+/// A stream to `host:port`, tunneled through `proxy` when there is one.
 ///
-/// A configured proxy is never bypassed. A route the user chose that cannot be honored
-/// is a failure, not a direct connection.
+/// A configured proxy is never bypassed. If it can't be used, the connection fails.
 pub(crate) async fn route_socket(
     proxy: Option<&ProxySetting>,
     label: &EndpointLabel,
@@ -124,8 +119,8 @@ pub(crate) async fn route_socket(
 enum ProxyProtocol {
     Socks5,
     HttpConnect,
-    /// HTTP CONNECT inside TLS to the proxy, which is how the shared HTTP client reaches
-    /// an `https` proxy address.
+    /// HTTP CONNECT inside TLS to the proxy, as the shared HTTP client reaches an `https`
+    /// proxy address.
     HttpsConnect,
 }
 
@@ -151,8 +146,8 @@ struct ProxyRoute {
 /// The route a raw socket takes, where `None` is a direct connection.
 ///
 /// `None` comes only from [`ProxySetting::System`] when the environment names no usable
-/// proxy. An explicitly named proxy that will not parse is a failure, so a route the user
-/// chose is never silently dropped.
+/// proxy. A named proxy that won't parse is an error, so a route the user chose is never
+/// silently dropped.
 fn proxy_route(proxy: &ProxySetting) -> Result<Option<ProxyRoute>, NetError> {
     let Some(url) = named_url(proxy)? else {
         return Ok(system_proxy());
@@ -160,17 +155,15 @@ fn proxy_route(proxy: &ProxySetting) -> Result<Option<ProxyRoute>, NetError> {
     route_of(&url).map(Some).ok_or_else(|| NetError::config(UNUSABLE, url::ParseError::EmptyHost))
 }
 
-/// What [`ProxySetting::System`] resolves to for a raw socket.
-///
-/// The shared HTTP client also reads `HTTP_PROXY` and `HTTPS_PROXY`, and a raw socket
-/// reads only the `ALL_PROXY` convention.
+/// What [`ProxySetting::System`] resolves to for a raw socket. Only `ALL_PROXY` is read,
+/// though the shared HTTP client also reads `HTTP_PROXY` and `HTTPS_PROXY`.
 fn system_proxy() -> Option<ProxyRoute> {
     let value = SYSTEM_PROXY_VARS.into_iter().find_map(|name| env::var(name).ok())?;
     parse_system_proxy(&value)
 }
 
-/// Reads one `ALL_PROXY` value. Anything that is not a proxy address this
-/// dialler can speak is treated as no setting at all.
+/// Reads one `ALL_PROXY` value. Anything that isn't a proxy address this dialer can
+/// speak counts as no setting at all.
 fn parse_system_proxy(value: &str) -> Option<ProxyRoute> {
     let trimmed = value.trim();
     let parsed = if trimmed.contains("://") {
@@ -182,7 +175,7 @@ fn parse_system_proxy(value: &str) -> Option<ProxyRoute> {
 }
 
 /// The hop a parsed proxy address names, or `None` when it names no host or a scheme
-/// this dialler cannot speak.
+/// this dialer can't speak.
 fn route_of(parsed: &Url) -> Option<ProxyRoute> {
     let protocol = match parsed.scheme() {
         // A raw socket always sends the target as a name, so socks5 and socks5h are
@@ -211,11 +204,8 @@ async fn dial(label: &EndpointLabel, host: &str, port: u16) -> Result<TcpStream,
     Ok(stream)
 }
 
-/// The TLS an `https` proxy address asks for.
-///
-/// It is validated against the compiled-in roots, as the shared HTTP client validates the
-/// same proxy, and it keeps the tunnel request and the credentials in it off the wire in
-/// plaintext.
+/// The TLS an `https` proxy address asks for, validated against the compiled-in roots as
+/// the shared HTTP client validates it.
 async fn proxy_tls(
     label: &EndpointLabel,
     proxy_host: &str,
@@ -232,10 +222,9 @@ async fn proxy_tls(
 /// Opens a SOCKS5 CONNECT tunnel, RFC 1928, with username and password authentication,
 /// RFC 1929, when the proxy address carries credentials.
 ///
-/// The target is always sent as a name, never an address, so the proxy resolves it.
-/// That is what `socks5h` promises, and why a hostname never reaches a local resolver
-/// when the user chose Tor. The one method offered is the one the shared HTTP client
-/// offers for the same address.
+/// The target is always sent as a name, never an address, so the proxy resolves it as
+/// `socks5h` promises. It offers the one method the shared HTTP client would offer for
+/// the same address.
 ///
 /// ```text
 /// greeting | 0x05 | nmethods=1 | 0x00 none or 0x02 password |
@@ -324,9 +313,8 @@ async fn socks5_connect(
 /// Opens an HTTP CONNECT tunnel, RFC 9110 section 9.3.6, with RFC 7617 basic credentials
 /// when the proxy address carries them.
 ///
-/// The target is sent as a name so the proxy resolves it and no hostname reaches a
-/// local resolver. TLS normally runs inside the tunnel, so a plaintext proxy hop learns
-/// only the host name, and an `https` proxy address puts the hop itself inside TLS.
+/// The target is sent as a name, so the proxy resolves it. TLS normally runs inside the
+/// tunnel, so a plaintext proxy learns only the host name.
 async fn http_connect(
     label: &EndpointLabel,
     stream: &mut dyn Socket,
@@ -347,9 +335,8 @@ async fn http_connect(
     );
     write_all(label, stream, request.as_bytes()).await?;
 
-    // One byte at a time rather than through a buffered reader, because the socket
-    // goes straight to the TLS handshake once the head ends. Reading past the blank
-    // line would swallow the handshake's first record.
+    // One byte at a time, because the TLS handshake follows the head on this socket and
+    // a buffered reader could swallow its first record.
     let mut head: Vec<u8> = Vec::with_capacity(128);
     let mut byte = [0u8; 1];
     while !head.ends_with(b"\r\n\r\n") {
@@ -375,7 +362,7 @@ async fn http_connect(
     Ok(())
 }
 
-/// Flushed as well, because TLS to an `https` proxy can hold written bytes back, and the
+/// Flushes too, because TLS to an `https` proxy can hold written bytes back, and the
 /// proxy answers only once the whole request has arrived.
 async fn write_all(
     label: &EndpointLabel,
@@ -444,7 +431,7 @@ mod tests {
     }
 
     #[test]
-    fn a_variable_naming_nothing_this_dialler_speaks_is_no_setting() {
+    fn a_variable_naming_nothing_this_dialer_speaks_is_no_setting() {
         for value in ["", "   ", "ftp://proxy.example", "socks4://p:1080"] {
             assert_eq!(parse_system_proxy(value), None, "{value}");
         }

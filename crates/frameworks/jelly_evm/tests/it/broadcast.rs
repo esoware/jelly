@@ -274,11 +274,9 @@ async fn an_ambiguous_send_remains_retryable_after_its_reservation_is_restored()
     assert_eq!(restored.adapter.in_flight(), 1);
 }
 
-/// The first attempt timed out after the node took the bytes.
-///
-/// The transaction was mined before the retry. Geth answers a mined transaction
-/// that is sent again with nonce too low, because only its own pool is checked for a
-/// known hash.
+/// The first attempt timed out after the node took the bytes, and the transaction
+/// was mined before the retry. Geth only checks its pool for a known hash, so it
+/// answers the resend with nonce too low.
 #[tokio::test]
 async fn a_retried_send_refused_as_nonce_too_low_is_followed_to_its_receipt() {
     let harness = Harness::signer(Setup::default().one_window(), 7).await.unwrap();
@@ -305,9 +303,8 @@ async fn a_retried_send_refused_as_nonce_too_low_is_followed_to_its_receipt() {
         records
             .iter()
             .any(|record| record.txid == signed.txid && record.outcome == TxOutcome::Success),
-        "a nonce too low answer to a send that already went out does not prove it is in no \
-         mempool, so the mined payment must still be followed to its receipt, but the retry \
-         answered {retried:?}, {} sends are followed and the pass recorded {records:?}",
+        "the mined payment should still be followed to its receipt, but the retry answered \
+         {retried:?}, {} sends are followed, and the pass recorded {records:?}",
         harness.adapter.in_flight()
     );
 }

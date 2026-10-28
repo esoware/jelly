@@ -1,5 +1,4 @@
-//! Polygon, as the spec, the network figures, and the chain entry the EVM
-//! framework is run with.
+//! Polygon.
 
 #![deny(clippy::float_arithmetic)]
 mod polygon;

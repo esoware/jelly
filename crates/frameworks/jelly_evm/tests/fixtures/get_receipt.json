@@ -1,5 +1,5 @@
 {
-  "_recorded": "eth_getTransactionReceipt results in the shape a geth Ethereum mainnet node returns. They are one successful EIP-1559 receipt, the same transaction reported in a different block after a reorg, and one whose execution reverted.",
+  "_recorded": "eth_getTransactionReceipt results shaped like a geth mainnet node's: a successful EIP-1559 receipt, the same transaction in a different block after a reorg, and one whose execution reverted.",
   "success": {
     "type": "0x2",
     "status": "0x1",
@@ -15,7 +15,7 @@
     "to": "0xdac17f958d2ee523a2206206994597c13d831ec7",
     "contractAddress": null
   },
-  "success_reorganised": {
+  "success_reorganized": {
     "type": "0x2",
     "status": "0x1",
     "cumulativeGasUsed": "0xf4240",

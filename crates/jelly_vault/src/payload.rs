@@ -1,6 +1,4 @@
-//! The binary encoding of a vault's decrypted entries.
-//!
-//! The disk format, inside the AEAD.
+//! The binary encoding of a vault's decrypted entries, the plaintext inside the AEAD.
 //!
 //! ```text
 //! payload := version:u8 = 1, count:u32le, entry * count
@@ -10,20 +8,17 @@
 //!            secret:   u32le len, bytes
 //! ```
 //!
-//! Entries are written in id order, so an unchanged vault re-encodes to the
-//! same bytes and only the nonce moves.
+//! Entries are written in id order, so an unchanged vault re-encodes to the same bytes.
 //!
-//! Anything [`encode`] writes, [`decode`] reads back. The entry count and the secret
-//! length are the only limits, and both sides use the same `u32`. A decoder cap the
-//! encoder did not enforce would turn a large wallet into a vault that seals but never
-//! opens again. Nothing else bounds the input, because `decode` runs only on plaintext
-//! the AEAD has authenticated and every read is checked against the bytes present.
+//! [`decode`] reads back anything [`encode`] writes. The entry count and the secret length
+//! are the only limits, and both sides use the same `u32`, because a decoder cap the
+//! encoder didn't enforce would turn a large wallet into a vault that seals but never
+//! opens again. Nothing else bounds the input: `decode` only runs on plaintext the AEAD
+//! has authenticated, and every read is checked against the bytes present.
 //!
-//! The encoding is binary rather than JSON on purpose. A JSON payload has to
-//! render every secret as text, and the intermediate `String` that hex or
-//! base64 produces is an unwipeable copy of the secret on both the encode and
-//! the decode path. Here a secret is copied exactly twice, into and out of a
-//! buffer that zeroizes.
+//! It's binary and not JSON because JSON would render each secret as hex or base64 text,
+//! leaving an unwipeable `String` copy on both the encode and the decode path. Here a
+//! secret is copied exactly twice, into and out of a buffer that zeroizes.
 
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
@@ -39,8 +34,8 @@ use crate::keys::TAG_LEN;
 /// that wraps it.
 const PAYLOAD_VERSION: u8 = 1;
 
-/// The wiping buffer is sized once for the plaintext plus the AEAD tag. It never
-/// grows, so no reallocation can strand a copy of a secret in freed heap.
+/// The wiping buffer is sized once for the plaintext plus the AEAD tag. It never grows,
+/// so no reallocation can strand a copy of a secret in freed heap.
 pub(crate) fn encode(
     entries: &BTreeMap<EntryId, SecretBlob>,
 ) -> Result<Zeroizing<Vec<u8>>, VaultError> {
@@ -177,7 +172,7 @@ impl<'a> Reader<'a> {
     fn label(&mut self) -> Result<&'a str, VaultError> {
         let length = usize::from(self.u8()?);
         str::from_utf8(self.take(length)?)
-            .map_err(|_| VaultError::corrupt("a payload label is not utf-8"))
+            .map_err(|_| VaultError::corrupt("a payload label isn't utf-8"))
     }
 }
 
@@ -281,8 +276,8 @@ mod tests {
         assert!(matches!(decode(&doubled), Err(VaultError::Corrupt { .. })));
     }
 
-    /// A count with nothing behind it fails on the first entry it reaches for,
-    /// so no allocation follows the number.
+    /// A count with nothing behind it fails at the first missing entry, without
+    /// allocating for the count first.
     #[test]
     fn an_absurd_count_is_refused_at_the_first_missing_byte() {
         let mut bytes = vec![PAYLOAD_VERSION];

@@ -7,20 +7,19 @@ targets = [
 
 [advisories]
 yanked = "deny"
-# Only direct dependencies are checked. The unmaintained transitive ones (gtk3
-# through tauri on Linux, and paste through alloy-primitives) have no upgrade
-# path from here.
+# Flags only unmaintained direct dependencies. Transitive ones such as gtk3 through
+# tauri on Linux and paste through alloy-primitives have no upgrade path from here.
 unmaintained = "workspace"
 ignore = [
-  { id = "RUSTSEC-2026-0387", reason = "monero-ed25519 0.1.0 pins crypto-bigint 0.5 and has no release on the fixed 0.7 line yet" },
+  { id = "RUSTSEC-2026-0387", reason = "monero-ed25519 0.1.0 pins crypto-bigint 0.5, and no monero-ed25519 release moves to the fixed 0.7 yet" },
 ]
 
 [bans]
 multiple-versions = "allow"
 wildcards = "deny"
 allow-wildcard-paths = true
-# reqwest's rustls-no-provider feature links rustls-platform-verifier and
-# rustls-native-certs, but nothing constructs them. jelly_net gives
+# rustls-platform-verifier and rustls-native-certs aren't banned because reqwest's
+# rustls-no-provider feature links them. jelly_net never constructs them and hands
 # tls_backend_preconfigured a ClientConfig with only the webpki roots.
 deny = [
   { name = "aws-lc-rs" },

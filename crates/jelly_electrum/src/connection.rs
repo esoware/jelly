@@ -26,25 +26,21 @@ const TARGET: &str = "jelly::electrum::connection";
 
 /// A name neither `ElectrumX` nor Fulcrum reads as an outdated Electrum wallet.
 ///
-/// Both answer a landed broadcast from a client name they read as an Electrum
-/// version below 3.3.4 with an upgrade warning instead of the txid. Fulcrum
-/// reads the version after the first slash, so the name has no slash and leads
-/// with a word neither server parses as a number.
+/// Both answer a successful broadcast with an upgrade warning instead of the txid when
+/// the client name parses as Electrum below 3.3.4. Fulcrum parses what follows the first
+/// slash, so the name has no slash and doesn't start with a number.
 const CLIENT_NAME: &str = "jelly";
 /// Blockstream's electrs, behind a shipped Bitcoin endpoint, closes the socket
 /// on a batch of more than 20.
 const MAX_BATCH: usize = 20;
 /// How `ElectrumX` refuses an answer past its `MAX_SEND`.
 ///
-/// aiorpcx, which it runs on, counts a batch's answers toward that limit
-/// together, so every element past the running total gets this error in place
-/// of its result, however small each answer is.
+/// Its aiorpcx counts a whole batch's answers against that limit, so every element past
+/// the running total gets this error, however small each answer is.
 const OVERSIZED_ANSWER: &str = "response too large";
 
-/// One negotiated Electrum socket, what each of its answers means, and the
-/// subscriptions registered on it.
-///
-/// Reconnection belongs to `ElectrumClient`.
+/// One negotiated socket, with its subscriptions and the checks on every answer.
+/// `ElectrumClient` handles reconnection.
 pub(crate) struct Connection {
     socket: RpcSocket,
     version: ServerVersion,
@@ -53,7 +49,6 @@ pub(crate) struct Connection {
     registration: AsyncMutex<Option<Registration>>,
 }
 
-/// What one socket agreed with its server during the handshake.
 struct ServerVersion {
     software: String,
     protocol: ProtocolVersion,
@@ -67,8 +62,8 @@ struct Registration {
 }
 
 impl Connection {
-    /// Opens a socket from `sockets` and negotiates `server.version` on it,
-    /// which the protocol requires to be the first call and permits only once.
+    /// Opens a socket and negotiates on it. The protocol requires `server.version` to be
+    /// the first call and allows it only once.
     pub(crate) async fn open(
         sockets: &dyn SocketSource,
         chain: ElectrumChain,
@@ -100,22 +95,20 @@ impl Connection {
         self.socket.is_live()
     }
 
-    /// The tip's height, which also registers this socket for header
-    /// notifications because the protocol has no plain tip read. Those pushes
-    /// wake [`Connection::watch`].
+    /// The tip's height. The protocol has no plain tip read, so this also subscribes the
+    /// socket to header pushes, which wake [`Connection::watch`].
     ///
-    /// The tip's header is decoded only so a malformed answer is refused.
+    /// The header is decoded only so a malformed answer is refused.
     pub(crate) async fn tip_height(&self) -> Result<u32, ElectrumError> {
         let wire: TipWire = self.call(Method::HeadersSubscribe, &[(); 0]).await?;
         self.header(Method::HeadersSubscribe, &wire.hex)?;
         Ok(wire.height)
     }
 
-    /// A registration belongs to this socket, so a socket that replaced another
-    /// registers afresh.
+    /// Registrations belong to the socket, so a replacement socket registers afresh.
     ///
-    /// The wait itself holds no lock, so concurrent callers each wake on the next
-    /// push rather than queueing behind the first.
+    /// The wait holds no lock, so concurrent callers all wake on the next push instead of
+    /// queueing behind the first.
     pub(crate) async fn watch(&self, scripts: &[ScriptBuf]) -> Result<(), ElectrumError> {
         let seen = {
             let mut registration = self.registration.lock().await;
@@ -142,13 +135,11 @@ impl Connection {
         if self.is_live() { Ok(()) } else { Err(ElectrumError::closed(self.endpoint())) }
     }
 
-    /// The statuses the server answers with are discarded, because the protocol's
-    /// status hash is not this build's history fingerprint and a caller that just
-    /// registered runs a pass anyway.
+    /// The returned statuses are dropped, since the protocol's status hash isn't our
+    /// history digest and a caller that just registered runs a pass anyway.
     ///
-    /// A server's refusal is a degraded registration rather than a failure. The
-    /// refusal is deterministic, so a retry would only hammer the server, and the
-    /// header registration keeps the watch alive at block granularity.
+    /// A refusal isn't a failure. Retrying would get the same answer, and the header
+    /// subscription still wakes the watch once per block.
     async fn register_scripts(&self, scripts: &[ScriptBuf]) -> Result<(), ElectrumError> {
         let statuses: Result<Vec<Option<String>>, ElectrumError> =
             self.call_many(Method::ScripthashSubscribe, &script_hashes(scripts)).await;
@@ -170,10 +161,9 @@ impl Connection {
 
     /// Checks this socket's blocks against the chain's, once per socket.
     ///
-    /// Blocks are hashed rather than trusted, because `server.features` is a claim
-    /// and a header is a proof. The claim is still read, and a server whose own
-    /// block zero contradicts it is refused, since that is what a proxy stitching two
-    /// backends together looks like.
+    /// The headers are the proof, since `server.features` is only a claim. A server whose
+    /// block zero contradicts its own claim is refused anyway, because that looks like a
+    /// proxy stitching two backends together.
     pub(crate) async fn prove(&self) -> Result<(), ElectrumError> {
         if self.is_proved.load(Ordering::Acquire) {
             return Ok(());
@@ -222,10 +212,8 @@ impl Connection {
         Ok(())
     }
 
-    /// Headers for `heights`, in the order asked for.
-    ///
-    /// Consecutive heights must chain, so a server cannot answer a range with
-    /// unrelated blocks.
+    /// Headers for `heights`, in order. Headers at consecutive heights must chain, so a
+    /// server can't fill a range with unrelated blocks.
     pub(crate) async fn block_headers(
         &self,
         heights: &[u32],
@@ -254,8 +242,8 @@ impl Connection {
         self.call_many(Method::ListUnspent, &script_hashes(scripts)).await
     }
 
-    /// The transactions named by `txids`, in the order asked for. Each is hashed
-    /// and checked against its txid, so a server cannot substitute another one.
+    /// The transactions for `txids`, in order. Each is checked against its txid, so a
+    /// server can't substitute another.
     pub(crate) async fn txs(&self, txids: &[Txid]) -> Result<Vec<ServedTx>, ElectrumError> {
         let params: Vec<(Txid,)> = txids.iter().map(|txid| (*txid,)).collect();
         let hexes: Vec<String> = self.call_many(Method::GetTransaction, &params).await?;
@@ -306,10 +294,9 @@ impl Connection {
 
     /// `blockchain.estimatefee` for confirmation within `target_blocks`.
     ///
-    /// The mode only reaches the wire on protocol 1.6 and above, because older
-    /// servers refuse a second argument outright and the whole quote would be
-    /// lost. A target with no estimate comes back as [`FeeReading::Absent`], never
-    /// as a rate.
+    /// The mode is sent only on protocol 1.6 and later, since older servers refuse the
+    /// whole call over a second argument. A target with no estimate comes back as
+    /// [`FeeReading::Absent`], never as a rate.
     pub(crate) async fn estimate_fee(
         &self,
         target_blocks: u16,
@@ -333,9 +320,9 @@ impl Connection {
         self.call(Method::FeeHistogram, &[(); 0]).await
     }
 
-    /// The relay floors. A server that negotiated below 1.6 fails with a named
-    /// error rather than an unknown-method one, since this build does not fall
-    /// back to `blockchain.relayfee`.
+    /// The relay floors. Below protocol 1.6 this fails with
+    /// [`ElectrumError::MethodUnavailable`] without asking, since we don't fall back to
+    /// `blockchain.relayfee`.
     pub(crate) async fn mempool_info(&self) -> Result<MempoolInfo, ElectrumError> {
         if self.protocol() < ProtocolVersion::V1_6 {
             return Err(ElectrumError::MethodUnavailable {
@@ -404,11 +391,10 @@ impl Connection {
         decode(self.endpoint(), method, &raw)
     }
 
-    /// Splits requests into sequential batches of at most [`MAX_BATCH`],
-    /// preserving result order. Bounded batches avoid server resource limits,
-    /// and a batch whose answers together pass the server's response limit is
-    /// asked again in halves, so only an answer too large on its own fails.
-    /// Empty input sends nothing.
+    /// Sends `params` in sequential batches of at most [`MAX_BATCH`], keeping result
+    /// order. A batch whose answers together pass the server's response limit is asked
+    /// again in halves, so only an answer too large on its own fails. Empty input sends
+    /// nothing.
     async fn call_many<P: Serialize + Sync, T: DeserializeOwned>(
         &self,
         method: Method,
@@ -439,9 +425,8 @@ impl Connection {
 
 /// `server.features`, of which only the genesis hash is read.
 ///
-/// The genesis hash is a claim to cross-check, not a proof. It stays the raw
-/// string, so a claim that is not even a hash contradicts block zero instead of
-/// failing the call and going unchecked.
+/// The hash stays a raw string, so a claim that isn't even a hash contradicts block zero
+/// instead of failing the call and going unchecked.
 #[derive(Debug, Deserialize)]
 struct ServerFeatures {
     genesis_hash: Option<String>,
@@ -454,8 +439,7 @@ struct TipWire {
     hex: String,
 }
 
-/// The range offered is this build's rather than a caller's, because what a
-/// client can parse is a property of the code.
+/// Offers the version range this code can parse, not one the caller picks.
 async fn negotiate(socket: &RpcSocket) -> Result<ServerVersion, ElectrumError> {
     let endpoint = socket.endpoint();
     let offered = [ProtocolVersion::MINIMUM.to_string(), ProtocolVersion::MAXIMUM.to_string()];
@@ -527,13 +511,14 @@ mod tests {
     use super::*;
     use crate::frame::{FrameReader, encode_line};
 
-    /// `ElectrumX`'s default `MAX_SEND` for a coin that is not merge-mined, which it
-    /// hands to aiorpcx as the largest response it will send.
+    /// `ElectrumX`'s default `MAX_SEND` for a coin that isn't merge-mined, the largest
+    /// response aiorpcx will send.
     const ELECTRUMX_MAX_SEND: usize = 1_000_000;
 
-    /// An `ElectrumX` server as aiorpcx answers a batch: it keeps a running total of
-    /// the answers' sizes, and every element past `ELECTRUMX_MAX_SEND` gets an
-    /// oversized-response error in place of its result.
+    /// An `ElectrumX` server that answers a batch the way aiorpcx does.
+    ///
+    /// It keeps a running total of the answers' sizes, and every element past
+    /// `ELECTRUMX_MAX_SEND` gets an oversized-response error instead of its result.
     #[derive(Debug)]
     struct Electrumx {
         endpoint: EndpointLabel,

@@ -10,14 +10,12 @@ use jelly_net::Network;
 
 const TARGET: &str = "jelly::chains::factory";
 
-/// Builds an adapter or a typed skip for every requested chain. Construction
-/// opens no sockets.
+/// Builds an adapter or a typed skip for every requested chain. Building opens no sockets.
 ///
-/// The shell calls `attach` only once the engine runs, because the network layer
-/// verifies TLS against the engine's pins. Until then builds skip every chain, and a
-/// later rebuild retries them. Nothing detaches it, which is safe because the network
-/// it holds reaches the engine only through the pin store, and that does not keep the
-/// database open.
+/// The shell calls `attach` only once the engine runs, because the network verifies TLS
+/// against the engine's pins. Until then every chain is skipped, and a later rebuild
+/// retries them. The network is never detached, which is safe because it reaches the
+/// engine only through the pin store, and that doesn't keep the database open.
 #[derive(Default)]
 pub struct AdapterFactory {
     network: OnceLock<Arc<Network>>,
@@ -52,7 +50,7 @@ impl AdapterBuilder for AdapterFactory {
         let Some(network) = self.network.get() else {
             tracing::error!(
                 target: TARGET,
-                "no chain could be built, because the adapter factory has no network yet"
+                "no chain was built because the adapter factory has no network yet"
             );
             return every_chain_failed(request);
         };
@@ -62,7 +60,7 @@ impl AdapterBuilder for AdapterFactory {
                 tracing::error!(
                     target: TARGET,
                     %error,
-                    "no chain could be built, because the egress route could not be built"
+                    "no chain was built because the egress route couldn't be built"
                 );
                 return every_chain_failed(request);
             }
@@ -84,11 +82,11 @@ fn every_chain_failed(request: &BuildRequest) -> AdapterSet {
         .collect()
 }
 
-/// A skip is logged and reported rather than propagated, so one chain that
-/// cannot be built does not cost the rest.
+/// A skip is logged and reported, not propagated, so one chain that can't be built doesn't
+/// cost the rest.
 ///
-/// Only a failed build is a warning. The other reasons are expected states
-/// that would otherwise warn at every rebuild.
+/// Only a failed build is a warning. The other reasons are expected states that would
+/// otherwise warn at every rebuild.
 async fn outcome(chain: ChainId, network: &Network, request: &BuildRequest) -> ChainOutcome {
     let error = match build(chain, network, request).await {
         Ok(adapter) => return ChainOutcome::Built(adapter),
@@ -114,7 +112,6 @@ async fn outcome(chain: ChainId, network: &Network, request: &BuildRequest) -> C
     ChainOutcome::Skipped(reason)
 }
 
-/// The one place a chain's builder is named.
 async fn build(
     chain: ChainId,
     network: &Network,

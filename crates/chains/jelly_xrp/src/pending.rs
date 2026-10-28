@@ -30,8 +30,8 @@ pub(crate) async fn follow(
                 states.settle(entry.address_id).await?;
             }
             // A tip past LastLedgerSequence means no later ledger can include the payment, and
-            // `searched_all` means the server held every ledger it could be in, since a gap
-            // could hide it. Together they prove it was never applied and charged no fee.
+            // `searched_all` means the server held every ledger it could be in, with no gap to
+            // hide it. Together they prove it was never applied and charged no fee.
             TxLookup::NotFound { has_searched_all: true } if tip > last_ledger => {
                 let record = TxRecord::builder(
                     AssetId::Native(CHAIN),
@@ -49,8 +49,8 @@ pub(crate) async fn follow(
             }
             TxLookup::NotFound { .. } if tip <= last_ledger => {
                 states.persist(entry.address_id, Some(&pending)).await?;
-                // A resubmission is best effort, because the send stays tracked until a
-                // validated ledger or the expiry proof settles it.
+                // Best effort. The send stays tracked until a validated ledger or the expiry
+                // proof settles it.
                 let _ = client.submit(&signed.blob).await;
             }
             TxLookup::NotFound { .. } | TxLookup::Unvalidated => {}

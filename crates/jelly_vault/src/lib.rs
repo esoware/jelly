@@ -4,11 +4,11 @@
 //!
 //! KDF work and file writes block, so async callers must use a blocking pool.
 //!
-//! A password-independent header MAC detects tampering before password checks. A commitment
-//! distinguishes wrong passwords from AEAD corruption. There is no rollback protection or
-//! unlock counter. With both the file and master key, an attacker can guess passwords
-//! offline at Argon2id cost. This does not protect against malware running as the user
-//! while unlocked.
+//! A header MAC that doesn't depend on the password catches tampering before the password
+//! is checked, and a key commitment tells a wrong password apart from a corrupt ciphertext.
+//! There's no rollback protection or unlock counter, so anyone holding both the file and
+//! the master key can guess passwords offline at Argon2id cost. Malware running as the
+//! user while the vault is unlocked is out of scope.
 
 #![deny(clippy::float_arithmetic)]
 mod disk;

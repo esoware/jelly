@@ -12,19 +12,18 @@ use crate::engine::{Inner, WalletEngine};
 use crate::events::Inbound;
 use crate::secret_cursor::{is_secret_scan, is_secret_slot, read_secrets, write_secret};
 
-/// Routes secret cursors to the vault and other cursors to `SQLite`. Exhaustive matches
-/// classify every stream and reservation slot.
+/// Routes secret cursors to the vault and the rest to `SQLite`.
 ///
-/// `advance` queues progress behind emitted rows. `SQLite` progress commits with those
-/// rows, and vault progress commits afterward. `reserve` writes through durably before
-/// broadcast and must never be buffered.
+/// `advance` queues progress behind the emitted rows. `SQLite` progress commits with
+/// those rows and vault progress right after. `reserve` has to be durable before the
+/// broadcast, so it's never buffered.
 ///
-/// Weak engine references avoid keeping retired sessions alive. Each port retains its
-/// wallet ID to reject writes into a different session.
+/// The engine reference is weak so a retired session isn't kept alive, and the port
+/// keeps its wallet ID so it can't write into a different session.
 ///
-/// An advance carries the pump's loss count from the last read of its scope, or from
-/// when the port was made for a scope it never read, so the pump can refuse one that
-/// may have moved past rows it dropped.
+/// An advance carries the pump's loss count from the last read of its scope, or from the
+/// port's creation if it never read that scope, so the pump can refuse one that may have
+/// moved past dropped rows.
 #[derive(Debug)]
 struct CursorRouter {
     wallet_id: i64,
@@ -145,9 +144,8 @@ impl CursorStore for CursorRouter {
 }
 
 impl WalletEngine {
-    /// Creates the adapter cursor port for one wallet. It weakly references the engine and
-    /// resolves the session on every call. A stale port rejects a different open wallet
-    /// instead of writing into its vault.
+    /// The adapter cursor port for one wallet. It resolves the session on every call, so a
+    /// stale port refuses a different open wallet instead of writing into its vault.
     pub(crate) fn cursors(&self, wallet_id: i64) -> Arc<dyn CursorStore> {
         Arc::new(CursorRouter {
             wallet_id,

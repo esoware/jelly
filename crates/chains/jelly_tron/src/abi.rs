@@ -1,9 +1,8 @@
-//! The two TRC-20 calls this build makes, in both spellings TRON needs.
+//! The two TRC-20 calls we make, `transfer` and `balanceOf`.
 //!
-//! A contract call inside a transaction carries the whole calldata, selector
-//! included. `triggerconstantcontract` instead takes the signature as a string
-//! and the arguments as a bare hex blob, so both forms live here and share one
-//! encoder.
+//! A transaction carries the whole calldata, selector included, but
+//! `triggerconstantcontract` takes the signature as a string and the arguments as
+//! bare hex, so we encode both forms.
 
 use alloy_primitives::{Address, U256};
 use alloy_sol_types::abi::AbiDecoderConfig;
@@ -28,11 +27,12 @@ const WORD_BYTES: usize = 32;
 pub(crate) const TRANSFER_CALL_BYTES: usize =
     SELECTOR_BYTES.saturating_add(WORD_BYTES.saturating_mul(2));
 
-/// The last pad byte in front of the recipient's twenty-byte tail.
+/// The pad byte just before the recipient's 20-byte tail, where older `TronWeb`
+/// leaves `0x41`.
 const LEGACY_PREFIX_AT: usize =
     SELECTOR_BYTES.saturating_add(WORD_BYTES).saturating_sub(address::TAIL_BYTES).saturating_sub(1);
 
-/// Exactly the canonical encoding, so trailing bytes and a dirty pad are refused.
+/// Refuses trailing bytes and nonzero padding.
 const STRICT: AbiDecoderConfig = AbiDecoderConfig::new().strict(true);
 
 fn transfer_call(to: &[u8; address::BODY_BYTES], amount: u128) -> ITRC20::transferCall {
@@ -58,15 +58,14 @@ pub(crate) fn balance_of_args(owner: &[u8; address::BODY_BYTES]) -> String {
     hex::encode(args)
 }
 
-/// Splits `transfer` calldata back into its recipient body and amount.
+/// Splits `transfer` calldata into the recipient body and amount.
 ///
-/// Two paddings occur on TRON. This build emits twelve zero bytes, and older
-/// `TronWeb` left-pads the twenty-one byte body, which leaves `0x41` in the last
-/// pad byte. The virtual machine reads the low twenty bytes either way, so both
-/// are accepted and nothing else is.
+/// Accepts exactly two paddings: the twelve zero bytes we emit, and older
+/// `TronWeb`'s left-padded 21-byte body, which leaves `0x41` in the last pad byte.
+/// The VM reads the low 20 bytes either way.
 ///
-/// An amount of 2^128 or more is refused rather than truncated, because a value
-/// that wide means a broken contract.
+/// An amount of 2^128 or more is refused, not truncated, since only a broken
+/// contract would move that much.
 pub(crate) fn decode_transfer(data: &[u8]) -> Result<([u8; address::BODY_BYTES], u128), TronError> {
     let mut calldata = data.to_vec();
     if let Some(pad) = calldata.get_mut(LEGACY_PREFIX_AT)
@@ -81,10 +80,10 @@ pub(crate) fn decode_transfer(data: &[u8]) -> Result<([u8; address::BODY_BYTES],
     Ok((address::from_tail(&call.to.into_array()), amount))
 }
 
-/// The word a `balanceOf` call returned, as base units.
+/// The word a `balanceOf` call returned, in base units.
 ///
-/// A balance of 2^128 or more is none rather than truncated, because a balance
-/// that wide means a broken contract.
+/// A balance of 2^128 or more is `None`, not truncated, since only a broken
+/// contract would report one that wide.
 pub(crate) fn decode_balance(word_hex: &str) -> Option<u128> {
     let trimmed = word_hex.trim();
     let raw = hex::decode(trimmed.strip_prefix("0x").unwrap_or(trimmed)).ok()?;

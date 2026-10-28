@@ -15,11 +15,11 @@ use crate::params::{CHAIN, FEE_RATE_UNIT, MAX_HARDFORK_VERSION};
 pub enum MoneroError {
     #[error(transparent)]
     Net(NetError),
-    /// A node refused a broadcast, classified once.
+    /// A node refused a broadcast.
     #[error("{0}")]
     Rejected(Rejection),
-    /// The node answered, and the answer cannot be used. Attributed to that
-    /// endpoint so the walk rotates.
+    /// The node answered, but the answer can't be used. Carries the endpoint so the
+    /// pool rotates past it.
     #[error("{endpoint}: {what}")]
     Answer { endpoint: EndpointLabel, what: &'static str },
     /// The node quoted a fee this build refuses to pay.
@@ -35,7 +35,7 @@ pub enum MoneroError {
         "monero hardfork v{version} at height {height} is newer than this build reads (v{MAX_HARDFORK_VERSION})"
     )]
     ProtocolTooNew { version: u8, height: u64 },
-    /// Named at every call site rather than derived, so no other failure that
+    /// Wrapped at each call site instead of by `#[from]`, so no other failure that
     /// happens to be a [`CoreError`] is reported as a storage one.
     #[error("monero wallet state could not be read or written")]
     Cursor(#[source] CoreError),
@@ -67,15 +67,15 @@ pub enum MoneroError {
     NotWatched { address_id: i64 },
     #[error("Choose one address to send from.")]
     NotOneSource,
-    /// The detail comes from the address codec, whose stated contract is that no
-    /// message it produces carries a fragment of its input.
+    /// The detail comes from the address codec, whose messages never carry a
+    /// fragment of its input.
     #[error("invalid monero address")]
     Address(#[source] AddressError),
 
     #[error("The amount exceeds Monero's limit.")]
     AmountTooLarge,
-    /// Carried as typed amounts rather than as text, so the interface formats
-    /// them with the asset's own decimals.
+    /// Carried as typed amounts instead of text, so the interface formats them
+    /// with the asset's own decimals.
     #[error(
         "{} needed and only {} unlocked in {}",
         needed.format(asset.decimals()),
@@ -106,8 +106,8 @@ pub enum MoneroError {
 
     #[error("monero key material: {what}")]
     Key { what: &'static str },
-    /// The operating system's entropy source refused. There is no userspace
-    /// fallback, because a transaction whose ephemeral secrets are not random is
+    /// The operating system's entropy source refused. There's no userspace
+    /// fallback, because a transaction whose ephemeral secrets aren't random is
     /// worse than one that was never built.
     #[error("the system entropy source is unavailable")]
     Entropy {
@@ -178,10 +178,10 @@ impl MoneroError {
         }
     }
 
-    /// Whether a build that failed this way failed at the node its ring is pinned
-    /// to, so the next build must not be pinned to that node too. A build asks
-    /// no other node anything, so a transport failure or an unusable answer can
-    /// only have come from that one.
+    /// Whether a build failed at the node its ring is pinned to, so the next build
+    /// fetches a fresh distribution instead of reusing that node's. A build asks no
+    /// other node anything, so a transport failure or an unusable answer can only
+    /// have come from that one.
     pub(crate) const fn is_ring_node_fault(&self) -> bool {
         match *self {
             Self::Net(_) | Self::Answer { .. } | Self::Decoys => true,
@@ -223,8 +223,8 @@ impl MoneroError {
         }
     }
 
-    /// Whether the node asked could not be reached at all, which is the only failure
-    /// that sends a broadcast transaction's follow-up to another node.
+    /// Whether the node asked couldn't be reached at all, the only failure that sends
+    /// a broadcast transaction's follow-up to another node.
     pub(crate) fn is_unreachable(&self) -> bool {
         matches!(self, Self::Net(inner) if inner.is_unreachable())
     }
@@ -275,8 +275,8 @@ impl MoneroError {
     }
 }
 
-/// A `NetError` carrying one of ours came from a closure inside the pool, so it
-/// is recovered rather than wrapped twice.
+/// A `NetError` carrying one of ours came from a closure inside the pool, so it's
+/// unwrapped instead of wrapped twice.
 impl From<NetError> for MoneroError {
     fn from(error: NetError) -> Self {
         error.into_source_of::<Self>().unwrap_or_else(Self::Net)
@@ -298,8 +298,6 @@ impl From<MoneroError> for NetError {
     }
 }
 
-/// The interface's vocabulary. The match has no wildcard, so a new variant has
-/// to be classified here.
 impl From<MoneroError> for ChainError {
     fn from(error: MoneroError) -> Self {
         match error {

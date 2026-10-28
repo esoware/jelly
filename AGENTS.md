@@ -50,7 +50,7 @@ If a lint really has to go, suppress that one line with a reason:
 
 ### Comments
 
-- Plain ASCII in complete sentences. No TODO or FIXME, no step narration, no banners, no history, and no comments about the edit itself.
+- Plain ASCII. Say the one thing the code can't, in as few words as it takes. One line is usual and a fragment is fine. Don't restate the code, the name, or the surrounding context, and don't walk through the reasoning unless the reasoning is the point. No TODO or FIXME, no step narration, no banners, no history, and no comments about the edit itself.
 - **Rust:** default to none, and match how sparse the file already is. Write one only for what the code can't say: a reason, an assumption the code relies on that isn't obvious, a contract, a safety argument, a disk or wire format, or an external fact. Doc comments follow the same rule, so a doc that restates the item's name should not exist.
 - **TypeScript and CSS:** no comments at all, except tool directives.
 

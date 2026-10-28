@@ -20,12 +20,12 @@ const QUEUE_DEPTH: usize = 64;
 ///
 /// [`PinStore`] is called from inside a certificate verifier mid-handshake, so neither
 /// method may block or touch the disk. Reads come from the map, and writes go to
-/// [`persist`] through a bounded queue. A lost write costs the pin its persistence but
+/// [`persist`] through a bounded queue. A dropped write loses the pin's persistence but
 /// not its effect, because the rest of the session compares against the map.
 #[derive(Debug)]
 pub(crate) struct PinCache {
-    /// Keyed by chain first, so a lookup borrows the host rather than allocating a
-    /// key for it.
+    /// Keyed by chain first, so a lookup borrows the host instead of allocating a key for
+    /// it.
     pins: RwLock<HashMap<ChainId, HashMap<String, SpkiPin>>>,
     writes: mpsc::Sender<PinRow>,
 }
@@ -49,8 +49,8 @@ impl PinStore for PinCache {
     }
 }
 
-/// Reads every recorded pin and hands back the store the verifier uses together
-/// with the queue that [`persist`] drains.
+/// Reads every recorded pin and returns the store the verifier uses, with the queue that
+/// [`persist`] drains.
 pub(crate) async fn load(
     store: &Store,
 ) -> Result<(Arc<PinCache>, mpsc::Receiver<PinRow>), StoreError> {
@@ -63,13 +63,13 @@ pub(crate) async fn load(
     Ok((Arc::new(PinCache { pins: RwLock::new(pins), writes }), incoming))
 }
 
-/// Drains queued pins into the database until the engine is cancelled.
+/// Drains queued pins into the database until the engine is canceled.
 ///
-/// Cancellation closes the queue, and the writer still stores what was already in it,
+/// Cancellation closes the queue, but the writer still stores what was already in it,
 /// because the store stays open until the tracker has drained.
 ///
-/// Holds the engine weakly, so the writer never keeps alive an engine that was
-/// dropped without a shutdown.
+/// Holds the engine weakly, so the writer never keeps alive an engine that was dropped
+/// without a shutdown.
 pub(crate) async fn persist(
     weak: Weak<Inner>,
     mut incoming: mpsc::Receiver<PinRow>,

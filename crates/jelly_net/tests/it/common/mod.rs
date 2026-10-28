@@ -59,8 +59,7 @@ pub(crate) struct FakeConnection {
     pub(crate) url: String,
 }
 
-/// A connector with no sockets behind it. Every knob is a public field, so the
-/// harness needs no builder.
+/// A connector with no sockets behind it, set up through its public fields.
 #[derive(Debug)]
 pub(crate) struct FakeConnector {
     pub(crate) clock: Arc<FakeClock>,
@@ -68,8 +67,8 @@ pub(crate) struct FakeConnector {
     pub(crate) identity_checks: Mutex<Vec<String>>,
     pub(crate) refused_urls: Mutex<Vec<String>>,
     pub(crate) wrong_network_urls: Mutex<Vec<String>>,
-    /// How far the fake clock moves while an endpoint is being connected, which
-    /// is how a test spends part of an attempt's budget on the dial.
+    /// How far the fake clock moves during each connect, so a test can spend part of an
+    /// attempt's budget on the dial.
     pub(crate) advance_on_connect: Mutex<Duration>,
     /// Endpoints whose identity check never answers.
     pub(crate) silent_identity_urls: Mutex<Vec<String>>,
@@ -143,7 +142,7 @@ impl Harness {
     }
 }
 
-/// An Ethereum JSON-RPC endpoint, which is the shape most of these tests want.
+/// An Ethereum JSON-RPC endpoint, which most of these tests want.
 pub(crate) fn endpoint(url: &str) -> Result<Endpoint, NetError> {
     Endpoint::parse(ChainId::Ethereum, Transport::HttpJsonrpc, url)
 }

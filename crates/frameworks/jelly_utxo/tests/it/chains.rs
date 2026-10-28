@@ -116,13 +116,11 @@ fn each_table_carries_its_reference_wallets_fee_policy() {
     }
 }
 
-/// Each table signals and bumps as its nodes relay.
-///
 /// Bitcoin and Dogecoin nodes relay a replacement by default, so a send is bumped by
 /// one. Litecoin's relay one only when configured to, so a child pays for the send
-/// instead, and Bitcoin Cash offers neither.
+/// instead. Bitcoin Cash offers neither.
 #[test]
-fn each_table_signals_and_offers_replacement_as_its_nodes_honour_it() {
+fn each_table_signals_and_offers_replacement_as_its_nodes_honor_it() {
     for (params, replacement, bump_method) in [
         (BITCOIN, Replacement::ByDefault, Some(BumpMethod::Replace)),
         (LITECOIN, Replacement::WhenConfigured, Some(BumpMethod::ChildPaysForParent)),
@@ -183,10 +181,11 @@ fn each_table_offers_the_fee_levels_its_market_prices() {
     }
 }
 
-/// A level that warned would warn on every send of that size.
+/// A flat market pays its reference rate at every level, so a level that warned would warn
+/// on every send of that size.
 ///
-/// A flat market pays its reference rate at every level. Even the largest standard
-/// transaction stays at or under the warning at that rate, which leaves it to a custom rate.
+/// Even the largest standard transaction stays at or under the warning at that rate, so only
+/// a custom rate can trigger it.
 #[test]
 fn no_flat_market_warns_about_the_fee_its_levels_pay() {
     for params in TABLES.into_iter().filter(|params| params.fee_market == FeeMarket::Flat) {
@@ -224,7 +223,7 @@ fn each_table_names_its_own_unit() {
 fn each_chain_warns_about_its_own_ambiguous_address_forms() {
     assert!(
         BITCOIN.address_notes.is_empty(),
-        "every Bitcoin address form is unambiguous, so there is nothing to warn about"
+        "the legacy forms other chains share are Bitcoin's own"
     );
     assert!(DOGECOIN.address_notes.is_empty(), "Dogecoin's version bytes are its own");
     assert_eq!(LITECOIN.address_notes.len(), 1);
@@ -272,8 +271,8 @@ fn the_fixture_block_zero_is_litecoins_own() {
     assert_eq!(header.time, 1_317_972_665, "2011-10-07");
 }
 
-/// The headers the fake servers answer with are the chains' own, so the guard
-/// over them is the one production runs.
+/// The fake servers answer with each chain's real headers, so the guard checks what
+/// it would in production.
 #[test]
 fn every_recorded_header_hashes_to_its_tables_block() {
     for params in TABLES {
@@ -294,9 +293,8 @@ fn every_recorded_header_hashes_to_its_tables_block() {
     assert_eq!(dogecoin.time, 1_386_325_540, "2013-12-06");
 }
 
-/// Block zero as its chain's own source states it, so a table's constant is
-/// checked against the header's published fields rather than against another
-/// copy of itself.
+/// Block zero rebuilt from its published fields, so a table's constant is checked
+/// against the source and not against another copy of itself.
 fn published_header(merkle_root: &str, time: u32, nonce: u32) -> Fallible<Header> {
     let mut merkle = <[u8; 32]>::try_from(hex::decode(merkle_root)?.as_slice())?;
     merkle.reverse();
@@ -372,8 +370,8 @@ fn the_dogecoin_genesis_constant_is_the_hash_of_the_published_block_zero() {
     );
 }
 
-/// Block zero cannot tell Bitcoin's servers from Bitcoin Cash's, so each proves
-/// its own block 840000, which differ.
+/// Block zero can't tell Bitcoin's servers from Bitcoin Cash's, so each proves its
+/// own block 840000, which differ.
 #[test]
 fn bitcoin_and_bitcoin_cash_share_block_zero_and_part_at_the_checkpoint() {
     assert_eq!(BITCOIN_CASH.electrum_chain().genesis, BITCOIN.electrum_chain().genesis);
@@ -456,8 +454,7 @@ fn an_mweb_address_is_named_before_any_checksum_is_read() {
 /// Litecoin activated taproot in 2022 and relays it, so a `ltc1p` recipient is
 /// paid like any other.
 ///
-/// The address is built by an independent bech32m encoder rather than remembered,
-/// so this is a fact about the encoding.
+/// The address comes from an independent bech32m encoder, not a remembered string.
 #[test]
 fn a_litecoin_taproot_recipient_passes_the_gate_and_has_an_output_script() {
     let address = encode_v1(Hrp::parse_unchecked("ltc"), &[0x02u8; 32])

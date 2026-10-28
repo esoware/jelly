@@ -375,7 +375,7 @@ async fn an_inclusion_a_reorg_removed_is_reported_pending_again_and_then_re_reco
     harness.sync().await.unwrap();
     assert_eq!(harness.records().len(), 1, "reported once");
 
-    // The block it was in is reorganised away.
+    // The block it was in is reorganized away.
     harness.node.on(Method::GetTransactionReceipt, Answer::ok("null"));
     harness.sync().await.unwrap();
     let drained = harness.drain();
@@ -394,7 +394,7 @@ async fn an_inclusion_a_reorg_removed_is_reported_pending_again_and_then_re_reco
 
     harness
         .node
-        .on(Method::GetTransactionReceipt, Answer::ok(&receipt("success_reorganised").unwrap()));
+        .on(Method::GetTransactionReceipt, Answer::ok(&receipt("success_reorganized").unwrap()));
     harness.sync().await.unwrap();
     let records = harness.records();
     assert_eq!(records.len(), 1, "the new inclusion is recorded");
@@ -499,7 +499,7 @@ async fn a_send_whose_nonce_another_transaction_took_is_replaced_once_that_is_de
     harness.node.on(Method::GetTransactionCount, Answer::ok(&quantity(12)));
     harness.node.on(Method::GetTransactionCount, Answer::ok(&quantity(13)));
     harness.sync().await.unwrap();
-    assert_eq!(harness.adapter.in_flight(), 1, "a nonce taken shallow may still be reorganised");
+    assert_eq!(harness.adapter.in_flight(), 1, "a nonce taken shallow may still be reorganized");
     assert!(harness.records().is_empty());
 
     harness.node.always(Method::GetTransactionCount, Answer::ok(&quantity(13)));
@@ -522,8 +522,8 @@ async fn a_send_whose_nonce_another_transaction_took_is_replaced_once_that_is_de
     );
 }
 
-/// The receipt poll and the recheck can reach different nodes. Only the node that
-/// says the nonce was taken can say the send did not take it.
+/// The receipt poll and the recheck can reach different nodes, so only the node that
+/// says the nonce was taken can say this send didn't take it.
 #[tokio::test]
 async fn a_send_the_rechecking_node_has_a_receipt_for_is_never_replaced() {
     let harness = Harness::sent().await.unwrap();
@@ -556,10 +556,10 @@ async fn a_recheck_no_node_answers_leaves_the_send_as_it_was() {
     assert!(harness.node.calls_to(Method::SendRawTransaction).is_empty());
 }
 
-/// The other wallet's send spent a coin at the nonce this wallet's send held.
+/// Another wallet's send spent a coin at the nonce this wallet's send held.
 ///
-/// While that nonce may still go either way, the balance waits. Once it is taken
-/// for good, the drop is the other wallet's payment and is recorded as one.
+/// While that nonce could still go either way, the drop waits. Once it's taken for good, the
+/// drop is recorded as the other wallet's payment.
 #[tokio::test]
 async fn a_balance_another_wallet_spent_at_a_held_nonce_is_judged_once_the_send_is_replaced() {
     let harness = Harness::sent().await.unwrap();

@@ -1,9 +1,8 @@
 //! Pending Solana sends, persisted before broadcast and followed by signature.
 //!
-//! A transport failure leaves the result unknown, so the same bytes are resent
-//! while the blockhash is valid. Rebuilding with a fresh blockhash could pay
-//! twice, so a rebuild is safe only once the block height passes the last valid
-//! height with no status.
+//! A transport failure leaves the result unknown, so the same bytes are resent while
+//! the blockhash is valid. A rebuild with a fresh blockhash could pay twice, so it's
+//! safe only once the block height passes the last valid height with no status.
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -56,12 +55,12 @@ impl Tracked {
             .is_ok_and(|bytes| bytes.get(sign::SIGNATURE_OVERHEAD_BYTES..) == Some(message))
     }
 
-    /// Carries no fee, so the store keeps the one it already holds until the
-    /// signature walk replaces it with the charged figure.
+    /// Carries no fee, so the store keeps the one it already holds until the signature
+    /// walk replaces it with the charged figure.
     ///
-    /// A failed transaction moved nothing and still cost its fee payer the fee, so
-    /// it is recorded the way the walk reads it: native, outgoing and zero, whatever
-    /// the send meant to move.
+    /// A failed transaction moved nothing but still cost its fee payer the fee, so it's
+    /// recorded the way the walk reads it: native, outgoing, and zero, whatever the send
+    /// meant to move.
     pub(crate) fn landed_record(&self, slot: u64, tip_slot: u64, is_failed: bool) -> TxRecord {
         let (asset, direction, moved, outcome) = if is_failed {
             (NATIVE, TxDirection::Outgoing, Amount::ZERO, TxOutcome::Failed)
@@ -71,10 +70,10 @@ impl Tracked {
         self.record(asset, direction, moved, outcome).confirmed_at(slot, None, tip_slot).build()
     }
 
-    /// Settles the row the submission wrote under a token send's own asset once the
-    /// send has landed and failed, because the failure itself is recorded as native.
-    /// Its fee is zero, because the fee was paid in SOL and the native record
-    /// carries it, and so is its rent, because a failed transaction opened nothing.
+    /// For a token send that landed and failed, settles the row the submission wrote
+    /// under the token, since the failure itself is recorded as native. Fee and rent are
+    /// zero, because the native record carries the fee and a failed transaction opens
+    /// no account.
     pub(crate) fn failed_token_record(&self, slot: u64, tip_slot: u64) -> Option<TxRecord> {
         let AssetId::Token(_) = self.asset else { return None };
         let record = self
@@ -86,9 +85,8 @@ impl Tracked {
         Some(record)
     }
 
-    /// Zero fee and rent, because the transaction never landed. Without a
-    /// `seen_at_secs` reading the store supplies a timestamp, and the Unix epoch is
-    /// never substituted.
+    /// Zero fee and rent, because the transaction never landed. Without `seen_at_secs`,
+    /// the store supplies the timestamp, so the record never carries the Unix epoch.
     pub(crate) fn expired_record(&self, seen_at_secs: Option<i64>) -> TxRecord {
         let mut builder = self
             .record(self.asset, self.direction(), self.amount(), TxOutcome::Failed)
@@ -100,8 +98,8 @@ impl Tracked {
         builder.build()
     }
 
-    /// A record of this send, which this wallet built, so it is decoded in full and
-    /// names the recipient.
+    /// This wallet built the send, so its record is fully decoded and names the
+    /// recipient.
     fn record(
         &self,
         asset: AssetId,
@@ -141,11 +139,11 @@ pub(crate) enum Verdict {
     Expired,
 }
 
-/// `block_height` is a block height, not a slot, because a blockhash's window is
-/// counted in blocks and skipped slots do not advance it.
+/// `block_height` is a block height, not a slot, because a blockhash's window is counted in
+/// blocks and skipped slots don't advance it.
 ///
-/// It is the height of the endpoint that answered `status`, because one behind
-/// the tip has no status for a transaction in a block it has not reached.
+/// It must come from the endpoint that answered `status`, since an endpoint has no status for
+/// blocks it hasn't reached.
 pub(crate) fn verdict(
     status: Option<&SignatureStatus>,
     block_height: u64,

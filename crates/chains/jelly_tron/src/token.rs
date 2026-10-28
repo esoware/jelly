@@ -1,5 +1,5 @@
-//! The TRC-20 tokens this wallet carries. Symbols and decimals come from the
-//! compiled [`TokenId`] table, never from the chain.
+//! The TRC-20 tokens we carry. Symbols and decimals come from the compiled
+//! [`TokenId`] table, never from the chain.
 
 use jelly_core::{AssetId, TokenId};
 
@@ -8,13 +8,13 @@ use crate::error::TronError;
 
 pub(crate) const TOKENS: [TokenId; 2] = [TokenId::WbtcTrc20, TokenId::UsdtTrc20];
 
-/// The token a contract address names, if this build carries it.
+/// The token a contract address names, if we carry it.
 pub(crate) fn token_at(contract: &str) -> Option<TokenId> {
     TOKENS.into_iter().find(|token| token.contract() == contract)
 }
 
-/// The token an asset names, or `None` for native TRX. An asset this build does
-/// not carry on TRON is refused here rather than failing later.
+/// The token an asset names, or `None` for TRX. An asset we don't carry on TRON is
+/// refused here instead of failing later.
 pub(crate) fn asset_token(asset: AssetId) -> Result<Option<TokenId>, TronError> {
     match asset {
         AssetId::Native(CHAIN) => Ok(None),

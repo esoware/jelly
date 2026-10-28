@@ -16,11 +16,10 @@ pub struct PaymentUri<'a> {
 }
 
 impl PaymentUri<'_> {
-    /// The query's parameters with percent-decoded names.
+    /// The query's parameters, with names percent-decoded so `%6Demo` reads as `memo`.
     ///
-    /// A name such as `%6Demo` is then checked as the `memo` it spells. A value stays as
-    /// written, because every value read here is an address, which has no character to
-    /// encode, so an encoded one fails validation.
+    /// Values stay as written. The only values anything reads are addresses, which have no
+    /// character to encode, so an encoded one fails validation.
     pub fn params(&self) -> impl Iterator<Item = (Cow<'_, str>, &str)> {
         self.query.split('&').filter(|param| !param.is_empty()).map(|param| {
             let (name, value) = param.split_once('=').unwrap_or((param, ""));
@@ -34,8 +33,8 @@ impl PaymentUri<'_> {
     }
 }
 
-/// Splits `value` as a payment URI of `scheme`, or `None` when it is not one. The
-/// scheme is matched without regard to case, and a `//` after it is dropped.
+/// Splits `value` as a payment URI of `scheme`, or `None` when it isn't one. The scheme
+/// match ignores case, and a `//` after it is dropped.
 pub fn payment_uri<'a>(scheme: &str, value: &'a str) -> Option<PaymentUri<'a>> {
     let (found, rest) = value.trim().split_once(':')?;
     if !found.eq_ignore_ascii_case(scheme) {

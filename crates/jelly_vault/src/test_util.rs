@@ -115,11 +115,11 @@ impl MasterKeyStore for FailingKeyStore {
 
 /// A vault handle over a temporary directory and an in-memory credential store.
 ///
-/// It writes at [`Argon2Params::MINIMUM`], the accepted floor rather than a weakened
-/// profile, so every fixture file opens in a shipping build.
+/// Writes at [`Argon2Params::MINIMUM`], the real floor and not a weakened test profile,
+/// so every fixture file opens in a shipping build.
 #[derive(Debug)]
 pub struct TempVault {
-    /// Held for its `Drop`, which is what removes the directory.
+    /// Removes the directory on drop.
     _directory: TempDir,
     path: PathBuf,
     wallet_id: String,
@@ -221,8 +221,8 @@ impl Forge {
         self.get(pointer).and_then(serde_json::Value::as_str)
     }
 
-    /// Replaces an existing field by JSON pointer. It never adds one, because the point
-    /// is to mutate what a writer wrote.
+    /// Replaces an existing field by JSON pointer. It never adds one, since the point is to
+    /// mutate what the writer wrote.
     pub fn set(&mut self, pointer: &str, value: serde_json::Value) -> bool {
         match self.json.pointer_mut(pointer) {
             Some(slot) => {

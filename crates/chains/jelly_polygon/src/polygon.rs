@@ -12,8 +12,8 @@ pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Polygon,
     coin_name: "Polygon",
     coin_chain: ChainId::Polygon,
-    // Ethereum's coin type rather than Polygon's own 966, as MetaMask and Trust
-    // Wallet derive, so a seed has the same address on both networks.
+    // Ethereum's coin type, not Polygon's own 966, as in MetaMask and Trust Wallet, so a
+    // seed has the same address on both networks.
     slip44: 60,
     key_kind: KeyKind::Secp256k1,
     default_path: "m/44'/60'/0'/0/{index}",
@@ -25,8 +25,7 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::FeeCap),
-    // About $1.98 at the October 2026 price of $0.09. At the 259 gwei gas costs now, a plain
-    // transfer costs about 0.0054 POL and a token transfer about 0.017 POL.
+    // About $2.
     high_fee: Amount::from_base_units(22_000_000_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,
@@ -48,10 +47,10 @@ pub const PARAMS: EvmParams = EvmParams {
     chain: SPEC.chain,
     chain_id: 137,
     request_timeout: Duration::from_secs(10),
-    // Each issuer's own deployment: Tether's USDT0 and XAUt0, Circle's USDC and
+    // Each issuer's own deployment: Tether's USDT0 and XAUt0, Circle's USDC, and
     // Paxos's PYUSD. Bridged copies, such as USDC.e and the PoS DAI, are left out.
-    // LINK and ether are the PoS bridge's copies, which exchanges and wallets use,
-    // rather than the ERC-677 LINK Chainlink's PegSwap issues for paying its oracles.
+    // LINK and ether are the PoS bridge's copies, which exchanges and wallets use, not
+    // the ERC-677 LINK that Chainlink's PegSwap issues to pay its oracles.
     tokens: &[
         TokenId::LinkPolygon,
         TokenId::WethPolygon,
@@ -63,19 +62,19 @@ pub const PARAMS: EvmParams = EvmParams {
     token_standard: "ERC-20",
     // One block every 1.5 seconds since the second stage of PIP-86.
     block_millis: 1_500,
-    // A pass per block is wasteful at this pace, so a burst of heads wakes one pass.
+    // A pass per block would be wasteful at this pace.
     watch_floor: Duration::from_secs(6),
-    // A minute of blocks, where Ethereum's twenty span four.
+    // A minute of blocks.
     fee_history_blocks: 40,
     // Bor refuses a tip under 25 gwei on mainnet.
     min_priority_fee_wei: 25_000_000_000,
     max_priority_fee_wei: None,
-    // Past milestone finality, to leave room for a public node that trails the one
+    // About 24 seconds, past milestone finality, to cover a public node behind the one
     // that reported the tip.
     confirmations_target: 16,
     // Every shipped endpoint that serves logs takes a window this wide.
     log_window_blocks: 10_000,
-    // Native transfers are logged from the first blocks, so the walk runs back to
+    // Native transfers are logged from the first blocks, so the backfill runs back to
     // genesis.
     backfill_floor: 0,
     has_native_transfer_logs: true,

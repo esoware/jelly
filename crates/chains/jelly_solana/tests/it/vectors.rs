@@ -1,8 +1,5 @@
-//! Known answers.
-//!
-//! Each instruction layout is read back off a transaction this build signed,
-//! deserialised by the ecosystem's own reader, and compared with
-//! `vectors/instructions.json`.
+//! Each instruction layout is read back off a transaction this build signed, deserialized
+//! by the ecosystem's own reader, and compared with `vectors/instructions.json`.
 
 use jelly_core::TokenId;
 use jelly_solana::Method;
@@ -13,10 +10,8 @@ use crate::common::{
     simulation, stock_usdc, token_account_address, usdc, vector, vector_number, with_chosen_fee,
 };
 
-/// The data bytes are compared against numbers the test chose.
-///
-/// The simulation is answered so the margin lands on the recorded limit, and the
-/// chosen priority fee spread over that limit is the recorded price.
+/// The simulation and the chosen priority fee are picked so the build reproduces the
+/// recorded limit and price.
 #[tokio::test]
 async fn a_native_transfer_carries_the_pinned_layouts() {
     let harness = Harness::priced().await.unwrap();
@@ -102,8 +97,8 @@ async fn a_token_transfer_carries_the_pinned_layouts_and_account_order() {
     );
 }
 
-/// The decimals the checked transfer carries are the compiled ones, which is what
-/// makes the token program refuse a transfer priced against the wrong scale.
+/// The checked transfer carries the compiled decimals, so the token program refuses it
+/// if the mint's scale differs.
 #[tokio::test]
 async fn the_checked_transfer_carries_the_compiled_scale() {
     let harness = Harness::priced().await.unwrap();
@@ -124,9 +119,8 @@ async fn the_checked_transfer_carries_the_compiled_scale() {
     );
 }
 
-/// The compute-budget program's own numbers are read back out of the message, so
-/// a chosen priority fee is spread over the measured limit the transaction asks
-/// for.
+/// A chosen priority fee is spread over the measured limit: 84 lamports over 12000 units
+/// is 7000 micro-lamports a unit.
 #[tokio::test]
 async fn a_chosen_priority_fee_reaches_the_message_over_the_measured_limit() {
     let harness = Harness::priced().await.unwrap();

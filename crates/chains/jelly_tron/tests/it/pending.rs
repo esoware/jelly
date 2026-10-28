@@ -162,7 +162,7 @@ async fn a_send_whose_window_has_closed_and_that_no_node_holds_is_reported_dead(
     let harness = ready(&fake).await.unwrap();
     let signed = sent(&harness).await.unwrap();
     // An unusable wall clock reads as the epoch here. The record takes its time
-    // from the head block that decided the expiry, so a wrong clock cannot sink a
+    // from the head block that decided the expiry, so a wrong clock can't sink a
     // payment to the bottom of the history.
     harness.clock.set_unix_millis(0);
 
@@ -234,7 +234,7 @@ async fn a_send_survives_a_restart_because_it_was_written_before_the_bytes_left(
         "the record names the transaction a restart has to ask about"
     );
 
-    // A second adapter over the same store is what a restart looks like.
+    // A second adapter over the same store stands in for a restart.
     let restarted = TronAdapter::new(
         Arc::<FakeNode>::clone(&fake),
         Arc::<MemoryCursorStore>::clone(&harness.cursors),

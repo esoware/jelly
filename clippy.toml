@@ -40,5 +40,5 @@ disallowed-methods = [
   { path = "f64::from",                      reason = "no floats on money paths" },
   { path = "reqwest::Client::builder",       reason = "use jelly_net::HttpClient::new" },
   { path = "reqwest::Client::new",           reason = "use jelly_net::HttpClient::new" },
-  { path = "rustls::ClientConfig::builder",  reason = "jelly_net owns the one trust configuration" },
+  { path = "rustls::ClientConfig::builder",  reason = "jelly_net owns the TLS configuration" },
 ]

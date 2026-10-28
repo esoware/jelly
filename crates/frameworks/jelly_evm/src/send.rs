@@ -25,8 +25,8 @@ pub(crate) struct Plan {
     pub(crate) should_send_max: bool,
     pub(crate) nonce: u64,
     pub(crate) is_nonce_pinned: bool,
-    /// Absent when a pinned price was resolved against a node that would not
-    /// serve the fee history.
+    /// Absent when a pinned price was resolved against a node that wouldn't serve
+    /// the fee history.
     pub(crate) market: Option<FeeMarket>,
     pub(crate) fee: FeePair,
     pub(crate) gas: GasLimit,
@@ -34,7 +34,8 @@ pub(crate) struct Plan {
     pub(crate) calldata: Option<Vec<u8>>,
     pub(crate) native_balance_wei: u128,
     pub(crate) token_balance: Option<u128>,
-    /// Present when this build reuses a nonce slot, which makes it a replacement.
+    /// The fee floor to clear when this build reuses a nonce slot, which makes it a
+    /// replacement.
     pub(crate) replaces: Option<FeePair>,
     /// A replacement that pays nothing to its own sender, so the transaction it
     /// replaces never runs.
@@ -85,10 +86,10 @@ impl Plan {
             .ok_or(EvmError::FeeOverflow { field: "total cost" })
     }
 
-    /// A quote prices the plan at its expected fee. The worst case is in the
-    /// preview, and a send-max names the amount it settled on against it.
+    /// Prices the plan at its expected fee. The worst case is in the preview, and a
+    /// send-max's amount is what's left after it.
     ///
-    /// Each level is priced at this plan's gas, raised to the slot's floor as the
+    /// Each level is priced at this plan's gas and raised to the slot's floor as the
     /// level itself would be, so picking one costs what its row says.
     pub(crate) fn quote(&self) -> Result<FeeQuote, EvmError> {
         let mut levels = Vec::new();
@@ -134,14 +135,12 @@ pub(crate) fn send_max_amount(
     }
 }
 
-/// Percent of the oracle's bound a send holds back for the L1 data fee.
-///
-/// Twice the bound, as the gas cap reserves twice the base fee, because the L1
+/// Percent of the oracle's bound a send holds back for the L1 data fee. The L1
 /// prices the bound was read at can rise before the transaction lands.
 const DATA_FEE_HEADROOM_PCT: u64 = 200;
 
 /// What the balance must cover before execution. An OP Stack node refuses a
-/// transaction whose sender cannot pay the gas and the data fee together.
+/// transaction whose sender can't pay the gas and the data fee together.
 fn reserved_wei(fee: FeePair, gas_limit: u64, data_fee_wei: u128) -> Result<u128, EvmError> {
     let data_wei = units::scale_pct("L1 data fee", data_fee_wei, DATA_FEE_HEADROOM_PCT)?;
     fee.max_cost_wei(gas_limit)?
@@ -208,7 +207,7 @@ pub(crate) fn payload_of(tx: &UnsignedTx, params: &EvmParams) -> Result<EvmPaylo
 /// Returns the locally computed txid, and treats an already-known refusal as
 /// success.
 ///
-/// An endpoint's echoed hash is not trusted, because a different one would break
+/// An endpoint's echoed hash isn't trusted, because a different one would break
 /// receipt lookup and replacement.
 pub(crate) async fn deliver(client: &EvmClient, tx: &SignedTx) -> Result<TxId, EvmError> {
     match client.send_raw(tx.raw.as_bytes()).await {
@@ -216,7 +215,7 @@ pub(crate) async fn deliver(client: &EvmClient, tx: &SignedTx) -> Result<TxId, E
             if hash.to_string() != tx.txid.value() {
                 tracing::warn!(
                     target: TARGET,
-                    "the endpoint echoed a transaction hash that is not the one it was sent"
+                    "the endpoint echoed a transaction hash other than the one it was sent"
                 );
             }
             Ok(tx.txid.clone())

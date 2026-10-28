@@ -42,7 +42,7 @@ pub(crate) enum Transfer {
         comment: Option<String>,
     },
     /// A TEP-74 `transfer` to the sender's own jetton wallet, which moves `amount` to
-    /// the owner `to` names and returns what `attached_nanogram` does not spend. The
+    /// the owner `to` names and returns what `attached_nanogram` doesn't spend. The
     /// comment rides in the forward payload the owner is notified with.
     Jetton {
         token: TokenId,
@@ -69,8 +69,8 @@ impl Payment {
         }
     }
 
-    /// Every Gram the payment can take from the sender beyond what it pays: the network
-    /// fee, and the gas a jetton transfer attaches.
+    /// The Gram the payment can take from the sender beyond the amount it pays: the
+    /// network fee, plus the gas a jetton transfer attaches.
     pub(crate) fn cost_nanogram(&self) -> Result<u64, TonError> {
         match self.transfer {
             Transfer::Native { .. } => Ok(self.fee_nanogram),
@@ -89,8 +89,8 @@ impl Payment {
         }
     }
 
-    /// Refuses a payment whose `valid_until` has come, which the wallet would no longer
-    /// accept.
+    /// Refuses a payment once its `valid_until` is reached, since the wallet would no
+    /// longer accept it.
     pub(crate) fn ensure_unexpired(&self, clock: &dyn Clock) -> Result<(), TonError> {
         if clock.now_secs()? >= i64::from(self.valid_until) {
             return Err(TonError::Invalid("This TON payment has expired. Build it again."));

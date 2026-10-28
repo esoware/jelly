@@ -17,19 +17,17 @@ use crate::preview::{PreviewQuote, preview};
 use crate::script::SpendableScript;
 use crate::sign::sign_tx;
 
-/// Everything a build needs that does not depend on the fee rate, so a quote is
-/// priced against exactly the transaction that would be built.
+/// Everything a build needs except the fee rate, so a quote prices exactly the
+/// transaction that would be built.
 #[derive(Debug, Clone)]
 pub(crate) struct Plan {
     /// In the request's order. Change goes to the first.
     sources: Vec<Watched>,
-    /// The script change pays, the first source's.
     change_script: SpendableScript,
-    /// Already through the table's address gate and canonical, so no later step
-    /// is the one that discovers a refused form.
+    /// Canonical, and already through the table's address gate.
     to: String,
     to_script: ScriptBuf,
-    /// Absent exactly when the request is a send-max.
+    /// `None` for a send-max.
     amount: Option<Amount>,
     /// The spendable coins of every source.
     coins: Vec<Utxo>,
@@ -37,10 +35,9 @@ pub(crate) struct Plan {
 }
 
 impl Plan {
-    /// `known_tip` is the tip the last pass saw. The anti-fee-sniping locktime has
-    /// to name a height the network already has, so with no pass behind it the
-    /// height is fetched. The recipient goes through the gate first, so an address
-    /// this build will not pay costs no round trip.
+    /// `known_tip` is the tip the last pass saw. Without one the height is fetched,
+    /// since the anti-fee-sniping locktime has to name a block the network already
+    /// has. The recipient is checked first, so a refused address costs no round trip.
     pub(crate) async fn resolve(
         params: &UtxoParams,
         client: &UtxoClient,
@@ -102,12 +99,11 @@ pub(crate) fn build(
     build_tx(&fee_context.params, &request)
 }
 
-/// Decodes the preview from the payload the signer will consume, so nothing the
-/// user approved can differ from what gets signed.
+/// Decodes the preview from the payload the signer will consume, so what the user
+/// approves is exactly what gets signed.
 ///
-/// The preview also carries the table's address notes, such as Litecoin's `3...`
-/// ambiguity warning. `evicted` counts the later transactions a replacement
-/// cancels, which the preview warns about.
+/// `evicted` counts the later transactions a replacement cancels, which the preview
+/// warns about.
 pub(crate) fn unsigned(
     built: &BuiltTx,
     fee_context: &FeeContext,
@@ -132,11 +128,8 @@ pub(crate) fn payload_of(params: &UtxoParams, tx: &UnsignedTx) -> Result<UtxoPay
     UtxoPayload::decode(tx.payload.as_bytes())
 }
 
-/// Signs with no I/O, refusing a key that does not reproduce the source it is
-/// handed for. `keys` follows the preview's sources, which are the payload's.
-///
-/// Every table shares the transaction format; the table supplies the address
-/// codec and the fork id.
+/// Signs with no I/O and refuses a key that doesn't match its source. `keys` follow
+/// the preview's sources, which are the payload's.
 pub(crate) fn sign(
     params: &UtxoParams,
     tx: &UnsignedTx,
@@ -152,11 +145,10 @@ pub(crate) fn sign(
 
 /// Sends a signed transaction to one endpoint.
 ///
-/// A transaction the network already has is a send that landed, not a failure.
-/// Every other refusal reaches the caller as the node's classified rejection,
-/// which decides whether a re-send could ever work. Litecoin Core, Bitcoin Cash
-/// Node and Dogecoin Core emit Bitcoin Core's reject strings, so the one
-/// classification table in the Electrum layer covers every table.
+/// A transaction the network already has counts as sent. Any other refusal comes
+/// back as the node's classified rejection. Litecoin Core, Bitcoin Cash Node, and
+/// Dogecoin Core use Bitcoin Core's reject strings, so the one classifier in
+/// `jelly_electrum` covers every chain.
 pub(crate) async fn deliver(
     params: &UtxoParams,
     client: &UtxoClient,

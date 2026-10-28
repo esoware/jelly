@@ -146,7 +146,7 @@ async fn a_reported_attempt_names_the_reason_and_not_only_its_class() {
 async fn the_walk_deadline_stops_the_rotation_early() {
     let harness =
         harness(&[ENDPOINT_A, ENDPOINT_B, ENDPOINT_C]).expect("a pool over three endpoints");
-    // The whole walk gets forty five seconds and every dial burns twenty.
+    // The whole walk gets forty-five seconds and every dial burns twenty.
     *harness.connector.advance_on_connect.lock() = Duration::from_secs(20);
     harness.connector.refused_urls.lock().extend([
         ENDPOINT_A.to_owned(),
@@ -166,7 +166,7 @@ async fn the_walk_deadline_stops_the_rotation_early() {
     assert_eq!(attempts.len(), 3);
     assert_eq!(harness.connector.connects.lock().len(), 3);
 
-    // A fourth endpoint does not fit in the remaining budget.
+    // A fourth endpoint doesn't fit in the remaining budget.
     let four: Vec<_> = [ENDPOINT_A, ENDPOINT_B, ENDPOINT_C, "https://d.example"]
         .iter()
         .map(|url| endpoint(url).expect("a canonical url"))
@@ -274,8 +274,8 @@ async fn a_mismatch_rotates_even_when_the_classifier_would_stop() {
     let harness = harness(&[ENDPOINT_A, ENDPOINT_B]).expect("a pool over two endpoints");
     harness.connector.wrong_network_urls.lock().push(ENDPOINT_A.to_owned());
 
-    // `fail` would end the walk at the first failure, but an identity mismatch is not
-    // the caller's to accept.
+    // `fail` would end the walk at the first failure, but an identity mismatch isn't the
+    // caller's to accept.
     let answered = harness
         .pool
         .call("head", fail, async |connection| Ok(connection.url.clone()))
@@ -416,8 +416,8 @@ async fn a_ranked_broadcast_tries_only_the_preferred_endpoint() {
     assert_eq!(*harness.connector.connects.lock(), vec![ENDPOINT_C.to_owned()]);
 }
 
-/// A fallback that has answered before does not keep the requests a preferred endpoint
-/// was never asked for, while an unranked walk still puts the proven endpoint first.
+/// A fallback that has answered before doesn't keep the requests a preferred endpoint was
+/// never asked for, while an unranked walk still puts the proven endpoint first.
 #[tokio::test(start_paused = true)]
 async fn an_untried_preferred_endpoint_goes_before_a_fallback_that_has_answered() {
     let harness = harness(&[ENDPOINT_A, ENDPOINT_C]).expect("a pool over two endpoints");
@@ -496,9 +496,9 @@ const fn by_rpc_code(error: &NetError) -> Outcome {
     if let NetError::Rpc { code, .. } = *error { json_rpc_outcome(code) } else { Outcome::Rotate }
 }
 
-/// The classifier judges the caller's request. A host that cannot answer the identity
-/// question has proved nothing about the request, so the walk must move on to a host
-/// that can.
+/// The classifier judges the caller's request. A host that can't answer the identity
+/// question has proved nothing about the request, so the walk must move on to a host that
+/// can.
 #[tokio::test(start_paused = true)]
 async fn an_identity_check_that_errors_rotates_even_when_the_classifier_would_stop() {
     let clock: Arc<dyn Clock> = Arc::new(FakeClock::default());
@@ -656,7 +656,7 @@ async fn a_call_at_a_removed_or_disqualified_endpoint_is_unreachable() {
         .expect_err("that endpoint is not configured");
     assert!(matches!(error, NetError::NoEndpoints { .. }), "{error}");
     assert!(error.is_unreachable());
-    assert!(harness.connector.connects.lock().is_empty(), "nothing was dialled");
+    assert!(harness.connector.connects.lock().is_empty(), "nothing was dialed");
 
     harness.connector.wrong_network_urls.lock().push(ENDPOINT_A.to_owned());
     let _ = harness.pool.call("head", rotate, async |connection| Ok(connection.url.clone())).await;

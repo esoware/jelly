@@ -6,9 +6,8 @@ use crate::original::Original;
 use crate::params::UtxoParams;
 use crate::script::SpendableScript;
 
-/// One watched address, resolved to the script it pays through the table's
-/// address gate. The script carries its kind, so nothing downstream classifies
-/// the address again.
+/// A watched address and its script. The script carries its kind, so nothing
+/// downstream classifies the address again.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Watched {
     pub(crate) address_id: i64,
@@ -35,15 +34,14 @@ pub(crate) fn resolve(
     Ok(watched)
 }
 
-/// The build-side view of `watched`, borrowed in its order.
 pub(crate) fn sources_of(watched: &[Watched]) -> Vec<Source<'_>> {
     watched.iter().map(|entry| Source { address: &entry.address, script: &entry.script }).collect()
 }
 
 /// The entries the inputs of `original` spend from, in input order, each once.
 ///
-/// With none there is no address to fund a bump and no key to sign it, so that is
-/// [`UtxoError::NotOurs`].
+/// Fails with [`UtxoError::NotOurs`] when there are none, since nothing could fund or
+/// sign a bump.
 pub(crate) fn spenders(
     watched: &[Watched],
     original: &Original,
@@ -63,8 +61,8 @@ pub(crate) fn spenders(
     Ok(spenders)
 }
 
-/// The sources a bump may draw coins from: `first` when there is one, which is where
-/// the bump pays back to, then every one of `spenders` that is not it.
+/// The sources a bump may draw coins from: `first`, which the bump pays back to, then
+/// every other spender.
 pub(crate) fn sources_led_by(first: Option<&Watched>, spenders: Vec<Watched>) -> Vec<Watched> {
     let mut sources: Vec<Watched> = first.into_iter().cloned().collect();
     for spender in spenders {

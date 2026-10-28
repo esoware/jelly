@@ -9,8 +9,8 @@ use crate::spec::ChainSpec;
 
 /// Every chain's entry, one per [`ChainId`] variant.
 ///
-/// Constructed once by the registry crate, which is the only crate that names every
-/// chain crate. Everything else reaches a chain through [`ChainTable::entry`].
+/// Built once by the registry crate, the only crate that names every chain crate.
+/// Everything else reaches a chain through [`ChainTable::entry`].
 pub struct ChainTable {
     entries: [&'static dyn ChainEntry; ChainId::COUNT],
 }
@@ -22,8 +22,8 @@ impl fmt::Debug for ChainTable {
 }
 
 impl ChainTable {
-    /// `entries` must sit in [`ChainId::ALL`] order. A table whose entries declare
-    /// other chains is a build defect, and the assertion names the first wrong slot.
+    /// `entries` must be in [`ChainId::ALL`] order. Panics on the first slot whose entry
+    /// declares another chain.
     pub fn new(entries: &[&'static dyn ChainEntry; ChainId::COUNT]) -> Self {
         for (chain, entry) in ChainId::ALL.into_iter().zip(entries) {
             assert_eq!(
@@ -37,14 +37,11 @@ impl ChainTable {
     }
 
     pub fn entry(&self, chain: ChainId) -> &'static dyn ChainEntry {
-        // The constructor checked that every slot holds its own chain, and `ALL` is in
-        // declaration order, so the position lookup cannot miss.
+        // `ALL` holds every chain, so the lookup can't miss, and the constructor checked
+        // that each slot holds its own chain.
         let position =
             ChainId::ALL.iter().position(|candidate| *candidate == chain).unwrap_or_default();
-        #[expect(
-            clippy::indexing_slicing,
-            reason = "a position in ALL is within the array, whose length is ALL's"
-        )]
+        #[expect(clippy::indexing_slicing, reason = "the array is as long as ALL")]
         let entry = self.entries[position];
         entry
     }
@@ -58,15 +55,15 @@ impl ChainTable {
         &self.entries
     }
 
-    /// Reads a bare address or a payment URI for `chain`. A payment URI of another
-    /// chain is refused as the wrong network rather than read as a malformed address.
+    /// Reads a bare address or a payment URI for `chain`. Another chain's payment URI is
+    /// refused as the wrong network, not read as a malformed address.
     pub fn validate_address(&self, chain: ChainId, value: &str) -> Result<Address, KeyError> {
         let trimmed = self.refuse_foreign_scheme(chain, value)?;
         Ok(self.entry(chain).validate_address(trimmed)?)
     }
 
-    /// What a send on `chain` to `value` carries as its destination, with the same
-    /// refusal of another chain's payment URI as [`ChainTable::validate_address`].
+    /// What a send on `chain` to `value` carries as its destination. Refuses another
+    /// chain's payment URI like [`ChainTable::validate_address`].
     pub fn payment_target(&self, chain: ChainId, value: &str) -> Result<String, KeyError> {
         let trimmed = self.refuse_foreign_scheme(chain, value)?;
         Ok(self.entry(chain).payment_target(trimmed)?)
@@ -88,8 +85,8 @@ impl ChainTable {
         Ok(trimmed)
     }
 
-    /// Imports a key for `chain`, and when the text is in no encoding that chain
-    /// accepts, says which chain it does belong to.
+    /// Imports a key for `chain`. When the text is in no encoding that chain accepts but
+    /// another chain recognizes it, the error names that chain's key format.
     pub fn import_key(
         &self,
         chain: ChainId,

@@ -19,10 +19,8 @@ pub async fn build(
     Ok(Arc::new(adapter))
 }
 
-/// Asks one endpoint which network it serves, through the connector its pool uses.
-///
-/// The registry refuses a TON endpoint on any other transport, so only one built outside
-/// the registry gets the registry's refusal here.
+/// Asks one endpoint which network it serves, through the connector its pool is built
+/// with, so the endpoint editor and the pool's guard can't disagree.
 pub async fn probe(network: &Network, endpoint: &Endpoint) -> ProbeReport {
     if endpoint.transport() == Transport::HttpJsonrpc {
         jelly_net::probe(&rpc(network), network.clock().as_ref(), endpoint).await

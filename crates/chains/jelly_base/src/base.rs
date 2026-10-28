@@ -12,8 +12,8 @@ pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Base,
     coin_name: "Ethereum",
     coin_chain: ChainId::Ethereum,
-    // Ethereum's coin type, as MetaMask and Trust Wallet derive, so a seed has the
-    // same address on both networks.
+    // Ethereum's coin type, as in MetaMask and Trust Wallet, so a seed has the same
+    // address on both networks.
     slip44: 60,
     key_kind: KeyKind::Secp256k1,
     default_path: "m/44'/60'/0'/0/{index}",
@@ -25,8 +25,7 @@ pub const SPEC: ChainSpec = ChainSpec {
     fee_rate_unit: None,
     fee_levels: &FeeLevel::ALL,
     custom_fee: Some(CustomFee::FeeCap),
-    // About $2.10 at the October 2026 price of $2328. Gas costs about 0.006 gwei now, so
-    // 100000 gas costs 0.0000006 ETH before the L1 data fee.
+    // About $2.
     high_fee: Amount::from_base_units(900_000_000_000_000),
     can_pin_nonce: true,
     can_carry_data: true,
@@ -59,19 +58,18 @@ pub const PARAMS: EvmParams = EvmParams {
     ],
     token_standard: "ERC-20",
     block_millis: 2_000,
-    // A pass per block is wasteful at this pace, so a burst of heads wakes one pass.
+    // A pass per block would be wasteful at this pace.
     watch_floor: Duration::from_secs(6),
     // A minute of blocks.
     fee_history_blocks: 30,
     // The tip op-geth suggests when blocks have room, 0.001 gwei.
     min_priority_fee_wei: 1_000_000,
     max_priority_fee_wei: None,
-    // Twenty seconds of blocks, for a public node that trails the one that reported
-    // the tip.
+    // Twenty seconds, to cover a public node behind the one that reported the tip.
     confirmations_target: 10,
     // Every shipped endpoint that serves old logs takes a window this wide.
     log_window_blocks: 10_000,
-    // WETH is a predeploy present from genesis, so the walk runs back to it.
+    // WETH is a predeploy present from genesis, so the backfill runs back to it.
     backfill_floor: 0,
     has_native_transfer_logs: false,
     has_l1_data_fee: true,

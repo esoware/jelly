@@ -31,9 +31,8 @@ use crate::{fee, send, sync};
 
 const TARGET: &str = "jelly::monero::adapter";
 
-/// Signatures remembered between `sign_tx` and `broadcast`. Bounded, because a
-/// signature that is never broadcast has nothing to release and must not
-/// accumulate.
+/// Signatures kept between `sign_tx` and `broadcast`, oldest dropped first. None of
+/// them has reserved anything yet, so there's nothing to release.
 const MAX_AWAITING_BROADCAST: usize = 8;
 
 /// How long one node's fee ladder stays usable.
@@ -43,15 +42,15 @@ const FEE_TTL: Duration = Duration::from_secs(120);
 const DISTRIBUTION_TTL: Duration = Duration::from_secs(600);
 
 /// Minimum growth when the subaddress window has to widen, so a run of new
-/// subaddresses costs one rescan rather than one each.
+/// subaddresses costs one rescan instead of one each.
 const LOOKAHEAD_STEP: u32 = 50;
 
-/// Monero adapter holding account keys for one unlocked session. Scanning needs the view
-/// key, so the engine rebuilds this adapter on unlock and drops it on lock.
+/// Holds the account keys for one unlocked session, because scanning needs the view key
+/// and key images need the spend key. The engine builds it on unlock and drops it on lock.
 ///
-/// There is no fee replacement support. Builds reserve nothing, so `PendingTracker` is
-/// absent. Broadcast persists input reservations before sending. Conflicting builds can
-/// share inputs, but at most one can confirm.
+/// Builds reserve nothing, so there's no `PendingTracker`, and two builds can share inputs
+/// though only one can confirm. A broadcast reserves its inputs before it sends. Fees
+/// can't be bumped.
 pub struct MoneroAdapter {
     node: Arc<dyn MoneroNode>,
     account: Arc<MoneroAccount>,
@@ -60,19 +59,18 @@ pub struct MoneroAdapter {
     clock: Arc<dyn Clock>,
     state: Mutex<ScanState>,
     watched: RwLock<Arc<Watched>>,
-    /// Each signature's broadcast context, which is the node that chose its ring,
-    /// the key images it consumes, and what its in-flight record needs.
+    /// Each signature's broadcast context: its ring node, the key images it spends,
+    /// and what its in-flight record needs.
     awaiting_broadcast: Mutex<VecDeque<Signed>>,
     /// One fee ladder per window, behind a lock held across the fetch so a burst
     /// of quotes costs one round trip.
     fees: AsyncMutex<Option<Cached<FeeLadder>>>,
     /// One output distribution per window, behind its own lock so a quote never
-    /// waits behind its download. A build whose ring the node behind it could not
-    /// serve drops it, because every ring is pinned to that node.
+    /// waits for its download. Every ring is pinned to the node that served it, so
+    /// a build that fails at that node drops it.
     distribution: AsyncMutex<Option<Cached<Arc<Distribution>>>>,
     /// The spendable balance each address id was last announced with, which only
-    /// a pass reads or writes. Its lock is what makes `sync` single-flight per
-    /// instance.
+    /// a pass reads or writes. Its lock makes `sync` single-flight per instance.
     announced: AsyncMutex<BTreeMap<i64, Amount>>,
 }
 
@@ -127,8 +125,8 @@ impl MoneroAdapterBuilder {
         self
     }
 
-    /// Restores the persisted scan state, so a balance is available the moment the
-    /// wallet unlocks rather than after the first pass.
+    /// Restores the persisted scan state, so a balance is there the moment the
+    /// wallet unlocks instead of after the first pass.
     pub async fn build(self) -> Result<MoneroAdapter, ChainError> {
         let blobs = Blobs::new(self.cursors);
         let state = blobs
@@ -155,11 +153,8 @@ impl MoneroAdapterBuilder {
 }
 
 impl MoneroAdapter {
-    /// There is no Monero adapter without account keys, a store, a clock, and a
-    /// wallet birthday, so they are taken here.
-    ///
     /// A `restore_height` above the true birthday silently misses funds, so a caller
-    /// that does not know it passes zero.
+    /// that doesn't know it passes zero.
     pub fn builder(
         node: Arc<dyn MoneroNode>,
         account: MoneroAccount,
@@ -187,8 +182,8 @@ impl MoneroAdapter {
         self.clock.as_ref()
     }
 
-    /// Widens the scanner's window to cover every index named, and says whether
-    /// the window grew, which is the only thing that forces a rescan.
+    /// Widens the scanner's window to cover every index named, and resets the scan
+    /// and returns true if it grew.
     fn widen_to(&self, wanted: impl IntoIterator<Item = Subaddress>) -> bool {
         let mut guard = self.state.lock();
         let mut has_widened = false;
@@ -201,7 +196,7 @@ impl MoneroAdapter {
         has_widened
     }
 
-    /// The four fee tiers, from one round trip per window.
+    /// The fee tiers, from one round trip per window.
     async fn ladder(&self) -> Result<FeeLadder, MoneroError> {
         let mut guard = self.fees.lock().await;
         let now_millis = self.clock.elapsed_millis();
@@ -215,12 +210,12 @@ impl MoneroAdapter {
         Ok(ladder)
     }
 
-    /// The output distribution a ring for account `major` is chosen against,
-    /// reused for a window as [`Distribution`] explains.
+    /// The output distribution rings for account `major` are chosen against, reused
+    /// for a window as [`Distribution`] explains.
     ///
-    /// A cached one is fetched again once the scan's tip has unlocked an output
-    /// of the account that was still locked at its height, because a ring chosen
-    /// there would hold a real input newer than every decoy it could draw.
+    /// A cached one is fetched again once the scan's tip has unlocked an output of
+    /// the account that was still locked at its height, because a ring chosen there
+    /// would hold a real input newer than every decoy it could draw.
     async fn distribution(&self, major: u32) -> Result<Arc<Distribution>, MoneroError> {
         let mut guard = self.distribution.lock().await;
         let now_millis = self.clock.elapsed_millis();
@@ -242,9 +237,8 @@ impl MoneroAdapter {
         Ok(fetched)
     }
 
-    /// Drops `failed` from the cache, unless a newer distribution has replaced
-    /// it, so the next build fetches one rather than going back to a node that
-    /// could not serve its ring.
+    /// Drops `failed` from the cache, unless a newer distribution has replaced it,
+    /// so the next build fetches a fresh one.
     async fn forget_distribution(&self, failed: &Arc<Distribution>) {
         let mut guard = self.distribution.lock().await;
         if guard.as_ref().is_some_and(|cached| Arc::ptr_eq(&cached.value, failed)) {
@@ -252,11 +246,11 @@ impl MoneroAdapter {
         }
     }
 
-    /// Gathers everything a build needs under one short guard.
+    /// Gathers what a build needs under one short guard.
     ///
-    /// What is spendable is judged at `ring_height`, the block the ring is chosen
-    /// against, because a real input still locked there would be newer than every
-    /// decoy beside it.
+    /// Spendability is judged at `ring_height`, the block the ring is chosen against,
+    /// because a real input still locked there would be newer than every decoy
+    /// beside it.
     fn plan(
         &self,
         parsed: send::Request,
@@ -311,12 +305,11 @@ impl MoneroAdapter {
         guard.remove(position)
     }
 
-    /// Records the send in flight and makes it durable, answering with the node
-    /// that chose its ring.
+    /// Records the send in flight and makes it durable, returning its ring node.
     ///
-    /// This is the last moment refusing is free. A crash between the send and the
-    /// record would leave a payment in the air with its inputs unreserved, so a
-    /// second send could pay twice.
+    /// This has to finish before the broadcast. A crash between sending and recording
+    /// would leave a payment out with its inputs unreserved, free for a second send to
+    /// pay twice.
     async fn reserve(&self, signed: Signed) -> Result<String, MoneroError> {
         let Signed {
             tx,
@@ -332,7 +325,7 @@ impl MoneroAdapter {
         {
             let mut guard = self.state.lock();
             // The budget counts blocks from the broadcast, so a scan tip left over
-            // from before an unlock must not stand in for the chain's height.
+            // from before an unlock mustn't stand in for the chain's height.
             let sent_at_height = guard.tip_height().max(build_height);
             guard.track(InFlight {
                 txid,
@@ -346,8 +339,7 @@ impl MoneroAdapter {
             });
         }
         if let Err(error) = self.blobs.write_sends(&self.state).await {
-            // Nothing has gone out yet, so the truthful state is one where this
-            // transaction does not exist. Keeping the reservation would hold coins
+            // Nothing has gone out yet, so keeping the reservation would hold coins
             // for a payment nobody made.
             self.state.lock().forget(&txid);
             return Err(error);
@@ -364,8 +356,8 @@ impl ChainAdapter for MoneroAdapter {
 
     async fn set_watch_set(&self, addresses: &[WatchedAddress]) -> Result<(), ChainError> {
         let watched = Watched::from(addresses);
-        // The state is widened before the watch set is replaced, and the locks are
-        // never taken the other way round.
+        // Widen the state before replacing the watch set. The two locks are never
+        // taken in the other order.
         let has_widened = self.widen_to(watched.subaddresses());
         *self.watched.write() = Arc::new(watched);
         if has_widened {
@@ -379,7 +371,7 @@ impl ChainAdapter for MoneroAdapter {
     }
 
     /// Single-flight per instance, so a second call waits for the running pass
-    /// rather than running alongside it.
+    /// instead of running alongside it.
     ///
     /// Every step checks the engine's deadline and stops with the progress it
     /// has. The hard cutoff is the engine's watchdog, because a timeout here
@@ -408,9 +400,8 @@ impl ChainAdapter for MoneroAdapter {
     async fn quote_fee(&self, request: &TxRequest) -> Result<FeeQuote, ChainError> {
         let parsed = send::Request::parse(request, &self.watched.read())?;
         let ladder = self.ladder().await?;
-        // The outputs a build would draw on, in the order it would draw on them,
-        // judged at the scan's last tip rather than at the height a build's ring
-        // is chosen against, so a quote never waits for a distribution.
+        // The outputs a build would draw on, in the same order, judged at the scan's
+        // tip instead of the ring's height so a quote never waits for a distribution.
         let amounts_piconero: Vec<u64> = {
             let guard = self.state.lock();
             guard
@@ -448,7 +439,7 @@ impl ChainAdapter for MoneroAdapter {
             self.forget_distribution(&distribution).await;
         }
         // A ring is durable before the transaction carrying it leaves the adapter, so no
-        // later build can offer the same output with another one.
+        // later build can offer the same output with a different one.
         if self.state.lock().remember_rings(chosen) {
             self.blobs.write_sends(&self.state).await?;
         }
@@ -486,10 +477,9 @@ impl ChainAdapter for MoneroAdapter {
                 if rejection.retry == RetryPolicy::AlreadyLanded {
                     return Ok(TxId::new(CHAIN, hex::encode(txid)));
                 }
-                // A refusal that proves the transaction is in no mempool holds
-                // nothing, so its inputs go back immediately rather than after
-                // the budget, and the rebuild a refusal like this asks for can
-                // use them.
+                // This refusal proves the transaction is in no mempool, so its
+                // inputs go back now instead of after the budget, ready for the
+                // rebuild it calls for.
                 if matches!(rejection.retry, RetryPolicy::FinalEverywhere | RetryPolicy::DidNotLand)
                 {
                     self.state.lock().forget(&txid);

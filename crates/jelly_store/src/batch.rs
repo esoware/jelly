@@ -8,15 +8,14 @@ use crate::error::StoreError;
 use crate::store::Writer;
 use crate::tx::TxWrite;
 
-/// Commits sync rows and their progress together. A lost batch can be rescanned safely
-/// because writes are keyed.
+/// Sync rows and their scan progress, committed together. Every write is keyed, so
+/// rescanning after a lost batch is safe.
 ///
-/// Reservations cannot enter this batch. `Store::reserve` must persist them before
-/// broadcast.
+/// Reservations don't go through a batch, since `Store::reserve` has to persist them
+/// before broadcast.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SyncBatch {
-    /// Confirmation counts are ignored, because they are derived from the tip at read
-    /// time.
+    /// Confirmation counts are ignored, since they're derived from the tip at read time.
     pub txs: Vec<TxRecord>,
     pub balances: Vec<BalanceUpdate>,
     pub scans: Vec<ScanAdvance>,
@@ -29,12 +28,12 @@ impl SyncBatch {
 }
 
 impl Writer<'_> {
-    /// Runs inside the writer's transaction, so a batch that names an unknown address
-    /// leaves nothing behind once the scope returns the error. Each record is filed under
-    /// its address row's wallet and chain, read once per address.
+    /// Files each record under its address row's wallet and chain, read once per address.
+    /// A batch that names an unknown address fails, and returning that error from the scope
+    /// rolls back everything the batch wrote.
     ///
-    /// Answers with what each of `txs` did, in order. A record that repeats an earlier
-    /// one in the same batch finds that row.
+    /// Returns what each of `txs` did, in order. A record that repeats an earlier one in
+    /// the same batch finds that row.
     pub fn apply_sync_batch(&self, batch: &SyncBatch) -> Result<Vec<TxWrite>, StoreError> {
         let SyncBatch { txs, balances, scans } = batch;
         let mut owners: HashMap<i64, AddressOwner> = HashMap::new();

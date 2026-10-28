@@ -1,8 +1,5 @@
-//! Fixtures every suite in this crate shares.
-//!
-//! Everything goes through the shipped [`SolanaAdapter`] over a scripted node, so
-//! a test exercises the same JSON-RPC documents, decoders, signature walk and
-//! pending ledger a socket would.
+//! Tests drive the shipped [`SolanaAdapter`] over a scripted node, so they exercise the
+//! same JSON-RPC documents, decoders, signature walk, and pending ledger a real node would.
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -36,20 +33,20 @@ use solana_transaction::versioned::VersionedTransaction;
 
 pub(crate) type Fallible<T> = Result<T, Box<dyn Error>>;
 
-/// The address the fixture wallet watches. It is the public key of a seed of
-/// repeated 0x07, so the same wallet can sign.
+/// The fixture wallet's address. Its key is a seed of repeated 0x07, so tests can sign
+/// for it.
 pub(crate) const OWNER: &str = "GmaDrppBC7P5ARKV8g3djiwP89vz1jLK23V2GBjuAEGB";
-/// The seed behind [`OWNER`]. Test material only, never a wallet key.
+/// The seed byte behind [`OWNER`].
 pub(crate) const OWNER_SEED: u8 = 7;
 /// An address outside the wallet.
 pub(crate) const PEER: &str = "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9";
-/// The address the recorded mainnet fixtures belong to, which also serves as the
-/// second watched address in the multi-address cases.
+/// The address the recorded mainnet fixtures belong to, and the second watched address
+/// in multi-address tests.
 pub(crate) const RECORDED: &str = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
 pub(crate) const USDC_MINT: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 pub(crate) const BLOCKHASH: &str = "HezQLwwK3aecM7H2cRSqFhidamdAHUNXcUgiyP7FcTjA";
 
-/// A program-derived address, so it is off the curve and not a wallet.
+/// A program-derived address, so it's off the curve and can't be a wallet.
 pub(crate) const DERIVED: &str = "FGETo8T8wMcN2wCjav8VK6eh3dLk63evNDPxzLSJra8B";
 
 /// The published program addresses a transaction names, spelled here rather than
@@ -59,7 +56,7 @@ pub(crate) const TOKEN_PROGRAM: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ
 pub(crate) const ASSOCIATED_TOKEN_PROGRAM: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 pub(crate) const COMPUTE_BUDGET_PROGRAM: &str = "ComputeBudget111111111111111111111111111111";
 
-/// The largest serialised transaction the cluster accepts.
+/// The largest serialized transaction the cluster accepts.
 pub(crate) const MAX_TRANSACTION_BYTES: usize = 1_232;
 
 pub(crate) const SLOT: u64 = 438_929_791;
@@ -88,8 +85,7 @@ pub(crate) const SOLANA_TOKEN_IDS: [TokenId; 12] = [
 /// The accounts one owner's balances are read from, its own and one per token.
 pub(crate) const ACCOUNTS_PER_OWNER: usize = SOLANA_TOKEN_IDS.len().saturating_add(1);
 
-/// The recorded mainnet answers, compiled in so a test never touches the
-/// filesystem.
+/// Recorded mainnet answers.
 pub(crate) const BALANCE_BODY: &str = include_str!("../../fixtures/get_balance.json");
 pub(crate) const RECENT_FEES: &str = include_str!("../../fixtures/recent_prioritization_fees.json");
 /// [`RECORDED`]'s associated USDC account, read by address.
@@ -97,9 +93,8 @@ pub(crate) const TOKEN_ACCOUNT_USDC: &str = include_str!("../../fixtures/token_a
 pub(crate) const TX_NATIVE_TRANSFER: &str = include_str!("../../fixtures/tx_native_transfer.json");
 pub(crate) const TX_SPL_TRANSFER: &str = include_str!("../../fixtures/tx_spl_transfer.json");
 pub(crate) const TX_USDC_TRANSFER: &str = include_str!("../../fixtures/tx_usdc_transfer.json");
-/// A USDT send to an owner that had never held USDT, so the sender also paid the
-/// rent of the recipient's new token account. The untrimmed `result` of its
-/// `getTransaction` answer.
+/// A USDT send that also paid the rent of the recipient's new token account. The
+/// untrimmed `result` of its `getTransaction` answer.
 pub(crate) const TX_USDT_TRANSFER_NEW_ACCOUNT: &str =
     include_str!("../../fixtures/tx_usdt_transfer_new_account.json");
 /// Version 1 transactions, each the untrimmed `result` of its `getTransaction`
@@ -242,10 +237,10 @@ impl Ledger {
 
 /// A node whose every answer is scripted.
 ///
-/// An answer keyed to an account or signature is taken first, then the standing
-/// one. A refusal goes through the shipped conversion, so a test sees the typed
-/// failure a real node's wording produces. A transaction newer than its
-/// request's version cap is refused the way a node refuses it.
+/// An answer keyed to an account or signature wins over the standing one. A refusal goes
+/// through the shipped conversion, so a test sees the typed failure a real node's wording
+/// produces, and a transaction newer than its request's version cap is refused as a node
+/// would refuse it.
 #[derive(Debug, Default)]
 pub(crate) struct FakeNode {
     keyed: Mutex<HashMap<(Method, String), Answer>>,
@@ -260,8 +255,8 @@ impl FakeNode {
         Arc::new(Self::default())
     }
 
-    /// The answers a pass over a quiet wallet of the fixture addresses needs, none
-    /// of which has a token account yet.
+    /// The answers a pass over the fixture addresses needs when none has any history or
+    /// token account yet.
     pub(crate) fn quiet(&self) -> Fallible<&Self> {
         self.always(Method::GetSlot, Answer::ok(&json!(SLOT)));
         self.always(Method::GetBlockHeight, Answer::ok(&json!(BLOCK_HEIGHT)));
@@ -402,9 +397,8 @@ impl FakeNode {
         }
     }
 
-    /// The version of a scripted transaction newer than the cap its request names,
-    /// which a node refuses rather than answers. A request that names no cap is
-    /// refused every versioned transaction.
+    /// The version of a scripted transaction newer than its request's cap, which a node
+    /// refuses to serve. A request with no cap is refused every versioned transaction.
     fn unsupported_version(call: &RpcCall, json: &str) -> Option<u64> {
         if call.method() != Method::GetTransaction {
             return None;
@@ -419,7 +413,7 @@ impl FakeNode {
     }
 }
 
-/// A scripted answer that is not JSON is refused the way a node refuses one it cannot
+/// A scripted answer that isn't JSON is refused the way a node refuses one it can't
 /// parse.
 fn raw(method: Method, json: &str) -> Result<Box<RawValue>, SolanaError> {
     RawValue::from_string(json.to_owned()).map_err(|_| {
@@ -497,8 +491,8 @@ impl Harness {
         Self::with(SolanaConfig::default())
     }
 
-    /// A harness whose node answers everything a build needs and whose one watched
-    /// address is the fixture wallet at row seven.
+    /// A harness whose node answers everything a build needs, watching the fixture wallet
+    /// as address 7.
     pub(crate) async fn priced() -> Fallible<Self> {
         let harness = Self::new();
         harness.node.priced()?;
@@ -547,9 +541,8 @@ impl Harness {
     }
 }
 
-/// The associated token account of `owner` for `token`, derived with the SDK the
-/// way the associated token program derives it, so a test never takes the
-/// address from the code under test.
+/// The associated token account of `owner` for `token`, derived with the SDK rather
+/// than taken from the code under test.
 pub(crate) fn token_account_address(owner: &str, token: TokenId) -> Fallible<String> {
     let owner: Pubkey = owner.parse()?;
     let mint: Pubkey = token.contract().parse()?;
@@ -656,10 +649,10 @@ pub(crate) fn token_account(owner: &str, mint: &str, amount: u64) -> Fallible<Va
     token_account_in(owner, mint, amount, TokenState::default())
 }
 
-/// A token account packed with the SDK the way its program stores it.
+/// A token account packed with the SDK the way its program stores it, so the reader
+/// under test unpacks what a node would serve.
 ///
-/// The reader under test then unpacks what a node would serve. A Token-2022
-/// account carries the immutable owner every associated account has.
+/// A Token-2022 account carries the immutable owner every associated account has.
 pub(crate) fn token_account_in(
     owner: &str,
     mint: &str,
@@ -716,7 +709,7 @@ pub(crate) fn stock_token(
         node.at(
             Method::GetAccountInfo,
             token.contract(),
-            Answer::ok(&contextual(recorded.get(&name).ok_or("the recorded mint is present")?)),
+            Answer::ok(&contextual(recorded.get(&name).ok_or("no recorded mint for the token")?)),
         );
     }
     // Mainnet charges 6,960 lamports a byte, counting 128 bytes of account overhead.
@@ -758,7 +751,7 @@ pub(crate) fn warns(warnings: &[TxWarning], kind: TxWarningKind) -> bool {
 }
 
 /// Builds and signs a request, then parses the wire bytes with the ecosystem's
-/// own deserialiser rather than the encoder under test.
+/// own deserializer rather than the encoder under test.
 pub(crate) async fn signed(
     harness: &Harness,
     request: &TxRequest,

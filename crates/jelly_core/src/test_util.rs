@@ -106,7 +106,7 @@ impl Clock for FakeClock {
     }
 }
 
-/// A wall clock set before the epoch, so every reading of it fails.
+/// A clock set before the epoch, so every wall-clock reading fails.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FailingClock;
 
@@ -161,9 +161,9 @@ impl EventSink for FakeEventSink {
 
 /// Scan advances queue until an explicit commit; reservations are durable immediately.
 ///
-/// A [`ControlledCursorStore::discard`] drops the queue, as a failed commit does, and a
-/// later commit skips any advance whose pair was last read before that discard, so
-/// progress from a pass that read rolled-back state never lands.
+/// A [`ControlledCursorStore::discard`] drops the queue like a failed commit, and a later
+/// commit skips any advance whose pair was last read before the discard, so progress from
+/// a pass that read rolled-back state never lands.
 #[derive(Debug, Default)]
 pub struct ControlledCursorStore {
     committed: MemoryCursorStore,
@@ -196,7 +196,7 @@ impl ControlledCursorStore {
         self.commit_prefix(usize::MAX).await
     }
 
-    /// Commits only the oldest advances, leaving later pump windows independently queued.
+    /// Commits the oldest `count` advances and leaves the rest queued.
     pub async fn commit_prefix(&self, count: usize) -> Result<(), CoreError> {
         let queued: Vec<_> = {
             let mut queued = self.queued.lock();
@@ -426,8 +426,8 @@ impl CursorStore for NullCursorStore {
     }
 }
 
-/// A [`MemoryCursorStore`] whose writes fail while a test says so, the way a full
-/// disk would. A refused write stores nothing and is not counted.
+/// A [`MemoryCursorStore`] whose writes fail while a test says so, the way a full disk
+/// would. A refused write stores nothing and isn't counted.
 #[derive(Debug, Default)]
 pub struct RefusingCursorStore {
     stored: MemoryCursorStore,

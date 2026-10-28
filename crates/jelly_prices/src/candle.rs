@@ -103,8 +103,7 @@ pub struct CandleRequest {
 }
 
 impl CandleRequest {
-    /// An answer holds about 720 candles of about a hundred bytes each, which this
-    /// fits with room to spare.
+    /// An answer holds about 720 candles of about a hundred bytes each.
     pub(crate) const MAX_BYTES: usize = 262_144;
 
     pub(crate) fn asset(ticker: Ticker, interval: CandleInterval) -> Self {
@@ -140,12 +139,12 @@ impl CandleRequest {
     /// Every candle opened by `now_unix_secs`, oldest first. Kraken answers with its
     /// latest candles, and the last of them is still open.
     ///
-    /// A candle off the interval's grid, with a price that does not parse, or whose
-    /// high and low do not bound it is left out, and of two candles at one time the
-    /// later in the answer is kept.
+    /// Drops a candle that's off the interval's grid, has a price that doesn't parse, or
+    /// isn't bounded by its own high and low. Of two candles at the same time, the later
+    /// one in the answer wins.
     pub(crate) fn decode(&self, body: &str, now_unix_secs: i64) -> Result<Vec<Candle>, PriceError> {
         // The result also holds Kraken's `last`, a number, so each pair stays raw until
-        // it is the one asked for.
+        // it's the one asked for.
         let result = kraken::result::<Box<RawValue>>(body)?;
         let raw_rows = self.pair.find(&result).ok_or(PriceError::Absent)?;
         let rows: Vec<Row> = serde_json::from_str(raw_rows.get())?;
@@ -282,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn a_candle_that_makes_no_sense_is_dropped_without_its_neighbours() {
+    fn a_candle_that_makes_no_sense_is_dropped_without_its_neighbors() {
         let request = CandleRequest::asset(Ticker::Btc, CandleInterval::Hour);
         let hours_ago =
             |count: i64| OPEN_HOUR_UNIX_SECS.saturating_sub(count.saturating_mul(3_600));

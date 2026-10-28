@@ -135,10 +135,8 @@ async fn a_forward_budget_that_ran_out_short_of_the_frontier_does_not_move_it() 
     pass(&harness, &sink).await.unwrap();
     assert_eq!(records(&sink.drain()).len(), 1);
 
-    // Two newer transactions arrive and the balance shows them, and one page per
-    // pass cannot reach the frontier. The frontier must not move over unread
-    // history, so the next pass resumes from where the budget stopped, which this
-    // fake answers with the same rows.
+    // Two newer transactions arrive, and one page per pass can't reach the frontier.
+    // The fake answers the page the next pass resumes from with the same rows.
     fake.always(Route::NativeHistory, Answer::body(fixture!("native_page1")))
         .always(Route::Account, account(TRX_OWNER, 6_999_990));
     let second = FakeEventSink::new();
@@ -303,8 +301,8 @@ async fn an_unreadable_stored_state_walks_the_address_again() {
 
 #[tokio::test]
 async fn a_history_route_no_endpoint_serves_never_costs_a_balance() {
-    // A plain full node answers 404 for the /v1 routes, which is a statement about
-    // that endpoint rather than about the wallet.
+    // A plain full node answers 404 for the /v1 routes. That says nothing about the
+    // wallet.
     let fake = balances_only(OWNER)
         .on(Route::NativeHistory, Answer::Status(404))
         .on(Route::TokenHistory, Answer::Status(404))

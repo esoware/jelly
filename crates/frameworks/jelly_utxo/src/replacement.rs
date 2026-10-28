@@ -24,12 +24,12 @@ pub(crate) struct ReplacementRequest<'a> {
     /// caller, so the planner itself never guesses which output was the payment.
     pub(crate) to_script: &'a Script,
     /// Coins of the sources the planner may add. BIP-125 rule 2 forbids adding an
-    /// unconfirmed one, so anything unconfirmed here is dropped, and so is a
-    /// coinbase or peg-out output not yet mature at `tip_height`.
+    /// unconfirmed one, so those are dropped, along with coins that carry tokens and
+    /// coinbase or peg-out outputs not yet mature at `tip_height`.
     pub(crate) extras: &'a [Utxo],
     pub(crate) tip_height: u32,
-    /// What the mempool transactions descending from the original pay. They are
-    /// evicted with it.
+    /// The total fee of the original's mempool descendants, which the replacement
+    /// evicts too.
     pub(crate) descendant_fee: Amount,
 }
 
@@ -44,8 +44,8 @@ struct Layout {
 struct PlannedReplacement {
     /// The original's inputs first, in their original order, then any added.
     inputs: Vec<Utxo>,
-    /// In the original's order, without change that could not survive and with
-    /// any new change appended.
+    /// In the original's order, minus change that couldn't survive, plus any new
+    /// change at the end.
     outputs: Vec<TxOut>,
     priced: Priced,
 }
@@ -57,8 +57,8 @@ struct Priced {
     change: Option<Amount>,
     fee: Amount,
     weight: Weight,
-    /// Value above what the fee required, handed to the miner because a change
-    /// output of that size is worth less than it costs.
+    /// Value above the required fee, which goes to the miner because change that
+    /// small is worth less than it costs. Included in `fee`.
     donated: Amount,
     /// Set when the payment itself had to shrink.
     reduced_payment: Option<PaymentReduction>,
@@ -163,7 +163,7 @@ pub(crate) fn build_replacement(
 /// `descendant_fee`.
 ///
 /// Derived from the absolute floor with [`fee::rate_that_pays`], because a rate
-/// from a rounded-down division would not pay that fee back.
+/// from a rounded-down division wouldn't pay that fee back.
 pub(crate) fn min_replacement_rate(
     params: &UtxoParams,
     original: &Original,
@@ -200,8 +200,8 @@ fn layout_of(
     Ok(Layout { recipient, change })
 }
 
-/// The outputs that are neither the payment nor the change. This engine never
-/// builds one, but a transaction from elsewhere might.
+/// The outputs that are neither the payment nor the change. Jelly never builds one,
+/// but a transaction from elsewhere might.
 fn fixed_outputs(tx: &Transaction, layout: Layout) -> Vec<(usize, &TxOut)> {
     tx.output
         .iter()
@@ -210,7 +210,7 @@ fn fixed_outputs(tx: &Transaction, layout: Layout) -> Vec<(usize, &TxOut)> {
         .collect()
 }
 
-/// Everything about the original that does not change between attempts.
+/// What stays fixed while `fund` tries input sets.
 struct Planner<'a> {
     params: &'a UtxoParams,
     request: &'a ReplacementRequest<'a>,
@@ -227,8 +227,8 @@ struct Planner<'a> {
 
 impl Planner<'_> {
     /// Adds confirmed inputs one at a time until the higher fee fits, keeping the
-    /// change output while it is worth keeping and folding it into the fee once it
-    /// is not.
+    /// change output while it's worth keeping and folding it into the fee once it
+    /// isn't.
     fn fund(&self, extras: Vec<Utxo>) -> Result<PlannedReplacement, UtxoError> {
         let payment_value = value_of(self.payment);
         let mut inputs = self.original.inputs().to_vec();
@@ -340,8 +340,8 @@ impl Planner<'_> {
                 outputs.push(txout.clone());
             }
         }
-        // A replacement may create change the original did not have, which is what
-        // stops a large leftover going to the miner.
+        // A replacement can add change the original didn't have, so a large leftover
+        // doesn't go to the miner.
         if self.layout.change.is_none()
             && let Some(value) = priced.change
         {
@@ -372,7 +372,7 @@ mod tests {
     const FUNDED_SAT: u64 = 500_000;
     const PAID_SAT: u64 = 100_000;
 
-    /// A signed Bitcoin transaction this engine built, with the transaction that funded
+    /// A signed Bitcoin transaction this crate built, with the transaction that funded
     /// it.
     struct Story {
         scene: Scene,
@@ -430,8 +430,8 @@ mod tests {
         assert_eq!(layout, Layout { recipient: 0, change: Some(1) });
     }
 
-    /// BIP-125 rule 4 is a floor on the absolute fee, so when the requested rate does
-    /// not clear it the floor wins.
+    /// BIP-125 rule 4 is a floor on the absolute fee, so when the requested rate
+    /// doesn't clear it the floor wins.
     #[test]
     fn the_incremental_relay_floor_beats_the_requested_rate_when_it_has_to() {
         let story = story(Some(PAID_SAT), TEN_PER_VB, FUNDED_SAT).unwrap();

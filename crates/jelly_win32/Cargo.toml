@@ -6,10 +6,9 @@ rust-version.workspace = true
 license.workspace      = true
 publish      = false
 
-# The workspace forbids unsafe code, and no attribute can lift a forbid. This crate holds
-# the Win32 calls that cannot be made without it, so it repeats the workspace lints with
-# unsafe code denied rather than forbidden, and each function with an unsafe block carries
-# its own `expect`. Keep these tables in step with `[workspace.lints]` in the root
+# The workspace forbids unsafe_code, and no attribute can lift a forbid, so this crate
+# repeats the workspace lints with it denied instead. Each function with an unsafe block
+# carries its own `expect`. Keep these tables in step with `[workspace.lints]` in the root
 # Cargo.toml.
 [lints.rust]
 # Every lint rustc turns on by default fails the build. The allow-by-default lints have
@@ -51,8 +50,7 @@ arbitrary_source_item_ordering    = "allow"
 # the denied as_conversions and absolute_paths lints then reject.
 assert_is_empty                   = "allow"
 big_endian_bytes                  = "allow"
-# Clippy expects restriction lints to be picked one at a time. This table turns the whole
-# group on and lists the exceptions instead, so the lint against doing that is off.
+# The restriction group is on wholesale with exceptions below, which this lint forbids.
 blanket_clippy_restriction_lints  = "allow"
 cognitive_complexity              = "allow"
 create_dir                        = "allow"

@@ -1,9 +1,9 @@
 //! Resolves a request and builds its bytes, for quotes and sends alike. The
-//! preview fee is read from the final transaction.
+//! preview fee is priced from the final bytes.
 //!
 //! For a send-max, the amount's varint width affects the bandwidth cost, so each
-//! width is priced once, from the widest down, rather than chasing a fee that
-//! depends on its own amount.
+//! width is priced once, widest first, instead of chasing a fee that depends on
+//! its own amount.
 
 use jelly_core::{
     Amount, AssetId, FeeQuote, FeeSelection, SendAmount, TokenId, TxRequest, UnsignedTx,
@@ -25,9 +25,9 @@ use crate::watched::Watched;
 
 /// One request, resolved against the chain and built.
 ///
-/// What a transaction states about itself is read back off [`Plan::payload`]
-/// through [`crate::payload::Facts`], so this holds only what the bytes cannot
-/// state, such as the charge and the prices.
+/// What the transaction says about itself is read back from [`Plan::payload`]
+/// through [`crate::payload::Facts`], so this holds only what the bytes can't,
+/// such as the charge and the prices.
 #[derive(Debug, Clone)]
 pub(crate) struct Plan {
     pub(crate) params: ChainParams,
@@ -43,8 +43,7 @@ impl Plan {
         Ok(UnsignedTx { preview: preview::of(self, &facts), payload: self.payload.encode() })
     }
 
-    /// What the transfer burns. TRON has no fee market, so a transfer costs what
-    /// the resource model says at the published prices and there is no price to
+    /// What the transfer burns. TRON has no fee market, so there's no price to
     /// choose.
     ///
     /// A send-max quote also names the amount the plan settled on.
@@ -71,9 +70,9 @@ pub(crate) struct Inputs<'a> {
 
 /// Reads what a send needs from the chain and plans the transaction.
 ///
-/// The reads are sequential, because TRON's HTTP API has no batch form and the
-/// endpoint pacer admits only a small burst. Four round trips in order for TRX,
-/// or five for a token, beat the same number at once being turned away.
+/// The reads are sequential because the endpoint pacer admits only a small burst.
+/// Four round trips in order, or five for a token, beat the same number sent at
+/// once and turned away.
 pub(crate) async fn resolve(
     inputs: &Inputs<'_>,
     request: &TxRequest,
@@ -112,7 +111,7 @@ pub(crate) async fn resolve(
     }
 }
 
-/// What a TRX transfer and a token transfer both read before they part.
+/// What TRX and token transfers both read.
 #[derive(Debug)]
 struct Common<'a> {
     asset: AssetId,
@@ -185,18 +184,18 @@ async fn token_transfer(
         });
     }
 
-    // The measurement is taken against the real recipient and the real amount,
-    // because a transfer to an address that holds none of the token writes a
-    // fresh storage slot and costs roughly twice as much.
+    // Measure with the real recipient and amount, because a transfer to an
+    // address that holds none of the token writes a fresh storage slot and costs
+    // roughly twice as much.
     let energy =
         inputs.client.measure_transfer(common.from, token, &common.to_body, amount).await?;
     let fee_limit_sun = fee::suggested_fee_limit(energy.needed, &common.params)?;
     let header = header.with_fee_limit(fee_limit_sun, common.params.max_fee_limit_sun)?;
 
     let charge = Charge {
-        // A TRC-20 transfer never creates the recipient's account row, because
-        // the balance lives in contract storage. The plain bandwidth rule applies
-        // even to a recipient with no account.
+        // A TRC-20 transfer never creates the recipient's account, because the
+        // balance lives in contract storage. The plain bandwidth rule applies even
+        // to a recipient with no account.
         is_activation: false,
         energy: Some(energy),
         params: common.params,
@@ -211,10 +210,10 @@ async fn token_transfer(
     );
     let cost = charge.of(&raw)?;
 
-    // The bandwidth and energy a token transfer burns are paid in TRX, so an
-    // account without enough of it is a broadcast that is certain to fail. The
-    // surcharge can rise before execution by the margin the fee limit allows, and
-    // a call that runs out of energy still burns what it used.
+    // A token transfer burns TRX for bandwidth and energy, so without enough TRX
+    // the broadcast is certain to fail. Check against the padded burn: the
+    // surcharge can rise by the margin the fee limit allows, and a call that runs
+    // out of energy still burns what it used.
     let padded_sun = cost.padded_burn_sun(&common.params)?;
     if padded_sun > common.trx_balance_sun {
         return Err(TronError::InsufficientFunds {
@@ -246,17 +245,17 @@ struct Built {
     cost: TxCost,
 }
 
-/// Finds the largest send-max amount the balance pays for.
+/// Finds the largest amount the balance can send after its own fee.
 ///
 /// The bytes differ only in the amount's varint, so every amount of one varint
 /// width costs the same and a wider one never costs less. The answer lies in the
-/// widest width whose narrowest amount is affordable, and is the balance less
-/// that width's fee, capped at the width's widest amount.
+/// widest width whose smallest amount is affordable: the balance minus that
+/// width's fee, capped at the width's largest amount.
 ///
-/// Each width is priced on its own, because a pool can cover a narrower transfer
-/// whole and leave a wider one to burn in full, so one byte more can cost the
-/// whole fee. That is one build per width tried, plus one for the answer when it
-/// is not the amount its width was priced at. The caller checks
+/// Each width is priced separately, because a pool can cover a narrower transfer
+/// whole and leave a wider one to burn in full, so one more byte can cost the
+/// whole fee. That's one build per width tried, plus one for the answer if it
+/// isn't the amount its width was priced at. The caller checks
 /// `amount + burn <= balance` either way.
 fn settle_send_max(
     common: &Common<'_>,
@@ -418,7 +417,7 @@ mod tests {
         let common = common(100_000_000, resources(600, 0, 0));
         let settled =
             settle_send_max(&common, &header(), &charge(&common, true)).expect("it settles");
-        // The flat account-creation charge does not depend on the size, so the
+        // The flat account-creation charge doesn't depend on the size, so the
         // whole remainder is sendable.
         assert_eq!(settled.cost.burn_sun, 1_100_000);
         assert_eq!(settled.amount, 98_900_000);

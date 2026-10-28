@@ -8,13 +8,13 @@ const WITNESS_FLAG: u8 = 0x01;
 const MWEB_FLAG: u8 = 0x08;
 const EMPTY_MWEB_BODY: u8 = 0x00;
 
-/// A transaction as `blockchain.transaction.get` served it, with the one fact
-/// its decoding drops.
+/// A transaction from `blockchain.transaction.get`, plus whether it came in Litecoin's
+/// `HogEx` form.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServedTx {
     pub tx: Transaction,
-    /// Litecoin's MWEB integrating transaction. Every output after its first is a
-    /// peg-out, which Litecoin Core refuses to see spent until it is
+    /// Litecoin's MWEB integrating transaction. Every output after the first is a
+    /// peg-out, which Litecoin Core won't let anyone spend until it's
     /// `PEGOUT_MATURITY` blocks deep.
     pub is_hogex: bool,
 }
@@ -22,9 +22,8 @@ pub struct ServedTx {
 /// A transaction in its canonical serialization, or in Litecoin's MWEB one with
 /// an empty MWEB body.
 ///
-/// The MWEB form needs no chain flag, unlike merge-mined headers, because no
-/// other chain's node serializes a transaction with flag bit 0x08, and the
-/// caller's txid check still binds whatever bytes decode.
+/// Unlike merge-mined headers, this needs no chain flag: no other chain sets flag bit
+/// 0x08, and the caller's txid check still binds whatever bytes decode.
 pub(crate) fn tx_from_bytes(bytes: &[u8]) -> Option<ServedTx> {
     if let Ok(tx) = deserialize::<Transaction>(bytes) {
         return Some(ServedTx { tx, is_hogex: false });
@@ -36,11 +35,10 @@ pub(crate) fn tx_from_bytes(bytes: &[u8]) -> Option<ServedTx> {
 ///
 /// Litecoin marks an MWEB transaction with bit 0x08 of the segwit flag and puts
 /// an optional MWEB body, one zero byte when absent, between the witnesses and
-/// the lock time. The flag with an absent body is exactly what makes Litecoin
-/// Core read a transaction as a `HogEx`, and it serves every `HogEx` this way at
-/// its default `-rpcserialversion`. The txid hashes neither the bit nor the
-/// body. A present body is refused, since it would need the whole MWEB format to
-/// skip.
+/// the lock time. Litecoin Core reads that flag with an absent body as a `HogEx`, and
+/// serves every `HogEx` this way at its default `-rpcserialversion`. The txid covers
+/// neither the bit nor the body. A present body is refused, since skipping it would
+/// take the whole MWEB format.
 fn decode_hogex(bytes: &[u8]) -> Option<Transaction> {
     let mut reader = bytes;
     let version = Version::consensus_decode_from_finite_reader(&mut reader).ok()?;

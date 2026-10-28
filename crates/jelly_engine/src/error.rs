@@ -5,10 +5,10 @@ use jelly_store::StoreError;
 use jelly_vault::VaultError;
 use tokio::task::{JoinError, spawn_blocking};
 
-/// Why the application could not come up.
+/// Why the app couldn't start.
 ///
-/// Startup runs on a background task and never panics, so every failure it can meet is
-/// a variant here.
+/// Startup runs on a background task and never panics, so every failure it can hit is a
+/// variant here.
 #[derive(Debug, thiserror::Error)]
 pub enum StartupError {
     #[error("The wallet database is schema v{found}, but this build supports v{supported}.")]
@@ -101,7 +101,7 @@ pub(crate) fn task_error(error: JoinError) -> CoreError {
 }
 
 /// Runs `work` on the blocking pool, for key derivation, vault crypto, and file writes
-/// that do not belong on a runtime worker.
+/// that don't belong on a runtime worker.
 pub(crate) async fn blocking<T, E>(
     work: impl FnOnce() -> Result<T, E> + Send + 'static,
 ) -> Result<T, CoreError>

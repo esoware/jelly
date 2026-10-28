@@ -181,8 +181,8 @@ async fn an_unexplained_native_change_becomes_a_balance_delta_record() {
     harness.sync().await.unwrap();
     harness.drain();
 
-    // The tip has not moved, so the forward walk asks for nothing and only the
-    // balance changed.
+    // The tip hasn't moved, so there are no new logs to read and only the balance
+    // changed.
     harness.node.on(Method::Call, Answer::ok(&aggregate(&sheet(7 * ETH))));
     harness.sync().await.unwrap();
 
@@ -230,8 +230,8 @@ async fn a_balance_change_a_receipt_explains_yields_no_delta_record() {
     );
 }
 
-/// Base takes the L1 data fee its receipt reports beside the gas, so a send that
-/// landed explains the whole drop and leaves no stray delta.
+/// Base charges the L1 data fee its receipt reports on top of the gas, so the landed
+/// send accounts for the whole drop and leaves no stray delta.
 #[tokio::test]
 async fn an_op_stack_send_explains_its_l1_data_fee_and_yields_no_delta_record() {
     const GAS_FEE_WEI: u128 = 21_000 * 20 * GWEI;
@@ -326,11 +326,11 @@ async fn a_send_reported_in_an_earlier_pass_does_not_hide_a_later_native_change(
     );
 }
 
-/// A block can land between the receipt read and the balance read.
+/// A block can land between the receipt read and the balance read, so the balance shows a
+/// send that has no receipt yet.
 ///
-/// The balance then shows a send no receipt has answered for yet. The nonce says
-/// the balance holds it, so the judgement waits for the receipt instead of
-/// recording the drop as an unknown payment out beside the send itself.
+/// The nonce says the balance includes it, so the drop waits for the receipt instead of
+/// becoming an unknown payment out beside the send itself.
 #[tokio::test]
 async fn a_send_the_balance_shows_before_its_receipt_is_recorded_once() {
     const FEE_WEI: u128 = 65_000 * 20 * GWEI;
@@ -355,9 +355,8 @@ async fn a_send_the_balance_shows_before_its_receipt_is_recorded_once() {
 
 /// A receipt can come from a node ahead of the one that read the balance.
 ///
-/// The nonce says that balance does not hold the send yet, so the send is counted
-/// against the balance that first does, and a payment beside it keeps its own
-/// amount.
+/// The nonce says that balance doesn't include the send yet, so the send is counted against
+/// the first balance that does, and a payment beside it keeps its own amount.
 #[tokio::test]
 async fn a_receipt_read_ahead_of_the_balance_is_counted_once_the_balance_shows_the_send() {
     const FEE_WEI: u128 = 21_000 * 20 * GWEI;
@@ -477,7 +476,7 @@ async fn a_delta_judged_again_after_a_failed_pass_keeps_its_txid() {
     adapter.sync(clock.deadline_in(Duration::from_secs(60)), &events).await.unwrap();
     events.drain();
 
-    // A peer pays two coins, and the write that would remember the judgement fails.
+    // A peer pays two coins, and the write that would remember the judgment fails.
     node.always(Method::Call, Answer::ok(&sheet(7 * ETH)));
     store.scan_refusal().store(true, Ordering::SeqCst);
     adapter
@@ -576,7 +575,7 @@ async fn a_pass_over_no_addresses_reports_complete_without_a_round_trip() {
 async fn the_next_pass_re_reads_the_frontier_the_last_one_left() {
     let setup = Setup::default().one_window();
     let overlap = setup.params.rescan_overlap_blocks();
-    assert!(overlap > 0, "a network with no overlap could not be reorganised");
+    assert!(overlap > 0, "a network with no overlap could not be reorganized");
     let harness = Harness::new(setup).unwrap();
     harness.watch_owner().await.unwrap();
     harness.node.always(Method::Call, Answer::ok(&aggregate(&sheet(0))));
@@ -668,8 +667,8 @@ async fn a_pass_whose_budget_has_run_out_walks_no_windows() {
     harness.watch_owner().await.unwrap();
     harness.node.quiet(&sheet(ETH));
 
-    // Only the log walk is skipped. The balances are still read, because an
-    // expired budget is no reason to report nothing.
+    // Only the log reads are skipped. An expired budget is no reason to report
+    // nothing, so the balances are still read.
     let progress = harness.sync_expired().await.unwrap();
     assert_eq!(progress.tip_height(), Some(TIP));
     assert!(harness.node.calls_to(Method::GetLogs).is_empty(), "no window was asked for");

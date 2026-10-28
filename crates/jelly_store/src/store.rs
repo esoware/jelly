@@ -19,11 +19,11 @@ use crate::pin::PinRow;
 use crate::tx::{TxFilter, TxGroupFilter, TxGroupPage, TxPage, TxWrite};
 use crate::wallet::{ChainStatePatch, ChainStateRow, NewWallet, WalletRow, WalletSettingsRow};
 
-/// The wallet database, one per file. Every query runs off the runtime's worker threads.
+/// The wallet database. Every query runs on the blocking pool, off the runtime's workers.
 #[derive(Debug)]
 pub struct Store {
-    /// Locked before a write is handed to the blocking pool and released by the worker
-    /// after the commit, so the next holder sees every write already dispatched.
+    /// Taken before a write goes to the blocking pool and released there after the commit,
+    /// so the next holder sees every write already dispatched.
     writer: Arc<Mutex<Connection>>,
     readers: Arc<ReadPool>,
     clock: Arc<dyn Clock>,
@@ -41,9 +41,7 @@ impl Reader<'_> {
     }
 }
 
-/// One transaction and the one timestamp its rows carry.
-///
-/// Everything a scope writes commits together or not at all.
+/// One transaction, with one timestamp for every row it writes.
 #[derive(Debug)]
 pub struct Writer<'a> {
     connection: &'a Connection,
@@ -55,15 +53,14 @@ impl Writer<'_> {
         self.connection
     }
 
-    /// The single timestamp this unit of work uses, captured before it started.
     pub(crate) const fn now_unix_secs(&self) -> i64 {
         self.now_unix_secs
     }
 }
 
-/// Declares the asynchronous form of a [`Reader`] or [`Writer`] method, run through
-/// [`Store::read`] or [`Store::transact`]. Each body names the method it wraps, so the
-/// two surfaces cannot drift apart.
+/// Declares async `Store` methods that run a [`Reader`] or [`Writer`] method through
+/// [`Store::read`] or [`Store::transact`]. Each body calls the method it wraps, so the two
+/// can't drift apart.
 macro_rules! forward {
     ($via:ident => $(
         $(#[$meta:meta])*
@@ -168,16 +165,15 @@ impl Store {
         .await
     }
 
-    /// Checkpoints the write-ahead log. Skipping it leaves a full WAL for the next open
-    /// to replay.
+    /// Checkpoints the write-ahead log, so the next open has nothing to replay.
     pub async fn close(self) -> Result<(), StoreError> {
         let Self { writer, readers, .. } = self;
         let writer = writer.lock_owned().await;
         blocking(move || db::close(&writer, &readers)).await
     }
 
-    /// Runs `work` in one transaction, against one timestamp captured before it is
-    /// queued, so every row one call writes carries the same one.
+    /// Runs `work` in one transaction. Every row it writes carries the same timestamp, read
+    /// before the call waits for the writer.
     pub async fn transact<T, F>(&self, work: F) -> Result<T, StoreError>
     where
         F: FnOnce(&Writer<'_>) -> Result<T, StoreError> + Send + 'static,
@@ -185,15 +181,16 @@ impl Store {
     {
         let now_unix_secs = self.clock.now_secs()?;
         let mut writer = Arc::clone(&self.writer).lock_owned().await;
-        // The worker, not its cancelable awaiter, owns ordering through commit.
+        // The guard moves into the blocking task, so canceling the caller can't release
+        // the writer before the commit.
         blocking(move || {
             db::write(&mut writer, |connection| work(&Writer { connection, now_unix_secs }))
         })
         .await
     }
 
-    /// A replacement adapter must see writes whose async callers were canceled after
-    /// dispatching them to the blocking pool.
+    /// Waits for the writer first, so a replacement adapter sees reservations whose callers
+    /// were canceled after dispatching them.
     pub async fn load_reservations(
         &self,
         scopes: Vec<CursorScope>,

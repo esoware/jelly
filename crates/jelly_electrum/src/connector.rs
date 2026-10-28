@@ -3,27 +3,25 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use jelly_core::EndpointLabel;
-use jelly_net::{Connect, Dialler, Endpoint, Identity, NetError, Socket};
+use jelly_net::{Connect, Dialer, Endpoint, Identity, NetError, Socket};
 
 use crate::chain::ElectrumChain;
 use crate::client::ElectrumClient;
 use crate::error::ElectrumError;
 
-/// Builds the Electrum client a failover pool caches for each endpoint, and is what
-/// the endpoint probe connects through too.
+/// Builds the client a pool caches for each endpoint. A probe connects through it too.
 ///
-/// It carries the chain its caller expects, which every socket proves before it
-/// serves.
+/// Every socket must prove the expected chain before it serves.
 #[derive(Debug, Clone)]
 pub struct ElectrumConnector {
-    dialler: Dialler,
+    dialer: Dialer,
     chain: ElectrumChain,
 }
 
 impl ElectrumConnector {
-    /// `dialler` is the pinned one [`jelly_net::Network::electrum_dialler`] builds.
-    pub const fn new(dialler: Dialler, chain: ElectrumChain) -> Self {
-        Self { dialler, chain }
+    /// `dialer` is the pinned one [`jelly_net::Network::electrum_dialer`] builds.
+    pub const fn new(dialer: Dialer, chain: ElectrumChain) -> Self {
+        Self { dialer, chain }
     }
 }
 
@@ -31,7 +29,7 @@ impl ElectrumConnector {
 impl Connect<ElectrumClient> for ElectrumConnector {
     async fn connect(&self, endpoint: &Endpoint) -> Result<Arc<ElectrumClient>, NetError> {
         let sockets =
-            Arc::new(TlsSockets { dialler: self.dialler.clone(), endpoint: endpoint.clone() });
+            Arc::new(TlsSockets { dialer: self.dialer.clone(), endpoint: endpoint.clone() });
         let client = ElectrumClient::open(sockets, self.chain).await?;
         Ok(Arc::new(client))
     }
@@ -45,11 +43,10 @@ impl Connect<ElectrumClient> for ElectrumConnector {
     }
 }
 
-/// Opens fresh sockets to one endpoint. An [`ElectrumClient`] asks it for a new
-/// socket whenever the last one went away.
+/// Opens a fresh socket to one endpoint whenever an [`ElectrumClient`] loses its last one.
 ///
-/// Production passes TLS from [`Dialler`], and a test passes an in-memory pipe so
-/// the shipped framing, batching, and decoding run without a network.
+/// Production dials TLS through [`Dialer`]. Tests pass an in-memory pipe, so the real
+/// framing, batching, and decoding run without a network.
 #[async_trait]
 pub(crate) trait SocketSource: Send + Sync + fmt::Debug {
     /// The redacted endpoint every failure on these sockets is attributed to.
@@ -58,10 +55,9 @@ pub(crate) trait SocketSource: Send + Sync + fmt::Debug {
     async fn open(&self) -> Result<Box<dyn Socket>, ElectrumError>;
 }
 
-/// TLS-over-TCP sockets to one host, through the one dialler in the workspace.
 #[derive(Debug)]
 struct TlsSockets {
-    dialler: Dialler,
+    dialer: Dialer,
     endpoint: Endpoint,
 }
 
@@ -72,6 +68,6 @@ impl SocketSource for TlsSockets {
     }
 
     async fn open(&self) -> Result<Box<dyn Socket>, ElectrumError> {
-        Ok(self.dialler.connect(&self.endpoint).await?)
+        Ok(self.dialer.connect(&self.endpoint).await?)
     }
 }

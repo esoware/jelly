@@ -10,8 +10,8 @@ use crate::params::UtxoParams;
 use crate::script::SpendableScript;
 use crate::{fee, weight};
 
-/// Caps the changeless search, which is exponential in the worst case, so an
-/// address with a large unspent set cannot hang the wallet.
+/// Caps the changeless search, which is exponential in the worst case, so a large
+/// unspent set can't hang the wallet.
 const MAX_BNB_ROUNDS: usize = 100_000;
 
 wire_enum! {
@@ -19,8 +19,8 @@ wire_enum! {
     pub(crate) enum Strategy {
         /// An exact match inside the cost-of-change window, so no change output.
         Changeless => "changeless",
-        /// The fewest coins that pay, grown with confirmed coins while that lowers
-        /// the waste.
+        /// The fewest coins that pay, plus any further confirmed coins that lower the
+        /// waste.
         LowestWaste => "lowest_waste",
         /// Everything spendable, for a send-max.
         Drain => "drain",
@@ -53,11 +53,11 @@ pub(crate) struct Selection {
     /// draining.
     pub(crate) recipient_value: Amount,
     pub(crate) change: Option<Amount>,
-    /// Leftover too small to be worth paying back, which went to the miner on top
-    /// of the fee the rate required.
+    /// Leftover too small to be worth a change output. It goes to the miner and is
+    /// included in `fee`.
     pub(crate) donated: Amount,
     pub(crate) fee: Amount,
-    /// Weight of the signed transaction, from the chosen input kinds.
+    /// Predicted weight of the signed transaction.
     pub(crate) weight: Weight,
     pub(crate) strategy: Strategy,
 }
@@ -79,20 +79,19 @@ impl Selection {
 /// Which coins a selection may spend before they confirm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Eligible {
-    /// Confirmed coins alone.
     Confirmed,
-    /// Confirmed coins and the wallet's own unconfirmed change, as Bitcoin Core's
-    /// trusted-coin rule has it. Someone else's unconfirmed payment waits for its
-    /// first confirmation.
+    /// Confirmed coins and the wallet's own unconfirmed change, Bitcoin Core's
+    /// trusted coins. Someone else's unconfirmed payment waits until it confirms.
     Trusted,
 }
 
-/// The `eligible` coins by descending effective value, then by outpoint.
+/// The `eligible` coins worth spending at `rate`, by descending effective value, then
+/// by outpoint.
 ///
-/// Confirmation does not enter the order, because [`select_coins`] already tries
-/// confirmed coins alone first, and a large mempool coin behind many small
-/// confirmed ones could leave every set that reaches it too heavy. The bump
-/// planner uses this same order so a replacement's inputs stay predictable.
+/// Confirmation doesn't affect the order. [`select_coins`] already tries confirmed
+/// coins alone first, and sorting a large mempool coin behind many small confirmed
+/// ones could leave every set that reaches it too heavy. The bump planners use the
+/// same order, so the inputs they add stay predictable.
 pub(crate) fn ordered_candidates(coins: &[Utxo], rate: FeeRate, eligible: Eligible) -> Vec<Utxo> {
     let mut candidates: Vec<Utxo> = coins
         .iter()
@@ -100,8 +99,7 @@ pub(crate) fn ordered_candidates(coins: &[Utxo], rate: FeeRate, eligible: Eligib
             Eligible::Confirmed => coin.is_confirmed(),
             Eligible::Trusted => coin.is_trusted(),
         })
-        // A coin whose effective value is not positive costs more to spend than
-        // it contributes. It comes back at a lower rate.
+        // Costs more to spend than it's worth at this rate.
         .filter(|coin| coin.effective_milli(rate) > 0)
         .cloned()
         .collect();
@@ -109,11 +107,11 @@ pub(crate) fn ordered_candidates(coins: &[Utxo], rate: FeeRate, eligible: Eligib
     candidates
 }
 
-/// Tries confirmed coins first and adds the wallet's own unconfirmed change only
-/// when needed, because it adds reorg risk and cannot be added later by a
-/// BIP-125 replacement.
+/// Tries confirmed coins alone first and adds the wallet's own unconfirmed change only
+/// when they can't pay, because unconfirmed change carries reorg risk and a BIP-125
+/// replacement can't add it later.
 ///
-/// Send-max uses every eligible candidate instead.
+/// Send-max spends every trusted candidate instead.
 pub(crate) fn select_coins(
     params: &UtxoParams,
     request: &SelectionRequest<'_>,
@@ -160,12 +158,12 @@ fn from_candidates(
 /// The length of the shortest run from the front of the ordered candidates that
 /// pays, with its price.
 ///
-/// Among coins of one script kind no set of fewer coins pays, so no lighter set does
-/// either, and a mix of kinds only moves that bound by the difference between their
-/// input weights.
+/// The candidates are sorted by effective value, so no smaller set pays. With one
+/// script kind no lighter set pays either, and mixed kinds only move that bound by the
+/// difference between their input weights.
 ///
-/// The refusal is for weight when only a run too heavy to relay pays, and for
-/// funds when not even every candidate does.
+/// Fails for weight when only a run too heavy to relay pays, and for funds when even
+/// every candidate together can't.
 fn fewest(
     params: &UtxoParams,
     request: &SelectionRequest<'_>,
@@ -189,9 +187,9 @@ fn fewest(
         }
         too_few = count;
     }
-    // The refusal names the weight of the shortest run that pays. Every candidate
-    // adds more than its input costs, so apart from rounding a longer run pays
-    // whenever a shorter one does, and halving finds it without pricing every run.
+    // The error names the weight of the shortest run that pays. Every candidate adds
+    // more than its input costs, so apart from rounding a longer run pays whenever a
+    // shorter one does, and a binary search finds it without pricing every run.
     let mut count = candidates.len();
     while count.saturating_sub(too_few) > 1 {
         let middle = too_few.midpoint(count);
@@ -212,8 +210,8 @@ fn fewest(
 ///
 /// Below the long-term rate the waste metric rewards every extra input, so
 /// consolidation stops at the weight whose fee at this rate matches the lightest
-/// set's fee at the long-term rate. Without that, a low rate could quote many
-/// times what a higher one does.
+/// set's fee at the long-term rate. Without the cap, a low rate could quote many
+/// times the fee of a higher one.
 fn weight_cap(params: &UtxoParams, request: &SelectionRequest<'_>, lightest: Weight) -> Weight {
     let now_per_kwu = request.fee_rate.sat_per_kwu();
     let later_per_kwu = request.long_term_fee_rate.sat_per_kwu();
@@ -227,10 +225,9 @@ fn weight_cap(params: &UtxoParams, request: &SelectionRequest<'_>, lightest: Wei
 
 /// Branch and bound for a changeless selection no heavier than `cap`.
 ///
-/// A changeless transaction is smaller, creates no coin to spend later, and leaks
-/// no change amount, so it wins whenever one exists inside the cost-of-change
-/// window. The search only picks coins, and [`price`] settles every set it would
-/// keep.
+/// A changeless transaction is smaller, leaves no coin to spend later, and reveals no
+/// change amount, so it wins whenever one fits the cost-of-change window. The search
+/// only picks coins, and [`price`] re-checks every set it would keep.
 fn changeless(
     request: &SelectionRequest<'_>,
     candidates: &[Utxo],
@@ -245,12 +242,9 @@ fn changeless(
     }
     let rate_per_kwu = i128::from(request.fee_rate.sat_per_kwu());
     let later_per_kwu = i128::from(request.long_term_fee_rate.sat_per_kwu());
-    // The first coin's overhead stands in for every selection's, and a node charges
-    // it in whole virtual bytes. The model is still not exact. A selection that
-    // mixes legacy and segwit inputs differs from it by the 2 wu of the segwit
-    // marker and flag, an odd number of P2TR inputs leaves it 2 wu over, and from
-    // 253 inputs the longer input count goes uncharged. `price` settles every set
-    // the search keeps, so the model only steers the search.
+    // Uses the first coin's overhead, rounded to whole vbytes, for every selection.
+    // That's a few wu off for mixed legacy/segwit inputs, odd P2TR counts, and 253+
+    // inputs, which is fine since `price` re-checks every set the search keeps.
     let overhead_wu =
         plain_weight(request, from_ref(first)).to_wu().saturating_sub(first.input_weight().to_wu());
     let charged_overhead_wu =
@@ -259,8 +253,8 @@ fn changeless(
     let target_milli = milli(request.target)?
         .checked_add(rate_per_kwu.saturating_mul(i128::from(charged_overhead_wu)))
         .ok_or_else(|| UtxoError::overflow("a selection target"))?;
-    // The leftover `price` turns into change is what remains after the change
-    // output's own fee, so the window reaches that fee past the change floor.
+    // `price` makes change only from what's left after the change output's own fee,
+    // so the window extends past the change floor by that fee.
     let change_output_wu =
         i128::from(weight::output_weight(request.change_script.script_pubkey()).to_wu());
     let limit_milli = milli(change_floor)?
@@ -332,11 +326,11 @@ struct Bounds {
 /// The least-waste changeless selection `settle` accepts, after Bitcoin Core's
 /// `SelectCoinsBnB`.
 ///
-/// A depth-first walk that tries including each coin before excluding it. Fees are
-/// additive over effective values, so saturating arithmetic is enough for a model
-/// that `settle` checks against [`price`]. A set it refuses is passed over and the
-/// walk goes on. A coin identical to the one just excluded is not included in its
-/// place, because that branch repeats one already walked.
+/// A depth-first search that tries including each coin before excluding it. The model
+/// only sums effective values, and saturating sums are fine since `settle` checks each
+/// set against [`price`]. A set `settle` refuses is skipped and the search goes on. A
+/// coin identical to the one just excluded isn't included in its place, since that
+/// branch was already explored.
 fn search(
     coins: &[Modeled],
     bounds: &Bounds,
@@ -376,7 +370,7 @@ fn search(
             let Some(last) = selected.pop() else { break };
             let Some(coin) = coins.get(last) else { break };
             let next = last.saturating_add(1);
-            // The coins considered after `last` are candidates again once it is excluded.
+            // The coins considered after `last` are candidates again once it's excluded.
             let passed = coins.get(next..index).unwrap_or_default();
             available_milli = passed
                 .iter()
@@ -403,11 +397,11 @@ fn search(
     Ok(best.map(|(_, selection)| selection))
 }
 
-/// Grows the first `count` candidates, which pay at `priced`, with further
-/// confirmed coins up to `cap`, and keeps the set with the least integer waste.
+/// Adds further confirmed coins to the first `count` candidates, which pay at
+/// `priced`, up to `cap`, and keeps the set with the least waste.
 ///
-/// An unconfirmed coin is never added for consolidation alone, because each one
-/// lengthens a mempool chain that relay policy limits.
+/// An unconfirmed coin is never added just to consolidate, since each one lengthens a
+/// mempool chain that relay policy limits.
 fn accumulate(
     request: &SelectionRequest<'_>,
     candidates: &[Utxo],
@@ -451,8 +445,8 @@ fn accumulate(
 /// Reports the shortfall against this tier's eligible coins, not the full
 /// balance.
 ///
-/// Excluded or uneconomic coins cannot fund the payment. The fee assumes every
-/// candidate is spent, because each adds more than it costs.
+/// Excluded or uneconomic coins can't fund the payment. The fee assumes every
+/// candidate is spent, since each adds more than it costs.
 fn insufficient(
     request: &SelectionRequest<'_>,
     candidates: &[Utxo],
@@ -506,7 +500,7 @@ struct Priced {
 }
 
 /// Prices one input set with and without change, keeping change when it reaches
-/// `change_floor`. `None` when the set cannot pay.
+/// `change_floor`. `None` when the set can't pay.
 fn price(
     request: &SelectionRequest<'_>,
     inputs: &[Utxo],
@@ -531,8 +525,8 @@ fn price(
         }));
     }
 
-    // The leftover is below what a change output is worth, so it goes to the
-    // miner and the preview says so.
+    // Not worth a change output, so the leftover goes to the miner and the preview
+    // says so.
     let plain = plain_weight(request, inputs);
     let fee_plain = fee::fee_for(request.fee_rate, plain)?;
     let Some(donated) =
@@ -546,8 +540,8 @@ fn price(
 
 /// Send-max, spending every candidate into one output with no change.
 ///
-/// An address with nothing spendable fails the same arithmetic as one that
-/// cannot cover its own fee, so there is no empty case.
+/// Nothing to spend fails the same arithmetic as too little to cover the fee, so
+/// there's no separate empty case.
 fn drain(
     params: &UtxoParams,
     request: &SelectionRequest<'_>,
@@ -665,7 +659,7 @@ mod tests {
         assert_eq!(ordered_candidates(&coins, ONE_PER_VB, Eligible::Trusted).len(), 1);
     }
 
-    /// A mempool coin adds reorg risk and runs into BIP-125 rule 2 later, so it is
+    /// A mempool coin adds reorg risk and runs into BIP-125 rule 2 later, so it's
     /// never spent while confirmed coins would do.
     #[test]
     fn confirmed_coins_alone_are_tried_before_any_mempool_coin_is_admitted() {
@@ -675,7 +669,7 @@ mod tests {
         assert_eq!(selection.inputs.len(), 1);
         assert!(selection.inputs.iter().all(Utxo::is_confirmed), "{:?}", selection.inputs);
 
-        // Only when the confirmed side cannot pay does the mempool coin come in.
+        // Only when the confirmed coins can't pay does the mempool coin come in.
         let selection = scene.select(&scene.selection(500_000, ONE_PER_VB), &coins).unwrap();
         assert!(selection.inputs.iter().any(|coin| !coin.is_confirmed()));
     }
@@ -882,7 +876,7 @@ mod tests {
     #[test]
     fn a_cheap_rate_never_consolidates_mempool_coins() {
         let scene = bitcoin_scene().unwrap();
-        // The confirmed coins cannot pay alone, so the mempool is admitted.
+        // The confirmed coins can't pay alone, so mempool coins are admitted.
         let mut coins = scene.coins(&[10_000, 10_000, 10_000]);
         coins.push(unconfirmed(&scene.ours, 10, 1_000_000));
         coins.extend((20..60u8).map(|seed| unconfirmed(&scene.ours, seed, 10_000)));
@@ -1071,9 +1065,9 @@ mod tests {
             }
         }
 
-        /// Every subset of a small pool within the consolidation cap, settled the way a
-        /// selection is, against what the search picks. Repeated values exercise the
-        /// skip over identical coins.
+        /// Settles every subset of a small pool within the consolidation cap the way a
+        /// selection would, and checks the search against the best of them. Repeated
+        /// values exercise the skip over identical coins.
         #[test]
         fn the_changeless_search_finds_a_set_whenever_a_brute_force_does(
             values in prop::collection::vec(
@@ -1104,7 +1098,7 @@ mod tests {
             };
 
             // The weight a set is priced at, and what it donates when it makes no change.
-            // `None` when it cannot pay.
+            // `None` when it can't pay.
             let settle = |picked: &[Utxo]| -> Option<(Weight, Option<Amount>)> {
                 let kinds = vec![UtxoScript::P2wpkh; picked.len()];
                 let plain = predict_weight(kinds.clone(), [request.recipient_script_pubkey]);

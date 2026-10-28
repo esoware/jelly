@@ -1,10 +1,10 @@
 //! The Simple Ledger Protocol, whose message in a transaction's first output assigns
 //! tokens and mint batons to the outputs after it.
 //!
-//! This build holds no tokens, so a message is read only for the outputs it names,
-//! which a plain spend would burn. Whether those tokens are valid depends on the whole
-//! token graph and is not checked, so an output a well-formed message names is held
-//! back either way, as Electron Cash does.
+//! The wallet doesn't manage tokens, so it reads a message only for the outputs it
+//! names, which a plain spend would burn. Checking that the tokens are valid would take
+//! the whole token graph, so like Electron Cash, the wallet holds back any output a
+//! well-formed message names.
 
 use bitcoin::Transaction;
 
@@ -37,7 +37,7 @@ pub(crate) fn carries_tokens(tx: &Transaction, vout: u32) -> bool {
 
 /// The outputs the SLP message `script` assigns tokens or a mint baton to.
 ///
-/// `None` means it is not a well-formed message of token type 1, NFT1 child, or NFT1
+/// `None` means it isn't a well-formed message of token type 1, NFT1 child, or NFT1
 /// group, which by the specification carries no tokens at all.
 ///
 /// An output named with a quantity of zero carries nothing and is left out.
@@ -127,7 +127,7 @@ fn minted(quantity: u64, baton: Option<u32>) -> Vec<u32> {
     vouts
 }
 
-/// An empty field ends the baton.
+/// An empty field means there's no baton.
 fn baton_vout(field: &[u8]) -> Result<Option<u32>, Malformed> {
     if field.is_empty() {
         return Ok(None);

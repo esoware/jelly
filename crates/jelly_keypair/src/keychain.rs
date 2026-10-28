@@ -14,9 +14,8 @@ use crate::slip10::Slip10Node;
 /// A seed and the derivation rules over it. Holds no chain state, does no I/O, and every
 /// method is a pure function of the seed and its arguments.
 ///
-/// The session holds the expanded seed rather than the entropy and passphrase.
-/// Re-deriving per operation would still keep both inputs alive, so it would narrow no
-/// window while adding a PBKDF2 pass to every address.
+/// The session holds the expanded seed, not the entropy and passphrase. Re-deriving per
+/// call would keep both alive anyway and add a PBKDF2 pass to every address.
 pub struct HdKeychain {
     seed: Seed,
 }
@@ -53,8 +52,8 @@ impl HdKeychain {
 
     /// Derives at `path` with the scheme `kind` names.
     ///
-    /// Any path the curve can walk is accepted, including a custom depth or index,
-    /// because a wallet that refuses unusual paths cannot restore keys made elsewhere.
+    /// Any path the curve can walk is accepted, including a custom depth or index, so keys
+    /// another wallet made on an unusual path can still be restored.
     pub fn key_material_at(
         &self,
         kind: KeyKind,
@@ -96,8 +95,8 @@ pub fn generate_key(kind: KeyKind) -> Result<KeyMaterial, KeyError> {
     }
 }
 
-/// Reduces a SLIP-10 key or raw entropy to the spend scalar, which is what every
-/// deterministic Monero wallet does with its seed.
+/// Reduces a SLIP-10 key or raw entropy to a spend scalar, the way Monero wallets turn
+/// their seed into a spend key.
 fn monero_spend_material(bytes: &[u8; 32]) -> KeyMaterial {
     let scalar = Zeroizing::new(Scalar::from_bytes_mod_order(*bytes));
     KeyMaterial::new(KeyKind::MoneroSpend, Zeroizing::new(scalar.to_bytes().to_vec()))

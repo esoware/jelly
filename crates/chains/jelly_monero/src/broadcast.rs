@@ -5,10 +5,9 @@ wire_enum! {
     /// Why `monerod` refused a transaction.
     ///
     /// `send_raw_transaction` answers with a free-form `reason` plus one boolean
-    /// per refusal class. The booleans are the taxonomy, so they are read first
-    /// and the text is only a fallback for a node that set none of them. The
-    /// declaration order is the order the booleans are tested in, most specific
-    /// first.
+    /// per refusal class. The booleans are read first, and the text is only a
+    /// fallback for a node that set none of them. The declaration order is the
+    /// order the booleans are tested in, most specific first.
     pub(crate) enum BroadcastRefusal {
         /// A key image this transaction spends is already spent on chain or in
         /// the pool. Only one of the two can ever land.
@@ -16,13 +15,13 @@ wire_enum! {
         /// One of the outputs the ring names is gone or already consumed. A
         /// rebuild picks a fresh ring.
         InvalidInput => "invalid_input",
-        /// The inputs do not cover the outputs plus the fee.
+        /// The inputs don't cover the outputs plus the fee.
         Overspend => "overspend",
         /// Below this network's relay floor at the moment it was offered.
         FeeTooLow => "fee_too_low",
         /// A ring of the wrong length, which is consensus-invalid.
         LowMixin => "low_mixin",
-        /// An output the network will not accept.
+        /// An output the network won't accept.
         InvalidOutput => "invalid_output",
         /// Fewer outputs than Monero's two-output minimum.
         TooFewOutputs => "too_few_outputs",
@@ -71,8 +70,8 @@ impl BroadcastRefusal {
     }
 
     /// The detail for a refusal that came with no reason text, because a rejection's
-    /// detail is never empty. It reaches the log, and the interface words a refusal
-    /// from its [`RejectionKind`] instead.
+    /// detail is never empty. It only reaches the log. The interface words a refusal
+    /// from its [`RejectionKind`].
     const fn explain(self) -> &'static str {
         match self {
             Self::DoubleSpend => "one of the coins this transaction spends is already spent",
@@ -125,8 +124,8 @@ impl BroadcastRefusal {
 
 /// What one broadcast attempt answered.
 ///
-/// A refusal is an answer, not a transport failure, so it is typed, stops the
-/// failover walk, and carries the node's own words.
+/// A refusal is an answer, not a transport failure, so it's typed, stops the
+/// failover, and carries the node's own words.
 #[derive(Debug, PartialEq, Eq)]
 pub enum BroadcastReply {
     Accepted,
@@ -140,7 +139,7 @@ pub enum BroadcastReply {
 /// branches on it unless every boolean is unset.
 #[expect(
     clippy::struct_excessive_bools,
-    reason = "these are monerod's own wire booleans, one per refusal class; `refusal` is the state machine the lint asks for"
+    reason = "monerod's wire format, one boolean per refusal class"
 )]
 #[derive(Debug, Deserialize)]
 pub(crate) struct SendRawAnswer {
@@ -183,7 +182,7 @@ impl SendRawAnswer {
         }
     }
 
-    /// The first boolean set, in the order refusals are most specific.
+    /// The first boolean set, most specific first.
     fn refusal(&self) -> Option<BroadcastRefusal> {
         BroadcastRefusal::ALL.into_iter().find(|refusal| self.is_set(*refusal))
     }
@@ -244,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    fn the_text_fallback_recognises_the_wordings_monerod_uses() {
+    fn the_text_fallback_recognizes_the_wordings_monerod_uses() {
         let cases = [
             ("Failed to check tx inputs: double spend", BroadcastRefusal::DoubleSpend),
             ("tx uses invalid input", BroadcastRefusal::InvalidInput),

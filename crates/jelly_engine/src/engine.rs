@@ -20,55 +20,51 @@ use crate::pump;
 use crate::session::{LockReason, SessionSlot};
 use crate::settings::{Settings, auto_lock_duration};
 
-/// What the engine needs from the application shell: its data directory and the ports it
-/// cannot construct itself.
+/// The data directory, and the ports the app shell provides because the engine can't
+/// build them itself.
 #[derive(Debug, Clone)]
 pub struct EngineDeps {
     pub data_dir: PathBuf,
     pub clock: Arc<dyn Clock>,
     pub keystore: Arc<dyn MasterKeyStore>,
     pub builder: Arc<dyn AdapterBuilder>,
-    /// Every chain's entry, which the engine reaches keys and addresses through.
+    /// Every chain's entry, which the engine derives keys and addresses through.
     pub table: &'static ChainTable,
 }
 
-/// The wallet database could not be used, so it was moved aside and this run started
-/// from an empty one.
+/// The wallet database couldn't be used, so it was moved aside and this run started with
+/// an empty one.
 ///
-/// Balances and history re-sync from the chains, but wallets and their settings, chain
-/// state, addresses, contacts, endpoints, and pins remain only in the file at `moved_to`.
-/// The vault files are still in the data directory while their wallets are no longer
-/// listed, so the user has to be told, which is why this rides the startup status rather
-/// than a log line.
+/// Balances and history re-sync, but wallets and their settings, chain state, addresses,
+/// contacts, endpoints, and pins exist only in the file at `moved_to`. The vault files are
+/// still there but their wallets are no longer listed, so the user has to be told.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseRebuilt {
-    /// The old file's path as the platform displays it. It is inside the data directory,
-    /// which the data directory command already reports.
+    /// The old file's path for display. It's inside the data directory, which the app
+    /// already shows.
     pub moved_to: String,
 }
 
-/// A started engine and, when the database it opened was not the one that was there
-/// before, where the old one went.
+/// A started engine, and where the old database went if it was rebuilt.
 #[derive(Debug)]
 pub struct Started {
     pub engine: WalletEngine,
     pub rebuilt: Option<DatabaseRebuilt>,
 }
 
-/// A failed start and the database it replaced before it failed.
+/// A failed start, and the database it replaced before failing.
 ///
 /// The next start opens the replacement and has nothing to report, so this is the only
-/// start that can tell the user their wallets are no longer listed.
+/// chance to tell the user their wallets are no longer listed.
 #[derive(Debug)]
 pub struct StartFailure {
     pub error: StartupError,
     pub rebuilt: Option<DatabaseRebuilt>,
 }
 
-/// The wallet engine. Cheap to clone. Every operation borrows it except `shutdown`, which
-/// consumes it.
+/// Cheap to clone. Every operation borrows it except `shutdown`, which consumes it.
 #[derive(Clone)]
 pub struct WalletEngine {
     pub(crate) inner: Arc<Inner>,
@@ -82,12 +78,11 @@ impl fmt::Debug for WalletEngine {
     }
 }
 
-/// The engine's state as named subsystems, each owning its own synchronisation and
-/// invariants.
+/// There's no engine-wide lock. Each subsystem guards its own state.
 pub(crate) struct Inner {
     pub(crate) store: Store,
     pub(crate) settings: Settings,
-    /// The TLS pins the network layer verifies against. Its writer is one of `tasks`.
+    /// The TLS pins the network layer verifies against. Its writer runs in `tasks`.
     pub(crate) pins: Arc<PinCache>,
     pub(crate) keystore: Arc<dyn MasterKeyStore>,
     pub(crate) clock: Arc<dyn Clock>,
@@ -98,7 +93,8 @@ pub(crate) struct Inner {
     pub(crate) session: SessionSlot,
     pub(crate) chains: Chains,
     pub(crate) pending: PendingTxs,
-    /// Orders transaction reservations, signing, and broadcast against adapter replacement.
+    /// Serializes a send's reservations, signing, and broadcast against adapter rebuilds
+    /// and locks.
     pub(crate) sends: Arc<Mutex<()>>,
     pub(crate) events: Events,
     pub(crate) tasks: TaskTracker,
@@ -112,11 +108,8 @@ impl fmt::Debug for Inner {
 }
 
 impl WalletEngine {
-    /// Opens the database, creating it when there is none, loads the settings file, writing
-    /// the defaults when there is none, loads the TLS pins, and starts the event pump and
-    /// the pin writer.
-    ///
-    /// Starts locked, so no key material exists until the first unlock.
+    /// Opens or creates the database and the settings file, loads the TLS pins, and starts
+    /// the event pump and the pin writer. The engine starts locked, with no key material.
     pub async fn start(config: EngineConfig, deps: EngineDeps) -> Result<Started, StartFailure> {
         let EngineDeps { data_dir, clock, keystore, builder, table } = deps;
         let (store, recovered) = Store::open(&data_dir, Arc::clone(&clock))
@@ -181,24 +174,23 @@ impl WalletEngine {
         Ok(Started { engine, rebuilt })
     }
 
-    /// The TLS pins the network layer verifies against. It holds no engine handle, so
-    /// it may outlive the engine.
+    /// The TLS pins the network layer verifies against. It holds no engine handle, so it
+    /// can outlive the engine.
     pub fn pin_store(&self) -> Arc<dyn PinStore> {
         Arc::<PinCache>::clone(&self.inner.pins)
     }
 
-    /// Every event the engine publishes, whether the pump rebroadcast it or it was sent
-    /// directly. A slow subscriber lags rather than stalling the sync pass.
+    /// Every event the engine publishes, from the pump or sent directly. A slow
+    /// subscriber lags instead of stalling the sync pass.
     pub fn subscribe(&self) -> broadcast::Receiver<WalletEvent> {
         self.inner.events.subscribe()
     }
 
     /// Locks the session, stops every task, and checkpoints the database.
     ///
-    /// The session locks first, because wiping key material beats liveness. Then the
-    /// root token is cancelled and the tracker drained, and then the database closes. A
-    /// handle that outlives the engine leaves the database open and is logged rather than
-    /// waited on.
+    /// Locking comes first, so the keys are wiped even if a task never finishes. If
+    /// another engine handle survives, the database stays open and we log it instead of
+    /// waiting.
     pub async fn shutdown(self) -> Result<(), CoreError> {
         {
             let _transition = self.inner.session.transition.lock().await;
@@ -220,7 +212,6 @@ impl WalletEngine {
     }
 }
 
-/// The crate's one shareability assertion, for types used from spawned tasks.
 const fn assert_send_sync<T: Send + Sync>() {}
 const _: () = assert_send_sync::<WalletEngine>();
 const _: () = assert_send_sync::<Started>();

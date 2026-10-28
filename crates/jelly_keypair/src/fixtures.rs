@@ -1,5 +1,3 @@
-//! Fixtures the unit tests share.
-
 use bitcoin::bip32;
 
 use crate::path::parse_path;

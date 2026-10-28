@@ -57,8 +57,7 @@ async fn this_builds_key_image_derivation_agrees_with_upstreams_signing_path() {
     );
 }
 
-/// Every refusal here is a signing failure, so each is also told apart by what it
-/// says.
+/// Every refusal here is a signing failure, so the message is what tells them apart.
 fn assert_refused_for(error: &ChainError, reason: &str) {
     assert_eq!(error.code(), ErrorCode::Signing, "{error}");
     assert!(error.to_string().contains(reason), "expected {reason:?} in {error}");
@@ -138,12 +137,11 @@ async fn a_ring_chosen_too_long_ago_is_refused_rather_than_signed() {
     assert!(error.to_string().contains("past the limit of 2"), "{error}");
 }
 
-/// A send from a subaddress is signed with the key the wallet holds for that subaddress.
+/// The wallet signs with the key behind the row it sends from.
 ///
-/// The wallet signs a send with the key behind the row it is sent from, and for a
-/// subaddress row the chain entry hands out that subaddress's spend key, `ks + m`. The
-/// payload names the subaddress, so that key is checked against it rather than refused
-/// for not being the account's own spend key.
+/// For a subaddress row that's the subaddress's spend key, `ks + m`. The payload names the
+/// subaddress, so the key is checked against it instead of refused for not being the
+/// account's.
 #[tokio::test]
 async fn a_send_from_a_subaddress_is_signed_with_the_key_the_wallet_holds_for_it() {
     const SUBADDRESS_ID: i64 = 8;

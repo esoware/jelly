@@ -25,8 +25,8 @@ fn crypto_provider() -> &'static Arc<CryptoProvider> {
 
 /// The compiled-in Mozilla root bundle.
 ///
-/// Compiled in rather than read from the platform store, so an enterprise root pushed
-/// onto a machine by policy cannot intercept wallet traffic.
+/// The platform store isn't used, so a root pushed onto the machine by policy can't
+/// intercept wallet traffic.
 fn roots() -> &'static Arc<RootCertStore> {
     static CELL: OnceLock<Arc<RootCertStore>> = OnceLock::new();
     CELL.get_or_init(|| Arc::new(RootCertStore { roots: webpki_roots::TLS_SERVER_ROOTS.to_vec() }))
@@ -63,10 +63,9 @@ pub(crate) fn ca_validated_client_config() -> Result<Arc<ClientConfig>, NetError
     .map_err(|source| NetError::config(NO_PROTOCOL_VERSION, source))
 }
 
-/// Electrum-only TLS verification by trust-on-first-use pinning of the SPKI hash, with CA
-/// validation consulted alongside. Other transports must not use it.
+/// Electrum-only TLS verification that pins the SPKI hash on first use.
 ///
-/// The key is recorded even when CA validation succeeds, and `verdict` uses CA validity
+/// The key is pinned even when the certificate is CA-valid, and `verdict` uses CA validity
 /// to decide whether a later key change is allowed.
 pub(crate) fn pinned_client_config(
     pins: Arc<dyn PinStore>,
@@ -97,9 +96,8 @@ enum Verdict<'a> {
     /// The host has never been seen, or a chain to the compiled-in roots vouches for the
     /// new key.
     Record,
-    /// The recorded key changed and no authority vouches for the replacement. The pin
-    /// travels with the verdict so the refusal can name both fingerprints without a
-    /// second lookup.
+    /// The recorded key changed and no authority vouches for the replacement. It carries
+    /// the pin so the refusal can name both fingerprints.
     Refused(&'a SpkiPin),
 }
 
@@ -157,8 +155,8 @@ impl ServerCertVerifier for TofuVerifier {
                     .map_err(|_| rustls::Error::General("pin store unavailable".to_owned()))?;
                 Ok(ServerCertVerified::assertion())
             }
-            // Both fingerprints go into the message. They are public key hashes, so
-            // they are safe to log, and a user reporting this needs to compare them.
+            // Public key hashes are safe to log, and a user reporting this needs both to
+            // compare.
             Verdict::Refused(pin) => Err(rustls::Error::General(format!(
                 "the tls key for {host} changed: pinned {pin}, presented {}",
                 hex::encode(presented)
@@ -166,13 +164,13 @@ impl ServerCertVerifier for TofuVerifier {
         }
     }
 
-    /// The handshake is checked against the certificate's key alone, which is what the pin
-    /// trusts. rustls checks it against a certificate it parses in full, and that parser
-    /// refuses the version 1 certificates self-signed Electrum servers still present.
+    /// The handshake is checked against the certificate's key alone, since that's what the
+    /// pin trusts. rustls's own check parses the whole certificate, and its parser refuses the
+    /// version 1 certificates some self-signed Electrum servers still present.
     ///
-    /// rustls has a key-only check for TLS 1.3 alone, so this is its TLS 1.2 counterpart.
-    /// A TLS 1.2 scheme names no curve, so it maps to several algorithms, and the one for
-    /// the key's own algorithm is the one that checks the signature.
+    /// rustls offers a key-only check for TLS 1.3 but not for TLS 1.2, so this is that
+    /// check. A TLS 1.2 scheme names no curve and maps to several algorithms, so the one
+    /// matching the key's own algorithm checks the signature.
     fn verify_tls12_signature(
         &self,
         message: &[u8],

@@ -14,9 +14,9 @@ use crate::method::Method;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_RESPONSE_BYTES: usize = 4_000_000;
-// TON Center allows one unauthenticated request per second. Every TON endpoint is paced
-// as if it were TON Center, and the spacing holds only because `PooledNode::gate`
-// serializes calls. An identity check runs outside that gate.
+// TON Center allows one request per second without a key, and every TON endpoint is paced
+// as if it were TON Center. The spacing holds only because `PooledNode::gate` serializes
+// calls, and an identity check runs outside that gate.
 const REQUEST_SPACING: Duration = Duration::from_millis(1_100);
 
 #[async_trait]

@@ -17,7 +17,7 @@ use super::common::{
     watched,
 };
 
-/// `PooledNode` waits this long before every read, so no pass can read faster.
+/// Matches the pause `PooledNode` takes before every read.
 const READ_PACE: Duration = Duration::from_secs(2);
 
 #[derive(Debug)]

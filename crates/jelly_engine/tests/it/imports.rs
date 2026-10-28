@@ -1,5 +1,5 @@
-//! The chain entries read no BIP-39, so naming a pasted seed phrase is the engine's part
-//! of a key import.
+//! Chain entries don't parse BIP-39, so recognizing a pasted seed phrase is the engine's
+//! part of a key import.
 
 use jelly_core::{ChainId, CoreError, SecretText};
 use jelly_engine::AddressRecord;
@@ -11,8 +11,8 @@ use crate::common::{Harness, harness};
 const SEED_PHRASE: &str =
     "This is a seed phrase, not a private key. Restore it as a wallet instead.";
 
-/// Every word shares its first three letters with a Monero word, as in about one 24-word
-/// phrase in thirty, and Monero matches a word by those letters.
+/// Every word shares its first three letters with a Monero word, which happens for about
+/// one 24-word phrase in thirty, and Monero matches a word by those letters.
 const TWENTY_FOUR_WORDS: &str = "secret busy topic cage length tragic soon smooth fragile slender secret thank alone dilemma camera relief song firm that country inject energy trap lava";
 
 /// A published Monero seed, from knaccc/subaddress-js.

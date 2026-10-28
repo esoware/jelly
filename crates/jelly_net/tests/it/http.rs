@@ -169,7 +169,7 @@ async fn gzip_body(mut stream: TcpStream) -> io::Result<()> {
     stream.write_all(&GZIPPED).await
 }
 
-/// The cap counts the decoded body, so a small compressed answer cannot unpack past it.
+/// The cap counts the decoded body, so a small compressed answer can't unpack past it.
 #[tokio::test]
 async fn a_gzip_body_is_decoded_and_capped_at_its_decoded_size() {
     let (address, server) = loopback_server(gzip_body).await.expect("a loopback server");

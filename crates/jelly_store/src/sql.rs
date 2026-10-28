@@ -1,13 +1,14 @@
-//! Every statement a data module runs is declared through [`statements`], which names it
-//! and lists it for the plan tests below, so they check exactly the text that ships.
+//! Each data module declares its SQL through [`statements`], which also lists it for the
+//! plan tests below, so they check exactly the text that ships.
 //!
-//! Every statement is cached, so each is parsed once per connection.
+//! Every statement goes through the connection's cache, so each is parsed once per
+//! connection.
 
 use rusqlite::{Connection, Params, Row};
 
 use crate::error::StoreError;
 
-/// Declares the statements of one module and the table the plan test reads.
+/// Declares a module's statements and the `STATEMENTS` list the plan tests read.
 macro_rules! statements {
     ($(
         $(#[$meta:meta])*
@@ -18,7 +19,7 @@ macro_rules! statements {
             pub(crate) const $name: &str = $sql;
         )*
 
-        /// Every statement this module prepares, named for the plan test by its path.
+        /// Every statement this module prepares, named for the plan tests by its path.
         #[cfg(test)]
         pub(crate) const STATEMENTS: &[(&str, &str)] =
             &[ $( (concat!(module_path!(), "::", stringify!($name)), $name) ),* ];
@@ -110,7 +111,7 @@ mod tests {
     use crate::db;
 
     /// The two tables that grow with history. Every other table is bounded by the number of
-    /// wallets, addresses, contacts, chains, or endpoints, where a scan is the right plan.
+    /// wallets, addresses, contacts, chains, or endpoints, so scanning it is fine.
     const UNBOUNDED: [&str; 2] = ["txs", "balances"];
     const TEMP_SORT: &str = "USE TEMP B-TREE FOR ORDER BY";
 

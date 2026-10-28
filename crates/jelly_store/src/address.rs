@@ -10,8 +10,8 @@ use crate::wallet::WALLET;
 pub(crate) const ADDRESS: &str = "address";
 const UNIQUE_COLUMNS: &str = "wallet_id, chain, address";
 
-/// The `key_source` spelling of each [`KeySource`] variant. The schema's constraint
-/// repeats them, and the address round-trip tests check both.
+/// The `key_source` spelling of each [`KeySource`] variant. The schema's CHECK repeats
+/// them, and the tests check both.
 const DERIVED: &str = "derived";
 const IMPORTED: &str = "imported";
 const SUBADDRESS: &str = "subaddress";
@@ -157,7 +157,7 @@ impl Writer<'_> {
     pub(crate) fn insert_address(&self, new: &NewAddress) -> Result<AddressRow, StoreError> {
         let NewAddress { wallet_id, chain, address, source, script_kind, derivation_index, label } =
             new;
-        // Each variant leaves the detail columns it does not own null, as the schema
+        // Each variant leaves the detail columns it doesn't own null, as the schema
         // requires.
         let (discriminant, path, entry, major, minor) = match source {
             KeySource::Derived { path } => (DERIVED, Some(path.as_str()), None, None, None),
