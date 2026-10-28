@@ -319,7 +319,8 @@ async fn a_write_says_whether_the_row_was_already_there() {
 /// An EVM token transfer is the owner's call to the token contract, which an indexer
 /// also lists as a native transaction that moved nothing and paid the fee.
 ///
-/// A receipt on the OP Stack charges an L1 data fee the indexer leaves out.
+/// On the OP Stack an indexed row that got no fee from its receipt leaves out the L1
+/// data fee.
 #[tokio::test]
 async fn a_call_to_a_token_contract_is_dropped_beside_the_token_row_that_paid_its_fee() {
     let harness = common::harness().await.unwrap();

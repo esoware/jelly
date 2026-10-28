@@ -123,15 +123,15 @@ impl Seen<'_> {
         let keys = &self.tx.transaction.message.account_keys;
         let index = keys.iter().position(|key| key.pubkey == self.address)?;
         let is_fee_payer = index == 0;
-        let (opened, rent_lamports): (Vec<&str>, Vec<u64>) = token_records
-            .iter()
-            .filter_map(|record| match record.asset {
-                AssetId::Token(token) => Some(token.contract()),
-                AssetId::Native(_) => None,
-            })
-            .flat_map(|mint| self.opened_accounts(mint))
-            .unzip();
-        let rent_lamports = rent_lamports.into_iter().fold(0, u64::saturating_add);
+        let mut opened = Vec::new();
+        let mut rent_lamports = 0u64;
+        for record in token_records {
+            let AssetId::Token(token) = record.asset else { continue };
+            for (account, lamports) in self.opened_accounts(token.contract()) {
+                opened.push(account);
+                rent_lamports = rent_lamports.saturating_add(lamports);
+            }
+        }
         let moved = native_delta(self.metadata, index, is_fee_payer)
             .saturating_add(i128::from(rent_lamports));
         let self_transfer = native_self_transfer(self.tx, self.address);

@@ -23,9 +23,9 @@ use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 use crate::common::{
-    self, AVALANCHE, Answer, BASE, BSC, ETH, ETHEREUM, FakeNode, Fallible, Harness, L1_FEE_WEI,
-    OWNER, PEER, SHEET_ENTRIES, Setup, TIP, TIP_HEX, aggregate, fixture, http_pool, quantity,
-    sheet, sheet_index, sheets_on, watched,
+    self, AVALANCHE, Answer, BASE, BSC, ETH, ETHEREUM, FakeNode, Fallible, GWEI, Harness,
+    L1_FEE_WEI, OWNER, PEER, SHEET_ENTRIES, Setup, TIP, TIP_HEX, aggregate, fixture, http_pool,
+    quantity, receipt_for, sheet, sheet_index, sheets_on, watched,
 };
 
 #[test]
@@ -925,20 +925,16 @@ async fn an_op_stack_send_is_priced_by_its_receipt_rather_than_its_gas() {
     harness.watch_owner().await.unwrap();
     harness.node.always(Method::BlockNumber, Answer::ok(TIP_HEX));
     harness.node.always(Method::Call, Answer::ok(&aggregate(&sheets_on(BASE, 1, ETH))));
-    let receipt = serde_json::json!({
-        "transactionHash": sent,
-        "status": "0x1",
-        "gasUsed": "0xfde8",
-        "effectiveGasPrice": format!("{gas_price_wei:#x}"),
-        "l1Fee": format!("{L1_FEE_WEI:#x}"),
-        "blockNumber": "0x112a7e1",
-        "blockHash": format!("0x{}", "aa".repeat(32)),
-    });
-    harness.node.always(Method::GetTransactionReceipt, Answer::ok(&receipt.to_string()));
+    let receipt = receipt_for(&sent, 18_000_001).replacen(
+        '{',
+        &format!(r#"{{"l1Fee":"{L1_FEE_WEI:#x}","#),
+        1,
+    );
+    harness.node.always(Method::GetTransactionReceipt, Answer::ok(&receipt));
     harness.sync().await.unwrap();
 
     let records = harness.records();
-    let fee_wei = 65_000 * gas_price_wei + L1_FEE_WEI;
+    let fee_wei = 21_000 * 20 * GWEI + L1_FEE_WEI;
     let of_asset = |asset: AssetId| {
         records.iter().find(|record| record.asset == asset).expect("a record of the asset")
     };

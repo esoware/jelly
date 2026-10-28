@@ -64,21 +64,20 @@ statements! {
            timestamp = CASE WHEN ?17 AND height IS NOT NULL THEN excluded.timestamp \
              ELSE COALESCE(excluded.timestamp, timestamp) END";
 
-    /// A native row that moved nothing and names `?7`, the contract of token `?6`, goes
+    /// A native row that moved nothing and names `?6`, the contract of token `?5`, goes
     /// when that token's row of the transaction carries a fee.
     ///
     /// Both are one address's rows of one transaction, so the native row says nothing
     /// the other does not, whichever arrived first. An EVM indexer lists the owner's call
     /// to a token contract as a native transaction of its own, even when the call
-    /// reverted. The two fees need not match, because the indexer leaves out the L1 data
-    /// fee an OP Stack receipt charges.
+    /// reverted. The two fees need not match, because on the OP Stack an indexed row that
+    /// got no fee from its receipt prices only the gas, without the L1 data fee.
     DROP_REDUNDANT_NATIVE =
         "DELETE FROM txs \
-         WHERE chain = ?1 AND txid = ?2 AND address_id = ?3 AND asset = ?4 AND amount = ?5 \
-           AND counterparty = ?7 \
+         WHERE txid = ?1 AND address_id = ?2 AND asset = ?3 AND amount = ?4 \
+           AND counterparty = ?6 \
            AND EXISTS (SELECT 1 FROM txs k \
-             WHERE k.chain = ?1 AND k.txid = ?2 AND k.address_id = ?3 AND k.asset = ?6 \
-               AND k.fee IS NOT NULL)";
+             WHERE k.txid = ?1 AND k.address_id = ?2 AND k.asset = ?5 AND k.fee IS NOT NULL)";
 
     /// Whether the wallet already holds a row of the transaction for the asset, at any of
     /// its addresses.
@@ -407,7 +406,6 @@ impl Writer<'_> {
                 self.connection(),
                 DROP_REDUNDANT_NATIVE,
                 params![
-                    owner.chain.as_str(),
                     record.txid.value(),
                     record.address_id,
                     AssetId::Native(owner.chain).key(),
