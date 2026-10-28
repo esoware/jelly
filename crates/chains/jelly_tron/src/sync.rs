@@ -7,6 +7,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+use futures_util::future::join_all;
 use jelly_core::{
     Amount, AssetId, BalanceUpdate, ChainSyncProgress, Clock, Deadline, EventSink, WalletEvent,
 };
@@ -112,8 +113,9 @@ async fn balances(
     };
     emit_balance(events, entry.address_id, TRX, balance_sun);
     let mut balances = vec![(TRX, balance_sun)];
-    for token in TOKENS {
-        match inputs.client.token_balance(&entry.address, &entry.body, token).await {
+    let reads = TOKENS.map(|token| inputs.client.token_balance(&entry.address, &entry.body, token));
+    for (token, read) in TOKENS.into_iter().zip(join_all(reads).await) {
+        match read {
             Ok(balance) => {
                 emit_balance(events, entry.address_id, AssetId::Token(token), balance);
                 balances.push((AssetId::Token(token), balance));
