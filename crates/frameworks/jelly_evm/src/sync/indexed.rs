@@ -57,9 +57,8 @@ enum IndexedReadState {
 /// once a read returns rows past the frontier it started from, or claims the
 /// blocks up to the tip that first showed the news.
 ///
-/// An address whose read made a native record is explained wholly, even when a
-/// token record stands in for it, because a token transfer moves no native balance
-/// but its sender's fee. One whose news is still unreported, or
+/// An address whose read emitted a native record is explained wholly, because a
+/// token transfer moves no native balance. One whose news is still unreported, or
 /// whose read was truncated, or skipped for the deadline or a busy or unreachable
 /// service, is deferred, because the service may still report the transfer behind
 /// its change. The first failure ends the step, because the next address would ask
@@ -143,7 +142,7 @@ pub(super) async fn indexed_history(
         let mut records =
             record::of_native(inputs.params.native(), entry, native.rows(), internal.rows(), tip);
         let has_native = !records.is_empty();
-        record::add_tokens(&mut records, inputs.tokens, entry, tokens.rows(), native.rows(), tip);
+        records.extend(record::of_tokens(inputs.tokens, entry, tokens.rows(), native.rows(), tip));
         for record in records {
             inputs.events.emit(WalletEvent::TxDetected(record)).await;
         }

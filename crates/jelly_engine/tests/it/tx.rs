@@ -100,6 +100,20 @@ async fn a_prepared_transaction_is_signed_broadcast_and_recorded() {
 }
 
 #[tokio::test]
+async fn a_sent_transaction_is_recorded_with_the_rent_its_review_showed() {
+    let (harness, from) = ready().await.unwrap();
+    harness.builder.state(CHAIN).charge_rent(Amount::from_base_units(2_039_280));
+    let prepared = harness.engine.prepare_tx(request(from)).await.unwrap();
+    assert_eq!(prepared.preview.rent, Some(Amount::from_base_units(2_039_280)));
+    harness.engine.submit_tx(prepared.id, secret(PASSWORD), prepared.preview_digest).await.unwrap();
+
+    let page = harness.engine.list_txs(TxQuery { limit: 10, ..Default::default() }).await.unwrap();
+    let row = page.rows.first().expect("the sent row");
+    assert_eq!(row.fee, Some(Amount::from_base_units(1_000)));
+    assert_eq!(row.rent, Some(Amount::from_base_units(2_039_280)));
+}
+
+#[tokio::test]
 async fn unsupported_payment_fields_are_not_silently_ignored_on_other_chains() {
     let (harness, from) = ready().await.unwrap();
     for (request, wanted) in [

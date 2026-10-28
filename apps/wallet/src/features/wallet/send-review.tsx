@@ -3,7 +3,7 @@ import type { ComponentProps } from "react"
 
 import { isSubmitting, preparedOf } from "@/features/wallet/send-state.ts"
 import type { SendState } from "@/features/wallet/send-state.ts"
-import type { PendingTxId, TxPreview, TxWarningKind } from "@/ipc/bindings.gen.ts"
+import type { Amount, PendingTxId, TxPreview, TxWarningKind } from "@/ipc/bindings.gen.ts"
 import { addAmounts } from "@/lib/amount.ts"
 import { chainMeta, chainName, nativeAsset } from "@/lib/chain.ts"
 import { useFiatCurrency, useFiatValue, useIsFiatStale } from "@/store.ts"
@@ -46,19 +46,28 @@ function SourceList({ sources }: SourceListProps) {
   )
 }
 
+function nativeCost(preview: TxPreview): Amount | bigint | null {
+  return preview.rent === null ? preview.fee : addAmounts(preview.fee, preview.rent)
+}
+
 interface TotalAmountProps {
   preview: TxPreview
 }
 
 function TotalAmount({ preview }: TotalAmountProps) {
   if (preview.asset.kind === "native") {
-    return <CryptoAmount amount={addAmounts(preview.amount, preview.fee)} asset={preview.asset} />
+    return (
+      <CryptoAmount
+        amount={addAmounts(preview.amount, nativeCost(preview))}
+        asset={preview.asset}
+      />
+    )
   }
   return (
     <>
       <CryptoAmount amount={preview.amount} asset={preview.asset} />
       <span>+</span>
-      <CryptoAmount amount={preview.fee} asset={nativeAsset(preview.chain)} />
+      <CryptoAmount amount={nativeCost(preview)} asset={nativeAsset(preview.chain)} />
     </>
   )
 }
@@ -70,18 +79,18 @@ interface TotalFiatProps {
 function TotalFiat({ preview }: TotalFiatProps) {
   const native = nativeAsset(preview.chain)
   const amountValue = useFiatValue(preview.amount, preview.asset)
-  const feeValue = useFiatValue(preview.fee, native)
+  const costValue = useFiatValue(nativeCost(preview), native)
   const currency = useFiatCurrency()
   const isAssetStale = useIsFiatStale(preview.asset)
-  const isFeeStale = useIsFiatStale(native)
-  if (amountValue === null || feeValue === null) {
+  const isCostStale = useIsFiatStale(native)
+  if (amountValue === null || costValue === null) {
     return null
   }
   return (
     <FiatValue
-      value={amountValue + feeValue}
+      value={amountValue + costValue}
       currency={currency}
-      isStale={isAssetStale || isFeeStale}
+      isStale={isAssetStale || isCostStale}
       className="text-caption text-fg-faint"
     />
   )
@@ -212,6 +221,17 @@ export function ReviewStep({ state, onBack, onConfirm }: ReviewStepProps) {
                     className="text-caption text-fg-faint"
                   />
                 </span>
+                {preview.rent === null ? null : (
+                  <span className="flex items-baseline gap-1">
+                    <span className="text-caption text-fg-faint">Token account rent</span>
+                    <CryptoAmount amount={preview.rent} asset={nativeAsset(preview.chain)} />
+                    <FiatAmount
+                      amount={preview.rent}
+                      asset={nativeAsset(preview.chain)}
+                      className="text-caption text-fg-faint"
+                    />
+                  </span>
+                )}
                 <span className="flex items-baseline gap-1">
                   <span className="text-caption text-fg-faint">Total</span>
                   <span className="flex flex-wrap items-baseline gap-1 font-semibold">

@@ -62,8 +62,11 @@ impl PreviewDigest {
             field(&mut hasher, warning.kind.as_str().as_bytes());
             field(&mut hasher, warning.message.as_bytes());
         }
-        // Last and only when present. Everything before it is self-delimiting, so its
-        // presence alone tells two previews apart.
+        // Last and only when present. Everything before them is self-delimiting, and
+        // the two differ in width, so their presence alone tells two previews apart.
+        if let Some(rent) = preview.rent {
+            field(&mut hasher, &rent.base_units().to_be_bytes());
+        }
         if let Some(tag) = preview.destination_tag {
             field(&mut hasher, &tag.to_be_bytes());
         }
@@ -314,6 +317,7 @@ mod tests {
             destination_tag: None,
             amount: Amount::from_base_units(10_000),
             fee: Amount::from_base_units(250),
+            rent: None,
             details: Vec::new(),
             warnings: Vec::new(),
         }
@@ -393,6 +397,17 @@ mod tests {
         let mut retagged = preview();
         retagged.destination_tag = Some(1);
         assert_ne!(PreviewDigest::of(&retagged, None), PreviewDigest::of(&tagged, None));
+
+        let mut rented = preview();
+        rented.rent = Some(Amount::ZERO);
+        assert_ne!(PreviewDigest::of(&rented, None), base);
+        let mut rerented = preview();
+        rerented.rent = Some(Amount::from_base_units(1));
+        assert_ne!(PreviewDigest::of(&rerented, None), PreviewDigest::of(&rented, None));
+        let mut both = tagged.clone();
+        both.rent = Some(Amount::ZERO);
+        assert_ne!(PreviewDigest::of(&both, None), PreviewDigest::of(&tagged, None));
+        assert_ne!(PreviewDigest::of(&both, None), PreviewDigest::of(&rented, None));
     }
 
     /// Without length prefixing these previews would frame to the same bytes.

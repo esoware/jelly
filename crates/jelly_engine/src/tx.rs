@@ -428,7 +428,7 @@ fn sent_record(pending: &PendingTx, txid: &TxId, seen_unix_secs: i64) -> TxRecor
     } else {
         TxDirection::Outgoing
     };
-    TxRecord::builder(
+    let mut record = TxRecord::builder(
         preview.asset,
         pending.record_address_id,
         txid.clone(),
@@ -439,8 +439,11 @@ fn sent_record(pending: &PendingTx, txid: &TxId, seen_unix_secs: i64) -> TxRecor
     .counterparty(preview.to.clone())
     .outcome(TxOutcome::Unknown)
     .detection(TxDetection::Full)
-    .seen_at(seen_unix_secs)
-    .build()
+    .seen_at(seen_unix_secs);
+    if let Some(rent) = preview.rent {
+        record = record.rent(rent);
+    }
+    record.build()
 }
 
 /// Files a broadcast transaction's record, answering what the store did with it.

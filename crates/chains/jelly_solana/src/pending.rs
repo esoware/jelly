@@ -74,24 +74,26 @@ impl Tracked {
     /// Settles the row the submission wrote under a token send's own asset once the
     /// send has landed and failed, because the failure itself is recorded as native.
     /// Its fee is zero, because the fee was paid in SOL and the native record
-    /// carries it.
+    /// carries it, and so is its rent, because a failed transaction opened nothing.
     pub(crate) fn failed_token_record(&self, slot: u64, tip_slot: u64) -> Option<TxRecord> {
         let AssetId::Token(_) = self.asset else { return None };
         let record = self
             .record(self.asset, self.direction(), Amount::ZERO, TxOutcome::Failed)
             .fee(Amount::ZERO)
+            .rent(Amount::ZERO)
             .confirmed_at(slot, None, tip_slot)
             .build();
         Some(record)
     }
 
-    /// Zero fee, because the transaction never landed. Without a `seen_at_secs`
-    /// reading the store supplies a timestamp, and the Unix epoch is never
-    /// substituted.
+    /// Zero fee and rent, because the transaction never landed. Without a
+    /// `seen_at_secs` reading the store supplies a timestamp, and the Unix epoch is
+    /// never substituted.
     pub(crate) fn expired_record(&self, seen_at_secs: Option<i64>) -> TxRecord {
         let mut builder = self
             .record(self.asset, self.direction(), self.amount(), TxOutcome::Failed)
-            .fee(Amount::ZERO);
+            .fee(Amount::ZERO)
+            .rent(Amount::ZERO);
         if let Some(seen_at_secs) = seen_at_secs {
             builder = builder.seen_at(seen_at_secs);
         }
@@ -217,6 +219,7 @@ mod tests {
         assert_eq!(landed.height, Some(100));
         assert_eq!(landed.confirmations, 6);
         assert_eq!(landed.fee, None, "a fee that was charged is not overwritten with an estimate");
+        assert_eq!(landed.rent, None, "nor a rent the review estimated");
 
         let failed = entry.landed_record(100, 100, true);
         assert_eq!(failed.outcome, TxOutcome::Failed);
@@ -225,6 +228,7 @@ mod tests {
         let dead = entry.expired_record(Some(1_700_000_000));
         assert_eq!(dead.outcome, TxOutcome::Failed);
         assert_eq!(dead.fee, Some(Amount::ZERO), "nothing was charged");
+        assert_eq!(dead.rent, Some(Amount::ZERO), "and no account was opened");
         assert_eq!(dead.height, None);
         assert_eq!(dead.timestamp, Some(1_700_000_000));
     }

@@ -43,8 +43,8 @@ statements! {
     UPSERT =
         "INSERT INTO txs \
            (wallet_id, address_id, chain, asset, txid, direction, outcome, detection, amount, \
-            fee, counterparty, pays_for, height, timestamp, created_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15) \
+            fee, rent, counterparty, pays_for, height, timestamp, created_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16) \
          ON CONFLICT (address_id, asset, txid) DO UPDATE SET \
            direction = CASE WHEN detection = 'full' AND excluded.detection = 'balance_delta' \
              THEN direction ELSE excluded.direction END, \
@@ -54,12 +54,26 @@ statements! {
            amount = CASE WHEN detection = 'full' AND excluded.detection = 'balance_delta' \
              THEN amount ELSE excluded.amount END, \
            fee = COALESCE(excluded.fee, fee), \
+           rent = COALESCE(excluded.rent, rent), \
            counterparty = CASE WHEN detection = 'full' AND excluded.detection = 'balance_delta' \
              THEN counterparty ELSE COALESCE(excluded.counterparty, counterparty) END, \
            pays_for = COALESCE(excluded.pays_for, pays_for), \
-           height = CASE WHEN ?16 THEN excluded.height ELSE COALESCE(excluded.height, height) END, \
-           timestamp = CASE WHEN ?16 AND height IS NOT NULL THEN excluded.timestamp \
+           height = CASE WHEN ?17 THEN excluded.height ELSE COALESCE(excluded.height, height) END, \
+           timestamp = CASE WHEN ?17 AND height IS NOT NULL THEN excluded.timestamp \
              ELSE COALESCE(excluded.timestamp, timestamp) END";
+
+    /// A native row that moved nothing goes when a row of another asset carries its fee.
+    ///
+    /// Both are one address's rows of one transaction, so the native row says nothing
+    /// the other does not, whichever arrived first. An EVM indexer lists the owner's call
+    /// to a token contract as a native transaction of its own, even when the call
+    /// reverted.
+    DROP_REDUNDANT_NATIVE =
+        "DELETE FROM txs \
+         WHERE chain = ?1 AND txid = ?2 AND address_id = ?3 AND asset = ?4 AND amount = ?5 \
+           AND EXISTS (SELECT 1 FROM txs k \
+             WHERE k.chain = ?1 AND k.txid = ?2 AND k.address_id = ?3 AND k.asset <> ?4 \
+               AND k.fee IS NOT NULL AND k.fee <> ?5)";
 
     /// Whether the wallet already holds a row of the transaction for the asset, at any of
     /// its addresses.
@@ -82,7 +96,7 @@ statements! {
         "SELECT t.id AS id, t.address_id AS address_id, t.chain AS chain, \
            t.asset AS asset, t.txid AS txid, t.direction AS direction, \
            t.outcome AS outcome, t.detection AS detection, t.amount AS amount, \
-           t.fee AS fee, t.counterparty AS counterparty, t.pays_for AS pays_for, \
+           t.fee AS fee, t.rent AS rent, t.counterparty AS counterparty, t.pays_for AS pays_for, \
            t.height AS height, \
            CASE WHEN t.height IS NULL THEN t.sort_time ELSE t.timestamp END AS timestamp, \
            t.sort_time AS sort_time \
@@ -134,7 +148,7 @@ statements! {
         "SELECT t.id AS id, t.address_id AS address_id, t.chain AS chain, \
            t.asset AS asset, t.txid AS txid, t.direction AS direction, \
            t.outcome AS outcome, t.detection AS detection, t.amount AS amount, \
-           t.fee AS fee, t.counterparty AS counterparty, t.pays_for AS pays_for, \
+           t.fee AS fee, t.rent AS rent, t.counterparty AS counterparty, t.pays_for AS pays_for, \
            t.height AS height, \
            CASE WHEN t.height IS NULL THEN t.sort_time ELSE t.timestamp END AS timestamp, \
            own.id IS NOT NULL AS is_counterparty_own \
@@ -151,7 +165,8 @@ pub enum TxWrite {
     /// The wallet held no row of the transaction for the asset before, so it is news.
     Inserted,
     /// The wallet already held a row of it, at this address or another, so the record
-    /// is a later sighting or another address's share of a known transaction.
+    /// is a later sighting or another address's share of a known transaction. A record
+    /// that a row of another asset already says everything of is no news either.
     Updated,
 }
 
@@ -168,6 +183,7 @@ pub struct TxRow {
     pub detection: TxDetection,
     pub amount: Amount,
     pub fee: Option<Amount>,
+    pub rent: Option<Amount>,
     pub counterparty: Option<String>,
     /// The unconfirmed transaction a child-pays-for-parent speed-up pays for.
     pub pays_for: Option<String>,
@@ -298,6 +314,7 @@ const OUTCOME: Column = Column::new(TX, "outcome");
 const DETECTION: Column = Column::new(TX, "detection");
 const AMOUNT: Column = Column::new(TX, "amount");
 const FEE: Column = Column::new(TX, "fee");
+const RENT: Column = Column::new(TX, "rent");
 const HEIGHT: Column = Column::new(TX, "height");
 
 fn map(row: &Row<'_>) -> Result<TxRow, StoreError> {
@@ -312,6 +329,7 @@ fn map(row: &Row<'_>) -> Result<TxRow, StoreError> {
         detection: codec::wire(row, DETECTION, TxDetection::parse)?,
         amount: codec::amount(row, AMOUNT)?,
         fee: codec::optional_amount(row, FEE)?,
+        rent: codec::optional_amount(row, RENT)?,
         counterparty: row.get("counterparty")?,
         pays_for: row.get("pays_for")?,
         height: codec::optional_int(row, HEIGHT)?,
@@ -362,6 +380,7 @@ impl Writer<'_> {
                 record.detection.as_str(),
                 codec::amount_to_blob(record.amount),
                 record.fee.map(codec::amount_to_blob),
+                record.rent.map(codec::amount_to_blob),
                 record.counterparty,
                 record.pays_for.as_ref().map(TxId::value),
                 height,
@@ -371,7 +390,21 @@ impl Writer<'_> {
             ],
         )
         .constrained(TX, UNIQUE_COLUMNS)?;
-        Ok(if is_known { TxWrite::Updated } else { TxWrite::Inserted })
+        let native = AssetId::Native(owner.chain);
+        let zero = codec::amount_to_blob(Amount::ZERO);
+        let dropped = sql::run(
+            self.connection(),
+            DROP_REDUNDANT_NATIVE,
+            params![
+                owner.chain.as_str(),
+                record.txid.value(),
+                record.address_id,
+                native.key(),
+                zero
+            ],
+        )?;
+        let is_redundant = record.asset == native && dropped > 0;
+        Ok(if is_known || is_redundant { TxWrite::Updated } else { TxWrite::Inserted })
     }
 
     /// A reorg is chain-wide, so this clears the height and timestamp of every row, in

@@ -33,6 +33,7 @@ async fn a_record_round_trips_without_a_confirmation_count() {
         Amount::ZERO,
     )
     .fee(Amount::from_base_units(210))
+    .rent(Amount::from_base_units(330))
     .counterparty("bc1qother")
     .outcome(TxOutcome::Failed)
     .detection(TxDetection::BalanceDelta)
@@ -51,11 +52,45 @@ async fn a_record_round_trips_without_a_confirmation_count() {
     assert_eq!(row.detection, TxDetection::BalanceDelta);
     assert_eq!(row.amount, Amount::ZERO);
     assert_eq!(row.fee, Some(Amount::from_base_units(210)));
+    assert_eq!(row.rent, Some(Amount::from_base_units(330)));
     assert_eq!(row.counterparty.as_deref(), Some("bc1qother"));
     assert_eq!(row.height, Some(800_000));
     assert_eq!(row.timestamp_unix_secs, Some(1_700_000_000));
     assert_eq!(page.rows.len(), 1);
     assert_eq!(page.next_cursor, None);
+}
+
+/// A send's own row carries the rent its review showed. A sighting that cannot tell
+/// keeps it, and one that saw what the transaction really paid replaces it.
+#[tokio::test]
+async fn a_sighting_without_a_rent_keeps_the_one_stored() {
+    let harness = common::harness().await.unwrap();
+    let wallet = common::wallet(&harness.store, "rent").await.unwrap();
+    let address =
+        common::address(&harness.store, wallet.id, ChainId::Solana, "owner").await.unwrap();
+    let sighting = |rent: Option<u128>| {
+        let mut builder = TxRecord::builder(
+            AssetId::Token(TokenId::UsdtSpl),
+            address.id,
+            TxId::new(ChainId::Solana, "opening"),
+            TxDirection::Outgoing,
+            Amount::from_base_units(1_000_000),
+        );
+        if let Some(rent) = rent {
+            builder = builder.rent(Amount::from_base_units(rent));
+        }
+        builder.build()
+    };
+    let stored_rent = async || {
+        let page = harness.store.list_txs(TxFilter::new(wallet.id)).await.unwrap();
+        page.rows.first().expect("one row").rent
+    };
+
+    write(&harness.store, vec![sighting(Some(2_039_280))]).await.unwrap();
+    write(&harness.store, vec![sighting(None)]).await.unwrap();
+    assert_eq!(stored_rent().await, Some(Amount::from_base_units(2_039_280)));
+    write(&harness.store, vec![sighting(Some(0))]).await.unwrap();
+    assert_eq!(stored_rent().await, Some(Amount::ZERO));
 }
 
 #[tokio::test]
@@ -279,6 +314,79 @@ async fn a_write_says_whether_the_row_was_already_there() {
         vec![TxWrite::Updated, TxWrite::Updated, TxWrite::Inserted],
         "another address's share of a known transaction is no news, and a new one is"
     );
+}
+
+/// An EVM token transfer is the owner's call to the token contract, which an indexer
+/// also lists as a native transaction that moved nothing and paid the same fee.
+#[tokio::test]
+async fn a_native_row_that_moved_nothing_is_dropped_beside_a_token_row_that_paid_its_fee() {
+    let harness = common::harness().await.unwrap();
+    let wallet = common::wallet(&harness.store, "calls").await.unwrap();
+    let owner =
+        common::address(&harness.store, wallet.id, ChainId::Ethereum, "0xowner").await.unwrap();
+    let elsewhere =
+        common::address(&harness.store, wallet.id, ChainId::Ethereum, "0xelsewhere").await.unwrap();
+    let eth = AssetId::Native(ChainId::Ethereum);
+    let usdt = AssetId::Token(TokenId::UsdtErc20);
+    let row = |address_id: i64, asset: AssetId, txid: &str, amount: u128, fee: Option<u128>| {
+        let mut builder = TxRecord::builder(
+            asset,
+            address_id,
+            TxId::new(ChainId::Ethereum, txid),
+            TxDirection::Outgoing,
+            Amount::from_base_units(amount),
+        );
+        if let Some(fee) = fee {
+            builder = builder.fee(Amount::from_base_units(fee));
+        }
+        builder.build()
+    };
+
+    write(&harness.store, vec![row(owner.id, eth, "call-first", 0, Some(9))]).await.unwrap();
+    write(&harness.store, vec![row(owner.id, usdt, "call-first", 500, Some(9))]).await.unwrap();
+    let token_first = write(
+        &harness.store,
+        vec![
+            row(owner.id, usdt, "token-first", 500, Some(9)),
+            row(owner.id, eth, "token-first", 0, Some(9)),
+        ],
+    )
+    .await
+    .unwrap();
+    assert_eq!(token_first, vec![TxWrite::Inserted, TxWrite::Updated], "the call is no news");
+    let mut reverted =
+        [row(owner.id, usdt, "reverted", 0, Some(9)), row(owner.id, eth, "reverted", 0, Some(9))];
+    for record in &mut reverted {
+        record.outcome = TxOutcome::Failed;
+    }
+    write(&harness.store, reverted.to_vec()).await.unwrap();
+
+    write(
+        &harness.store,
+        vec![
+            row(owner.id, usdt, "unpaid", 500, None),
+            row(owner.id, eth, "unpaid", 0, Some(9)),
+            row(owner.id, usdt, "free", 500, Some(0)),
+            row(owner.id, eth, "free", 0, Some(9)),
+            row(owner.id, usdt, "moved", 500, Some(9)),
+            row(owner.id, eth, "moved", 7, Some(9)),
+            row(owner.id, usdt, "apart", 500, Some(9)),
+            row(elsewhere.id, eth, "apart", 0, None),
+        ],
+    )
+    .await
+    .unwrap();
+
+    let filter = TxFilter { asset: Some(eth), ..TxFilter::new(wallet.id) };
+    let mut kept = txids(&harness.store.list_txs(filter).await.unwrap().rows);
+    kept.sort();
+    assert_eq!(
+        kept,
+        ["apart", "free", "moved", "unpaid"],
+        "a row that moved coin, a token row with no fee, and another address keep theirs"
+    );
+    let filter = TxFilter { asset: Some(usdt), ..TxFilter::new(wallet.id) };
+    assert_eq!(harness.store.list_txs(filter).await.unwrap().rows.len(), 7);
 }
 
 #[tokio::test]

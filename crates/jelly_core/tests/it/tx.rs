@@ -122,6 +122,7 @@ mod one_chain_per_transaction {
                 destination_tag: None,
                 amount: Amount::from_base_units(1),
                 fee: Amount::from_base_units(2),
+                rent: None,
                 details: Vec::new(),
                 warnings: Vec::new(),
             },

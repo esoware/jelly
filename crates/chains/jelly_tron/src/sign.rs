@@ -95,6 +95,7 @@ mod tests {
             destination_tag: None,
             amount: facts.amount,
             fee: Amount::ZERO,
+            rent: None,
             details: Vec::new(),
             warnings: Vec::new(),
         };

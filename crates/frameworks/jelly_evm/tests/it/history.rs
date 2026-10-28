@@ -67,7 +67,7 @@ async fn an_indexed_pass_records_native_and_token_history_and_asks_for_no_logs()
         "an indexer covers what a log walk would find, and native transfers besides"
     );
     let records = harness.records();
-    assert_eq!(records.len(), 4, "two native rows and the two token rows that are ours");
+    assert_eq!(records.len(), 5, "three native rows and the two token rows that are ours");
 
     let incoming = records
         .iter()
@@ -825,9 +825,10 @@ async fn a_token_transfer_someone_else_sent_is_recorded_without_their_fee() {
 }
 
 /// The owner's token transfer is its own call to the token contract, so `txlist`
-/// lists it too, moving no coin.
+/// lists it too, moving no coin. The store keeps the token record, which carries the
+/// same fee, in place of the call's.
 #[tokio::test]
-async fn a_token_transfer_the_owner_sent_is_one_record_and_explains_the_coin_its_fee_took() {
+async fn a_token_transfer_the_owner_sent_carries_its_fee_and_explains_the_coin_it_took() {
     let only_the_send = |key: &str| -> Fallible<String> {
         let mut page: Value = serde_json::from_str(&fixture("etherscan.json", key)?)?;
         page.get_mut("result").and_then(Value::as_array_mut).ok_or("a page of rows")?.retain(
@@ -848,16 +849,22 @@ async fn a_token_transfer_the_owner_sent_is_one_record_and_explains_the_coin_its
     harness.sync().await.unwrap();
 
     let records = harness.records();
-    assert_eq!(records.len(), 1, "the token record and no record of the coin: {records:?}");
-    let sent = records.first().unwrap();
-    assert_eq!(sent.asset, AssetId::Token(TokenId::UsdtErc20));
+    assert_eq!(records.len(), 2, "the token record and the call's: {records:?}");
+    let of_asset = |asset: AssetId| {
+        records.iter().find(|record| record.asset == asset).expect("a record of the asset")
+    };
+    let fee_wei = 65_000 * 20_000_000_000;
+    let sent = of_asset(AssetId::Token(TokenId::UsdtErc20));
     assert_eq!(sent.direction, TxDirection::Outgoing);
     assert_eq!(sent.amount.base_units(), 1_000_000);
     assert_eq!(sent.counterparty.as_deref(), Some(PEER));
-    let fee = 65_000 * 20_000_000_000;
-    assert_eq!(sent.fee.map(Amount::base_units), Some(fee));
+    assert_eq!(sent.fee.map(Amount::base_units), Some(fee_wei));
+    let call = of_asset(AssetId::Native(ChainId::Ethereum));
+    assert_eq!(call.txid, sent.txid);
+    assert_eq!(call.amount, Amount::ZERO);
+    assert_eq!(call.fee.map(Amount::base_units), Some(fee_wei));
 
-    harness.node.always(Method::Call, Answer::ok(&aggregate(&sheet(5 * ETH - fee))));
+    harness.node.always(Method::Call, Answer::ok(&aggregate(&sheet(5 * ETH - fee_wei))));
     harness.sync().await.unwrap();
     let caught_up = TIP + ETHEREUM.indexer_lag_blocks();
     harness.node.always(Method::BlockNumber, Answer::ok(&quantity(u128::from(caught_up))));

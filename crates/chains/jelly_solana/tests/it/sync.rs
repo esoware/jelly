@@ -254,7 +254,7 @@ mod records {
     }
 
     #[tokio::test]
-    async fn a_token_send_that_opens_the_recipients_account_is_one_record_charged_its_rent() {
+    async fn a_token_send_that_opens_the_recipients_account_is_one_record_with_its_rent() {
         const SENDER: &str = "AvxmrCrmPxWVeQ7DWUmc6WsJnSU6CMzZsDNevxuMxnKX";
         const RECIPIENT: &str = "2ARtzy35wXV1nvsoWqb5YHqYiYxrSLiZnfZ56q4Qf6CM";
         let harness = Harness::with(paged());
@@ -273,15 +273,13 @@ mod records {
         assert_eq!(sent.amount, Amount::from_base_units(1_131_686));
         assert_eq!(sent.counterparty.as_deref(), Some(RECIPIENT));
         assert_eq!(sent.detection, TxDetection::Full);
-        assert_eq!(
-            sent.fee,
-            Some(Amount::from_base_units(1_498_453)),
-            "the 10013 lamport fee and the 1488440 lamport rent, all the SOL the sender lost"
-        );
+        assert_eq!(sent.fee, Some(Amount::from_base_units(10_013)));
+        assert_eq!(sent.rent, Some(Amount::from_base_units(1_488_440)));
         let received = records.iter().find(|record| record.address_id == 9).expect("the receipt");
         assert_eq!((received.asset, received.direction), (usdt, TxDirection::Incoming));
         assert_eq!(received.amount, Amount::from_base_units(1_131_686));
-        assert_eq!(received.fee, None, "the sender paid the fee and the rent");
+        assert_eq!(received.fee, None, "the sender paid the fee");
+        assert_eq!(received.rent, Some(Amount::ZERO), "and the rent");
     }
 
     #[tokio::test]

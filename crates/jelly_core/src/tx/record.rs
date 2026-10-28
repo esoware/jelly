@@ -62,6 +62,10 @@ pub struct TxRecord {
     pub outcome: TxOutcome,
     pub amount: Amount,
     pub fee: Option<Amount>,
+    /// What the address paid besides the fee to open an account the transfer needed,
+    /// such as a recipient's new token account. It is held in that account rather than
+    /// spent, and counted in the native asset.
+    pub rent: Option<Amount>,
     pub counterparty: Option<String>,
     /// The unconfirmed transaction this one spends from only to pay its fee, when it is
     /// a child-pays-for-parent speed-up that moves nothing else.
@@ -92,6 +96,7 @@ impl TxRecord {
                 outcome: TxOutcome::Success,
                 amount,
                 fee: None,
+                rent: None,
                 counterparty: None,
                 pays_for: None,
                 height: None,
@@ -112,6 +117,11 @@ pub struct TxRecordBuilder {
 impl TxRecordBuilder {
     pub const fn fee(mut self, fee: Amount) -> Self {
         self.record.fee = Some(fee);
+        self
+    }
+
+    pub const fn rent(mut self, rent: Amount) -> Self {
+        self.record.rent = Some(rent);
         self
     }
 

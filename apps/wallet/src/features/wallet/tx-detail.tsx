@@ -294,6 +294,11 @@ function TxFacts({ row, onBumpFee, onCancel }: TxFactsProps) {
           <CryptoAmount amount={row.fee} asset={nativeAsset(chain)} hasFiat />
         </TxFact>
       )}
+      {row.rent === null ? null : (
+        <TxFact label="Token account rent">
+          <CryptoAmount amount={row.rent} asset={nativeAsset(chain)} hasFiat />
+        </TxFact>
+      )}
       {fiat.currentValue === null && fiat.historicalValue === null ? null : (
         <>
           <TxFact label="Value then">

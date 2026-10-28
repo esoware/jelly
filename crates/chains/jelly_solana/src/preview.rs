@@ -24,6 +24,7 @@ pub(crate) fn of(plan: &Plan, payload: &SolanaPayload) -> Result<TxPreview, Sola
         destination_tag: None,
         amount: Amount::from(plan.amount),
         fee: Amount::from(plan.fee()?),
+        rent: plan.token_account_rent.map(|rent| Amount::from(rent.lamports())),
         details: details(plan, payload)?,
         warnings: warnings(plan),
     })

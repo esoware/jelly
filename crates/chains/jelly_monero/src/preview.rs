@@ -22,6 +22,7 @@ pub(crate) fn of(config: &MoneroConfig, plan: &Plan, built: &Built, ring_height:
         destination_tag: None,
         amount: piconero(built.sent_piconero),
         fee: piconero(built.fee_piconero),
+        rent: None,
         details: details(plan, built, ring_height),
         warnings: warnings(config, plan, built),
     }

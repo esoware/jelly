@@ -341,6 +341,8 @@ pub(crate) struct InnerInstructions {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct TokenBalance {
+    /// The token account's place in the message's account keys.
+    pub(crate) account_index: usize,
     pub(crate) mint: String,
     /// Absent on very old records, where the account cannot be attributed to an
     /// owner and is therefore not this wallet's.

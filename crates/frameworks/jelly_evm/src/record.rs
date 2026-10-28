@@ -350,28 +350,21 @@ pub(crate) fn of_native(
     of_moves(moves, tip)
 }
 
-/// Adds the records of an indexed read's token rows to `records`, which holds its
-/// native ones.
+/// A token row carries a fee only when the owner sent its transaction.
 ///
-/// A token row carries a fee only when the owner sent its transaction. The row
-/// names who the tokens left, not who sent the transaction, and an approved spender
-/// or a solver can move them in a transaction of its own. Only `native`, the
-/// owner's transactions over the same blocks, says who sent it.
-///
-/// The owner's token transfer is its call to the token contract, so `native` lists
-/// it too, moving no coin. The token record carries its fee, so its native record is
-/// left out.
+/// The row names who the tokens left, not who sent the transaction, and an
+/// approved spender or a solver can move them in a transaction of its own. Only
+/// `native`, the owner's transactions over the same blocks, says who sent it.
 ///
 /// A row moving nothing is dropped, as [`of_logs`] drops its log. The fee of an
 /// owner's transaction that moved no tokens is on its native row.
-pub(crate) fn add_tokens(
-    records: &mut Vec<TxRecord>,
+pub(crate) fn of_tokens(
     tokens: &TokenTable,
     entry: &Watched,
     rows: &[TokenRow],
     native: &[NativeRow],
     tip: u64,
-) {
+) -> Vec<TxRecord> {
     let sent_by_owner: HashSet<B256> =
         native.iter().filter(|row| row.from == entry.owner).map(|row| row.hash).collect();
     let mut moves = Moves::new();
@@ -393,11 +386,7 @@ pub(crate) fn add_tokens(
                 .and_then(|(gas_price, gas_used)| gas_price.checked_mul(u128::from(gas_used)));
         }
     }
-    let moved_tokens = of_moves(moves, tip);
-    records.retain(|coin| {
-        !coin.amount.is_zero() || moved_tokens.iter().all(|token| token.txid != coin.txid)
-    });
-    records.extend(moved_tokens);
+    of_moves(moves, tip)
 }
 
 #[cfg(test)]
@@ -589,29 +578,16 @@ mod tests {
         let mut inbound = token_row(4, address(2), address(1));
         inbound.value = 0;
         let own = native_row(3, address(1), Some(token_table().contracts()[0]), 0);
-        let mut records = native_records(from_ref(&own), &[]);
-        let rows = [poisoned, inbound];
-        add_tokens(&mut records, &token_table(), &watched(1, 1), &rows, from_ref(&own), 100);
-        assert_eq!(records.len(), 1, "{records:?}");
-        let call = records.first().expect("the owner's call");
-        assert_eq!(call.asset, AssetId::Native(ChainId::Ethereum));
+        let records =
+            of_tokens(&token_table(), &watched(1, 1), &[poisoned, inbound], from_ref(&own), 100);
+        assert!(records.is_empty(), "{records:?}");
+
+        let natives = native_records(&[own], &[]);
         assert_eq!(
-            call.fee.map(Amount::base_units),
+            natives.first().and_then(|record| record.fee).map(Amount::base_units),
             Some(210_000),
             "the owner's own call still records its fee on the native row"
         );
-    }
-
-    #[test]
-    fn a_token_transfer_the_owner_sent_is_one_record_without_its_call_to_the_contract() {
-        let own = native_row(3, address(1), Some(token_table().contracts()[0]), 0);
-        let mut records = native_records(from_ref(&own), &[]);
-        let sent = token_row(3, address(1), address(2));
-        add_tokens(&mut records, &token_table(), &watched(1, 1), &[sent], from_ref(&own), 100);
-        assert_eq!(records.len(), 1, "one transaction is one entry: {records:?}");
-        let record = records.first().expect("the token record");
-        assert_eq!(record.asset, AssetId::Token(TokenId::LinkErc20));
-        assert_eq!(record.fee.map(Amount::base_units), Some(600_000));
     }
 
     #[test]
@@ -755,8 +731,7 @@ mod tests {
         let sent = token_row(3, address(1), address(2));
         let pulled = token_row(4, address(1), address(2));
         let own = native_row(3, address(1), Some(contract), 0);
-        let mut records = Vec::new();
-        add_tokens(&mut records, &token_table(), &watched(1, 1), &[sent, pulled], &[own], 100);
+        let records = of_tokens(&token_table(), &watched(1, 1), &[sent, pulled], &[own], 100);
         let fee_of = |hash: u8| {
             let txid = B256::repeat_byte(hash).to_string();
             records.iter().find(|record| record.txid.value() == txid).and_then(|record| record.fee)
@@ -799,15 +774,8 @@ mod tests {
                 let native: NativeRow = serde_json::from_str(&body).unwrap();
                 let token: TokenRow = serde_json::from_str(&body).unwrap();
                 let native_records = native_records(from_ref(&native), &[]);
-                let mut token_records = Vec::new();
-                add_tokens(
-                    &mut token_records,
-                    &token_table(),
-                    &watched(1, 1),
-                    &[token],
-                    &[native],
-                    100,
-                );
+                let token_records =
+                    of_tokens(&token_table(), &watched(1, 1), &[token], &[native], 100);
                 assert_eq!(native_records.len(), 1);
                 assert_eq!(token_records.len(), 1);
                 assert_eq!(native_records[0].fee, expected_fee, "{field}: {value:?}");
