@@ -5,7 +5,6 @@ import type {
   AssetMeta,
   ChainId,
   ChainMeta,
-  Coin,
   EndpointOrigin,
   KeySource,
   ProbeFailure,
@@ -45,7 +44,7 @@ export function chainMeta(chain: ChainId): ChainMeta {
   return entry
 }
 
-function assetMeta(asset: AssetId): AssetMeta {
+export function assetMeta(asset: AssetId): AssetMeta {
   const entry = assetsByKey.get(assetKey(asset))
   if (entry === undefined) {
     throw new Error(`The catalog has no asset ${assetKey(asset)}`)
@@ -115,10 +114,6 @@ export function assetName(asset: AssetId): string {
 
 export function assetChain(asset: AssetId): ChainId {
   return assetMeta(asset).chain
-}
-
-export function assetCoin(asset: AssetId): Coin | null {
-  return assetMeta(asset).coin
 }
 
 export function shownAsset(chain: ChainId, shownTokens: readonly TokenId[]): AssetId {

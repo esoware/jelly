@@ -231,7 +231,7 @@ impl UnitCache {
 
 /// `base_units` of `asset` at the asset's own scale, followed by its symbol.
 pub(crate) fn amount_text(asset: AssetId, base_units: u64) -> String {
-    format!("{} {}", Amount::from(base_units).format(asset.decimals()), asset.symbol())
+    format!("{} {}", Amount::from(base_units).format(asset.decimals()), asset.coin().symbol())
 }
 
 pub(crate) fn sol_text(lamports: u64) -> String {

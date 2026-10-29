@@ -78,7 +78,7 @@ fn the_tokens_are_coins_carried_elsewhere_with_no_bridged_real_world_asset() {
         assert!(
             TokenId::ALL
                 .iter()
-                .any(|other| other.chain() != ChainId::Arbitrum && other.symbol() == token.symbol()),
+                .any(|other| other.chain() != ChainId::Arbitrum && other.coin() == token.coin()),
             "{token:?} is carried on another network too"
         );
     }

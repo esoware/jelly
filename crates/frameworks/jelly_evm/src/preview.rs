@@ -26,10 +26,10 @@ pub(crate) fn of(
     let params = plan.params;
     let decimals = plan.asset.decimals();
     let asset_label = match plan.token {
-        Some(token) => format!("{} ({})", token.id().symbol(), params.token_standard),
+        Some(token) => format!("{} ({})", token.id().coin().symbol(), params.token_standard),
         None => params.symbol().to_owned(),
     };
-    let amount_symbol = plan.asset.symbol();
+    let amount_symbol = plan.asset.coin().symbol();
     let calldata = built.input();
     let target = built.call_target().unwrap_or(plan.to);
 

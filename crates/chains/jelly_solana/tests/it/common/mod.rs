@@ -705,7 +705,7 @@ pub(crate) fn stock_token(
     );
     if is_token_2022(token) {
         let recorded: Value = serde_json::from_str(include_str!("../../fixtures/mints.json"))?;
-        let name = token.symbol().to_ascii_lowercase();
+        let name = token.coin().symbol().to_ascii_lowercase();
         node.at(
             Method::GetAccountInfo,
             token.contract(),

@@ -13,9 +13,6 @@ use crate::tx::{CustomFee, FeeLevel, TxWarning, TxWarningKind};
 )]
 pub struct ChainSpec {
     pub chain: ChainId,
-    /// The name of the coin the chain pays fees in, which isn't always the network's: BNB
-    /// on BNB Smart Chain, and Ethereum on a rollup.
-    pub coin_name: &'static str,
     /// The chain the coin is native to: the chain itself, or Ethereum on a rollup that
     /// pays fees in ether.
     pub coin_chain: ChainId,
@@ -153,7 +150,6 @@ mod tests {
 
     const UTXO: ChainSpec = ChainSpec {
         chain: ChainId::Bitcoin,
-        coin_name: "Bitcoin",
         coin_chain: ChainId::Bitcoin,
         slip44: 0,
         key_kind: KeyKind::Secp256k1,

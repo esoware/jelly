@@ -18,7 +18,6 @@ const WIF_FORMAT: &str = "Bitcoin WIF key";
 
 pub const SPEC: ChainSpec = ChainSpec {
     chain: CHAIN,
-    coin_name: "Zcash",
     coin_chain: CHAIN,
     slip44: 133,
     key_kind: KeyKind::Secp256k1,

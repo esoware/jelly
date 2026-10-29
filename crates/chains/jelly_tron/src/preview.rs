@@ -31,7 +31,7 @@ pub(crate) fn of(plan: &Plan, facts: &Facts) -> TxPreview {
 fn details(plan: &Plan, facts: &Facts) -> Vec<TxDetail> {
     let cost = &plan.cost;
     let mut details = vec![
-        TxDetail::new("Contract", format!("{} transfer", facts.asset.symbol())),
+        TxDetail::new("Contract", format!("{} transfer", facts.asset.coin().symbol())),
         TxDetail::new("Transaction id", plan.payload.txid_hex()),
         TxDetail::new(
             "Reference block",
@@ -121,7 +121,7 @@ fn warnings(plan: &Plan, facts: &Facts) -> Vec<TxWarning> {
             format!(
                 "Sending {} does not activate {} on TRON. The recipient will also need TRX to move \
                  the tokens.",
-                facts.asset.symbol(),
+                facts.asset.coin().symbol(),
                 facts.recipient
             ),
         ));

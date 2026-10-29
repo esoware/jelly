@@ -74,9 +74,9 @@ fn the_tokens_are_coins_carried_elsewhere_with_no_bridged_real_world_asset() {
     for token in PARAMS.tokens {
         assert_eq!(token.chain(), ChainId::Avalanche, "{token:?}");
         assert!(
-            TokenId::ALL.iter().any(
-                |other| other.chain() != ChainId::Avalanche && other.symbol() == token.symbol()
-            ),
+            TokenId::ALL
+                .iter()
+                .any(|other| other.chain() != ChainId::Avalanche && other.coin() == token.coin()),
             "{token:?} is carried on another network too"
         );
     }

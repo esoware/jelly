@@ -62,7 +62,7 @@ impl EvmParams {
 
     /// The native coin's ticker, which is BNB rather than BSC on BNB Smart Chain.
     pub const fn symbol(&self) -> &'static str {
-        self.chain.ticker()
+        self.chain.coin().symbol()
     }
 
     /// Each forward pass re-reads this many blocks behind its frontier to catch

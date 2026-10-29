@@ -263,7 +263,7 @@ async fn an_absurd_fee_is_refused_by_the_ceiling_unless_the_table_raises_it() {
             .build_tx(&harness.request(wallet.theirs.address(), PAYMENT_SAT, "20000"))
             .await
             .expect_err("the ceiling refuses it");
-        let limit = format!("exceeds Jelly's limit of 0.02 {}.", params.chain.ticker());
+        let limit = format!("exceeds Jelly's limit of 0.02 {}.", params.chain.coin().symbol());
         assert!(error.to_string().contains(&limit), "{error}");
         assert!(!error.to_string().contains("base units"), "{error}");
 
@@ -465,7 +465,7 @@ async fn the_preview_describes_the_payload_in_the_chains_own_unit() {
             Some(format!(
                 "{} {}",
                 payload.fee.format(params.chain.native_decimals()),
-                params.chain.ticker()
+                params.chain.coin().symbol()
             ))
         );
         assert!(

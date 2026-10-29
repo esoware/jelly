@@ -3,9 +3,9 @@ use jelly_core::{AssetId, Coin, wire_enum};
 wire_enum! {
     /// A base asset the wallet asks a price for, always against the US dollar.
     ///
-    /// A native coin trades under its chain's ticker and a token under its coin's, so a
-    /// coin's instances on different chains share one quote. Wrapped ether uses ether's,
-    /// because Kraken lists no market of its own for it and it redeems one for one.
+    /// Every asset trades under its coin's ticker, so a coin's instances on different
+    /// chains share one quote. Wrapped ether uses ether's, because Kraken lists no market
+    /// of its own for it and it redeems one for one.
     pub enum Ticker {
         Btc => "BTC",
         Ltc => "LTC",
@@ -45,37 +45,47 @@ wire_enum! {
 }
 
 impl Ticker {
-    pub(crate) fn for_asset(asset: AssetId) -> Option<Self> {
-        match asset {
-            AssetId::Native(chain) => Self::parse(chain.ticker()),
-            AssetId::Token(token) => Some(match token.coin() {
-                Coin::Link => Self::Link,
-                Coin::Wbtc => Self::Wbtc,
-                Coin::Weth => Self::Eth,
-                Coin::Uni => Self::Uni,
-                Coin::Shib => Self::Shib,
-                Coin::Ena => Self::Ena,
-                Coin::Aave => Self::Aave,
-                Coin::Ondo => Self::Ondo,
-                Coin::Pepe => Self::Pepe,
-                Coin::Arb => Self::Arb,
-                Coin::Op => Self::Op,
-                Coin::Pump => Self::Pump,
-                Coin::Jup => Self::Jup,
-                Coin::Usdt => Self::Usdt,
-                Coin::Usdc => Self::Usdc,
-                Coin::Usds => Self::Usds,
-                Coin::Dai => Self::Dai,
-                Coin::Usdg => Self::Usdg,
-                Coin::Pyusd => Self::Pyusd,
-                Coin::Xaut => Self::Xaut,
-                Coin::Paxg => Self::Paxg,
-            }),
+    pub(crate) const fn for_coin(coin: Coin) -> Self {
+        match coin {
+            Coin::Btc => Self::Btc,
+            Coin::Ltc => Self::Ltc,
+            Coin::Doge => Self::Doge,
+            Coin::Bch => Self::Bch,
+            Coin::Zec => Self::Zec,
+            Coin::Eth | Coin::Weth => Self::Eth,
+            Coin::Bnb => Self::Bnb,
+            Coin::Pol => Self::Pol,
+            Coin::Avax => Self::Avax,
+            Coin::Sol => Self::Sol,
+            Coin::Trx => Self::Trx,
+            Coin::Xrp => Self::Xrp,
+            Coin::Gram => Self::Gram,
+            Coin::Xmr => Self::Xmr,
+            Coin::Link => Self::Link,
+            Coin::Wbtc => Self::Wbtc,
+            Coin::Uni => Self::Uni,
+            Coin::Shib => Self::Shib,
+            Coin::Ena => Self::Ena,
+            Coin::Aave => Self::Aave,
+            Coin::Ondo => Self::Ondo,
+            Coin::Pepe => Self::Pepe,
+            Coin::Arb => Self::Arb,
+            Coin::Op => Self::Op,
+            Coin::Pump => Self::Pump,
+            Coin::Jup => Self::Jup,
+            Coin::Usdt => Self::Usdt,
+            Coin::Usdc => Self::Usdc,
+            Coin::Usds => Self::Usds,
+            Coin::Dai => Self::Dai,
+            Coin::Usdg => Self::Usdg,
+            Coin::Pyusd => Self::Pyusd,
+            Coin::Xaut => Self::Xaut,
+            Coin::Paxg => Self::Paxg,
         }
     }
 
     /// Every asset one quote for this ticker prices, in [`AssetId::all`] order.
     pub fn assets(self) -> impl Iterator<Item = AssetId> {
-        AssetId::all().filter(move |&asset| Self::for_asset(asset) == Some(self))
+        AssetId::all().filter(move |asset| Self::for_coin(asset.coin()) == self)
     }
 }

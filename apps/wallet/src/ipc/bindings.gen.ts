@@ -310,8 +310,7 @@ export type AssetId = { kind: "native"; value: ChainId } | { kind: "token"; valu
 export type AssetMeta = {
 	asset: AssetId,
 	chain: ChainId,
-	/**  `None` for a native coin. */
-	coin: Coin | null,
+	coin: Coin,
 	symbol: string,
 	name: string,
 	decimals: number,
@@ -426,8 +425,11 @@ export type ChainMeta = {
 	canPoolSources: boolean,
 };
 
-/**  What a token stands for, the same on every chain that carries it. */
-export type Coin = "link" | "wbtc" | "weth" | "uni" | "shib" | "ena" | "aave" | "ondo" | "pepe" | "arb" | "op" | "pump" | "jup" | "usdt" | "usdc" | "usds" | "dai" | "usdg" | "pyusd" | "xaut" | "paxg";
+/**
+ *  A coin the wallet holds, the same on every chain that carries it: ether on Ethereum
+ *  and its rollups, or USDT on every network Tether issues it on.
+ */
+export type Coin = "btc" | "ltc" | "doge" | "bch" | "zec" | "eth" | "bnb" | "pol" | "avax" | "sol" | "trx" | "xrp" | "gram" | "xmr" | "link" | "wbtc" | "weth" | "uni" | "shib" | "ena" | "aave" | "ondo" | "pepe" | "arb" | "op" | "pump" | "jup" | "usdt" | "usdc" | "usds" | "dai" | "usdg" | "pyusd" | "xaut" | "paxg";
 
 /**  An address the user saved to send to, kept with the open wallet. */
 export type ContactRecord = {

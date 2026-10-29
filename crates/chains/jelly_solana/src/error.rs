@@ -76,39 +76,39 @@ pub enum SolanaError {
         "{} needed and only {} available in {}",
         needed.format(asset.decimals()),
         available.format(asset.decimals()),
-        asset.symbol()
+        asset.coin().symbol()
     )]
     InsufficientFunds { asset: AssetId, needed: Amount, available: Amount },
     #[error("This token has transfer settings that Jelly does not support.")]
     TokenConfiguration,
     /// Something other than a token account of the mint sits at one of its
     /// associated addresses, which the associated-token program never makes.
-    #[error("the account at a {} token address is not a {} token account", token.symbol(), token.symbol())]
+    #[error("the account at a {} token address is not a {} token account", token.coin().symbol(), token.coin().symbol())]
     UnreadableTokenAccount { token: TokenId },
     #[error(
         "Your {} token account is frozen, so it cannot send. Only the token's issuer can unfreeze it.",
-        token.symbol()
+        token.coin().symbol()
     )]
     FrozenSource { token: TokenId },
     #[error(
         "The recipient's {} token account is frozen, so it cannot receive tokens.",
-        token.symbol()
+        token.coin().symbol()
     )]
     FrozenDestination { token: TokenId },
     #[error(
         "The recipient's {} token account only accepts transfers that carry a memo, and Jelly can't attach a memo.",
-        token.symbol()
+        token.coin().symbol()
     )]
     MemoRequired { token: TokenId },
     /// The recipient is a token account of another mint or another program, so this
     /// token can't land there.
-    #[error("This address is a token account for a different token, not {}.", token.symbol())]
+    #[error("This address is a token account for a different token, not {}.", token.coin().symbol())]
     ForeignMint { token: TokenId },
     /// Tokens sent to an address with no private key land in an account only the
     /// program behind it could move, which most programs never do.
     #[error(
         "This address belongs to a program, not a wallet. Paste the recipient's {} token account address instead.",
-        token.symbol()
+        token.coin().symbol()
     )]
     OffCurveRecipient { token: TokenId },
     /// A token program owns the recipient, but it isn't a token account. It could be a
@@ -119,7 +119,7 @@ pub enum SolanaError {
     /// so a transfer into it would credit whoever holds it now.
     #[error(
         "The recipient's {} token account belongs to another address. Tokens sent to it would not reach the recipient.",
-        token.symbol()
+        token.coin().symbol()
     )]
     ForeignTokenAccount { token: TokenId },
 

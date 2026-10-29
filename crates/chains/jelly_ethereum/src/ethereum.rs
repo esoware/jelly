@@ -10,7 +10,6 @@ use jelly_net::{Endpoint, Network, ProbeReport};
 
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Ethereum,
-    coin_name: "Ethereum",
     coin_chain: ChainId::Ethereum,
     slip44: 60,
     key_kind: KeyKind::Secp256k1,

@@ -9,6 +9,7 @@ mod asset;
 mod build;
 mod chain;
 mod clock;
+mod coin;
 mod cursor;
 mod endpoint;
 mod entry;
@@ -37,12 +38,13 @@ pub use crate::adapter::{
 };
 pub use crate::address::{Address, AddressCodec, AddressError};
 pub use crate::amount::{Amount, DecimalError, FeeRate};
-pub use crate::asset::{AssetId, Coin, TokenId};
+pub use crate::asset::{AssetId, TokenId};
 pub use crate::build::{
     AdapterBuilder, AdapterSet, BuildError, BuildRequest, ChainOutcome, KeyService, SkipReason,
 };
 pub use crate::chain::{ChainId, ScriptKind};
 pub use crate::clock::{Clock, ClockError, Deadline, SystemClock, duration_millis};
+pub use crate::coin::Coin;
 pub use crate::cursor::{
     CursorBytes, CursorScope, CursorStore, HeldReservation, ReservationSlot, ScanAdvance,
     ScanStream,

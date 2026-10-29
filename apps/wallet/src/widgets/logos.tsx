@@ -37,7 +37,7 @@ import wrappedEtherLogo from "@/assets/brands/wrapped-ether.svg"
 import xrpLogo from "@/assets/brands/xrp.svg"
 import zcashLogo from "@/assets/brands/zcash.svg"
 import type { AssetId, ChainId, Coin, FiatCurrency, WalletRecord } from "@/ipc/bindings.gen.ts"
-import { assetChain, assetCoin, chainMeta } from "@/lib/chain.ts"
+import { assetMeta, chainMeta } from "@/lib/chain.ts"
 import { appendClassName } from "@/lib/class-name.ts"
 import { useAccentColor } from "@/ui/use-accent-color.ts"
 
@@ -47,30 +47,21 @@ interface Brand {
   readonly gradient?: readonly [string, string] | undefined
 }
 
-const ARBITRUM: Brand = { color: "#1b4add", logo: arbitrumLogo }
-const OPTIMISM: Brand = { color: "#ff0421", logo: optimismLogo }
-
-export const CHAIN_BRANDS: Record<ChainId, Brand> = {
-  bitcoin: { color: "#f7931a", logo: bitcoinLogo },
-  litecoin: { color: "#345d9d", logo: litecoinLogo },
-  dogecoin: { color: "#c2a633", logo: dogecoinLogo },
-  bitcoin_cash: { color: "#0ac18e", logo: bitcoinCashLogo },
-  zcash: { color: "#f4b728", logo: zcashLogo },
-  ethereum: { color: "#627eea", logo: ethereumLogo },
-  arbitrum: ARBITRUM,
-  base: { color: "#0000ff", logo: baseLogo },
-  optimism: OPTIMISM,
-  bsc: { color: "#f0b90b", logo: bnbSmartChainLogo },
-  polygon: { color: "#670de5", logo: polygonLogo },
-  avalanche: { color: "#e6212f", logo: avalancheLogo },
-  solana: { color: "#9945ff", logo: solanaLogo, gradient: ["#9945ff", "#19fb9b"] },
-  tron: { color: "#ea0029", logo: tronLogo },
-  xrp: { color: "#141414", logo: xrpLogo },
-  ton: { color: "#30a1f5", logo: gramLogo },
-  monero: { color: "#f26822", logo: moneroLogo },
-}
-
 const COIN_BRANDS: Record<Coin, Brand> = {
+  btc: { color: "#f7931a", logo: bitcoinLogo },
+  ltc: { color: "#345d9d", logo: litecoinLogo },
+  doge: { color: "#c2a633", logo: dogecoinLogo },
+  bch: { color: "#0ac18e", logo: bitcoinCashLogo },
+  zec: { color: "#f4b728", logo: zcashLogo },
+  eth: { color: "#627eea", logo: ethereumLogo },
+  bnb: { color: "#f0b90b", logo: bnbSmartChainLogo },
+  pol: { color: "#670de5", logo: polygonLogo },
+  avax: { color: "#e6212f", logo: avalancheLogo },
+  sol: { color: "#9945ff", logo: solanaLogo, gradient: ["#9945ff", "#19fb9b"] },
+  trx: { color: "#ea0029", logo: tronLogo },
+  xrp: { color: "#141414", logo: xrpLogo },
+  gram: { color: "#30a1f5", logo: gramLogo },
+  xmr: { color: "#f26822", logo: moneroLogo },
   link: { color: "#2a5ada", logo: chainlinkLogo },
   wbtc: { color: "#f09242", logo: wrappedBitcoinLogo },
   weth: { color: "#ec1c79", logo: wrappedEtherLogo },
@@ -80,8 +71,8 @@ const COIN_BRANDS: Record<Coin, Brand> = {
   aave: { color: "#9391f7", logo: aaveLogo },
   ondo: { color: "#4d78a8", logo: ondoLogo, gradient: ["#345477", "#8cafd4"] },
   pepe: { color: "#3d8130", logo: pepeLogo },
-  arb: ARBITRUM,
-  op: OPTIMISM,
+  arb: { color: "#1b4add", logo: arbitrumLogo },
+  op: { color: "#ff0421", logo: optimismLogo },
   pump: { color: "#54d38e", logo: pumpFunLogo },
   jup: { color: "#c6f462", logo: jupiterLogo, gradient: ["#33d9ff", "#c6f462"] },
   usdt: { color: "#009393", logo: tetherUsdLogo },
@@ -94,9 +85,28 @@ const COIN_BRANDS: Record<Coin, Brand> = {
   paxg: { color: "#dbba08", logo: paxGoldLogo },
 }
 
+export const CHAIN_BRANDS: Record<ChainId, Brand> = {
+  bitcoin: COIN_BRANDS.btc,
+  litecoin: COIN_BRANDS.ltc,
+  dogecoin: COIN_BRANDS.doge,
+  bitcoin_cash: COIN_BRANDS.bch,
+  zcash: COIN_BRANDS.zec,
+  ethereum: COIN_BRANDS.eth,
+  arbitrum: COIN_BRANDS.arb,
+  base: { color: "#0000ff", logo: baseLogo },
+  optimism: COIN_BRANDS.op,
+  bsc: COIN_BRANDS.bnb,
+  polygon: COIN_BRANDS.pol,
+  avalanche: COIN_BRANDS.avax,
+  solana: COIN_BRANDS.sol,
+  tron: COIN_BRANDS.trx,
+  xrp: COIN_BRANDS.xrp,
+  ton: COIN_BRANDS.gram,
+  monero: COIN_BRANDS.xmr,
+}
+
 export function assetBrand(asset: AssetId): Brand {
-  const coin = assetCoin(asset)
-  return coin === null ? CHAIN_BRANDS[chainMeta(assetChain(asset)).coinChain] : COIN_BRANDS[coin]
+  return COIN_BRANDS[assetMeta(asset).coin]
 }
 
 interface BrandLogoProps {
@@ -126,8 +136,8 @@ interface AssetLogoProps {
 }
 
 export function AssetLogo({ asset, shouldShowChain = false, className }: AssetLogoProps) {
-  const brand = assetBrand(asset)
-  const chain = assetChain(asset)
+  const { coin, chain } = assetMeta(asset)
+  const brand = COIN_BRANDS[coin]
   if (!shouldShowChain || (asset.kind === "native" && chainMeta(chain).coinChain === chain)) {
     return <BrandLogo brand={brand} className={className} />
   }

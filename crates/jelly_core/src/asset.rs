@@ -1,119 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::chain::ChainId;
+use crate::coin::Coin;
 use crate::wire_enum;
-
-wire_enum! {
-    #[cfg_attr(feature = "ipc", derive(specta::Type))]
-    /// What a token stands for, the same on every chain that carries it.
-    pub enum Coin {
-        Link => "link",
-        Wbtc => "wbtc",
-        Weth => "weth",
-        Uni => "uni",
-        Shib => "shib",
-        Ena => "ena",
-        Aave => "aave",
-        Ondo => "ondo",
-        Pepe => "pepe",
-        Arb => "arb",
-        Op => "op",
-        Pump => "pump",
-        Jup => "jup",
-        Usdt => "usdt",
-        Usdc => "usdc",
-        Usds => "usds",
-        Dai => "dai",
-        Usdg => "usdg",
-        Pyusd => "pyusd",
-        Xaut => "xaut",
-        Paxg => "paxg",
-    }
-}
-
-impl Coin {
-    /// Tether's omnichain `USDT0` and `XAUt0` and bridged copies such as Avalanche's
-    /// `LINK.e` take the symbol of the coin they stand for. The ether Binance issues on BNB
-    /// Smart Chain as `ETH` reads as WETH, like every other network's.
-    pub const fn symbol(self) -> &'static str {
-        match self {
-            Self::Link => "LINK",
-            Self::Wbtc => "WBTC",
-            Self::Weth => "WETH",
-            Self::Uni => "UNI",
-            Self::Shib => "SHIB",
-            Self::Ena => "ENA",
-            Self::Aave => "AAVE",
-            Self::Ondo => "ONDO",
-            Self::Pepe => "PEPE",
-            Self::Arb => "ARB",
-            Self::Op => "OP",
-            Self::Pump => "PUMP",
-            Self::Jup => "JUP",
-            Self::Usdt => "USDT",
-            Self::Usdc => "USDC",
-            Self::Usds => "USDS",
-            Self::Dai => "DAI",
-            Self::Usdg => "USDG",
-            Self::Pyusd => "PYUSD",
-            Self::Xaut => "XAUT",
-            Self::Paxg => "PAXG",
-        }
-    }
-
-    pub const fn display_name(self) -> &'static str {
-        match self {
-            Self::Link => "Chainlink",
-            Self::Wbtc => "Wrapped Bitcoin",
-            Self::Weth => "Wrapped Ether",
-            Self::Uni => "Uniswap",
-            Self::Shib => "Shiba Inu",
-            Self::Ena => "Ethena",
-            Self::Aave => "Aave",
-            Self::Ondo => "Ondo",
-            Self::Pepe => "Pepe",
-            Self::Arb => "Arbitrum",
-            Self::Op => "Optimism",
-            Self::Pump => "Pump.fun",
-            Self::Jup => "Jupiter",
-            Self::Usdt => "Tether USD",
-            Self::Usdc => "USD Coin",
-            Self::Usds => "USDS",
-            Self::Dai => "Dai",
-            Self::Usdg => "Global Dollar",
-            Self::Pyusd => "PayPal USD",
-            Self::Xaut => "Tether Gold",
-            Self::Paxg => "PAX Gold",
-        }
-    }
-
-    /// A dollar coin or a gold token.
-    pub(crate) const fn is_real_world_asset(self) -> bool {
-        match self {
-            Self::Usdt
-            | Self::Usdc
-            | Self::Usds
-            | Self::Dai
-            | Self::Usdg
-            | Self::Pyusd
-            | Self::Xaut
-            | Self::Paxg => true,
-            Self::Link
-            | Self::Wbtc
-            | Self::Weth
-            | Self::Uni
-            | Self::Shib
-            | Self::Ena
-            | Self::Aave
-            | Self::Ondo
-            | Self::Pepe
-            | Self::Arb
-            | Self::Op
-            | Self::Pump
-            | Self::Jup => false,
-        }
-    }
-}
 
 wire_enum! {
     #[cfg_attr(feature = "ipc", derive(specta::Type))]
@@ -209,6 +98,10 @@ const LAYERZERO_ENA: &str = "0x58538e6A46E07434d7E7375Bc268D3cb839C0133";
 const OP_STACK_WETH: &str = "0x4200000000000000000000000000000000000006";
 
 struct Deployment {
+    /// What the token reads as, whatever its contract calls itself: Tether's omnichain
+    /// `USDT0` and `XAUt0` and bridged copies such as Avalanche's `LINK.e` take the coin
+    /// they stand for, and the ether Binance issues on BNB Smart Chain as `ETH` reads as
+    /// WETH, like every other network's.
     coin: Coin,
     chain: ChainId,
     decimals: u8,
@@ -222,10 +115,6 @@ impl TokenId {
 
     pub const fn chain(self) -> ChainId {
         self.deployment().chain
-    }
-
-    pub const fn symbol(self) -> &'static str {
-        self.coin().symbol()
     }
 
     pub const fn decimals(self) -> u8 {
@@ -729,17 +618,10 @@ impl AssetId {
         }
     }
 
-    pub const fn symbol(self) -> &'static str {
+    pub const fn coin(self) -> Coin {
         match self {
-            Self::Native(chain) => chain.ticker(),
-            Self::Token(token) => token.symbol(),
-        }
-    }
-
-    pub const fn is_real_world_asset(self) -> bool {
-        match self {
-            Self::Native(_) => false,
-            Self::Token(token) => token.coin().is_real_world_asset(),
+            Self::Native(chain) => chain.coin(),
+            Self::Token(token) => token.coin(),
         }
     }
 
@@ -783,27 +665,20 @@ mod tests {
     }
 
     #[test]
-    fn an_asset_takes_its_chain_scale_and_symbol_from_its_coin_or_token() {
+    fn an_asset_takes_its_chain_scale_and_coin_from_its_chain_or_token() {
         for asset in AssetId::all() {
             match asset {
                 AssetId::Native(chain) => {
                     assert_eq!(asset.chain(), chain);
                     assert_eq!(asset.decimals(), chain.native_decimals());
-                    assert_eq!(asset.symbol(), chain.ticker());
+                    assert_eq!(asset.coin(), chain.coin());
                 }
                 AssetId::Token(token) => {
                     assert_eq!(asset.chain(), token.chain());
                     assert_eq!(asset.decimals(), token.decimals());
-                    assert_eq!(asset.symbol(), token.symbol());
+                    assert_eq!(asset.coin(), token.coin());
                 }
             }
-        }
-    }
-
-    #[test]
-    fn every_coin_is_carried_by_some_token() {
-        for coin in Coin::ALL {
-            assert!(TokenId::ALL.iter().any(|token| token.coin() == coin), "{coin}");
         }
     }
 
@@ -816,7 +691,7 @@ mod tests {
         assert_eq!(TokenId::EnaJetton.decimals(), 6, "and TON's ENA has six");
         assert_eq!(TokenId::WbtcErc20.decimals(), 8, "wrapped bitcoin keeps bitcoin's satoshi");
         for token in TokenId::ALL {
-            let expected = match token.symbol() {
+            let expected = match token.coin().symbol() {
                 "LINK" | "ENA" if token.chain() == ChainId::Solana => 9,
                 "ENA" if token.chain() == ChainId::Ton => 6,
                 "WBTC" => 8,
@@ -837,13 +712,13 @@ mod tests {
     fn a_dollar_coin_keeps_its_name_and_symbol_on_every_chain() {
         for token in [TokenId::UsdgErc20, TokenId::UsdgArbitrum, TokenId::UsdgSpl] {
             assert_eq!(token.coin().display_name(), "Global Dollar");
-            assert_eq!(token.symbol(), "USDG");
+            assert_eq!(token.coin().symbol(), "USDG");
         }
         for token in
             [TokenId::PyusdErc20, TokenId::PyusdPolygon, TokenId::PyusdArbitrum, TokenId::PyusdSpl]
         {
             assert_eq!(token.coin().display_name(), "PayPal USD");
-            assert_eq!(token.symbol(), "PYUSD");
+            assert_eq!(token.coin().symbol(), "PYUSD");
         }
     }
 
@@ -861,7 +736,7 @@ mod tests {
             (TokenId::XautJetton, ChainId::Ton, "XAUT", "Tether Gold", 6),
         ] {
             assert_eq!(token.chain(), chain);
-            assert_eq!(token.symbol(), symbol);
+            assert_eq!(token.coin().symbol(), symbol);
             assert_eq!(token.coin().display_name(), name);
             assert_eq!(token.decimals(), decimals);
         }
@@ -902,20 +777,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn only_dollar_and_gold_tokens_are_real_world_assets() {
-        for asset in AssetId::all() {
-            let is_dollar_or_gold = matches!(
-                (asset, asset.symbol()),
-                (
-                    AssetId::Token(_),
-                    "USDT" | "USDC" | "USDS" | "DAI" | "USDG" | "PYUSD" | "XAUT" | "PAXG"
-                )
-            );
-            assert_eq!(asset.is_real_world_asset(), is_dollar_or_gold, "{}", asset.key());
-        }
-    }
-
     /// Tether's omnichain `USDT0` and `XAUt0` on Polygon read as the coins they
     /// stand for, so a holder sees one USDT and one XAUT across networks.
     #[test]
@@ -927,7 +788,7 @@ mod tests {
             (TokenId::XautPolygon, "XAUT", "Tether Gold"),
         ] {
             assert_eq!(token.chain(), ChainId::Polygon, "{}", token.as_str());
-            assert_eq!(token.symbol(), symbol, "{}", token.as_str());
+            assert_eq!(token.coin().symbol(), symbol, "{}", token.as_str());
             assert_eq!(token.coin().display_name(), name, "{}", token.as_str());
             assert_eq!(token.decimals(), 6, "{}", token.as_str());
         }
@@ -937,9 +798,8 @@ mod tests {
     #[test]
     fn rollup_coins_are_ether() {
         for chain in [ChainId::Arbitrum, ChainId::Base, ChainId::Optimism] {
-            let coin = AssetId::Native(chain);
-            assert_eq!(coin.symbol(), "ETH", "{}", chain.as_str());
-            assert_eq!(coin.decimals(), 18, "{}", chain.as_str());
+            assert_eq!(chain.coin(), Coin::Eth, "{}", chain.as_str());
+            assert_eq!(chain.native_decimals(), 18, "{}", chain.as_str());
         }
         for (token, chain, symbol, decimals) in [
             (TokenId::UsdtArbitrum, ChainId::Arbitrum, "USDT", 6),
@@ -956,7 +816,7 @@ mod tests {
             (TokenId::UsdsOptimism, ChainId::Optimism, "USDS", 18),
         ] {
             assert_eq!(token.chain(), chain, "{}", token.as_str());
-            assert_eq!(token.symbol(), symbol, "{}", token.as_str());
+            assert_eq!(token.coin().symbol(), symbol, "{}", token.as_str());
             assert_eq!(token.decimals(), decimals, "{}", token.as_str());
         }
     }
@@ -964,10 +824,9 @@ mod tests {
     /// AVAX lives on three chains, and the wallet holds it on the C-Chain.
     #[test]
     fn the_c_chain_coin_is_avax() {
-        let coin = AssetId::Native(ChainId::Avalanche);
-        assert_eq!(coin.symbol(), "AVAX");
+        assert_eq!(ChainId::Avalanche.coin(), Coin::Avax);
         assert_eq!(ChainId::Avalanche.display_name(), "Avalanche C-Chain");
-        assert_eq!(coin.decimals(), 18);
+        assert_eq!(ChainId::Avalanche.native_decimals(), 18);
         for (token, symbol, name, decimals) in [
             (TokenId::UsdtAvalanche, "USDT", "Tether USD", 6),
             (TokenId::UsdcAvalanche, "USDC", "USD Coin", 6),
@@ -975,7 +834,7 @@ mod tests {
             (TokenId::UsdsAvalanche, "USDS", "USDS", 18),
         ] {
             assert_eq!(token.chain(), ChainId::Avalanche, "{}", token.as_str());
-            assert_eq!(token.symbol(), symbol, "{}", token.as_str());
+            assert_eq!(token.coin().symbol(), symbol, "{}", token.as_str());
             assert_eq!(token.coin().display_name(), name, "{}", token.as_str());
             assert_eq!(token.decimals(), decimals, "{}", token.as_str());
         }

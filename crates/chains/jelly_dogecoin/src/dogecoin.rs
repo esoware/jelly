@@ -19,7 +19,6 @@ const FEE_RATE_UNIT: &str = "koinu/B";
 /// rate, so there's no fee service to read.
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Dogecoin,
-    coin_name: "Dogecoin",
     coin_chain: ChainId::Dogecoin,
     slip44: 3,
     key_kind: KeyKind::Secp256k1,

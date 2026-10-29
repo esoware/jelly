@@ -370,40 +370,19 @@ mod tests {
     }
 
     #[test]
-    fn the_table_agrees_with_the_asset_registry_it_shadows() {
+    fn the_table_carries_every_solana_token_in_registry_order() {
         let carried: Vec<TokenId> = SOLANA_TOKENS.into_iter().map(SolanaToken::id).collect();
-        assert_eq!(
-            carried,
-            vec![
-                TokenId::LinkSpl,
-                TokenId::WbtcSpl,
-                TokenId::EnaSpl,
-                TokenId::PumpSpl,
-                TokenId::JupSpl,
-                TokenId::UsdtSpl,
-                TokenId::UsdcSpl,
-                TokenId::UsdsSpl,
-                TokenId::UsdgSpl,
-                TokenId::PyusdSpl,
-                TokenId::XautSpl,
-                TokenId::PaxgSpl
-            ]
-        );
+        let solana: Vec<TokenId> =
+            TokenId::ALL.into_iter().filter(|id| id.chain() == ChainId::Solana).collect();
+        assert_eq!(carried, solana);
         for token in SOLANA_TOKENS {
-            assert_eq!(token.mint().to_string(), token.id().contract());
-            assert_eq!(token.decimals(), token.id().decimals());
-            assert_eq!(token.id().chain(), ChainId::Solana);
             assert_eq!(SolanaToken::of(token.id()).expect("a solana token"), token);
         }
-        let solana: Vec<TokenId> = AssetId::all()
-            .filter_map(|asset| match asset {
-                AssetId::Token(id) if id.chain() == ChainId::Solana => Some(id),
-                AssetId::Native(_) | AssetId::Token(_) => None,
-            })
-            .collect();
-        assert_eq!(solana, carried, "every solana token the registry names is carried");
+    }
 
-        // Spelled out here as well, so a typo shared by both tables still fails.
+    /// The mints are spelled apart from `TokenId::contract`, so a typo there fails here.
+    #[test]
+    fn every_token_reads_its_issued_mint() {
         for (id, mint) in [
             (TokenId::LinkSpl, LINK_MINT),
             (TokenId::WbtcSpl, WBTC_MINT),

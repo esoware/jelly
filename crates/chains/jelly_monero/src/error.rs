@@ -51,7 +51,7 @@ pub enum MoneroError {
 
     #[error("{} is not monero", chain.display_name())]
     ForeignChain { chain: ChainId },
-    #[error("monero carries no tokens, so it cannot send {}", asset.symbol())]
+    #[error("monero carries no tokens, so it cannot send {}", asset.coin().symbol())]
     ForeignAsset { asset: AssetId },
     #[error("Choose a Monero fee level or fee rate.")]
     ForeignFeeSelection,
@@ -80,7 +80,7 @@ pub enum MoneroError {
         "{} needed and only {} unlocked in {}",
         needed.format(asset.decimals()),
         available.format(asset.decimals()),
-        asset.symbol()
+        asset.coin().symbol()
     )]
     InsufficientFunds { asset: AssetId, needed: Amount, available: Amount },
     #[error("This needs more than {maximum} inputs. Split it into smaller payments.")]

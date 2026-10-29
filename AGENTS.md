@@ -75,7 +75,7 @@ Copy is any text a user reads. That means every string the frontend renders, plu
 - No raw URL goes into an error, log line, event, or IPC payload. Use `EndpointLabel`.
 - `IpcError.message` is copy. It never carries a secret, a URL, a file path, or a library's error text. The frontend shows it verbatim for `invalid_input` and maps every other code to its own text in `lib/failure.ts`.
 - Capabilities in `apps/wallet/src-tauri/capabilities/*.json` are explicit lists. Never add `core:default`.
-- A Rust type that the backend only returns derives `Serialize` and not `Deserialize`, so it can't become a command argument by accident. Types the frontend also sends derive both.
+- A Rust type that the backend only returns derives `Serialize` and not `Deserialize`, so it can't become a command argument by accident. Types the frontend also sends derive both, and so does every `wire_enum!`.
 - Every command and every field that crosses IPC has a reader in the frontend. If nothing reads it, delete it from Rust.
 - `bindings.gen.ts` is generated from the Rust types, doc comments included. Never hand-edit it. Regenerate it after you change a command, an IPC type, or a doc comment on one.
 
@@ -95,7 +95,7 @@ Copy is any text a user reads. That means every string the frontend renders, plu
 - Only `jelly_engine` may depend on `jelly_store`. Everything else reaches stored data through the engine's operations.
 - Only `jelly_net` may depend on reqwest or rustls. reqwest links `rustls-platform-verifier`, which `jelly_net` never constructs, and a comment in `deny.toml` says so. Leave it. Don't switch TLS backends to get rid of it.
 - Only `jelly_win32` may use `unsafe`, so it repeats the workspace lints with `unsafe_code` denied rather than forbidden.
-- A chain's facts live in its `ChainSpec`, its code in its crate. `ChainId` keeps only its wire string, display name, ticker, decimals, and `is_utxo`, because `Amount`, `AssetMeta`, and the store need those without a table in hand.
+- A chain's facts live in its `ChainSpec`, its code in its crate. `ChainId` keeps only its wire string, display name, coin, decimals, and `is_utxo`, because `Amount`, `AssetMeta`, and the store need those without a table in hand.
 - A chain's quirk reaches the engine as a `ChainSpec` field or a `ChainEntry` method with a default, such as `payment_target` or `subaddress`, never as a `match` on `ChainId` in the engine. The engine names a chain only where a storage or IPC field already does.
 - Adding a chain is a `ChainId` variant, a chain crate, and an arm in every exhaustive match that lists chains: `jelly_chains`, `ScanStream`, `ScanStream::is_reconstructible`, and `ReservationSlot` in `jelly_core`, and the vault-or-database decision in `jelly_engine`. Each of those matches is exhaustive so a new chain has to answer it.
 - Modules are private, and each crate re-exports its public items from `lib.rs`, so every item has exactly one path. No `pub mod`, except `#[cfg(feature = "test-util")] pub mod test_util;`. `lib.rs` holds the crate doc, the crate attributes, the module list, and the re-exports, and no other code.

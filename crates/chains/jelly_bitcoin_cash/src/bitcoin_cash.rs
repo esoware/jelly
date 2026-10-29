@@ -19,7 +19,6 @@ const FEE_RATE_UNIT: &str = "sat/B";
 /// rate, so there's no fee service to read.
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::BitcoinCash,
-    coin_name: "Bitcoin Cash",
     coin_chain: ChainId::BitcoinCash,
     slip44: 145,
     key_kind: KeyKind::Secp256k1,

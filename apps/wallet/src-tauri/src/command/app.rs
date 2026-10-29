@@ -58,8 +58,7 @@ pub(crate) struct ChainMeta {
 pub(crate) struct AssetMeta {
     asset: AssetId,
     chain: ChainId,
-    /// `None` for a native coin.
-    coin: Option<Coin>,
+    coin: Coin,
     symbol: &'static str,
     name: &'static str,
     decimals: u8,
@@ -171,18 +170,15 @@ pub(crate) async fn list_chain_metadata() -> Result<Vec<ChainMeta>, IpcError> {
 #[specta::specta]
 pub(crate) async fn list_asset_metadata() -> Result<Vec<AssetMeta>, IpcError> {
     let metadata = AssetId::all().map(|asset| {
-        let (coin, name) = match asset {
-            AssetId::Native(chain) => (None, jelly_chains::chains().spec(chain).coin_name),
-            AssetId::Token(token) => (Some(token.coin()), token.coin().display_name()),
-        };
+        let coin = asset.coin();
         AssetMeta {
             asset,
             chain: asset.chain(),
             coin,
-            symbol: asset.symbol(),
-            name,
+            symbol: coin.symbol(),
+            name: coin.display_name(),
             decimals: asset.decimals(),
-            is_real_world_asset: asset.is_real_world_asset(),
+            is_real_world_asset: coin.is_real_world_asset(),
         }
     });
     Ok(metadata.collect())
@@ -190,7 +186,7 @@ pub(crate) async fn list_asset_metadata() -> Result<Vec<AssetMeta>, IpcError> {
 
 #[cfg(test)]
 mod tests {
-    use jelly_core::{AssetId, ChainId, TokenId};
+    use jelly_core::{AssetId, ChainId, Coin, TokenId};
 
     use super::{list_asset_metadata, list_chain_metadata};
 
@@ -238,27 +234,26 @@ mod tests {
         assert_eq!(all.len(), AssetId::COUNT);
         for metadata in &all {
             assert_eq!(metadata.chain, metadata.asset.chain());
-            let coin = match metadata.asset {
-                AssetId::Native(_) => None,
-                AssetId::Token(token) => Some(token.coin()),
-            };
-            assert_eq!(metadata.coin, coin, "{}", metadata.asset.key());
             assert_eq!(metadata.decimals, metadata.asset.decimals());
-            assert_eq!(metadata.symbol, metadata.asset.symbol());
-            assert_eq!(metadata.is_real_world_asset, metadata.asset.is_real_world_asset());
             assert!(!metadata.name.is_empty(), "{}", metadata.asset.key());
         }
-        let bep = all
-            .iter()
-            .find(|metadata| metadata.asset == AssetId::Token(TokenId::UsdtBep20))
-            .expect("the asset has metadata");
+        let find = |asset| {
+            all.iter().find(|metadata| metadata.asset == asset).expect("the asset has metadata")
+        };
+        let bep = find(AssetId::Token(TokenId::UsdtBep20));
         assert_eq!(bep.decimals, 18);
         assert_eq!(bep.chain, ChainId::Bsc);
+        assert_eq!(bep.coin, Coin::Usdt);
+        assert_eq!(bep.symbol, "USDT");
         assert_eq!(bep.name, "Tether USD");
-        let bnb = all
-            .iter()
-            .find(|metadata| metadata.asset == AssetId::Native(ChainId::Bsc))
-            .expect("the asset has metadata");
+        assert!(bep.is_real_world_asset);
+        let bnb = find(AssetId::Native(ChainId::Bsc));
+        assert_eq!(bnb.coin, Coin::Bnb);
         assert_eq!(bnb.name, "BNB");
+        assert!(!bnb.is_real_world_asset);
+        let rollup = find(AssetId::Native(ChainId::Arbitrum));
+        assert_eq!(rollup.coin, Coin::Eth);
+        assert_eq!(rollup.symbol, "ETH");
+        assert_eq!(rollup.name, "Ethereum");
     }
 }

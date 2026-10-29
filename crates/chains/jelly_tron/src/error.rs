@@ -74,7 +74,7 @@ pub enum TronError {
         "{} needed and only {} available in {}",
         needed.format(asset.decimals()),
         available.format(asset.decimals()),
-        asset.symbol()
+        asset.coin().symbol()
     )]
     InsufficientFunds { asset: AssetId, needed: Amount, available: Amount },
 

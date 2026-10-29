@@ -57,9 +57,10 @@ impl PriceCharts {
         interval: CandleInterval,
         currency: FiatCurrency,
     ) -> Result<PriceChart, PriceError> {
-        let ticker = Ticker::for_asset(asset)
-            .filter(|ticker| self.tickers.contains(ticker))
-            .ok_or(PriceError::Absent)?;
+        let ticker = Ticker::for_coin(asset.coin());
+        if !self.tickers.contains(&ticker) {
+            return Err(PriceError::Absent);
+        }
         let prices = self.candles(CandleRequest::asset(ticker, interval));
         if currency == FiatCurrency::Usd {
             return Ok(PriceChart { currency, candles: prices.await?.to_vec() });

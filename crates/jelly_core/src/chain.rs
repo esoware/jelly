@@ -1,4 +1,5 @@
 use crate::amount::Amount;
+use crate::coin::Coin;
 use crate::wire_enum;
 
 wire_enum! {
@@ -65,28 +66,29 @@ impl ChainId {
         }
     }
 
-    pub const fn ticker(self) -> &'static str {
+    /// The coin the chain pays fees in.
+    pub const fn coin(self) -> Coin {
         match self {
-            Self::Bitcoin => "BTC",
-            Self::Litecoin => "LTC",
-            Self::Dogecoin => "DOGE",
-            Self::BitcoinCash => "BCH",
-            Self::Zcash => "ZEC",
-            Self::Ethereum | Self::Arbitrum | Self::Base | Self::Optimism => "ETH",
-            Self::Bsc => "BNB",
-            Self::Polygon => "POL",
-            Self::Avalanche => "AVAX",
-            Self::Solana => "SOL",
-            Self::Tron => "TRX",
-            Self::Xrp => "XRP",
-            Self::Ton => "GRAM",
-            Self::Monero => "XMR",
+            Self::Bitcoin => Coin::Btc,
+            Self::Litecoin => Coin::Ltc,
+            Self::Dogecoin => Coin::Doge,
+            Self::BitcoinCash => Coin::Bch,
+            Self::Zcash => Coin::Zec,
+            Self::Ethereum | Self::Arbitrum | Self::Base | Self::Optimism => Coin::Eth,
+            Self::Bsc => Coin::Bnb,
+            Self::Polygon => Coin::Pol,
+            Self::Avalanche => Coin::Avax,
+            Self::Solana => Coin::Sol,
+            Self::Tron => Coin::Trx,
+            Self::Xrp => Coin::Xrp,
+            Self::Ton => Coin::Gram,
+            Self::Monero => Coin::Xmr,
         }
     }
 
-    /// An amount of the chain's own coin with its ticker, such as `0.0001 BTC`.
+    /// An amount of the chain's own coin with its symbol, such as `0.0001 BTC`.
     pub fn format_amount(self, amount: Amount) -> String {
-        format!("{} {}", amount.format(self.native_decimals()), self.ticker())
+        format!("{} {}", amount.format(self.native_decimals()), self.coin().symbol())
     }
 
     /// Arbitrum One and OP Mainnet take their network's full name, because Arbitrum Nova

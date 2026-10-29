@@ -161,7 +161,10 @@ async fn tokens_build_and_sign_at_their_own_scale() {
             detail(&unsigned.preview.details, "Token decimals"),
             token.decimals().to_string()
         );
-        assert_eq!(detail(&unsigned.preview.details, "Amount"), format!("2.5 {}", token.symbol()));
+        assert_eq!(
+            detail(&unsigned.preview.details, "Amount"),
+            format!("2.5 {}", token.coin().symbol())
+        );
         assert!(detail(&unsigned.preview.details, "Calldata").starts_with("0xa9059cbb"));
         harness
             .adapter
@@ -191,7 +194,7 @@ async fn gold_send_max_keeps_token_precision_and_pays_gas_in_the_native_coin() {
         assert_eq!(detail(&unsigned.preview.details, "Value in wei"), "0");
         assert_eq!(
             detail(&unsigned.preview.details, "Amount"),
-            format!("{text} {}", token.symbol())
+            format!("{text} {}", token.coin().symbol())
         );
         assert!(detail(&unsigned.preview.details, "Max total fee").contains(network.symbol()));
         harness
