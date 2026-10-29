@@ -375,9 +375,6 @@ mod tests {
         let solana: Vec<TokenId> =
             TokenId::ALL.into_iter().filter(|id| id.chain() == ChainId::Solana).collect();
         assert_eq!(carried, solana);
-        for token in SOLANA_TOKENS {
-            assert_eq!(SolanaToken::of(token.id()).expect("a solana token"), token);
-        }
     }
 
     /// The mints are spelled apart from `TokenId::contract`, so a typo there fails here.

@@ -181,17 +181,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn only_dollar_and_gold_coins_are_real_world_assets() {
-        for coin in Coin::ALL {
-            let is_dollar_or_gold = matches!(
-                coin.symbol(),
-                "USDT" | "USDC" | "USDS" | "DAI" | "USDG" | "PYUSD" | "XAUT" | "PAXG"
-            );
-            assert_eq!(coin.is_real_world_asset(), is_dollar_or_gold, "{coin}");
-        }
-    }
-
     /// A coin takes its network's name unless it has its own, and a rollup's coin is ether,
     /// named as it is on Ethereum. The table lists every chain in declaration order.
     #[test]

@@ -37,7 +37,7 @@ import wrappedEtherLogo from "@/assets/brands/wrapped-ether.svg"
 import xrpLogo from "@/assets/brands/xrp.svg"
 import zcashLogo from "@/assets/brands/zcash.svg"
 import type { AssetId, ChainId, Coin, FiatCurrency, WalletRecord } from "@/ipc/bindings.gen.ts"
-import { assetMeta, chainMeta } from "@/lib/chain.ts"
+import { assetChain, assetMeta, chainMeta } from "@/lib/chain.ts"
 import { appendClassName } from "@/lib/class-name.ts"
 import { useAccentColor } from "@/ui/use-accent-color.ts"
 
@@ -136,8 +136,8 @@ interface AssetLogoProps {
 }
 
 export function AssetLogo({ asset, shouldShowChain = false, className }: AssetLogoProps) {
-  const { coin, chain } = assetMeta(asset)
-  const brand = COIN_BRANDS[coin]
+  const brand = assetBrand(asset)
+  const chain = assetChain(asset)
   if (!shouldShowChain || (asset.kind === "native" && chainMeta(chain).coinChain === chain)) {
     return <BrandLogo brand={brand} className={className} />
   }

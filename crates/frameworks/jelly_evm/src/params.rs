@@ -60,7 +60,6 @@ impl EvmParams {
         AssetId::Native(self.chain)
     }
 
-    /// The native coin's ticker, which is BNB rather than BSC on BNB Smart Chain.
     pub const fn symbol(&self) -> &'static str {
         self.chain.coin().symbol()
     }

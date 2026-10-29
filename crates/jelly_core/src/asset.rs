@@ -709,35 +709,32 @@ mod tests {
     }
 
     #[test]
-    fn a_dollar_coin_keeps_its_name_and_symbol_on_every_chain() {
+    fn a_dollar_coin_is_the_same_coin_on_every_chain() {
         for token in [TokenId::UsdgErc20, TokenId::UsdgArbitrum, TokenId::UsdgSpl] {
-            assert_eq!(token.coin().display_name(), "Global Dollar");
-            assert_eq!(token.coin().symbol(), "USDG");
+            assert_eq!(token.coin(), Coin::Usdg, "{}", token.as_str());
         }
         for token in
             [TokenId::PyusdErc20, TokenId::PyusdPolygon, TokenId::PyusdArbitrum, TokenId::PyusdSpl]
         {
-            assert_eq!(token.coin().display_name(), "PayPal USD");
-            assert_eq!(token.coin().symbol(), "PYUSD");
+            assert_eq!(token.coin(), Coin::Pyusd, "{}", token.as_str());
         }
     }
 
     #[test]
     fn gold_tokens_keep_their_identity_and_network_specific_scale() {
-        for (token, chain, symbol, name, decimals) in [
-            (TokenId::PaxgErc20, ChainId::Ethereum, "PAXG", "PAX Gold", 18),
-            (TokenId::PaxgSpl, ChainId::Solana, "PAXG", "PAX Gold", 6),
-            (TokenId::XautErc20, ChainId::Ethereum, "XAUT", "Tether Gold", 6),
-            (TokenId::XautArbitrum, ChainId::Arbitrum, "XAUT", "Tether Gold", 6),
-            (TokenId::XautBep20, ChainId::Bsc, "XAUT", "Tether Gold", 6),
-            (TokenId::XautPolygon, ChainId::Polygon, "XAUT", "Tether Gold", 6),
-            (TokenId::XautAvalanche, ChainId::Avalanche, "XAUT", "Tether Gold", 6),
-            (TokenId::XautSpl, ChainId::Solana, "XAUT", "Tether Gold", 6),
-            (TokenId::XautJetton, ChainId::Ton, "XAUT", "Tether Gold", 6),
+        for (token, chain, coin, decimals) in [
+            (TokenId::PaxgErc20, ChainId::Ethereum, Coin::Paxg, 18),
+            (TokenId::PaxgSpl, ChainId::Solana, Coin::Paxg, 6),
+            (TokenId::XautErc20, ChainId::Ethereum, Coin::Xaut, 6),
+            (TokenId::XautArbitrum, ChainId::Arbitrum, Coin::Xaut, 6),
+            (TokenId::XautBep20, ChainId::Bsc, Coin::Xaut, 6),
+            (TokenId::XautPolygon, ChainId::Polygon, Coin::Xaut, 6),
+            (TokenId::XautAvalanche, ChainId::Avalanche, Coin::Xaut, 6),
+            (TokenId::XautSpl, ChainId::Solana, Coin::Xaut, 6),
+            (TokenId::XautJetton, ChainId::Ton, Coin::Xaut, 6),
         ] {
             assert_eq!(token.chain(), chain);
-            assert_eq!(token.coin().symbol(), symbol);
-            assert_eq!(token.coin().display_name(), name);
+            assert_eq!(token.coin(), coin);
             assert_eq!(token.decimals(), decimals);
         }
     }
@@ -781,15 +778,14 @@ mod tests {
     /// stand for, so a holder sees one USDT and one XAUT across networks.
     #[test]
     fn polygon_tokens_read_as_the_coins_they_stand_for() {
-        for (token, symbol, name) in [
-            (TokenId::UsdtPolygon, "USDT", "Tether USD"),
-            (TokenId::UsdcPolygon, "USDC", "USD Coin"),
-            (TokenId::PyusdPolygon, "PYUSD", "PayPal USD"),
-            (TokenId::XautPolygon, "XAUT", "Tether Gold"),
+        for (token, coin) in [
+            (TokenId::UsdtPolygon, Coin::Usdt),
+            (TokenId::UsdcPolygon, Coin::Usdc),
+            (TokenId::PyusdPolygon, Coin::Pyusd),
+            (TokenId::XautPolygon, Coin::Xaut),
         ] {
             assert_eq!(token.chain(), ChainId::Polygon, "{}", token.as_str());
-            assert_eq!(token.coin().symbol(), symbol, "{}", token.as_str());
-            assert_eq!(token.coin().display_name(), name, "{}", token.as_str());
+            assert_eq!(token.coin(), coin, "{}", token.as_str());
             assert_eq!(token.decimals(), 6, "{}", token.as_str());
         }
     }
@@ -801,22 +797,22 @@ mod tests {
             assert_eq!(chain.coin(), Coin::Eth, "{}", chain.as_str());
             assert_eq!(chain.native_decimals(), 18, "{}", chain.as_str());
         }
-        for (token, chain, symbol, decimals) in [
-            (TokenId::UsdtArbitrum, ChainId::Arbitrum, "USDT", 6),
-            (TokenId::UsdcArbitrum, ChainId::Arbitrum, "USDC", 6),
-            (TokenId::PyusdArbitrum, ChainId::Arbitrum, "PYUSD", 6),
-            (TokenId::XautArbitrum, ChainId::Arbitrum, "XAUT", 6),
-            (TokenId::UsdgArbitrum, ChainId::Arbitrum, "USDG", 6),
-            (TokenId::UsdsArbitrum, ChainId::Arbitrum, "USDS", 18),
-            (TokenId::UsdcBase, ChainId::Base, "USDC", 6),
-            (TokenId::UsdsBase, ChainId::Base, "USDS", 18),
-            (TokenId::OpOptimism, ChainId::Optimism, "OP", 18),
-            (TokenId::UsdtOptimism, ChainId::Optimism, "USDT", 6),
-            (TokenId::UsdcOptimism, ChainId::Optimism, "USDC", 6),
-            (TokenId::UsdsOptimism, ChainId::Optimism, "USDS", 18),
+        for (token, chain, coin, decimals) in [
+            (TokenId::UsdtArbitrum, ChainId::Arbitrum, Coin::Usdt, 6),
+            (TokenId::UsdcArbitrum, ChainId::Arbitrum, Coin::Usdc, 6),
+            (TokenId::PyusdArbitrum, ChainId::Arbitrum, Coin::Pyusd, 6),
+            (TokenId::XautArbitrum, ChainId::Arbitrum, Coin::Xaut, 6),
+            (TokenId::UsdgArbitrum, ChainId::Arbitrum, Coin::Usdg, 6),
+            (TokenId::UsdsArbitrum, ChainId::Arbitrum, Coin::Usds, 18),
+            (TokenId::UsdcBase, ChainId::Base, Coin::Usdc, 6),
+            (TokenId::UsdsBase, ChainId::Base, Coin::Usds, 18),
+            (TokenId::OpOptimism, ChainId::Optimism, Coin::Op, 18),
+            (TokenId::UsdtOptimism, ChainId::Optimism, Coin::Usdt, 6),
+            (TokenId::UsdcOptimism, ChainId::Optimism, Coin::Usdc, 6),
+            (TokenId::UsdsOptimism, ChainId::Optimism, Coin::Usds, 18),
         ] {
             assert_eq!(token.chain(), chain, "{}", token.as_str());
-            assert_eq!(token.coin().symbol(), symbol, "{}", token.as_str());
+            assert_eq!(token.coin(), coin, "{}", token.as_str());
             assert_eq!(token.decimals(), decimals, "{}", token.as_str());
         }
     }
@@ -827,15 +823,14 @@ mod tests {
         assert_eq!(ChainId::Avalanche.coin(), Coin::Avax);
         assert_eq!(ChainId::Avalanche.display_name(), "Avalanche C-Chain");
         assert_eq!(ChainId::Avalanche.native_decimals(), 18);
-        for (token, symbol, name, decimals) in [
-            (TokenId::UsdtAvalanche, "USDT", "Tether USD", 6),
-            (TokenId::UsdcAvalanche, "USDC", "USD Coin", 6),
-            (TokenId::XautAvalanche, "XAUT", "Tether Gold", 6),
-            (TokenId::UsdsAvalanche, "USDS", "USDS", 18),
+        for (token, coin, decimals) in [
+            (TokenId::UsdtAvalanche, Coin::Usdt, 6),
+            (TokenId::UsdcAvalanche, Coin::Usdc, 6),
+            (TokenId::XautAvalanche, Coin::Xaut, 6),
+            (TokenId::UsdsAvalanche, Coin::Usds, 18),
         ] {
             assert_eq!(token.chain(), ChainId::Avalanche, "{}", token.as_str());
-            assert_eq!(token.coin().symbol(), symbol, "{}", token.as_str());
-            assert_eq!(token.coin().display_name(), name, "{}", token.as_str());
+            assert_eq!(token.coin(), coin, "{}", token.as_str());
             assert_eq!(token.decimals(), decimals, "{}", token.as_str());
         }
     }
