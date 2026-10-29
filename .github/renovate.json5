@@ -4,8 +4,8 @@
   ignorePresets: [":semanticPrefixFixDepsChoreOthers"],
   semanticCommits: "enabled",
   schedule: ["* * * * 1"],
-  // minimumReleaseAge in pnpm-workspace.yaml holds pnpm to the same 7 days.
-  minimumReleaseAge: "7 days",
+  // minimumReleaseAge in pnpm-workspace.yaml holds pnpm to the same 1 day.
+  minimumReleaseAge: "1 day",
   rangeStrategy: "bump",
   lockFileMaintenance: {
     enabled: true,
