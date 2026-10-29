@@ -37,7 +37,7 @@ pub use crate::adapter::{
 };
 pub use crate::address::{Address, AddressCodec, AddressError};
 pub use crate::amount::{Amount, DecimalError, FeeRate};
-pub use crate::asset::{AssetId, TokenId};
+pub use crate::asset::{AssetId, Coin, TokenId};
 pub use crate::build::{
     AdapterBuilder, AdapterSet, BuildError, BuildRequest, ChainOutcome, KeyService, SkipReason,
 };

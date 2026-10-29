@@ -1,4 +1,6 @@
-use jelly_core::{AssetId, ChainId, CustomFee, FeeLevel, ProxySetting, ScriptKind, wire_enum};
+use jelly_core::{
+    AssetId, ChainId, Coin, CustomFee, FeeLevel, ProxySetting, ScriptKind, wire_enum,
+};
 use serde::Serialize;
 use specta::Type;
 use tauri::{AppHandle, State};
@@ -56,6 +58,8 @@ pub(crate) struct ChainMeta {
 pub(crate) struct AssetMeta {
     asset: AssetId,
     chain: ChainId,
+    /// `None` for a native coin.
+    coin: Option<Coin>,
     symbol: &'static str,
     name: &'static str,
     decimals: u8,
@@ -166,16 +170,20 @@ pub(crate) async fn list_chain_metadata() -> Result<Vec<ChainMeta>, IpcError> {
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn list_asset_metadata() -> Result<Vec<AssetMeta>, IpcError> {
-    let metadata = AssetId::all().map(|asset| AssetMeta {
-        asset,
-        chain: asset.chain(),
-        symbol: asset.symbol(),
-        name: match asset {
-            AssetId::Native(chain) => jelly_chains::chains().spec(chain).coin_name,
-            AssetId::Token(token) => token.display_name(),
-        },
-        decimals: asset.decimals(),
-        is_real_world_asset: asset.is_real_world_asset(),
+    let metadata = AssetId::all().map(|asset| {
+        let (coin, name) = match asset {
+            AssetId::Native(chain) => (None, jelly_chains::chains().spec(chain).coin_name),
+            AssetId::Token(token) => (Some(token.coin()), token.coin().display_name()),
+        };
+        AssetMeta {
+            asset,
+            chain: asset.chain(),
+            coin,
+            symbol: asset.symbol(),
+            name,
+            decimals: asset.decimals(),
+            is_real_world_asset: asset.is_real_world_asset(),
+        }
     });
     Ok(metadata.collect())
 }
@@ -230,6 +238,11 @@ mod tests {
         assert_eq!(all.len(), AssetId::COUNT);
         for metadata in &all {
             assert_eq!(metadata.chain, metadata.asset.chain());
+            let coin = match metadata.asset {
+                AssetId::Native(_) => None,
+                AssetId::Token(token) => Some(token.coin()),
+            };
+            assert_eq!(metadata.coin, coin, "{}", metadata.asset.key());
             assert_eq!(metadata.decimals, metadata.asset.decimals());
             assert_eq!(metadata.symbol, metadata.asset.symbol());
             assert_eq!(metadata.is_real_world_asset, metadata.asset.is_real_world_asset());

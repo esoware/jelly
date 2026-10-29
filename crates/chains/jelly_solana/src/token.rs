@@ -42,6 +42,10 @@ pub(crate) struct SolanaToken {
 }
 
 impl SolanaToken {
+    const fn new(id: TokenId) -> Self {
+        Self { id, mint: Pubkey::from_str_const(id.contract()) }
+    }
+
     #[cfg(test)]
     pub(crate) const fn id(self) -> TokenId {
         self.id
@@ -303,58 +307,19 @@ fn is_token_program(program: Pubkey) -> bool {
 }
 
 /// The Solana tokens Jelly carries, in the order they are reported.
-///
-/// Each mint is spelled here and in `jelly_core::TokenId::contract`, so a
-/// `const` table can hold it. A test fails if the two spellings disagree.
 pub(crate) const SOLANA_TOKENS: [SolanaToken; 12] = [
-    SolanaToken {
-        id: TokenId::LinkSpl,
-        mint: Pubkey::from_str_const("LinkhB3afbBKb2EQQu7s7umdZceV3wcvAUJhQAfQ23L"),
-    },
-    SolanaToken {
-        id: TokenId::WbtcSpl,
-        mint: Pubkey::from_str_const("5XZw2LKTyrfvfiskJ78AMpackRjPcyCif1WhUsPDuVqQ"),
-    },
-    SolanaToken {
-        id: TokenId::EnaSpl,
-        mint: Pubkey::from_str_const("72QvBVwpxqmheEPfaCwWSWqEFsUy3rhWt6JhQBMNTwD1"),
-    },
-    SolanaToken {
-        id: TokenId::PumpSpl,
-        mint: Pubkey::from_str_const("pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn"),
-    },
-    SolanaToken {
-        id: TokenId::JupSpl,
-        mint: Pubkey::from_str_const("JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"),
-    },
-    SolanaToken {
-        id: TokenId::UsdtSpl,
-        mint: Pubkey::from_str_const("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"),
-    },
-    SolanaToken {
-        id: TokenId::UsdcSpl,
-        mint: Pubkey::from_str_const("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
-    },
-    SolanaToken {
-        id: TokenId::UsdsSpl,
-        mint: Pubkey::from_str_const("USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA"),
-    },
-    SolanaToken {
-        id: TokenId::UsdgSpl,
-        mint: Pubkey::from_str_const("2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"),
-    },
-    SolanaToken {
-        id: TokenId::PyusdSpl,
-        mint: Pubkey::from_str_const("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo"),
-    },
-    SolanaToken {
-        id: TokenId::XautSpl,
-        mint: Pubkey::from_str_const("AymATz4TCL9sWNEEV9Kvyz45CHVhDZ6kUgjTJPzLpU9P"),
-    },
-    SolanaToken {
-        id: TokenId::PaxgSpl,
-        mint: Pubkey::from_str_const("5GgRAEmv8ZxF2PR5hY72Qs5x1bnQ6UK2RbTPoqJ3wSwW"),
-    },
+    SolanaToken::new(TokenId::LinkSpl),
+    SolanaToken::new(TokenId::WbtcSpl),
+    SolanaToken::new(TokenId::EnaSpl),
+    SolanaToken::new(TokenId::PumpSpl),
+    SolanaToken::new(TokenId::JupSpl),
+    SolanaToken::new(TokenId::UsdtSpl),
+    SolanaToken::new(TokenId::UsdcSpl),
+    SolanaToken::new(TokenId::UsdsSpl),
+    SolanaToken::new(TokenId::UsdgSpl),
+    SolanaToken::new(TokenId::PyusdSpl),
+    SolanaToken::new(TokenId::XautSpl),
+    SolanaToken::new(TokenId::PaxgSpl),
 ];
 
 /// Splits an asset into native lamports or one token, refusing anything that is

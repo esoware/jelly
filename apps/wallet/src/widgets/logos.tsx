@@ -36,8 +36,8 @@ import wrappedBitcoinLogo from "@/assets/brands/wrapped-bitcoin.svg"
 import wrappedEtherLogo from "@/assets/brands/wrapped-ether.svg"
 import xrpLogo from "@/assets/brands/xrp.svg"
 import zcashLogo from "@/assets/brands/zcash.svg"
-import type { AssetId, ChainId, FiatCurrency, TokenId, WalletRecord } from "@/ipc/bindings.gen.ts"
-import { assetChain, chainMeta } from "@/lib/chain.ts"
+import type { AssetId, ChainId, Coin, FiatCurrency, WalletRecord } from "@/ipc/bindings.gen.ts"
+import { assetChain, assetCoin, chainMeta } from "@/lib/chain.ts"
 import { appendClassName } from "@/lib/class-name.ts"
 import { useAccentColor } from "@/ui/use-accent-color.ts"
 
@@ -70,100 +70,33 @@ export const CHAIN_BRANDS: Record<ChainId, Brand> = {
   monero: { color: "#f26822", logo: moneroLogo },
 }
 
-const CHAINLINK: Brand = { color: "#2a5ada", logo: chainlinkLogo }
-const WRAPPED_BITCOIN: Brand = { color: "#f09242", logo: wrappedBitcoinLogo }
-const WRAPPED_ETHER: Brand = { color: "#ec1c79", logo: wrappedEtherLogo }
-const ETHENA: Brand = { color: "#8c919c", logo: ethenaLogo, gradient: ["#626874", "#c1c5cd"] }
-const TETHER: Brand = { color: "#009393", logo: tetherUsdLogo }
-const USD_COIN: Brand = { color: "#0b53bf", logo: usdCoinLogo }
-const USDS: Brand = { color: "#ff9b50", logo: usdsLogo }
-const GLOBAL_DOLLAR: Brand = { color: "#c7e36c", logo: globalDollarLogo }
-const PAYPAL_USD: Brand = { color: "#0079c1", logo: paypalUsdLogo }
-const TETHER_GOLD: Brand = { color: "#d3b25a", logo: tetherGoldLogo }
-const PAX_GOLD: Brand = { color: "#dbba08", logo: paxGoldLogo }
-
-const TOKEN_BRANDS: Record<TokenId, Brand> = {
-  link_erc20: CHAINLINK,
-  wbtc_erc20: WRAPPED_BITCOIN,
-  weth_erc20: WRAPPED_ETHER,
-  uni_erc20: { color: "#ff007a", logo: uniswapLogo },
-  shib_erc20: { color: "#ffa409", logo: shibaInuLogo },
-  ena_erc20: ETHENA,
-  aave_erc20: { color: "#9391f7", logo: aaveLogo },
-  ondo_erc20: { color: "#4d78a8", logo: ondoLogo, gradient: ["#345477", "#8cafd4"] },
-  pepe_erc20: { color: "#3d8130", logo: pepeLogo },
-  arb_erc20: ARBITRUM,
-  usdt_erc20: TETHER,
-  usdc_erc20: USD_COIN,
-  usds_erc20: USDS,
-  dai_erc20: { color: "#f5ac37", logo: daiLogo },
-  usdg_erc20: GLOBAL_DOLLAR,
-  pyusd_erc20: PAYPAL_USD,
-  xaut_erc20: TETHER_GOLD,
-  paxg_erc20: PAX_GOLD,
-  link_arbitrum: CHAINLINK,
-  weth_arbitrum: WRAPPED_ETHER,
-  ena_arbitrum: ETHENA,
-  arb_arbitrum: ARBITRUM,
-  usdt_arbitrum: TETHER,
-  usdc_arbitrum: USD_COIN,
-  usds_arbitrum: USDS,
-  usdg_arbitrum: GLOBAL_DOLLAR,
-  pyusd_arbitrum: PAYPAL_USD,
-  xaut_arbitrum: TETHER_GOLD,
-  link_base: CHAINLINK,
-  weth_base: WRAPPED_ETHER,
-  ena_base: ETHENA,
-  usdc_base: USD_COIN,
-  usds_base: USDS,
-  link_optimism: CHAINLINK,
-  weth_optimism: WRAPPED_ETHER,
-  ena_optimism: ETHENA,
-  op_optimism: OPTIMISM,
-  usdt_optimism: TETHER,
-  usdc_optimism: USD_COIN,
-  usds_optimism: USDS,
-  link_bep20: CHAINLINK,
-  weth_bep20: WRAPPED_ETHER,
-  ena_bep20: ETHENA,
-  usdt_bep20: TETHER,
-  usdc_bep20: USD_COIN,
-  xaut_bep20: TETHER_GOLD,
-  link_polygon: CHAINLINK,
-  weth_polygon: WRAPPED_ETHER,
-  usdt_polygon: TETHER,
-  usdc_polygon: USD_COIN,
-  pyusd_polygon: PAYPAL_USD,
-  xaut_polygon: TETHER_GOLD,
-  link_avalanche: CHAINLINK,
-  weth_avalanche: WRAPPED_ETHER,
-  usdt_avalanche: TETHER,
-  usdc_avalanche: USD_COIN,
-  usds_avalanche: USDS,
-  xaut_avalanche: TETHER_GOLD,
-  link_spl: CHAINLINK,
-  wbtc_spl: WRAPPED_BITCOIN,
-  ena_spl: ETHENA,
-  pump_spl: { color: "#54d38e", logo: pumpFunLogo },
-  jup_spl: { color: "#c6f462", logo: jupiterLogo, gradient: ["#33d9ff", "#c6f462"] },
-  usdt_spl: TETHER,
-  usdc_spl: USD_COIN,
-  usds_spl: USDS,
-  usdg_spl: GLOBAL_DOLLAR,
-  pyusd_spl: PAYPAL_USD,
-  xaut_spl: TETHER_GOLD,
-  paxg_spl: PAX_GOLD,
-  wbtc_trc20: WRAPPED_BITCOIN,
-  usdt_trc20: TETHER,
-  ena_jetton: ETHENA,
-  usdt_jetton: TETHER,
-  xaut_jetton: TETHER_GOLD,
+const COIN_BRANDS: Record<Coin, Brand> = {
+  link: { color: "#2a5ada", logo: chainlinkLogo },
+  wbtc: { color: "#f09242", logo: wrappedBitcoinLogo },
+  weth: { color: "#ec1c79", logo: wrappedEtherLogo },
+  uni: { color: "#ff007a", logo: uniswapLogo },
+  shib: { color: "#ffa409", logo: shibaInuLogo },
+  ena: { color: "#8c919c", logo: ethenaLogo, gradient: ["#626874", "#c1c5cd"] },
+  aave: { color: "#9391f7", logo: aaveLogo },
+  ondo: { color: "#4d78a8", logo: ondoLogo, gradient: ["#345477", "#8cafd4"] },
+  pepe: { color: "#3d8130", logo: pepeLogo },
+  arb: ARBITRUM,
+  op: OPTIMISM,
+  pump: { color: "#54d38e", logo: pumpFunLogo },
+  jup: { color: "#c6f462", logo: jupiterLogo, gradient: ["#33d9ff", "#c6f462"] },
+  usdt: { color: "#009393", logo: tetherUsdLogo },
+  usdc: { color: "#0b53bf", logo: usdCoinLogo },
+  usds: { color: "#ff9b50", logo: usdsLogo },
+  dai: { color: "#f5ac37", logo: daiLogo },
+  usdg: { color: "#c7e36c", logo: globalDollarLogo },
+  pyusd: { color: "#0079c1", logo: paypalUsdLogo },
+  xaut: { color: "#d3b25a", logo: tetherGoldLogo },
+  paxg: { color: "#dbba08", logo: paxGoldLogo },
 }
 
 export function assetBrand(asset: AssetId): Brand {
-  return asset.kind === "native"
-    ? CHAIN_BRANDS[chainMeta(asset.value).coinChain]
-    : TOKEN_BRANDS[asset.value]
+  const coin = assetCoin(asset)
+  return coin === null ? CHAIN_BRANDS[chainMeta(assetChain(asset)).coinChain] : COIN_BRANDS[coin]
 }
 
 interface BrandLogoProps {

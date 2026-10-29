@@ -5,6 +5,7 @@ import type {
   AssetMeta,
   ChainId,
   ChainMeta,
+  Coin,
   EndpointOrigin,
   KeySource,
   ProbeFailure,
@@ -114,6 +115,10 @@ export function assetName(asset: AssetId): string {
 
 export function assetChain(asset: AssetId): ChainId {
   return assetMeta(asset).chain
+}
+
+export function assetCoin(asset: AssetId): Coin | null {
+  return assetMeta(asset).coin
 }
 
 export function shownAsset(chain: ChainId, shownTokens: readonly TokenId[]): AssetId {

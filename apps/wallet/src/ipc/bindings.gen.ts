@@ -310,6 +310,8 @@ export type AssetId = { kind: "native"; value: ChainId } | { kind: "token"; valu
 export type AssetMeta = {
 	asset: AssetId,
 	chain: ChainId,
+	/**  `None` for a native coin. */
+	coin: Coin | null,
 	symbol: string,
 	name: string,
 	decimals: number,
@@ -423,6 +425,9 @@ export type ChainMeta = {
 	/**  Whether one send can spend coins from several addresses, as only a UTXO chain can. */
 	canPoolSources: boolean,
 };
+
+/**  What a token stands for, the same on every chain that carries it. */
+export type Coin = "link" | "wbtc" | "weth" | "uni" | "shib" | "ena" | "aave" | "ondo" | "pepe" | "arb" | "op" | "pump" | "jup" | "usdt" | "usdc" | "usds" | "dai" | "usdg" | "pyusd" | "xaut" | "paxg";
 
 /**  An address the user saved to send to, kept with the open wallet. */
 export type ContactRecord = {
