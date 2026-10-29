@@ -38,6 +38,10 @@ function settle(current: Edges, next: Edges): Edges {
   return current.hasBefore === next.hasBefore && current.hasAfter === next.hasAfter ? current : next
 }
 
+function fitSpacer(spacer: HTMLElement, viewport: HTMLElement): void {
+  spacer.style.height = `${String(viewport.scrollWidth - viewport.clientWidth)}px`
+}
+
 interface CarouselProps {
   activeKey: string
   className?: string | undefined
@@ -46,8 +50,11 @@ interface CarouselProps {
 }
 
 export function Carousel({ activeKey, className, frame, children }: CarouselProps) {
+  const scrollerRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  const mirroredLeftRef = useRef(0)
   const dragRef = useRef<Drag | null>(null)
   const shouldSwallowClickRef = useRef(false)
   const revealedKeyRef = useRef<string | null>(null)
@@ -56,36 +63,42 @@ export function Carousel({ activeKey, className, frame, children }: CarouselProp
   const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
+    const scroller = scrollerRef.current
     const viewport = viewportRef.current
     const track = trackRef.current
-    if (viewport === null || track === null) {
+    const spacer = spacerRef.current
+    if (scroller === null || viewport === null || track === null || spacer === null) {
       return undefined
     }
     const observer = new ResizeObserver(() => {
+      scroller.style.height = `${String(viewport.clientWidth)}px`
+      scroller.style.marginBottom = `${String(viewport.offsetHeight - viewport.clientWidth)}px`
+      fitSpacer(spacer, viewport)
       setEdges((current) => settle(current, edgesOf(viewport)))
     })
     observer.observe(viewport)
     observer.observe(track)
-    const scroller: HTMLDivElement = viewport
+    const target: HTMLDivElement = scroller
     function handleWheel(event: WheelEvent): void {
-      const canScroll = scroller.scrollWidth > scroller.clientWidth
-      if (!canScroll || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) {
         return
       }
       event.preventDefault()
-      scroller.scrollLeft += event.deltaY
+      target.scrollTop += event.deltaX
     }
-    viewport.addEventListener("wheel", handleWheel, { passive: false })
+    scroller.addEventListener("wheel", handleWheel, { passive: false })
     return () => {
       observer.disconnect()
-      viewport.removeEventListener("wheel", handleWheel)
+      scroller.removeEventListener("wheel", handleWheel)
     }
   }, [])
 
   useLayoutEffect(() => {
+    const scroller = scrollerRef.current
     const viewport = viewportRef.current
+    const spacer = spacerRef.current
     const previous = revealedKeyRef.current
-    if (viewport === null || previous === activeKey) {
+    if (scroller === null || viewport === null || spacer === null || previous === activeKey) {
       return
     }
     revealedKeyRef.current = activeKey
@@ -103,17 +116,18 @@ export function Carousel({ activeKey, className, frame, children }: CarouselProp
       return
     }
     const center = item.left - view.left + item.width / 2
-    viewport.scrollTo({
-      left: viewport.scrollLeft + center - view.width / 2,
+    fitSpacer(spacer, viewport)
+    scroller.scrollTo({
+      top: scroller.scrollTop + center - view.width / 2,
       behavior: hasRevealedActive ? "smooth" : "instant",
     })
   }, [activeKey])
 
   function page(direction: 1 | -1): void {
-    const viewport = viewportRef.current
-    if (viewport !== null) {
-      viewport.scrollBy({
-        left: direction * viewport.clientWidth * PAGE_FRACTION,
+    const scroller = scrollerRef.current
+    if (scroller !== null) {
+      scroller.scrollBy({
+        top: direction * scroller.clientWidth * PAGE_FRACTION,
         behavior: "smooth",
       })
     }
@@ -127,7 +141,7 @@ export function Carousel({ activeKey, className, frame, children }: CarouselProp
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
-      startScroll: event.currentTarget.scrollLeft,
+      startScroll: event.currentTarget.scrollTop,
       hasMoved: false,
     }
   }
@@ -146,7 +160,7 @@ export function Carousel({ activeKey, className, frame, children }: CarouselProp
       event.currentTarget.setPointerCapture(event.pointerId)
       setIsDragging(true)
     }
-    event.currentTarget.scrollLeft = drag.startScroll - distance
+    event.currentTarget.scrollTop = drag.startScroll - distance
   }
 
   function handlePointerEnd(event: PointerEvent<HTMLDivElement>): void {
@@ -165,17 +179,18 @@ export function Carousel({ activeKey, className, frame, children }: CarouselProp
     defaultTagName: "div",
     ...(frame === undefined ? {} : { render: frame }),
     props: {
-      className: "relative min-w-0 overflow-hidden rounded-full",
+      className: "relative min-w-0 overflow-clip rounded-full",
       children: (
         <div
-          ref={viewportRef}
-          className="flex scrollbar-none overflow-x-auto overflow-y-hidden overscroll-x-contain mask-[linear-gradient(to_right,transparent,#000_var(--carousel-fade-before),#000_calc(100%-var(--carousel-fade-after)),transparent)] transition-[--carousel-fade-before,--carousel-fade-after] duration-base ease-standard data-[after=true]:[--carousel-fade-after:--spacing(10)] data-[before=true]:[--carousel-fade-before:--spacing(10)] data-[dragging=true]:cursor-grabbing data-[dragging=true]:select-none"
-          data-before={edges.hasBefore}
-          data-after={edges.hasAfter}
+          ref={scrollerRef}
+          className="relative scrollbar-none overflow-x-hidden overflow-y-auto overscroll-y-contain data-[dragging=true]:cursor-grabbing data-[dragging=true]:select-none"
           data-dragging={isDragging}
           onScroll={(event) => {
-            const viewport = event.currentTarget
-            setEdges((current) => settle(current, edgesOf(viewport)))
+            const viewport = viewportRef.current
+            if (viewport !== null) {
+              viewport.scrollLeft = event.currentTarget.scrollTop
+              mirroredLeftRef.current = viewport.scrollLeft
+            }
           }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -189,9 +204,25 @@ export function Carousel({ activeKey, className, frame, children }: CarouselProp
             }
           }}
         >
-          <div ref={trackRef} className="flex w-max shrink-0">
-            {children}
+          <div
+            ref={viewportRef}
+            className="sticky top-0 flex overflow-hidden mask-[linear-gradient(to_right,transparent,#000_var(--carousel-fade-before),#000_calc(100%-var(--carousel-fade-after)),transparent)] transition-[--carousel-fade-before,--carousel-fade-after] duration-base ease-standard data-[after=true]:[--carousel-fade-after:--spacing(10)] data-[before=true]:[--carousel-fade-before:--spacing(10)]"
+            data-before={edges.hasBefore}
+            data-after={edges.hasAfter}
+            onScroll={(event) => {
+              const viewport = event.currentTarget
+              setEdges((current) => settle(current, edgesOf(viewport)))
+              const scroller = scrollerRef.current
+              if (scroller !== null && viewport.scrollLeft !== mirroredLeftRef.current) {
+                scroller.scrollTop = viewport.scrollLeft
+              }
+            }}
+          >
+            <div ref={trackRef} className="flex w-max shrink-0">
+              {children}
+            </div>
           </div>
+          <div ref={spacerRef} className="absolute top-full left-0 w-px" />
         </div>
       ),
     },
