@@ -3,7 +3,7 @@ import { useState } from "react"
 import { MAX_U32, parseOptionalWhole } from "@/features/settings/layout.tsx"
 import type { ChainId, WalletRecord } from "@/ipc/bindings.gen.ts"
 import type { Parsed } from "@/lib/amount.ts"
-import { allChains, chainName, chainTicker } from "@/lib/chain.ts"
+import { allChains, assetSymbol, chainName, nativeAsset } from "@/lib/chain.ts"
 import { chainCommands, chainKeys } from "@/query/chain.ts"
 import { useIpcMutation } from "@/query/mutation.ts"
 import { txKeys } from "@/query/tx.ts"
@@ -52,7 +52,7 @@ function ChainRow({ chain, isEnabled, onEnabledChange }: ChainRowProps) {
         <ChainLogo chain={chain} />
         <span className="flex w-36 shrink-0 items-baseline gap-1">
           {chainName(chain)}
-          <span className="text-caption text-fg-faint">{chainTicker(chain)}</span>
+          <span className="text-caption text-fg-faint">{assetSymbol(nativeAsset(chain))}</span>
         </span>
 
         <form

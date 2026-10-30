@@ -38,7 +38,7 @@ fn bsc_shares_ethereums_coin_type() {
     assert_eq!(ChainId::Bsc.display_name(), "BNB Smart Chain");
 }
 
-/// MATIC became POL in September 2024, and the network keeps the Polygon name.
+/// A seed has one address on Ethereum and Polygon.
 #[test]
 fn polygon_shares_ethereums_coin_type() {
     assert_eq!(chains().spec(ChainId::Polygon).slip44, chains().spec(ChainId::Ethereum).slip44);

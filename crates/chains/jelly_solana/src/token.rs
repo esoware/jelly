@@ -1,8 +1,8 @@
-//! The compiled SPL token registry, and what a token account at one of its
+//! The SPL tokens Jelly carries, and what a token account at one of their
 //! addresses allows a transfer to do.
 //!
-//! Symbols, decimals and owning programs are trusted configuration, never read
-//! from the chain.
+//! Decimals and owning programs are trusted configuration, never read from the
+//! chain.
 
 use jelly_core::{AssetId, TokenId};
 use solana_pubkey::Pubkey;
@@ -35,6 +35,22 @@ const FEE_AND_HOOK_ACCOUNT_BYTES: u64 = 187;
 /// has a hook but no transfer fee, so its accounts carry no withheld amount.
 const HOOK_ACCOUNT_BYTES: u64 = 175;
 
+/// In `TokenId::ALL` order. Built in a const so a mint that doesn't parse fails the build.
+const TOKENS: [SolanaToken; 12] = [
+    SolanaToken::new(TokenId::LinkSpl),
+    SolanaToken::new(TokenId::WbtcSpl),
+    SolanaToken::new(TokenId::EnaSpl),
+    SolanaToken::new(TokenId::PumpSpl),
+    SolanaToken::new(TokenId::JupSpl),
+    SolanaToken::new(TokenId::UsdtSpl),
+    SolanaToken::new(TokenId::UsdcSpl),
+    SolanaToken::new(TokenId::UsdsSpl),
+    SolanaToken::new(TokenId::UsdgSpl),
+    SolanaToken::new(TokenId::PyusdSpl),
+    SolanaToken::new(TokenId::XautSpl),
+    SolanaToken::new(TokenId::PaxgSpl),
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SolanaToken {
     id: TokenId,
@@ -47,8 +63,8 @@ impl SolanaToken {
     }
 
     /// The Solana tokens Jelly carries, in the order they are reported.
-    pub(crate) fn all() -> impl Iterator<Item = Self> {
-        TokenId::ALL.into_iter().filter(|id| id.chain() == CHAIN).map(Self::new)
+    pub(crate) fn all() -> impl ExactSizeIterator<Item = Self> {
+        TOKENS.into_iter()
     }
 
     #[cfg(test)]
@@ -147,11 +163,9 @@ impl SolanaToken {
 
     /// The token with this id, or a refusal for one that lives on another chain.
     pub(crate) fn of(id: TokenId) -> Result<Self, SolanaError> {
-        if id.chain() == CHAIN {
-            Ok(Self::new(id))
-        } else {
-            Err(SolanaError::ForeignAsset { asset: AssetId::Token(id) })
-        }
+        Self::all()
+            .find(|token| token.id == id)
+            .ok_or(SolanaError::ForeignAsset { asset: AssetId::Token(id) })
     }
 
     /// The associated token account of `owner` for this token.
@@ -379,6 +393,14 @@ mod tests {
             (TokenId::PaxgSpl, PAXG_MINT),
         ];
         assert_eq!(carried, issued.map(|(id, mint)| (id, mint.to_owned())));
+    }
+
+    #[test]
+    fn the_registry_carries_every_solana_token_in_declaration_order() {
+        let carried: Vec<TokenId> = SolanaToken::all().map(SolanaToken::id).collect();
+        let declared: Vec<TokenId> =
+            TokenId::ALL.into_iter().filter(|id| id.chain() == CHAIN).collect();
+        assert_eq!(carried, declared);
     }
 
     fn recorded_mint(name: &str) -> RawAccount {

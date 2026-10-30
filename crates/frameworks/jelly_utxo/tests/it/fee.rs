@@ -434,7 +434,7 @@ async fn the_recorded_answers_produce_the_recorded_rates() {
         // each one asks the server.
         let (harness, wallet) =
             synced(Setup::on(&params), ScriptKind::P2wpkh, &[FUNDING_SAT]).await.unwrap();
-        let answer_at = format!("{}PerKvb", params.chain.coin().symbol().to_ascii_lowercase());
+        let answer_at = format!("{}PerKvb", params.chain.coin().as_str());
         for pointer in ["/estimate", "/estimateBelowTheFloor"] {
             harness.clock.advance(Duration::from_secs(60));
             harness.serve(Method::EstimateFee, &text(&node(pointer), &answer_at));

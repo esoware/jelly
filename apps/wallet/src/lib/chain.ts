@@ -84,10 +84,6 @@ export function chainName(chain: ChainId): string {
   return chainMeta(chain).name
 }
 
-export function chainTicker(chain: ChainId): string {
-  return assetCoin({ kind: "native", value: chain }).symbol
-}
-
 export function hasScriptChoice(chain: ChainId): boolean {
   return chainMeta(chain).scriptKinds.length > 1
 }
@@ -182,7 +178,7 @@ export function groupAssets(assets: readonly AssetId[]): AssetGroup[] {
     },
     {
       label: "Real world assets",
-      assets: assets.filter((asset) => assetCoin(asset).isRealWorldAsset),
+      assets: assets.filter((asset) => asset.kind === "token" && assetCoin(asset).isRealWorldAsset),
     },
   ]
   return groups.filter((group) => group.assets.length > 0)
