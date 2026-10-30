@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 
 use jelly_core::{
-    ChainId, CustomFee, ErrorCode, FailureKind, FeeLevel, FiatCurrency, KeyKind, KeyService,
+    ChainId, Coin, CustomFee, ErrorCode, FailureKind, FeeLevel, FiatCurrency, KeyKind, KeyService,
     PassphrasePolicy, PhraseWords, RejectionKind, ReservationSlot, RetryPolicy, ScanStream,
     ScriptKind, SkipReason, TokenId, Transport, TxDetection, TxDirection, TxOutcome, TxWarningKind,
 };
@@ -47,6 +47,7 @@ macro_rules! wire_enums {
 wire_enums![
     ChainId,
     ScriptKind,
+    Coin,
     TokenId,
     TxDirection,
     TxOutcome,
@@ -181,6 +182,79 @@ mod chains {
     fn a_ton_wallet_version_derives_under_no_purpose_of_its_own() {
         for kind in [ScriptKind::TonV5r1, ScriptKind::TonV4r2, ScriptKind::TonV3r2] {
             assert_eq!(kind.purpose(), None, "{kind}");
+        }
+    }
+}
+
+mod coins {
+    use super::{ChainId, Coin, TokenId};
+
+    #[test]
+    fn every_coin_is_some_chains_or_some_tokens() {
+        for coin in Coin::ALL {
+            let is_native = ChainId::ALL.iter().any(|chain| chain.coin() == coin);
+            let is_token = TokenId::ALL.iter().any(|token| token.coin() == coin);
+            assert!(is_native || is_token, "{coin}");
+        }
+    }
+
+    #[test]
+    fn no_two_coins_share_a_symbol() {
+        for (at, coin) in Coin::ALL.into_iter().enumerate() {
+            let twin = Coin::ALL
+                .into_iter()
+                .skip(at.saturating_add(1))
+                .find(|other| other.symbol() == coin.symbol());
+            assert_eq!(twin, None, "{} appears twice", coin.symbol());
+        }
+    }
+
+    #[test]
+    fn only_dollar_coins_and_gold_are_real_world_assets() {
+        let real_world: Vec<Coin> =
+            Coin::ALL.into_iter().filter(|coin| coin.is_real_world_asset()).collect();
+        assert_eq!(
+            real_world,
+            [
+                Coin::Usdt,
+                Coin::Usdc,
+                Coin::Usds,
+                Coin::Dai,
+                Coin::Usdg,
+                Coin::Pyusd,
+                Coin::Xaut,
+                Coin::Paxg
+            ]
+        );
+    }
+
+    /// A coin takes its network's name unless it has its own, and a rollup's coin is ether,
+    /// named as it is on Ethereum. The table lists every chain in declaration order.
+    #[test]
+    fn every_chain_names_its_own_coin() {
+        let expected = [
+            (ChainId::Bitcoin, "BTC", "Bitcoin"),
+            (ChainId::Litecoin, "LTC", "Litecoin"),
+            (ChainId::Dogecoin, "DOGE", "Dogecoin"),
+            (ChainId::BitcoinCash, "BCH", "Bitcoin Cash"),
+            (ChainId::Zcash, "ZEC", "Zcash"),
+            (ChainId::Ethereum, "ETH", "Ethereum"),
+            (ChainId::Arbitrum, "ETH", "Ethereum"),
+            (ChainId::Base, "ETH", "Ethereum"),
+            (ChainId::Optimism, "ETH", "Ethereum"),
+            (ChainId::Bsc, "BNB", "BNB"),
+            (ChainId::Polygon, "POL", "Polygon"),
+            (ChainId::Avalanche, "AVAX", "Avalanche"),
+            (ChainId::Solana, "SOL", "Solana"),
+            (ChainId::Tron, "TRX", "TRON"),
+            (ChainId::Xrp, "XRP", "XRP"),
+            (ChainId::Ton, "GRAM", "Gram"),
+            (ChainId::Monero, "XMR", "Monero"),
+        ];
+        assert_eq!(expected.map(|(chain, _, _)| chain), ChainId::ALL);
+        for (chain, symbol, name) in expected {
+            assert_eq!(chain.coin().symbol(), symbol, "{}", chain.as_str());
+            assert_eq!(chain.coin().display_name(), name, "{}", chain.as_str());
         }
     }
 }

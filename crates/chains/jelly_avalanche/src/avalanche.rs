@@ -10,8 +10,6 @@ use jelly_net::{Endpoint, Network, ProbeReport};
 
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Avalanche,
-    coin_name: "Avalanche",
-    coin_chain: ChainId::Avalanche,
     // Ethereum's coin type, not Avalanche's 9000, which only the X-Chain and P-Chain
     // use. Core, MetaMask, and Trust Wallet derive the C-Chain here too, so a seed has
     // the same address as on Ethereum.

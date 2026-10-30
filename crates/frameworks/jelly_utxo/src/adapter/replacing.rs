@@ -5,11 +5,11 @@ use crate::adapter::fee::FeeContext;
 use crate::adapter::state::Descendants;
 use crate::adapter::watched::{Watched, sources_led_by, sources_of, spenders};
 use crate::build::BuiltTx;
-use crate::coin::Utxo;
 use crate::error::UtxoError;
 use crate::original::Original;
 use crate::params::UtxoParams;
 use crate::replacement::{ReplacementRequest, build_replacement, min_replacement_rate};
+use crate::utxo::Utxo;
 
 /// The sources and recipient of the original, recovered from the chain so they
 /// survive a restart.

@@ -9,6 +9,7 @@ mod asset;
 mod build;
 mod chain;
 mod clock;
+mod coin;
 mod cursor;
 mod endpoint;
 mod entry;
@@ -43,6 +44,7 @@ pub use crate::build::{
 };
 pub use crate::chain::{ChainId, ScriptKind};
 pub use crate::clock::{Clock, ClockError, Deadline, SystemClock, duration_millis};
+pub use crate::coin::Coin;
 pub use crate::cursor::{
     CursorBytes, CursorScope, CursorStore, HeldReservation, ReservationSlot, ScanAdvance,
     ScanStream,

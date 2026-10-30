@@ -6,7 +6,6 @@ use bitcoin::{OutPoint, Transaction};
 use jelly_core::{FeeRate, ScriptKind};
 
 use crate::build::{BuildRequest, BuiltTx, Source, build_tx};
-use crate::coin::{Origin, Utxo, units};
 use crate::error::UtxoError;
 use crate::original::Original;
 use crate::params::UtxoParams;
@@ -16,6 +15,7 @@ use crate::sign::sign_tx;
 use crate::test_util::{
     BITCOIN, BITCOIN_CASH, LITECOIN, TestKey, fixture_txid, test_key, tx_paying, tx_spending,
 };
+use crate::utxo::{Origin, Utxo, units};
 
 pub(crate) type Fallible<T> = Result<T, Box<dyn Error>>;
 

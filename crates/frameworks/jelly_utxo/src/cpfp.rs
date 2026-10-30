@@ -11,12 +11,12 @@ use bitcoin::{Txid, Weight};
 use jelly_core::{Amount, FeeRate};
 
 use crate::build::{BuiltTx, Source, assemble, participants};
-use crate::coin::{Utxo, tx_out};
 use crate::error::UtxoError;
 use crate::original::Original;
 use crate::params::UtxoParams;
 use crate::payload::{Intent, UtxoPayload};
 use crate::select::{Eligible, Selection, Strategy, ordered_candidates};
+use crate::utxo::{Utxo, tx_out};
 use crate::{fee, weight};
 
 /// An unconfirmed transaction a child pays for, as the mempool prices it.
@@ -186,7 +186,6 @@ mod tests {
     use jelly_core::TxWarningKind;
 
     use super::*;
-    use crate::coin::{Origin, units};
     use crate::fixtures::{
         FLOOR_QUOTE, Fallible, ONE_PER_VB, Scene, TEN_PER_VB, TIP, confirmed, kwu, litecoin_scene,
         sent_original,
@@ -194,6 +193,7 @@ mod tests {
     use crate::preview::preview;
     use crate::sign::sign_tx;
     use crate::test_util::fixture_txid;
+    use crate::utxo::{Origin, units};
 
     fn pending(seed: usize, fee: u64, vsize: u64) -> Unconfirmed {
         Unconfirmed { txid: fixture_txid(seed), fee: units(fee), weight: vbytes(vsize) }

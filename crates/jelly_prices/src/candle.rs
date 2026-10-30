@@ -184,6 +184,7 @@ type Row = (i64, String, String, String, String, IgnoredAny, IgnoredAny, Ignored
 
 #[cfg(test)]
 mod tests {
+    use jelly_core::Coin;
     use serde_json::json;
 
     use super::*;
@@ -221,7 +222,7 @@ mod tests {
             (CandleInterval::Day, "&interval=1440"),
             (CandleInterval::Week, "&interval=10080"),
         ] {
-            let request = CandleRequest::asset(Ticker::Btc, interval);
+            let request = CandleRequest::asset(Ticker::of(Coin::Btc), interval);
             assert!(
                 request.url().starts_with("https://api.kraken.com/0/public/OHLC?pair=XXBTZUSD")
             );
@@ -232,7 +233,7 @@ mod tests {
 
     #[test]
     fn every_price_is_read_without_floats_from_either_exact_pair_name() {
-        let request = CandleRequest::asset(Ticker::Btc, CandleInterval::Hour);
+        let request = CandleRequest::asset(Ticker::of(Coin::Btc), CandleInterval::Hour);
         let row = (OPEN_HOUR_UNIX_SECS, ["81847.1", "81990.4", "81648.4", "81936.400000009"]);
         for pair in ["XXBTZUSD", "XBTUSD"] {
             let candles = request.decode(&ohlc_body(pair, &[row]), NOW_UNIX_SECS).unwrap();
@@ -252,7 +253,7 @@ mod tests {
 
     #[test]
     fn a_reported_error_beside_a_usable_result_is_not_a_refusal() {
-        let request = CandleRequest::asset(Ticker::Btc, CandleInterval::Hour);
+        let request = CandleRequest::asset(Ticker::of(Coin::Btc), CandleInterval::Hour);
         let row = (OPEN_HOUR_UNIX_SECS, ["1", "2", "0.5", "1.5"]);
         let mut body: serde_json::Value =
             serde_json::from_str(&ohlc_body("XXBTZUSD", &[row])).unwrap();
@@ -265,7 +266,7 @@ mod tests {
 
     #[test]
     fn the_open_candle_is_kept_and_future_and_unaligned_candles_are_not() {
-        let request = CandleRequest::asset(Ticker::Btc, CandleInterval::Hour);
+        let request = CandleRequest::asset(Ticker::of(Coin::Btc), CandleInterval::Hour);
         let flat = ["2", "2", "2", "2"];
         let rows = [
             (NEXT_HOUR_UNIX_SECS, flat),
@@ -282,7 +283,7 @@ mod tests {
 
     #[test]
     fn a_candle_that_makes_no_sense_is_dropped_without_its_neighbors() {
-        let request = CandleRequest::asset(Ticker::Btc, CandleInterval::Hour);
+        let request = CandleRequest::asset(Ticker::of(Coin::Btc), CandleInterval::Hour);
         let hours_ago =
             |count: i64| OPEN_HOUR_UNIX_SECS.saturating_sub(count.saturating_mul(3_600));
         let rows = [
@@ -350,7 +351,7 @@ mod tests {
 
     #[test]
     fn malformed_and_refused_answers_never_expose_response_text() {
-        let request = CandleRequest::asset(Ticker::Btc, CandleInterval::Day);
+        let request = CandleRequest::asset(Ticker::of(Coin::Btc), CandleInterval::Day);
         let secret = "https://private.example/secret";
         for body in [
             json!({ "error": [secret] }).to_string(),

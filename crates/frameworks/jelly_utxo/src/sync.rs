@@ -5,7 +5,6 @@ use bitcoin::{OutPoint, ScriptBuf, Transaction, Txid, block};
 use jelly_core::{Amount, AssetId, ChainSyncProgress, EventSink, TxOutcome, TxRecord, WalletEvent};
 use jelly_electrum::{ElectrumClient, HistoryDigest, HistoryEntry, Unspent};
 
-use crate::coin::Utxo;
 use crate::cursor::{CursorPending, CursorUtxo, SyncCursor};
 use crate::error::UtxoError;
 use crate::params::UtxoParams;
@@ -13,6 +12,7 @@ use crate::prevout::PrevoutMap;
 use crate::record::{Confirmed, Viewpoint, tx_record};
 use crate::script::SpendableScript;
 use crate::unspent::{Funding, RefusedUnspent, verified_unspents};
+use crate::utxo::Utxo;
 
 /// One address a pass watches. The pass works in scripts and reports by
 /// `address_id`, so it doesn't need the address string.
@@ -562,9 +562,9 @@ mod tests {
     use jelly_electrum::{Confirmation, ElectrumError, Method, test_util::Answer};
 
     use super::*;
-    use crate::coin::units;
     use crate::fixtures::{FUNDED_SAT, Fallible, MINED_AT, RECEIVED_SAT, Received, TIP, received};
     use crate::test_util::{BITCOIN, FakeChain, TestKey, test_key, tx_paying, tx_spending};
+    use crate::utxo::units;
 
     const BLOCK_UNIX_SECONDS: u32 = 1_700_000_000;
     const SENT_SAT: u64 = 50_000;

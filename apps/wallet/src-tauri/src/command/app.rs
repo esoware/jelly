@@ -1,4 +1,6 @@
-use jelly_core::{AssetId, ChainId, CustomFee, FeeLevel, ProxySetting, ScriptKind, wire_enum};
+use jelly_core::{
+    AssetId, ChainId, Coin, CustomFee, FeeLevel, ProxySetting, ScriptKind, wire_enum,
+};
 use serde::Serialize;
 use specta::Type;
 use tauri::{AppHandle, State};
@@ -7,17 +9,14 @@ use crate::error::IpcError;
 use crate::state::{AppState, StartupStatus};
 use crate::window::{WINDOW_CONTROLS, WindowBackdrop, WindowControls};
 
-/// Scale and symbol are in `AssetMeta`. The path and explorer templates use `{index}`,
-/// `{txid}`, and `{address}` placeholders.
+/// The native coin's scale is in `AssetMeta` and its symbol in `CoinMeta`. The path and
+/// explorer templates use `{index}`, `{txid}`, and `{address}` placeholders.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 #[expect(clippy::struct_excessive_bools, reason = "independent capability flags")]
 pub(crate) struct ChainMeta {
     chain: ChainId,
     name: &'static str,
-    /// The chain the coin is native to, such as Ethereum for a rollup that pays fees in
-    /// ether.
-    coin_chain: ChainId,
     fee_rate_unit: Option<&'static str>,
     /// The fee levels a send can pick from, slowest first. Empty on a chain whose
     /// protocol fixes the fee.
@@ -50,16 +49,25 @@ pub(crate) struct ChainMeta {
     can_pool_sources: bool,
 }
 
-/// What the frontend shows for an asset. Contract addresses stay in Rust on `TokenId`.
+/// What the frontend shows for a coin on every chain that carries it.
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CoinMeta {
+    coin: Coin,
+    symbol: &'static str,
+    name: &'static str,
+    is_real_world_asset: bool,
+}
+
+/// Where an asset lives and its scale. What it's called is in its coin's `CoinMeta`, and
+/// contract addresses stay in Rust on `TokenId`.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AssetMeta {
     asset: AssetId,
     chain: ChainId,
-    symbol: &'static str,
-    name: &'static str,
+    coin: Coin,
     decimals: u8,
-    is_real_world_asset: bool,
 }
 
 /// Works before the engine starts and touches no database, vault, or network.
@@ -138,7 +146,6 @@ pub(crate) async fn list_chain_metadata() -> Result<Vec<ChainMeta>, IpcError> {
         ChainMeta {
             chain: spec.chain,
             name: spec.chain.display_name(),
-            coin_chain: spec.coin_chain,
             fee_rate_unit: spec.fee_rate_unit,
             fee_levels: spec.fee_levels,
             custom_fee: spec.custom_fee,
@@ -165,26 +172,33 @@ pub(crate) async fn list_chain_metadata() -> Result<Vec<ChainMeta>, IpcError> {
 
 #[tauri::command]
 #[specta::specta]
+pub(crate) async fn list_coin_metadata() -> Result<Vec<CoinMeta>, IpcError> {
+    let metadata = Coin::ALL.into_iter().map(|coin| CoinMeta {
+        coin,
+        symbol: coin.symbol(),
+        name: coin.display_name(),
+        is_real_world_asset: coin.is_real_world_asset(),
+    });
+    Ok(metadata.collect())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub(crate) async fn list_asset_metadata() -> Result<Vec<AssetMeta>, IpcError> {
     let metadata = AssetId::all().map(|asset| AssetMeta {
         asset,
         chain: asset.chain(),
-        symbol: asset.symbol(),
-        name: match asset {
-            AssetId::Native(chain) => jelly_chains::chains().spec(chain).coin_name,
-            AssetId::Token(token) => token.display_name(),
-        },
+        coin: asset.coin(),
         decimals: asset.decimals(),
-        is_real_world_asset: asset.is_real_world_asset(),
     });
     Ok(metadata.collect())
 }
 
 #[cfg(test)]
 mod tests {
-    use jelly_core::{AssetId, ChainId, TokenId};
+    use jelly_core::{AssetId, ChainId, Coin, TokenId};
 
-    use super::{list_asset_metadata, list_chain_metadata};
+    use super::{list_asset_metadata, list_chain_metadata, list_coin_metadata};
 
     #[tokio::test]
     async fn chain_metadata_carries_every_chains_spec_in_chain_order() {
@@ -195,7 +209,6 @@ mod tests {
             let spec = jelly_chains::chains().spec(chain);
             assert_eq!(metadata.name, chain.display_name());
             assert!(!metadata.name.is_empty(), "{}", chain.as_str());
-            assert_eq!(metadata.coin_chain, spec.coin_chain, "{}", chain.as_str());
             assert_eq!(metadata.fee_rate_unit, spec.fee_rate_unit, "{}", chain.as_str());
             assert_eq!(metadata.fee_levels, spec.fee_levels, "{}", chain.as_str());
             assert_eq!(metadata.custom_fee, spec.custom_fee, "{}", chain.as_str());
@@ -225,27 +238,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn coin_metadata_carries_every_coin_in_coin_order() {
+        let all = list_coin_metadata().await.unwrap();
+        assert_eq!(all.iter().map(|metadata| metadata.coin).collect::<Vec<_>>(), Coin::ALL);
+        for metadata in &all {
+            let coin = metadata.coin;
+            assert_eq!(metadata.symbol, coin.symbol(), "{coin}");
+            assert_eq!(metadata.name, coin.display_name(), "{coin}");
+            assert_eq!(metadata.is_real_world_asset, coin.is_real_world_asset(), "{coin}");
+            assert!(!metadata.name.is_empty(), "{coin}");
+        }
+        let find = |coin| {
+            all.iter().find(|metadata| metadata.coin == coin).expect("the coin has metadata")
+        };
+        let usdt = find(Coin::Usdt);
+        assert_eq!(usdt.symbol, "USDT");
+        assert_eq!(usdt.name, "Tether USD");
+        assert!(usdt.is_real_world_asset);
+        let bnb = find(Coin::Bnb);
+        assert_eq!(bnb.name, "BNB");
+        assert!(!bnb.is_real_world_asset);
+    }
+
+    #[tokio::test]
     async fn asset_metadata_covers_every_asset() {
         let all = list_asset_metadata().await.unwrap();
         assert_eq!(all.len(), AssetId::COUNT);
         for metadata in &all {
-            assert_eq!(metadata.chain, metadata.asset.chain());
-            assert_eq!(metadata.decimals, metadata.asset.decimals());
-            assert_eq!(metadata.symbol, metadata.asset.symbol());
-            assert_eq!(metadata.is_real_world_asset, metadata.asset.is_real_world_asset());
-            assert!(!metadata.name.is_empty(), "{}", metadata.asset.key());
+            let key = metadata.asset.key();
+            assert_eq!(metadata.chain, metadata.asset.chain(), "{key}");
+            assert_eq!(metadata.coin, metadata.asset.coin(), "{key}");
+            assert_eq!(metadata.decimals, metadata.asset.decimals(), "{key}");
         }
-        let bep = all
-            .iter()
-            .find(|metadata| metadata.asset == AssetId::Token(TokenId::UsdtBep20))
-            .expect("the asset has metadata");
+        let find = |asset| {
+            all.iter().find(|metadata| metadata.asset == asset).expect("the asset has metadata")
+        };
+        let bep = find(AssetId::Token(TokenId::UsdtBep20));
         assert_eq!(bep.decimals, 18);
         assert_eq!(bep.chain, ChainId::Bsc);
-        assert_eq!(bep.name, "Tether USD");
-        let bnb = all
-            .iter()
-            .find(|metadata| metadata.asset == AssetId::Native(ChainId::Bsc))
-            .expect("the asset has metadata");
-        assert_eq!(bnb.name, "BNB");
+        assert_eq!(bep.coin, Coin::Usdt);
+        assert_eq!(find(AssetId::Native(ChainId::Bsc)).coin, Coin::Bnb);
+        assert_eq!(find(AssetId::Native(ChainId::Arbitrum)).coin, Coin::Eth);
     }
 }

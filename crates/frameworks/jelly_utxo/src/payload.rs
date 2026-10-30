@@ -6,10 +6,10 @@ use bitcoin::psbt::{Input as PsbtInput, Psbt};
 use bitcoin::{OutPoint, Transaction, TxOut, Txid, Weight};
 use jelly_core::Amount;
 
-use crate::coin::{Utxo, to_u64, tx_out, units, value_of};
 use crate::error::UtxoError;
 use crate::script::SpendableScript;
 use crate::select::Strategy;
+use crate::utxo::{Utxo, to_u64, tx_out, units, value_of};
 use crate::weight;
 
 /// The BIP-174 proprietary key prefix every Jelly field carries.

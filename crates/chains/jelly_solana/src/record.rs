@@ -12,7 +12,7 @@ use crate::config::NATIVE;
 use crate::rpc::{
     ParsedAccountKey, ParsedInfo, ParsedInstruction, TokenBalance, TransactionMeta, TransactionRow,
 };
-use crate::token::{SOLANA_TOKENS, SolanaToken};
+use crate::token::SolanaToken;
 
 const TRANSFERS: [&str; 2] = ["transfer", "transferWithSeed"];
 
@@ -74,7 +74,7 @@ pub(crate) fn of_transaction(
     }
 
     let mut records = Vec::new();
-    for token in SOLANA_TOKENS {
+    for token in SolanaToken::all() {
         if let Some(record) = seen.token_record(token) {
             records.push(record);
         }

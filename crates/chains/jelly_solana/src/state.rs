@@ -18,7 +18,7 @@ use tokio::sync::Mutex as AsyncMutex;
 use crate::cursor::SignatureCursor;
 use crate::error::SolanaError;
 use crate::pending::Tracked;
-use crate::token::{SOLANA_TOKENS, SolanaToken};
+use crate::token::SolanaToken;
 
 const TARGET: &str = "jelly::solana::state";
 
@@ -226,9 +226,7 @@ impl States {
     /// have each been read at least once.
     pub(crate) fn is_complete(&self, address_id: i64) -> bool {
         self.scan(address_id, None).is_complete()
-            && SOLANA_TOKENS
-                .into_iter()
-                .all(|token| self.scan(address_id, Some(token)).is_complete())
+            && SolanaToken::all().all(|token| self.scan(address_id, Some(token)).is_complete())
     }
 
     /// The sends a pass may act on, in address order for determinism.
@@ -635,7 +633,7 @@ mod tests {
             ..SignatureCursor::default()
         };
         states.set_scan(7, None, complete.clone());
-        for token in SOLANA_TOKENS.into_iter().filter(|token| token.id() != TokenId::PaxgSpl) {
+        for token in SolanaToken::all().filter(|token| token.id() != TokenId::PaxgSpl) {
             states.set_scan(7, Some(token), complete.clone());
         }
         states.persist_scan(7).await.unwrap();

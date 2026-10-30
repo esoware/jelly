@@ -181,7 +181,12 @@ mod tests {
     }
 
     fn tickers(codes: &[String]) -> Vec<Ticker> {
-        codes.iter().map(|code| Ticker::parse(code).expect("a known ticker")).collect()
+        codes
+            .iter()
+            .map(|code| {
+                Ticker::all().find(|ticker| ticker.coin().symbol() == code).expect("a known ticker")
+            })
+            .collect()
     }
 
     fn currency(code: &str) -> FiatCurrency {
@@ -211,7 +216,7 @@ mod tests {
 
         assert_eq!(quotes.accepted.len(), case.accepted.len(), "{}: accepted count", case.name);
         for (code, expected) in &case.accepted {
-            let found = quotes.accepted.iter().find(|quote| quote.ticker.as_str() == code);
+            let found = quotes.accepted.iter().find(|quote| quote.ticker.coin().symbol() == code);
             match found {
                 None => panic!("{}: {code} was not priced", case.name),
                 // Display is base units, which is the wire form the fixture records.
@@ -223,7 +228,7 @@ mod tests {
 
         assert_eq!(quotes.rejected.len(), case.rejected.len(), "{}: rejected count", case.name);
         for (code, expected) in &case.rejected {
-            let found = quotes.rejected.iter().find(|quote| quote.ticker.as_str() == code);
+            let found = quotes.rejected.iter().find(|quote| quote.ticker.coin().symbol() == code);
             match found {
                 None => panic!("{}: {code} was not rejected", case.name),
                 Some(quote) => {
@@ -238,7 +243,7 @@ mod tests {
             assert_eq!(
                 accepted.saturating_add(rejected),
                 1,
-                "{}: {ticker} was accounted for twice or not at all",
+                "{}: {ticker:?} was accounted for twice or not at all",
                 case.name
             );
         }
@@ -300,11 +305,12 @@ mod tests {
 
     #[test]
     fn one_request_asks_for_every_ticker_and_every_rate() {
-        let request = planned(&Ticker::ALL);
-        assert_eq!(request.tickers(), Ticker::ALL.as_slice());
+        let all: Vec<Ticker> = Ticker::all().collect();
+        let request = planned(&all);
+        assert_eq!(request.tickers(), all);
         assert_eq!(request.currencies(), rated_currencies());
 
-        let coins = Ticker::ALL.iter().map(|&ticker| kraken_key(ticker));
+        let coins = all.iter().map(|&ticker| kraken_key(ticker));
         let rates = rated_currencies().into_iter().filter_map(kraken_rate_key);
         let pairs: Vec<&str> = coins.chain(rates).collect();
         assert_eq!(

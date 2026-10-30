@@ -4,10 +4,10 @@ use std::slice::from_ref;
 use bitcoin::{Script, Weight};
 use jelly_core::{Amount, FeeRate, wire_enum};
 
-use crate::coin::{Utxo, milli};
 use crate::error::UtxoError;
 use crate::params::UtxoParams;
 use crate::script::SpendableScript;
+use crate::utxo::{Utxo, milli};
 use crate::{fee, weight};
 
 /// Caps the changeless search, which is exponential in the worst case, so a large
@@ -581,7 +581,6 @@ mod tests {
     use proptest::{prelude::*, test_runner::RngSeed};
 
     use super::*;
-    use crate::coin::{Origin, units};
     use crate::fee::{change_floor, fee_for};
     use crate::fixtures::{
         ONE_PER_VB, Scene, TEN_PER_VB, TIP, bitcoin_scene, confirmed, incoming, litecoin_scene,
@@ -590,6 +589,7 @@ mod tests {
     use crate::script::UtxoScript;
     use crate::select::Strategy;
     use crate::test_util::{BITCOIN, fixture_txid};
+    use crate::utxo::{Origin, units};
     use crate::weight::{input_weight, predict_weight};
 
     const PROPERTY_SEED: u64 = 20_261_021;

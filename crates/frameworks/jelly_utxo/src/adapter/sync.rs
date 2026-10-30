@@ -10,11 +10,11 @@ use crate::adapter::client::UtxoClient;
 use crate::adapter::state::ChainState;
 use crate::adapter::watched::Watched;
 use crate::claim::OutpointClaims;
-use crate::coin::Utxo;
 use crate::cursor::SyncCursor;
 use crate::error::UtxoError;
 use crate::params::UtxoParams;
 use crate::sync::{AddressPass, PendingTx, WatchedScript};
+use crate::utxo::Utxo;
 
 const TARGET: &str = "jelly::utxo::sync";
 

@@ -8,7 +8,7 @@ use crate::config::{CHAIN, DUST_ZAT, MAX_INPUTS};
 use crate::entry::ENTRY;
 use crate::error::ZcashError;
 use crate::fee::{conventional_fee, paid_fee};
-use crate::payload::{Coin, Payment, Source};
+use crate::payload::{Payment, Source, Utxo};
 use crate::state::States;
 use crate::watched::Watched;
 use crate::zat::add;
@@ -26,7 +26,7 @@ pub(crate) struct Inputs<'a> {
 
 #[derive(Debug)]
 struct Selection {
-    inputs: Vec<Coin>,
+    inputs: Vec<Utxo>,
     amount_zat: u64,
     change_zat: u64,
     fee_zat: u64,
@@ -138,7 +138,7 @@ fn sources(watched: &[Watched], address_ids: &[i64]) -> Result<Vec<Source>, Zcas
 /// Picks coins largest first, with change to `change_address`, at the ZIP 317 fee or the
 /// custom fee `chosen_zat`.
 fn select(
-    mut coins: Vec<Coin>,
+    mut coins: Vec<Utxo>,
     amount: SendAmount,
     target_height: u32,
     to: &str,

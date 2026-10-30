@@ -4,12 +4,12 @@ use std::fmt;
 use bitcoin::{OutPoint, Script, Transaction, Txid};
 use jelly_electrum::Unspent;
 
-use crate::coin::{Origin, Utxo, units, value_of};
 use crate::cursor::CursorUtxo;
 use crate::params::UtxoParams;
 use crate::prevout::PrevoutMap;
 use crate::script::SpendableScript;
 use crate::slp;
+use crate::utxo::{Origin, Utxo, units, value_of};
 
 /// Why an unspent entry a server listed wasn't believed.
 ///

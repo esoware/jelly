@@ -29,14 +29,14 @@ pub(crate) struct Source {
 /// source that holds the coin.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct Coin {
+pub(crate) struct Utxo {
     pub(crate) txid: String,
     pub(crate) index: u32,
     pub(crate) value_zat: u64,
     pub(crate) address: String,
 }
 
-impl Coin {
+impl Utxo {
     pub(crate) fn outpoint(&self) -> Result<OutPoint, ZcashError> {
         Ok(OutPoint::new(hash_bytes(&self.txid)?, self.index))
     }
@@ -54,7 +54,7 @@ pub(crate) struct Payment {
     pub(crate) to: String,
     pub(crate) target_height: u32,
     pub(crate) expiry_height: u32,
-    pub(crate) inputs: Vec<Coin>,
+    pub(crate) inputs: Vec<Utxo>,
     pub(crate) amount_zat: u64,
     pub(crate) change_zat: u64,
     pub(crate) fee_zat: u64,

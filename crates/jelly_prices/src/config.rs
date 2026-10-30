@@ -15,6 +15,6 @@ pub struct PriceFeedConfig {
 
 impl Default for PriceFeedConfig {
     fn default() -> Self {
-        Self { tickers: Ticker::ALL.into_iter().collect() }
+        Self { tickers: Ticker::all().collect() }
     }
 }

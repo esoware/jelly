@@ -3,12 +3,12 @@ use bitcoin::transaction::Version;
 use bitcoin::{Script, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Witness};
 use jelly_core::{Amount, FeeRate};
 
-use crate::coin::{Utxo, tx_out};
 use crate::error::UtxoError;
 use crate::params::UtxoParams;
 use crate::payload::{Intent, UtxoPayload};
 use crate::script::SpendableScript;
 use crate::select::{Selection, SelectionRequest, select_coins};
+use crate::utxo::{Utxo, tx_out};
 use crate::{fee, weight};
 
 /// A sending address, canonical and already through the table's address gate.
@@ -171,7 +171,6 @@ pub(crate) fn assemble(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::coin::units;
     use crate::fixtures::{
         ONE_PER_VB, TEN_PER_VB, TIP, bitcoin_cash_scene, bitcoin_scene, confirmed, litecoin_scene,
         scene,
@@ -179,6 +178,7 @@ mod tests {
     use crate::script::UtxoScript;
     use crate::select::Strategy;
     use crate::test_util::{BITCOIN, LITECOIN};
+    use crate::utxo::units;
     use crate::weight::predict_weight;
 
     #[test]

@@ -1,8 +1,8 @@
-//! The compiled SPL token registry, and what a token account at one of its
+//! The SPL tokens Jelly carries, and what a token account at one of their
 //! addresses allows a transfer to do.
 //!
-//! Symbols, decimals and owning programs are trusted configuration, never read
-//! from the chain.
+//! Decimals and owning programs are trusted configuration, never read from the
+//! chain.
 
 use jelly_core::{AssetId, TokenId};
 use solana_pubkey::Pubkey;
@@ -35,6 +35,22 @@ const FEE_AND_HOOK_ACCOUNT_BYTES: u64 = 187;
 /// has a hook but no transfer fee, so its accounts carry no withheld amount.
 const HOOK_ACCOUNT_BYTES: u64 = 175;
 
+/// In `TokenId::ALL` order. Built in a const so a mint that doesn't parse fails the build.
+const TOKENS: [SolanaToken; 12] = [
+    SolanaToken::new(TokenId::LinkSpl),
+    SolanaToken::new(TokenId::WbtcSpl),
+    SolanaToken::new(TokenId::EnaSpl),
+    SolanaToken::new(TokenId::PumpSpl),
+    SolanaToken::new(TokenId::JupSpl),
+    SolanaToken::new(TokenId::UsdtSpl),
+    SolanaToken::new(TokenId::UsdcSpl),
+    SolanaToken::new(TokenId::UsdsSpl),
+    SolanaToken::new(TokenId::UsdgSpl),
+    SolanaToken::new(TokenId::PyusdSpl),
+    SolanaToken::new(TokenId::XautSpl),
+    SolanaToken::new(TokenId::PaxgSpl),
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SolanaToken {
     id: TokenId,
@@ -42,6 +58,15 @@ pub(crate) struct SolanaToken {
 }
 
 impl SolanaToken {
+    const fn new(id: TokenId) -> Self {
+        Self { id, mint: Pubkey::from_str_const(id.contract()) }
+    }
+
+    /// The Solana tokens Jelly carries, in the order they are reported.
+    pub(crate) fn all() -> impl ExactSizeIterator<Item = Self> {
+        TOKENS.into_iter()
+    }
+
     #[cfg(test)]
     pub(crate) const fn id(self) -> TokenId {
         self.id
@@ -138,8 +163,7 @@ impl SolanaToken {
 
     /// The token with this id, or a refusal for one that lives on another chain.
     pub(crate) fn of(id: TokenId) -> Result<Self, SolanaError> {
-        SOLANA_TOKENS
-            .into_iter()
+        Self::all()
             .find(|token| token.id == id)
             .ok_or(SolanaError::ForeignAsset { asset: AssetId::Token(id) })
     }
@@ -302,61 +326,6 @@ fn is_token_program(program: Pubkey) -> bool {
     program == TOKEN_PROGRAM || program == TOKEN_2022_PROGRAM
 }
 
-/// The Solana tokens Jelly carries, in the order they are reported.
-///
-/// Each mint is spelled here and in `jelly_core::TokenId::contract`, so a
-/// `const` table can hold it. A test fails if the two spellings disagree.
-pub(crate) const SOLANA_TOKENS: [SolanaToken; 12] = [
-    SolanaToken {
-        id: TokenId::LinkSpl,
-        mint: Pubkey::from_str_const("LinkhB3afbBKb2EQQu7s7umdZceV3wcvAUJhQAfQ23L"),
-    },
-    SolanaToken {
-        id: TokenId::WbtcSpl,
-        mint: Pubkey::from_str_const("5XZw2LKTyrfvfiskJ78AMpackRjPcyCif1WhUsPDuVqQ"),
-    },
-    SolanaToken {
-        id: TokenId::EnaSpl,
-        mint: Pubkey::from_str_const("72QvBVwpxqmheEPfaCwWSWqEFsUy3rhWt6JhQBMNTwD1"),
-    },
-    SolanaToken {
-        id: TokenId::PumpSpl,
-        mint: Pubkey::from_str_const("pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn"),
-    },
-    SolanaToken {
-        id: TokenId::JupSpl,
-        mint: Pubkey::from_str_const("JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"),
-    },
-    SolanaToken {
-        id: TokenId::UsdtSpl,
-        mint: Pubkey::from_str_const("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"),
-    },
-    SolanaToken {
-        id: TokenId::UsdcSpl,
-        mint: Pubkey::from_str_const("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"),
-    },
-    SolanaToken {
-        id: TokenId::UsdsSpl,
-        mint: Pubkey::from_str_const("USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA"),
-    },
-    SolanaToken {
-        id: TokenId::UsdgSpl,
-        mint: Pubkey::from_str_const("2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"),
-    },
-    SolanaToken {
-        id: TokenId::PyusdSpl,
-        mint: Pubkey::from_str_const("2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo"),
-    },
-    SolanaToken {
-        id: TokenId::XautSpl,
-        mint: Pubkey::from_str_const("AymATz4TCL9sWNEEV9Kvyz45CHVhDZ6kUgjTJPzLpU9P"),
-    },
-    SolanaToken {
-        id: TokenId::PaxgSpl,
-        mint: Pubkey::from_str_const("5GgRAEmv8ZxF2PR5hY72Qs5x1bnQ6UK2RbTPoqJ3wSwW"),
-    },
-];
-
 /// Splits an asset into native lamports or one token, refusing anything that is
 /// not Solana's.
 pub(crate) fn asset_token(asset: AssetId) -> Result<Option<SolanaToken>, SolanaError> {
@@ -404,42 +373,12 @@ mod tests {
         Ok(SolanaToken::of(token)?.account_of(&owner).to_string())
     }
 
+    /// The mints are spelled apart from `TokenId::contract`, so a typo there fails here.
     #[test]
-    fn the_table_agrees_with_the_asset_registry_it_shadows() {
-        let carried: Vec<TokenId> = SOLANA_TOKENS.into_iter().map(SolanaToken::id).collect();
-        assert_eq!(
-            carried,
-            vec![
-                TokenId::LinkSpl,
-                TokenId::WbtcSpl,
-                TokenId::EnaSpl,
-                TokenId::PumpSpl,
-                TokenId::JupSpl,
-                TokenId::UsdtSpl,
-                TokenId::UsdcSpl,
-                TokenId::UsdsSpl,
-                TokenId::UsdgSpl,
-                TokenId::PyusdSpl,
-                TokenId::XautSpl,
-                TokenId::PaxgSpl
-            ]
-        );
-        for token in SOLANA_TOKENS {
-            assert_eq!(token.mint().to_string(), token.id().contract());
-            assert_eq!(token.decimals(), token.id().decimals());
-            assert_eq!(token.id().chain(), ChainId::Solana);
-            assert_eq!(SolanaToken::of(token.id()).expect("a solana token"), token);
-        }
-        let solana: Vec<TokenId> = AssetId::all()
-            .filter_map(|asset| match asset {
-                AssetId::Token(id) if id.chain() == ChainId::Solana => Some(id),
-                AssetId::Native(_) | AssetId::Token(_) => None,
-            })
-            .collect();
-        assert_eq!(solana, carried, "every solana token the registry names is carried");
-
-        // Spelled out here as well, so a typo shared by both tables still fails.
-        for (id, mint) in [
+    fn every_carried_token_reads_its_issued_mint() {
+        let carried: Vec<(TokenId, String)> =
+            SolanaToken::all().map(|token| (token.id(), token.mint().to_string())).collect();
+        let issued = [
             (TokenId::LinkSpl, LINK_MINT),
             (TokenId::WbtcSpl, WBTC_MINT),
             (TokenId::EnaSpl, ENA_MINT),
@@ -452,13 +391,16 @@ mod tests {
             (TokenId::PyusdSpl, PYUSD_MINT),
             (TokenId::XautSpl, XAUT_MINT),
             (TokenId::PaxgSpl, PAXG_MINT),
-        ] {
-            assert_eq!(
-                SolanaToken::of(id).map(|token| token.mint().to_string()).ok(),
-                Some(mint.to_owned()),
-                "{id:?}"
-            );
-        }
+        ];
+        assert_eq!(carried, issued.map(|(id, mint)| (id, mint.to_owned())));
+    }
+
+    #[test]
+    fn the_registry_carries_every_solana_token_in_declaration_order() {
+        let carried: Vec<TokenId> = SolanaToken::all().map(SolanaToken::id).collect();
+        let declared: Vec<TokenId> =
+            TokenId::ALL.into_iter().filter(|id| id.chain() == CHAIN).collect();
+        assert_eq!(carried, declared);
     }
 
     fn recorded_mint(name: &str) -> RawAccount {

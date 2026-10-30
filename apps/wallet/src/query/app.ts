@@ -40,9 +40,10 @@ export const appCommands = {
 }
 
 export async function loadCatalog(): Promise<void> {
-  const [chains, assets] = await Promise.all([
+  const [chains, coins, assets] = await Promise.all([
     unwrap(commands.listChainMetadata()),
+    unwrap(commands.listCoinMetadata()),
     unwrap(commands.listAssetMetadata()),
   ])
-  installCatalog(chains, assets)
+  installCatalog(chains, coins, assets)
 }

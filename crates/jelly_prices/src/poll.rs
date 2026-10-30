@@ -200,7 +200,7 @@ fn log_rejections(quotes: &Quotes) {
     for rejected in &quotes.rejected {
         tracing::debug!(
             target: TARGET,
-            ticker = rejected.ticker.as_str(),
+            ticker = rejected.ticker.coin().as_str(),
             reason = rejected.reason.as_str(),
             "a quote wasn't usable"
         );
@@ -258,7 +258,9 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use async_trait::async_trait;
-    use jelly_core::{AssetId, ChainId, FailureKind, FiatCurrency, TokenId, test_util::FakeClock};
+    use jelly_core::{
+        AssetId, ChainId, Coin, FailureKind, FiatCurrency, TokenId, test_util::FakeClock,
+    };
     use jelly_net::{NetError, RetryAfter};
     use parking_lot::Mutex;
     use tokio::task::yield_now;
@@ -299,7 +301,7 @@ mod tests {
         let report = harness.poller.poll_once().await.expect("the clock is sane");
 
         assert_eq!(report.outcome, PassOutcome::Answered);
-        assert_eq!(report.quoted, Ticker::COUNT, "every ticker was priced");
+        assert_eq!(report.quoted, Ticker::all().count(), "every ticker was priced");
         assert_eq!(report.missing, 0);
         assert_eq!(report.rated, RATED_CURRENCIES);
         assert_eq!(report.unrated, 0);
@@ -324,7 +326,7 @@ mod tests {
 
         assert_eq!(
             harness.fetch.calls(),
-            [Call { tickers: Ticker::ALL.to_vec(), currencies: rated_currencies() }]
+            [Call { tickers: Ticker::all().collect(), currencies: rated_currencies() }]
         );
     }
 
@@ -373,8 +375,9 @@ mod tests {
 
     #[tokio::test]
     async fn without_its_rate_a_currency_shows_no_price_at_all() {
-        let mut harness =
-            harness(ScriptedFetch::new(|_| Reply::Body(kraken_body(&[(Ticker::Btc, "100.0")]))));
+        let mut harness = harness(ScriptedFetch::new(|_| {
+            Reply::Body(kraken_body(&[(Ticker::of(Coin::Btc), "100.0")]))
+        }));
         let report = harness.poller.poll_once().await.expect("the clock is sane");
         assert_eq!(report.rated, 0);
         assert_eq!(report.unrated, RATED_CURRENCIES);
@@ -398,7 +401,7 @@ mod tests {
             if switch.load(Ordering::SeqCst) {
                 script(request)
             } else {
-                Reply::Body(kraken_body(&[(Ticker::Btc, "100.0")]))
+                Reply::Body(kraken_body(&[(Ticker::of(Coin::Btc), "100.0")]))
             }
         }));
         harness.feed.set_currency(FiatCurrency::Aud);
@@ -445,20 +448,21 @@ mod tests {
 
     #[tokio::test]
     async fn a_partial_answer_prices_only_what_it_names() {
-        let mut harness =
-            harness(ScriptedFetch::new(|_| Reply::Body(kraken_body(&[(Ticker::Eth, "4218.07")]))));
+        let mut harness = harness(ScriptedFetch::new(|_| {
+            Reply::Body(kraken_body(&[(Ticker::of(Coin::Eth), "4218.07")]))
+        }));
 
         let report = harness.poller.poll_once().await.expect("the clock is sane");
         assert_eq!(report.outcome, PassOutcome::Answered);
         assert_eq!(report.quoted, 1);
-        assert_eq!(report.rejected, Ticker::COUNT - 1);
-        assert_eq!(report.missing, Ticker::COUNT - 1);
+        assert_eq!(report.rejected, Ticker::all().count() - 1);
+        assert_eq!(report.missing, Ticker::all().count() - 1);
         assert!(!report.is_failure());
 
         let snapshot = harness.feed.snapshot();
         assert_eq!(
             snapshot.len(),
-            Ticker::Eth.assets().count(),
+            Ticker::of(Coin::Eth).assets().count(),
             "one quote prices ether everywhere"
         );
         assert!(snapshot.get(BTC).is_none(), "bitcoin wore ether's price");
@@ -568,9 +572,10 @@ mod tests {
 
     #[tokio::test]
     async fn a_body_that_prices_nothing_asked_for_leaves_the_snapshot_alone() {
-        let config = PriceFeedConfig { tickers: BTreeSet::from([Ticker::Btc]) };
+        let config = PriceFeedConfig { tickers: BTreeSet::from([Ticker::of(Coin::Btc)]) };
         // An answer about a pair nobody asked about.
-        let fetch = ScriptedFetch::new(|_| Reply::Body(kraken_body(&[(Ticker::Ltc, "96.31")])));
+        let fetch =
+            ScriptedFetch::new(|_| Reply::Body(kraken_body(&[(Ticker::of(Coin::Ltc), "96.31")])));
         let mut harness = harness_with(&config, fetch);
 
         let report = harness.poller.poll_once().await.expect("the clock is sane");
@@ -592,7 +597,7 @@ mod tests {
         harness.clock.set_unix_millis(corrected_millis);
         dial.set("2.0");
         let report = harness.poller.poll_once().await.expect("the clock is sane");
-        assert_eq!(report.quoted, Ticker::COUNT);
+        assert_eq!(report.quoted, Ticker::all().count());
 
         let btc = harness.feed.snapshot().get(BTC).expect("bitcoin is priced");
         assert_eq!(btc.price.to_string(), "200000000", "the newest quote was dropped");

@@ -343,10 +343,10 @@ mod tests {
     use serde::Deserialize;
 
     use super::*;
-    use crate::coin::{Utxo, units};
     use crate::fixtures::{Fallible, ONE_PER_VB, bitcoin_scene, confirmed, litecoin_scene, scene};
     use crate::payload::source_key;
     use crate::test_util::{BITCOIN, TestKey, test_key};
+    use crate::utxo::{Utxo, units};
 
     fn sign_one(kind: ScriptKind) -> Fallible<Signed> {
         let scene = scene(&BITCOIN, kind)?;

@@ -1,11 +1,11 @@
 use bitcoin::{OutPoint, Transaction, Txid, Weight};
 use jelly_core::{Amount, FeeRate};
 
-use crate::coin::{Origin, Utxo, value_of};
 use crate::error::UtxoError;
 use crate::fee;
 use crate::prevout::PrevoutMap;
 use crate::script::SpendableScript;
+use crate::utxo::{Origin, Utxo, value_of};
 
 /// An unconfirmed transaction a bump speeds up, with the outputs it spends.
 ///
@@ -101,9 +101,9 @@ impl Original {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::coin::units;
     use crate::fee::rate_for;
     use crate::fixtures::{ONE_PER_VB, bitcoin_scene, sent_original};
+    use crate::utxo::units;
 
     const FUNDED_SAT: u64 = 500_000;
     const PAID_SAT: u64 = 100_000;

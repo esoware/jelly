@@ -1,11 +1,11 @@
 use bitcoin::{OutPoint, Script};
 use jelly_core::{Amount, AssetId, FeeRate, TxDetail, TxPreview, TxWarning, TxWarningKind};
 
-use crate::coin::value_of;
 use crate::error::UtxoError;
 use crate::fee::rate_for;
 use crate::params::UtxoParams;
 use crate::payload::UtxoPayload;
+use crate::utxo::value_of;
 use crate::weight::vsize;
 
 /// A rate more than this many times the fast level's gets a warning.
@@ -323,13 +323,13 @@ mod tests {
 
     use super::*;
     use crate::build::build_tx;
-    use crate::coin::units;
     use crate::fee::change_floor;
     use crate::fixtures::{
         FLOOR_QUOTE, ONE_PER_VB, TEN_PER_VB, TIP, bitcoin_cash_scene, bitcoin_scene, litecoin_scene,
     };
     use crate::payload::FIELD_TO;
     use crate::test_util::test_key;
+    use crate::utxo::units;
 
     fn kinds(warnings: &[TxWarning]) -> Vec<TxWarningKind> {
         warnings.iter().map(|warning| warning.kind).collect()

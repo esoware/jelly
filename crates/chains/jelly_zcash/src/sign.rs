@@ -251,7 +251,7 @@ mod tests {
 
     use super::*;
     use crate::fixtures::{RECIPIENT, key, key_address};
-    use crate::payload::{Coin, Source};
+    use crate::payload::{Source, Utxo};
 
     #[derive(Deserialize)]
     struct Vector {
@@ -342,7 +342,7 @@ mod tests {
     fn generated_signatures_authenticate_every_input_by_its_own_sources_key() {
         let (first, second) = (key(7), key(8));
         let (first_address, second_address) = (key_address(7), key_address(8));
-        let coin = |txid: &str, index, value_zat, address: &str| Coin {
+        let coin = |txid: &str, index, value_zat, address: &str| Utxo {
             txid: txid.repeat(32),
             index,
             value_zat,

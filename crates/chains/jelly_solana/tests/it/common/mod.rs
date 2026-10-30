@@ -705,11 +705,11 @@ pub(crate) fn stock_token(
     );
     if is_token_2022(token) {
         let recorded: Value = serde_json::from_str(include_str!("../../fixtures/mints.json"))?;
-        let name = token.symbol().to_ascii_lowercase();
+        let name = token.coin().as_str();
         node.at(
             Method::GetAccountInfo,
             token.contract(),
-            Answer::ok(&contextual(recorded.get(&name).ok_or("no recorded mint for the token")?)),
+            Answer::ok(&contextual(recorded.get(name).ok_or("no recorded mint for the token")?)),
         );
     }
     // Mainnet charges 6,960 lamports a byte, counting 128 bytes of account overhead.

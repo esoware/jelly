@@ -10,8 +10,6 @@ use crate::config::CHAIN;
 
 pub const SPEC: ChainSpec = ChainSpec {
     chain: CHAIN,
-    coin_name: "TRON",
-    coin_chain: CHAIN,
     slip44: 195,
     key_kind: KeyKind::Secp256k1,
     default_path: "m/44'/195'/0'/0/{index}",

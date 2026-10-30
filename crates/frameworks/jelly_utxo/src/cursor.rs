@@ -5,9 +5,9 @@ use bitcoin::{OutPoint, Txid};
 use jelly_core::{Amount, TxDirection};
 use jelly_electrum::{HistoryDigest, HistoryEntry};
 
-use crate::coin::{Origin, Utxo, to_u64, units};
 use crate::error::UtxoError;
 use crate::script::SpendableScript;
+use crate::utxo::{Origin, Utxo, to_u64, units};
 
 /// The first field of every cursor. Bytes with any other version don't decode, so
 /// they read as unreadable state, not as a missing cursor.
