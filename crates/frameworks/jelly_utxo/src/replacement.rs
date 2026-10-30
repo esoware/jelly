@@ -4,13 +4,13 @@ use bitcoin::{Script, Transaction, TxOut, Weight};
 use jelly_core::{Amount, FeeRate};
 
 use crate::build::{BuiltTx, Source, assemble, participants};
-use crate::coin::{Utxo, tx_out, value_of};
 use crate::error::UtxoError;
 use crate::original::Original;
 use crate::params::UtxoParams;
 use crate::payload::{Intent, PaymentReduction, Replaced, UtxoPayload};
 use crate::script::SpendableScript;
 use crate::select::{Eligible, Selection, Strategy, ordered_candidates};
+use crate::utxo::{Utxo, tx_out, value_of};
 use crate::{fee, weight};
 
 #[derive(Debug, Clone)]
@@ -357,7 +357,6 @@ mod tests {
     use jelly_core::{ScriptKind, TxWarningKind};
 
     use super::*;
-    use crate::coin::units;
     use crate::fee::{fee_for, rate_that_pays, replacement_floor};
     use crate::fixtures::{
         FLOOR_QUOTE, Fallible, ONE_PER_VB, Scene, TEN_PER_VB, TIP, bitcoin_scene, confirmed, kwu,
@@ -367,6 +366,7 @@ mod tests {
     use crate::script::UtxoScript;
     use crate::sign::sign_tx;
     use crate::test_util::test_key;
+    use crate::utxo::units;
     use crate::weight::predict_weight;
 
     const FUNDED_SAT: u64 = 500_000;

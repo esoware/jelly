@@ -14,7 +14,7 @@ use zcash_transparent::{
 
 use crate::address::script;
 use crate::error::ZcashError;
-use crate::payload::{Coin, INVALID_PAYMENT};
+use crate::payload::{INVALID_PAYMENT, Utxo};
 
 /// A coin as ZIP 317 sizes it, from the script of the address that holds it.
 #[derive(Debug)]
@@ -67,7 +67,7 @@ pub(crate) const fn paid_fee(
 /// refused.
 pub(crate) fn conventional_fee(
     target_height: u32,
-    inputs: &[Coin],
+    inputs: &[Utxo],
     outputs: &[&Script],
 ) -> Result<u64, ZcashError> {
     let mut spent = Vec::with_capacity(inputs.len());
@@ -104,9 +104,9 @@ mod tests {
 
     const HEIGHT: u32 = 3_514_159;
 
-    fn coins(address: &str, count: u8) -> Vec<Coin> {
+    fn coins(address: &str, count: u8) -> Vec<Utxo> {
         (1..=count)
-            .map(|seed| Coin {
+            .map(|seed| Utxo {
                 txid: format!("{seed:02x}").repeat(32),
                 index: 0,
                 value_zat: 10_000,

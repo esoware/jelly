@@ -12,7 +12,7 @@ use crate::address::{is_pay_to_pubkey, script};
 use crate::config::{branch_at, is_mainnet_status};
 use crate::error::ZcashError;
 use crate::node::ZcashNode;
-use crate::payload::{Coin, hash_bytes};
+use crate::payload::{Utxo, hash_bytes};
 use crate::route::Route;
 use crate::sign;
 use crate::zat::add;
@@ -217,7 +217,7 @@ impl ZcashClient {
         Ok(info)
     }
 
-    pub(crate) async fn coins(&self, address: &str) -> Result<Vec<Coin>, ZcashError> {
+    pub(crate) async fn coins(&self, address: &str) -> Result<Vec<Utxo>, ZcashError> {
         let rows: Vec<Unspent> = decode(self.node.get(Route::Unspent(address)).await?)?;
         if rows.len() > MAX_UNSPENT_ROWS {
             return Err(ZcashError::Protocol);
@@ -247,7 +247,7 @@ impl ZcashClient {
             // every payment built here has one. A pay-to-pubkey output needs an unlocking
             // script this adapter never signs.
             if is_key_hash && !bundle.is_coinbase() && value_zat > 0 {
-                coins.push(Coin {
+                coins.push(Utxo {
                     txid: row.txid,
                     index: row.vout,
                     value_zat,

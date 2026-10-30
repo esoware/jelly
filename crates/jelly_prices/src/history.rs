@@ -229,7 +229,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use async_trait::async_trait;
-    use jelly_core::{ChainId, TokenId, test_util::FakeClock};
+    use jelly_core::{ChainId, Coin, TokenId, test_util::FakeClock};
     use tokio::sync::Barrier;
     use tokio::task::yield_now;
     use tokio::time::timeout;
@@ -254,7 +254,7 @@ mod tests {
     }
 
     fn bitcoin_request() -> CandleRequest {
-        daily_requests(&BTreeSet::from([Ticker::Btc]))
+        daily_requests(&BTreeSet::from([Ticker::of(Coin::Btc)]))
             .into_iter()
             .next()
             .expect("the asset is planned first")
@@ -262,8 +262,8 @@ mod tests {
 
     #[test]
     fn one_daily_request_per_ticker_and_rate_never_per_chain() {
-        let requests = daily_requests(&Ticker::ALL.into_iter().collect());
-        assert_eq!(requests.len(), Ticker::COUNT + FiatCurrency::COUNT - 1);
+        let requests = daily_requests(&Ticker::all().collect());
+        assert_eq!(requests.len(), Ticker::all().count() + FiatCurrency::COUNT - 1);
         let urls: BTreeSet<_> = requests.iter().map(CandleRequest::url).collect();
         assert_eq!(urls.len(), requests.len());
         for url in urls {
@@ -271,7 +271,10 @@ mod tests {
             assert!(url.ends_with("&interval=1440"));
             assert!(!url.contains(','));
         }
-        assert_eq!(daily_requests(&BTreeSet::from([Ticker::Btc])).len(), FiatCurrency::COUNT);
+        assert_eq!(
+            daily_requests(&BTreeSet::from([Ticker::of(Coin::Btc)])).len(),
+            FiatCurrency::COUNT
+        );
         assert!(daily_requests(&BTreeSet::new()).is_empty());
     }
 
@@ -308,7 +311,7 @@ mod tests {
 
     #[test]
     fn historical_exchange_rates_use_the_same_days_close_and_correct_direction() {
-        let requests = daily_requests(&BTreeSet::from([Ticker::Btc]));
+        let requests = daily_requests(&BTreeSet::from([Ticker::of(Coin::Btc)]));
         for (currency, pair, expected) in [
             (FiatCurrency::Eur, "ZEURZUSD", "50000000"),
             (FiatCurrency::Jpy, "ZUSDZJPY", "200000000"),
@@ -326,7 +329,9 @@ mod tests {
     }
 
     /// Every market there is a daily request for.
-    const MARKET_COUNT: usize = Ticker::COUNT + FiatCurrency::COUNT - 1;
+    fn market_count() -> usize {
+        Ticker::all().count().saturating_add(FiatCurrency::COUNT - 1)
+    }
 
     #[derive(Debug, Default)]
     struct HistoryFetch {
@@ -347,7 +352,7 @@ mod tests {
             if let Some(barrier) = &self.barrier {
                 barrier.wait().await;
             }
-            if request.market() == Market::Asset(Ticker::Btc)
+            if request.market() == Market::Asset(Ticker::of(Coin::Btc))
                 && self
                     .btc_refusals
                     .try_update(Ordering::SeqCst, Ordering::SeqCst, |left| left.checked_sub(1))
@@ -369,12 +374,13 @@ mod tests {
     }
 
     fn is_complete(history: &PriceHistory) -> bool {
-        history.prices.len() == Ticker::COUNT && history.rates.len() == FiatCurrency::COUNT - 1
+        history.prices.len() == Ticker::all().count()
+            && history.rates.len() == FiatCurrency::COUNT - 1
     }
 
     #[tokio::test(start_paused = true)]
     async fn a_load_requests_every_market_in_parallel_and_publishes_once() {
-        let count = MARKET_COUNT;
+        let count = market_count();
         let fetch = Arc::new(HistoryFetch {
             barrier: Some(Barrier::new(count)),
             ..HistoryFetch::default()
@@ -385,7 +391,7 @@ mod tests {
         assert_eq!(fetch.call_count.load(Ordering::SeqCst), count);
         assert!(changes.has_changed().unwrap());
         let history = changes.borrow_and_update().clone();
-        assert_eq!(history.prices.len(), Ticker::COUNT);
+        assert_eq!(history.prices.len(), Ticker::all().count());
         assert_eq!(history.rates.len(), FiatCurrency::COUNT - 1);
         assert!(!changes.has_changed().unwrap());
         let stablecoin = history
@@ -393,7 +399,7 @@ mod tests {
             .iter()
             .find(|series| series.assets.contains(&AssetId::Token(TokenId::UsdtErc20)))
             .unwrap();
-        assert_eq!(stablecoin.assets, Ticker::Usdt.assets().collect::<Vec<_>>());
+        assert_eq!(stablecoin.assets, Ticker::of(Coin::Usdt).assets().collect::<Vec<_>>());
         assert_eq!(stablecoin.prices.len(), 1);
         let encoded = serde_json::to_value(&stablecoin.prices[0]).unwrap();
         assert_eq!(encoded["price"], "200000000");
@@ -408,7 +414,7 @@ mod tests {
         let mut missing = loader.requests.clone();
         loader.load(&mut missing, &mut PriceHistory::default()).await;
         let history = feed.snapshot();
-        assert_eq!(history.prices.len(), Ticker::COUNT - 1);
+        assert_eq!(history.prices.len(), Ticker::all().count() - 1);
         assert_eq!(history.rates.len(), FiatCurrency::COUNT - 1);
         assert!(
             !history
@@ -417,7 +423,7 @@ mod tests {
                 .any(|series| series.assets.contains(&AssetId::Native(ChainId::Bitcoin)))
         );
         let still_missing: Vec<Market> = missing.iter().map(CandleRequest::market).collect();
-        assert_eq!(still_missing, [Market::Asset(Ticker::Btc)]);
+        assert_eq!(still_missing, [Market::Asset(Ticker::of(Coin::Btc))]);
     }
 
     #[tokio::test]
@@ -447,7 +453,7 @@ mod tests {
         timeout(Duration::from_secs(2), changes.wait_for(is_complete)).await.unwrap().unwrap();
 
         sleep(RETRY_DELAY.saturating_mul(4)).await;
-        assert_eq!(fetch.call_count.load(Ordering::SeqCst), MARKET_COUNT);
+        assert_eq!(fetch.call_count.load(Ordering::SeqCst), market_count());
         drop(enabled);
         timeout(Duration::from_secs(2), task).await.unwrap().unwrap();
     }
@@ -465,7 +471,7 @@ mod tests {
         timeout(waited, changes.wait_for(is_complete)).await.unwrap().unwrap();
         assert_eq!(
             fetch.call_count.load(Ordering::SeqCst),
-            MARKET_COUNT + 2,
+            market_count() + 2,
             "only the series that failed was asked for again"
         );
         drop(enabled);
@@ -484,18 +490,18 @@ mod tests {
         enabled.send_replace(false);
         let is_withdrawn = |history: &PriceHistory| *history == PriceHistory::default();
         timeout(Duration::from_secs(2), changes.wait_for(is_withdrawn)).await.unwrap().unwrap();
-        assert_eq!(fetch.call_count.load(Ordering::SeqCst), MARKET_COUNT);
+        assert_eq!(fetch.call_count.load(Ordering::SeqCst), market_count());
 
         enabled.send_replace(true);
         timeout(Duration::from_secs(2), changes.wait_for(is_complete)).await.unwrap().unwrap();
-        assert_eq!(fetch.call_count.load(Ordering::SeqCst), MARKET_COUNT * 2);
+        assert_eq!(fetch.call_count.load(Ordering::SeqCst), market_count() * 2);
         drop(enabled);
         timeout(Duration::from_secs(2), task).await.unwrap().unwrap();
     }
 
     #[tokio::test(start_paused = true)]
     async fn disabling_prices_cancels_inflight_history_without_publishing_it() {
-        let count = Ticker::COUNT + FiatCurrency::COUNT - 1;
+        let count = market_count();
         let fetch = Arc::new(HistoryFetch {
             barrier: Some(Barrier::new(count + 1)),
             ..HistoryFetch::default()

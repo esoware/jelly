@@ -18,7 +18,6 @@ const WIF_FORMAT: &str = "Bitcoin WIF key";
 
 pub const SPEC: ChainSpec = ChainSpec {
     chain: CHAIN,
-    coin_chain: CHAIN,
     slip44: 133,
     key_kind: KeyKind::Secp256k1,
     default_path: "m/44'/133'/0'/0/{index}",

@@ -31,10 +31,10 @@ use crate::adapter::send::Plan;
 use crate::adapter::state::ChainState;
 use crate::adapter::watched::Watched;
 use crate::claim::OutpointClaims;
-use crate::coin::Utxo;
 use crate::error::UtxoError;
 use crate::fee_api::FeeApi;
 use crate::params::UtxoParams;
+use crate::utxo::Utxo;
 
 const TARGET: &str = "jelly::utxo::adapter";
 

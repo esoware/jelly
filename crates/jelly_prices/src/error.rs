@@ -41,6 +41,8 @@ impl PriceError {
 mod tests {
     use std::error::Error;
 
+    use jelly_core::Coin;
+
     use super::*;
     use crate::fixtures::planned;
     use crate::ticker::Ticker;
@@ -69,7 +71,7 @@ mod tests {
     #[test]
     fn no_error_repeats_a_fragment_of_a_response_body() {
         for body in HOSTILE_BODIES {
-            match planned(&[Ticker::Btc]).decode(body) {
+            match planned(&[Ticker::of(Coin::Btc)]).decode(body) {
                 Err(error) => {
                     let text = rendered(&error);
                     assert!(!text.contains("SUPERSECRET"), "{text}");
@@ -84,7 +86,7 @@ mod tests {
 
     #[test]
     fn a_malformed_body_is_reported_by_position_only() {
-        let error = planned(&[Ticker::Btc])
+        let error = planned(&[Ticker::of(Coin::Btc)])
             .decode("{\"error\":[],\"result\":\"SUPERSECRETMARKER\"}")
             .expect_err("the body is not the documented shape");
         let PriceError::Malformed { line, column } = error else { panic!("{error}") };
@@ -96,7 +98,7 @@ mod tests {
 
     #[test]
     fn a_refusal_names_only_the_provider() {
-        let error = planned(&[Ticker::Btc])
+        let error = planned(&[Ticker::of(Coin::Btc)])
             .decode("{\"error\":[\"EQuery:Unknown asset pair SUPERSECRETMARKER\"],\"result\":{}}")
             .expect_err("an unknown pair is a refusal");
         assert!(matches!(error, PriceError::Refused));
@@ -106,7 +108,7 @@ mod tests {
     #[test]
     fn a_decode_error_never_carries_the_url() {
         for body in HOSTILE_BODIES {
-            if let Err(error) = planned(&[Ticker::Btc]).decode(body) {
+            if let Err(error) = planned(&[Ticker::of(Coin::Btc)]).decode(body) {
                 let text = rendered(&error);
                 assert!(!text.contains("https://"), "{text}");
                 assert!(!text.contains("api.kraken.com"), "{text}");

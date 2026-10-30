@@ -181,6 +181,36 @@ mod tests {
         }
     }
 
+    #[test]
+    fn no_two_coins_share_a_symbol() {
+        for (at, coin) in Coin::ALL.into_iter().enumerate() {
+            let twin = Coin::ALL
+                .into_iter()
+                .skip(at.saturating_add(1))
+                .find(|other| other.symbol() == coin.symbol());
+            assert_eq!(twin, None, "{} appears twice", coin.symbol());
+        }
+    }
+
+    #[test]
+    fn only_dollar_coins_and_gold_are_real_world_assets() {
+        let real_world: Vec<Coin> =
+            Coin::ALL.into_iter().filter(|coin| coin.is_real_world_asset()).collect();
+        assert_eq!(
+            real_world,
+            [
+                Coin::Usdt,
+                Coin::Usdc,
+                Coin::Usds,
+                Coin::Dai,
+                Coin::Usdg,
+                Coin::Pyusd,
+                Coin::Xaut,
+                Coin::Paxg
+            ]
+        );
+    }
+
     /// A coin takes its network's name unless it has its own, and a rollup's coin is ether,
     /// named as it is on Ethereum. The table lists every chain in declaration order.
     #[test]

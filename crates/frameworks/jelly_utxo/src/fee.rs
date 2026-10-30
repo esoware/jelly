@@ -163,11 +163,11 @@ mod tests {
     use serde_json::Value;
 
     use super::*;
-    use crate::coin::units;
     use crate::fixtures::{ONE_PER_VB, TEN_PER_VB, bitcoin_scene, kwu, litecoin_scene};
     use crate::params::FeeMarket;
     use crate::script::UtxoScript;
     use crate::test_util::{BITCOIN, LITECOIN};
+    use crate::utxo::units;
     use crate::weight::{input_weight, output_weight, predict_weight, vsize};
 
     const LITECOIN_FEE_RATES: &str = include_str!("../tests/vectors/litecoin/fee_rates.json");

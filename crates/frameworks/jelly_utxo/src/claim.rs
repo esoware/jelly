@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, HashSet};
 use bitcoin::{OutPoint, Txid};
 use parking_lot::Mutex;
 
-use crate::coin::Utxo;
 use crate::error::UtxoError;
+use crate::utxo::Utxo;
 
 /// Claims selected outpoints under the unsigned transaction's txid.
 ///

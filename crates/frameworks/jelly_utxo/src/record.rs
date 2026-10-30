@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use bitcoin::{Script, Transaction, Txid};
 use jelly_core::{Amount, AssetId, TxDirection, TxRecord};
 
-use crate::coin::value_of;
 use crate::error::UtxoError;
 use crate::params::UtxoParams;
 use crate::prevout::PrevoutMap;
+use crate::utxo::value_of;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Confirmed {
@@ -220,10 +220,10 @@ mod tests {
     use jelly_core::ScriptKind;
 
     use super::*;
-    use crate::coin::units;
     use crate::test_util::{
         BITCOIN, BITCOIN_CASH, TestKey, test_key, tx_paying, tx_spending, tx_spending_each,
     };
+    use crate::utxo::units;
 
     /// Each key of `funded` paid by its own output of one transaction, and those
     /// outputs spent together into `outputs`.

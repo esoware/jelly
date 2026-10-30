@@ -100,6 +100,7 @@ jelly_commands! {
         get_window_backdrop,
         get_window_controls,
         list_chain_metadata,
+        list_coin_metadata,
         list_asset_metadata,
     ],
 }

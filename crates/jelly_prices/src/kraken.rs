@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use jelly_core::{EndpointLabel, FiatCurrency};
+use jelly_core::{Coin, EndpointLabel, FiatCurrency};
 use serde::{
     Deserialize,
     de::{DeserializeOwned, IgnoredAny},
@@ -50,43 +50,43 @@ pub(crate) struct Pair {
 impl Pair {
     /// The dollar market of `ticker`, which Kraken lists as the price of one unit.
     pub(crate) const fn asset(ticker: Ticker) -> Self {
-        let (canonical, alternative) = match ticker {
-            Ticker::Btc => ("XXBTZUSD", "XBTUSD"),
-            Ticker::Ltc => ("XLTCZUSD", "LTCUSD"),
+        let (canonical, alternative) = match ticker.coin() {
+            Coin::Btc => ("XXBTZUSD", "XBTUSD"),
+            Coin::Ltc => ("XLTCZUSD", "LTCUSD"),
             // Kraken lists dogecoin as XDG, its ISO 4217 style code.
-            Ticker::Doge => ("XDGUSD", "XDGUSD"),
-            Ticker::Bch => ("BCHUSD", "BCHUSD"),
-            Ticker::Zec => ("XZECZUSD", "ZECUSD"),
-            Ticker::Eth => ("XETHZUSD", "ETHUSD"),
-            Ticker::Bnb => ("BNBUSD", "BNBUSD"),
-            Ticker::Pol => ("POLUSD", "POLUSD"),
-            Ticker::Avax => ("AVAXUSD", "AVAXUSD"),
-            Ticker::Sol => ("SOLUSD", "SOLUSD"),
-            Ticker::Trx => ("TRXUSD", "TRXUSD"),
-            Ticker::Xrp => ("XXRPZUSD", "XRPUSD"),
+            Coin::Doge => ("XDGUSD", "XDGUSD"),
+            Coin::Bch => ("BCHUSD", "BCHUSD"),
+            Coin::Zec => ("XZECZUSD", "ZECUSD"),
+            Coin::Eth | Coin::Weth => ("XETHZUSD", "ETHUSD"),
+            Coin::Bnb => ("BNBUSD", "BNBUSD"),
+            Coin::Pol => ("POLUSD", "POLUSD"),
+            Coin::Avax => ("AVAXUSD", "AVAXUSD"),
+            Coin::Sol => ("SOLUSD", "SOLUSD"),
+            Coin::Trx => ("TRXUSD", "TRXUSD"),
+            Coin::Xrp => ("XXRPZUSD", "XRPUSD"),
             // Kraken still lists Gram under its former TON ticker.
-            Ticker::Gram => ("TONUSD", "TONUSD"),
-            Ticker::Xmr => ("XXMRZUSD", "XMRUSD"),
-            Ticker::Link => ("LINKUSD", "LINKUSD"),
-            Ticker::Wbtc => ("WBTCUSD", "WBTCUSD"),
-            Ticker::Uni => ("UNIUSD", "UNIUSD"),
-            Ticker::Shib => ("SHIBUSD", "SHIBUSD"),
-            Ticker::Ena => ("ENAUSD", "ENAUSD"),
-            Ticker::Aave => ("AAVEUSD", "AAVEUSD"),
-            Ticker::Pump => ("PUMPUSD", "PUMPUSD"),
-            Ticker::Ondo => ("ONDOUSD", "ONDOUSD"),
-            Ticker::Pepe => ("PEPEUSD", "PEPEUSD"),
-            Ticker::Arb => ("ARBUSD", "ARBUSD"),
-            Ticker::Op => ("OPUSD", "OPUSD"),
-            Ticker::Jup => ("JUPUSD", "JUPUSD"),
-            Ticker::Usdt => ("USDTZUSD", "USDTUSD"),
-            Ticker::Usdc => ("USDCUSD", "USDCUSD"),
-            Ticker::Usds => ("USDSUSD", "USDSUSD"),
-            Ticker::Dai => ("DAIUSD", "DAIUSD"),
-            Ticker::Usdg => ("USDGUSD", "USDGUSD"),
-            Ticker::Pyusd => ("PYUSDUSD", "PYUSDUSD"),
-            Ticker::Xaut => ("XAUTUSD", "XAUTUSD"),
-            Ticker::Paxg => ("PAXGUSD", "PAXGUSD"),
+            Coin::Gram => ("TONUSD", "TONUSD"),
+            Coin::Xmr => ("XXMRZUSD", "XMRUSD"),
+            Coin::Link => ("LINKUSD", "LINKUSD"),
+            Coin::Wbtc => ("WBTCUSD", "WBTCUSD"),
+            Coin::Uni => ("UNIUSD", "UNIUSD"),
+            Coin::Shib => ("SHIBUSD", "SHIBUSD"),
+            Coin::Ena => ("ENAUSD", "ENAUSD"),
+            Coin::Aave => ("AAVEUSD", "AAVEUSD"),
+            Coin::Ondo => ("ONDOUSD", "ONDOUSD"),
+            Coin::Pepe => ("PEPEUSD", "PEPEUSD"),
+            Coin::Arb => ("ARBUSD", "ARBUSD"),
+            Coin::Op => ("OPUSD", "OPUSD"),
+            Coin::Pump => ("PUMPUSD", "PUMPUSD"),
+            Coin::Jup => ("JUPUSD", "JUPUSD"),
+            Coin::Usdt => ("USDTZUSD", "USDTUSD"),
+            Coin::Usdc => ("USDCUSD", "USDCUSD"),
+            Coin::Usds => ("USDSUSD", "USDSUSD"),
+            Coin::Dai => ("DAIUSD", "DAIUSD"),
+            Coin::Usdg => ("USDGUSD", "USDGUSD"),
+            Coin::Pyusd => ("PYUSDUSD", "PYUSDUSD"),
+            Coin::Xaut => ("XAUTUSD", "XAUTUSD"),
+            Coin::Paxg => ("PAXGUSD", "PAXGUSD"),
         };
         Self { canonical, alternative, listed: Listed::AsQuoted }
     }

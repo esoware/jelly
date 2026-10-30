@@ -9,13 +9,13 @@ use crate::adapter::client::UtxoClient;
 use crate::adapter::fee::FeeContext;
 use crate::adapter::watched::{Watched, sources_of};
 use crate::build::{BuildRequest, BuiltTx, build_tx};
-use crate::coin::Utxo;
 use crate::error::UtxoError;
 use crate::params::UtxoParams;
 use crate::payload::UtxoPayload;
 use crate::preview::{PreviewQuote, preview};
 use crate::script::SpendableScript;
 use crate::sign::sign_tx;
+use crate::utxo::Utxo;
 
 /// Everything a build needs except the fee rate, so a quote prices exactly the
 /// transaction that would be built.

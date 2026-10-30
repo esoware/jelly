@@ -6,7 +6,7 @@ use solana_pubkey::Pubkey;
 use crate::address;
 use crate::config::CHAIN;
 use crate::error::SolanaError;
-use crate::token::{SOLANA_TOKENS, SolanaToken};
+use crate::token::SolanaToken;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Watched {
@@ -21,8 +21,7 @@ impl Watched {
     /// an existing one names that account and never its owner.
     pub(crate) fn accounts(&self) -> impl Iterator<Item = (Option<SolanaToken>, Pubkey)> {
         let owner = self.owner;
-        let tokens =
-            SOLANA_TOKENS.into_iter().map(move |token| (Some(token), token.account_of(&owner)));
+        let tokens = SolanaToken::all().map(move |token| (Some(token), token.account_of(&owner)));
         iter::once((None, owner)).chain(tokens)
     }
 }

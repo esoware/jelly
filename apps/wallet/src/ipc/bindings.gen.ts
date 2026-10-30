@@ -232,6 +232,7 @@ export const commands = {
 	getWindowBackdrop: () => typedError<WindowBackdrop, IpcError>(__TAURI_INVOKE("get_window_backdrop")),
 	getWindowControls: () => typedError<WindowControls, IpcError>(__TAURI_INVOKE("get_window_controls")),
 	listChainMetadata: () => typedError<ChainMeta[], IpcError>(__TAURI_INVOKE("list_chain_metadata")),
+	listCoinMetadata: () => typedError<CoinMeta[], IpcError>(__TAURI_INVOKE("list_coin_metadata")),
 	listAssetMetadata: () => typedError<AssetMeta[], IpcError>(__TAURI_INVOKE("list_asset_metadata")),
 };
 
@@ -306,15 +307,15 @@ export type AssetHistory = {
  */
 export type AssetId = { kind: "native"; value: ChainId } | { kind: "token"; value: TokenId };
 
-/**  What the frontend shows for an asset. Contract addresses stay in Rust on `TokenId`. */
+/**
+ *  Where an asset lives and its scale. What it's called is in its coin's `CoinMeta`, and
+ *  contract addresses stay in Rust on `TokenId`.
+ */
 export type AssetMeta = {
 	asset: AssetId,
 	chain: ChainId,
 	coin: Coin,
-	symbol: string,
-	name: string,
 	decimals: number,
-	isRealWorldAsset: boolean,
 };
 
 /**
@@ -376,17 +377,12 @@ export type CandleInterval = "hour" | "day" | "week";
 export type ChainId = "bitcoin" | "litecoin" | "dogecoin" | "bitcoin_cash" | "zcash" | "ethereum" | "arbitrum" | "base" | "optimism" | "bsc" | "polygon" | "avalanche" | "solana" | "tron" | "xrp" | "ton" | "monero";
 
 /**
- *  Scale and symbol are in `AssetMeta`. The path and explorer templates use `{index}`,
- *  `{txid}`, and `{address}` placeholders.
+ *  The native coin's scale is in `AssetMeta` and its symbol in `CoinMeta`. The path and
+ *  explorer templates use `{index}`, `{txid}`, and `{address}` placeholders.
  */
 export type ChainMeta = {
 	chain: ChainId,
 	name: string,
-	/**
-	 *  The chain the coin is native to, such as Ethereum for a rollup that pays fees in
-	 *  ether.
-	 */
-	coinChain: ChainId,
 	feeRateUnit: string | null,
 	/**
 	 *  The fee levels a send can pick from, slowest first. Empty on a chain whose
@@ -430,6 +426,14 @@ export type ChainMeta = {
  *  and its rollups, or USDT on every network Tether issues it on.
  */
 export type Coin = "btc" | "ltc" | "doge" | "bch" | "zec" | "eth" | "bnb" | "pol" | "avax" | "sol" | "trx" | "xrp" | "gram" | "xmr" | "link" | "wbtc" | "weth" | "uni" | "shib" | "ena" | "aave" | "ondo" | "pepe" | "arb" | "op" | "pump" | "jup" | "usdt" | "usdc" | "usds" | "dai" | "usdg" | "pyusd" | "xaut" | "paxg";
+
+/**  What the frontend shows for a coin on every chain that carries it. */
+export type CoinMeta = {
+	coin: Coin,
+	symbol: string,
+	name: string,
+	isRealWorldAsset: boolean,
+};
 
 /**  An address the user saved to send to, kept with the open wallet. */
 export type ContactRecord = {

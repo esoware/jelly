@@ -10,7 +10,6 @@ use jelly_net::{Endpoint, Network, ProbeReport};
 
 pub const SPEC: ChainSpec = ChainSpec {
     chain: ChainId::Bsc,
-    coin_chain: ChainId::Bsc,
     // Ethereum's coin type, not BNB's own, so a seed has the same address on both
     // networks.
     slip44: 60,

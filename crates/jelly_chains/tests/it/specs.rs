@@ -1,5 +1,5 @@
 use jelly_chains::chains;
-use jelly_core::{ChainId, Coin, CustomFee, FeeLevel, ScriptKind};
+use jelly_core::{ChainId, CustomFee, FeeLevel, ScriptKind};
 use jelly_keypair::{PathTemplate, stored_path};
 
 /// The table lists every chain in declaration order, so a new chain fails here until it
@@ -31,49 +31,29 @@ fn every_chain_derives_under_its_expected_coin_type() {
     }
 }
 
-/// A coin is the same coin on every chain that pays in it, and only a rollup's coin is
-/// native to another chain.
-#[test]
-fn every_coin_chain_pays_in_the_same_coin() {
-    for chain in ChainId::ALL {
-        let spec = chains().spec(chain);
-        let coin_spec = chains().spec(spec.coin_chain);
-        assert_eq!(coin_spec.coin_chain, spec.coin_chain, "{}", chain.as_str());
-        assert_eq!(spec.coin_chain.coin(), chain.coin(), "{}", chain.as_str());
-        let is_rollup = matches!(chain, ChainId::Arbitrum | ChainId::Base | ChainId::Optimism);
-        assert_eq!(spec.coin_chain == chain, !is_rollup, "{}", chain.as_str());
-    }
-}
-
 /// A seed has one address on Ethereum and BNB Smart Chain.
 #[test]
-fn bsc_shares_ethereums_coin_type_and_trades_as_bnb() {
+fn bsc_shares_ethereums_coin_type() {
     assert_eq!(chains().spec(ChainId::Bsc).slip44, chains().spec(ChainId::Ethereum).slip44);
-    assert_eq!(ChainId::Bsc.coin().symbol(), "BNB");
     assert_eq!(ChainId::Bsc.display_name(), "BNB Smart Chain");
-    assert!(!Coin::ALL.iter().any(|coin| coin.symbol() == "BSC"));
 }
 
 /// MATIC became POL in September 2024, and the network keeps the Polygon name.
 #[test]
-fn polygon_shares_ethereums_coin_type_and_trades_as_pol() {
+fn polygon_shares_ethereums_coin_type() {
     assert_eq!(chains().spec(ChainId::Polygon).slip44, chains().spec(ChainId::Ethereum).slip44);
-    assert_eq!(ChainId::Polygon.coin().symbol(), "POL");
     assert_eq!(ChainId::Polygon.display_name(), "Polygon");
-    assert!(!Coin::ALL.iter().any(|coin| coin.symbol() == "MATIC"));
 }
 
-/// Every rollup pays gas in ether, so a seed has Ethereum's address on it and its coin is
-/// Ethereum's coin, while the network keeps its own name.
+/// Every rollup pays gas in ether, so a seed has Ethereum's address on it, while the
+/// network keeps its own name.
 #[test]
-fn the_rollups_share_ethereums_coin_type_and_coin() {
+fn the_rollups_share_ethereums_coin_type() {
     let ethereum = chains().spec(ChainId::Ethereum);
     for chain in [ChainId::Arbitrum, ChainId::Base, ChainId::Optimism] {
         let spec = chains().spec(chain);
         assert_eq!(spec.slip44, ethereum.slip44, "{}", chain.as_str());
         assert_eq!(spec.default_path, ethereum.default_path, "{}", chain.as_str());
-        assert_eq!(chain.coin(), ChainId::Ethereum.coin(), "{}", chain.as_str());
-        assert_eq!(spec.coin_chain, ChainId::Ethereum, "{}", chain.as_str());
     }
     assert_eq!(ChainId::Arbitrum.display_name(), "Arbitrum One");
     assert_eq!(ChainId::Base.display_name(), "Base");
@@ -83,11 +63,10 @@ fn the_rollups_share_ethereums_coin_type_and_coin() {
 /// The X-Chain and P-Chain derive at Avalanche's own coin type 9000, but wallets derive the
 /// C-Chain at Ethereum's, so a seed has one address on both.
 #[test]
-fn the_c_chain_shares_ethereums_coin_type_and_trades_as_avax() {
+fn the_c_chain_shares_ethereums_coin_type() {
     let spec = chains().spec(ChainId::Avalanche);
     assert_eq!(spec.slip44, chains().spec(ChainId::Ethereum).slip44);
     assert_eq!(spec.default_path, chains().spec(ChainId::Ethereum).default_path);
-    assert_eq!(ChainId::Avalanche.coin().symbol(), "AVAX");
     assert_eq!(ChainId::Avalanche.display_name(), "Avalanche C-Chain");
 }
 

@@ -691,17 +691,27 @@ mod tests {
         assert_eq!(TokenId::EnaJetton.decimals(), 6, "and TON's ENA has six");
         assert_eq!(TokenId::WbtcErc20.decimals(), 8, "wrapped bitcoin keeps bitcoin's satoshi");
         for token in TokenId::ALL {
-            let expected = match token.coin().symbol() {
-                "LINK" | "ENA" if token.chain() == ChainId::Solana => 9,
-                "ENA" if token.chain() == ChainId::Ton => 6,
-                "WBTC" => 8,
-                "LINK" | "WETH" | "UNI" | "SHIB" | "ENA" | "AAVE" | "ONDO" | "PEPE" | "ARB"
-                | "OP" | "DAI" | "USDS" | "PAXG"
-                    if token.chain() != ChainId::Solana =>
-                {
-                    18
-                }
-                "USDT" | "USDC" if token.chain() == ChainId::Bsc => 18,
+            let expected = match (token.coin(), token.chain()) {
+                (Coin::Link | Coin::Ena, ChainId::Solana) => 9,
+                (Coin::Ena, ChainId::Ton) => 6,
+                (Coin::Wbtc, _) => 8,
+                (
+                    Coin::Link
+                    | Coin::Weth
+                    | Coin::Uni
+                    | Coin::Shib
+                    | Coin::Ena
+                    | Coin::Aave
+                    | Coin::Ondo
+                    | Coin::Pepe
+                    | Coin::Arb
+                    | Coin::Op
+                    | Coin::Dai
+                    | Coin::Usds
+                    | Coin::Paxg,
+                    chain,
+                ) if chain != ChainId::Solana => 18,
+                (Coin::Usdt | Coin::Usdc, ChainId::Bsc) => 18,
                 _ => 6,
             };
             assert_eq!(token.decimals(), expected, "{}", token.as_str());
@@ -790,13 +800,8 @@ mod tests {
         }
     }
 
-    /// Every rollup pays gas in ether, so its coin trades as ETH.
     #[test]
-    fn rollup_coins_are_ether() {
-        for chain in [ChainId::Arbitrum, ChainId::Base, ChainId::Optimism] {
-            assert_eq!(chain.coin(), Coin::Eth, "{}", chain.as_str());
-            assert_eq!(chain.native_decimals(), 18, "{}", chain.as_str());
-        }
+    fn rollup_tokens_read_as_their_coins() {
         for (token, chain, coin, decimals) in [
             (TokenId::UsdtArbitrum, ChainId::Arbitrum, Coin::Usdt, 6),
             (TokenId::UsdcArbitrum, ChainId::Arbitrum, Coin::Usdc, 6),
@@ -817,12 +822,8 @@ mod tests {
         }
     }
 
-    /// AVAX lives on three chains, and the wallet holds it on the C-Chain.
     #[test]
-    fn the_c_chain_coin_is_avax() {
-        assert_eq!(ChainId::Avalanche.coin(), Coin::Avax);
-        assert_eq!(ChainId::Avalanche.display_name(), "Avalanche C-Chain");
-        assert_eq!(ChainId::Avalanche.native_decimals(), 18);
+    fn c_chain_tokens_read_as_their_coins() {
         for (token, coin, decimals) in [
             (TokenId::UsdtAvalanche, Coin::Usdt, 6),
             (TokenId::UsdcAvalanche, Coin::Usdc, 6),

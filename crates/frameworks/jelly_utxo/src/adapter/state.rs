@@ -7,9 +7,9 @@ use jelly_electrum::HistoryEntry;
 
 use crate::adapter::watched::Watched;
 use crate::claim::OutpointClaims;
-use crate::coin::Utxo;
 use crate::error::UtxoError;
 use crate::sync::PendingTx;
+use crate::utxo::Utxo;
 
 #[derive(Debug, Clone, Default)]
 struct AddressState {

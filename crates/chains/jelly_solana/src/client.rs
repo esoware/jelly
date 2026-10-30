@@ -21,7 +21,7 @@ use crate::rpc::{
     PrioritizationFee, RawAccount, SendQuery, SignatureRow, SignatureStatus, SimulateQuery,
     Simulation, StatusQuery, TransactionRow, TxQuery,
 };
-use crate::token::{Destination, SOLANA_TOKENS, SolanaToken};
+use crate::token::{Destination, SolanaToken};
 
 const TARGET: &str = "jelly::solana::client";
 
@@ -132,7 +132,7 @@ impl SolanaClient {
     /// `getTokenAccountsByOwner` without a key. Answers are read at a fixed stride, so a
     /// group always holds whole owners, even past the configured batch size.
     pub(crate) async fn holdings(&self, owners: &[Pubkey]) -> Result<Vec<Holdings>, SolanaError> {
-        let stride = SOLANA_TOKENS.len().saturating_add(1);
+        let stride = SolanaToken::all().count().saturating_add(1);
         let per_chunk = self.batch_size.checked_div(stride).unwrap_or(1).max(1);
         let mut holdings = Vec::with_capacity(owners.len());
         for group in owners.chunks(per_chunk) {
@@ -142,7 +142,7 @@ impl SolanaClient {
                     Method::GetBalance,
                     &(owner.to_string(), CommitmentQuery { commitment: READ_COMMITMENT }),
                 )?);
-                for token in SOLANA_TOKENS {
+                for token in SolanaToken::all() {
                     calls.push(account_call(&token.account_of(owner))?);
                 }
             }
@@ -421,8 +421,8 @@ fn account_call(account: &Pubkey) -> Result<RpcCall, SolanaError> {
 /// from `base`.
 fn holdings_at(answered: &Answered, owner: &Pubkey, base: usize) -> Result<Holdings, SolanaError> {
     let lamports: Contextual<u64> = answered.decode_at(base, Method::GetBalance)?;
-    let mut tokens = Vec::with_capacity(SOLANA_TOKENS.len());
-    for (offset, token) in SOLANA_TOKENS.into_iter().enumerate() {
+    let mut tokens = Vec::new();
+    for (offset, token) in SolanaToken::all().enumerate() {
         let at = base.saturating_add(offset).saturating_add(1);
         let account: Contextual<Option<RawAccount>> =
             answered.decode_at(at, Method::GetAccountInfo)?;

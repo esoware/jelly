@@ -5,6 +5,8 @@ import type {
   AssetMeta,
   ChainId,
   ChainMeta,
+  Coin,
+  CoinMeta,
   EndpointOrigin,
   KeySource,
   ProbeFailure,
@@ -17,14 +19,21 @@ import { formatAmount } from "@/lib/amount.ts"
 
 let chainsById: ReadonlyMap<ChainId, ChainMeta> = new Map()
 
+let coinsById: ReadonlyMap<Coin, CoinMeta> = new Map()
+
 let assetsByKey: ReadonlyMap<string, AssetMeta> = new Map()
 
 export function assetKey(asset: AssetId): string {
   return `${asset.kind}:${asset.value}`
 }
 
-export function installCatalog(chains: readonly ChainMeta[], assets: readonly AssetMeta[]): void {
+export function installCatalog(
+  chains: readonly ChainMeta[],
+  coins: readonly CoinMeta[],
+  assets: readonly AssetMeta[],
+): void {
   chainsById = new Map(chains.map((entry) => [entry.chain, entry]))
+  coinsById = new Map(coins.map((entry) => [entry.coin, entry]))
   assetsByKey = new Map(assets.map((entry) => [assetKey(entry.asset), entry]))
 }
 
@@ -52,6 +61,15 @@ export function assetMeta(asset: AssetId): AssetMeta {
   return entry
 }
 
+function assetCoin(asset: AssetId): CoinMeta {
+  const { coin } = assetMeta(asset)
+  const entry = coinsById.get(coin)
+  if (entry === undefined) {
+    throw new Error(`The catalog has no coin ${coin}`)
+  }
+  return entry
+}
+
 export function assetFromKey(key: string): AssetId | null {
   return assetsByKey.get(key)?.asset ?? null
 }
@@ -67,7 +85,7 @@ export function chainName(chain: ChainId): string {
 }
 
 export function chainTicker(chain: ChainId): string {
-  return assetMeta({ kind: "native", value: chain }).symbol
+  return assetCoin({ kind: "native", value: chain }).symbol
 }
 
 export function hasScriptChoice(chain: ChainId): boolean {
@@ -105,11 +123,11 @@ export function assetDecimals(asset: AssetId): number {
 }
 
 export function assetSymbol(asset: AssetId): string {
-  return assetMeta(asset).symbol
+  return assetCoin(asset).symbol
 }
 
 export function assetName(asset: AssetId): string {
-  return assetMeta(asset).name
+  return assetCoin(asset).name
 }
 
 export function assetChain(asset: AssetId): ChainId {
@@ -130,8 +148,7 @@ export function withShownAsset(shownTokens: readonly TokenId[], asset: AssetId):
 }
 
 export function assetLabel(asset: AssetId): string {
-  const entry = assetMeta(asset)
-  return `${entry.symbol} on ${chainName(entry.chain)}`
+  return `${assetSymbol(asset)} on ${chainName(assetChain(asset))}`
 }
 
 export function formatAssetAmount(amount: Amount, asset: AssetId): string {
@@ -160,12 +177,12 @@ export function groupAssets(assets: readonly AssetId[]): AssetGroup[] {
     {
       label: "Tokens",
       assets: assets.filter(
-        (asset) => asset.kind === "token" && !assetMeta(asset).isRealWorldAsset,
+        (asset) => asset.kind === "token" && !assetCoin(asset).isRealWorldAsset,
       ),
     },
     {
       label: "Real world assets",
-      assets: assets.filter((asset) => assetMeta(asset).isRealWorldAsset),
+      assets: assets.filter((asset) => assetCoin(asset).isRealWorldAsset),
     },
   ]
   return groups.filter((group) => group.assets.length > 0)

@@ -57,7 +57,7 @@ impl PriceCharts {
         interval: CandleInterval,
         currency: FiatCurrency,
     ) -> Result<PriceChart, PriceError> {
-        let ticker = Ticker::for_coin(asset.coin());
+        let ticker = Ticker::of(asset.coin());
         if !self.tickers.contains(&ticker) {
             return Err(PriceError::Absent);
         }
@@ -125,7 +125,7 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use async_trait::async_trait;
-    use jelly_core::{ChainId, test_util::FakeClock};
+    use jelly_core::{ChainId, Coin, test_util::FakeClock};
     use serde_json::json;
     use tokio::task::yield_now;
 
@@ -225,7 +225,7 @@ mod tests {
                 (third, String::from("11000000000")),
             ]
         );
-        assert_eq!(fetch.calls(), [(Market::Asset(Ticker::Btc), CandleInterval::Hour)]);
+        assert_eq!(fetch.calls(), [(Market::Asset(Ticker::of(Coin::Btc)), CandleInterval::Hour)]);
     }
 
     #[tokio::test]
@@ -302,7 +302,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_asset_whose_ticker_is_not_configured_sends_nothing() {
-        let config = PriceFeedConfig { tickers: BTreeSet::from([Ticker::Eth]) };
+        let config = PriceFeedConfig { tickers: BTreeSet::from([Ticker::of(Coin::Eth)]) };
         let Harness { charts, fetch, .. } = harness(&config);
         assert!(matches!(
             charts.chart(BTC, CandleInterval::Hour, FiatCurrency::Eur).await,

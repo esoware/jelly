@@ -4,10 +4,10 @@ use jelly_core::FeeRate;
 use crate::adapter::fee::FeeContext;
 use crate::adapter::watched::{Watched, sources_led_by, sources_of, spenders};
 use crate::build::BuiltTx;
-use crate::coin::Utxo;
 use crate::cpfp::{ChildRequest, Package, Unconfirmed, build_child};
 use crate::error::UtxoError;
 use crate::original::Original;
+use crate::utxo::Utxo;
 
 /// A send to speed up with a child, recovered from the chain so it survives a restart.
 ///

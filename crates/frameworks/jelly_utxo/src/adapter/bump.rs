@@ -10,11 +10,11 @@ use crate::adapter::fee::{self, FeeContext};
 use crate::adapter::replacing::Replacing;
 use crate::adapter::send;
 use crate::build::BuiltTx;
-use crate::coin::Utxo;
 use crate::cpfp::Unconfirmed;
 use crate::error::UtxoError;
 use crate::original::Original;
 use crate::params::BumpMethod;
+use crate::utxo::Utxo;
 
 /// Bitcoin Core's and Litecoin Core's `DEFAULT_ANCESTOR_LIMIT` less one: the most
 /// unconfirmed transactions a child can wait on and still relay.

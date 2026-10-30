@@ -16,7 +16,6 @@ const TON_SEED: &str = "TON seed";
 
 pub const SPEC: ChainSpec = ChainSpec {
     chain: CHAIN,
-    coin_chain: CHAIN,
     slip44: 607,
     key_kind: KeyKind::Ed25519Seed,
     default_path: "m/44'/607'/{index}'",
