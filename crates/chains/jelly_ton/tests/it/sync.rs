@@ -79,6 +79,45 @@ async fn jetton_wallets_are_resolved_once_and_read_only_when_they_change() {
     assert_eq!(usdt_balances(&events), [0, 42, 42]);
 }
 
+/// The wallet walk needs every jetton wallet to tell jetton transfers from Gram payments,
+/// so a failed lookup holds back that address's history, and nothing else.
+#[tokio::test]
+async fn a_failed_jetton_lookup_holds_back_only_its_addresss_history() {
+    let node = Node::new();
+    let xaut = node.state.lock().jettons.remove(1);
+    assert_eq!(xaut.token, TokenId::XautJetton);
+    let adapter = node.adapter().await.unwrap();
+    let mut other = watched_as(USDT_SECRET, ScriptKind::TonV5r1).unwrap();
+    other.id = 2;
+    adapter.set_watch_set(&[watched().unwrap(), other]).await.unwrap();
+    let events = FakeEventSink::new();
+
+    let progress =
+        adapter.sync(node.clock.deadline_in(Duration::from_secs(30)), &events).await.unwrap();
+
+    assert!(!progress.is_complete());
+    let gram_balances: Vec<i64> = events
+        .drain()
+        .into_iter()
+        .filter_map(|event| {
+            if let WalletEvent::BalanceChanged(balance) = event
+                && balance.asset == AssetId::Native(ChainId::Ton)
+            {
+                Some(balance.address_id)
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(gram_balances, [1, 2], "a later address still syncs");
+    assert_eq!(node.count(Method::GetTransactions), 0, "no wallet walk without every jetton");
+
+    node.state.lock().jettons.insert(1, xaut);
+    let progress =
+        adapter.sync(node.clock.deadline_in(Duration::from_secs(30)), &events).await.unwrap();
+    assert!(progress.is_complete());
+}
+
 #[tokio::test]
 async fn a_frozen_jetton_wallet_keeps_its_verified_balance() {
     let node = Node::new();

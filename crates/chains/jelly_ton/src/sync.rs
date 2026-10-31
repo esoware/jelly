@@ -12,6 +12,7 @@ use crate::pending;
 use crate::state::States;
 use crate::watched::Watched;
 
+const TARGET: &str = "jelly::ton::sync";
 /// How many pages of transactions one walk reads in a pass.
 const PAGES_PER_PASS: usize = 3;
 const PARTIAL_PROGRESS_PERMILLE: u16 = 500;
@@ -65,15 +66,33 @@ impl Pass<'_> {
             balance: Amount::from(account.balance_nanogram()?),
         }));
         let mut cursor = self.states.cursor(entry.address_id).await?;
+        let mut is_resolved = true;
         for jetton in JETTONS {
-            if cursor.jettons.iter().all(|known| known.token != jetton.token) {
-                let wallet = self
-                    .client
-                    .jetton_wallet(&master(jetton.token)?, &entry.address, Some(tip))
-                    .await?;
-                cursor.jettons.push(JettonCursor::named(jetton.token, &wallet));
-                self.states.advance(entry.address_id, &cursor).await?;
+            if cursor.jettons.iter().any(|known| known.token == jetton.token) {
+                continue;
             }
+            let lookup =
+                self.client.jetton_wallet(&master(jetton.token)?, &entry.address, Some(tip)).await;
+            match lookup {
+                Ok(wallet) => {
+                    cursor.jettons.push(JettonCursor::named(jetton.token, &wallet));
+                    self.states.advance(entry.address_id, &cursor).await?;
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        target: TARGET,
+                        token = jetton.token.as_str(),
+                        %error,
+                        "a jetton wallet lookup failed"
+                    );
+                    is_resolved = false;
+                }
+            }
+        }
+        // The wallet walk tells a jetton transfer from a Gram payment only by the jetton
+        // wallet it involves, so it waits until every registry jetton's wallet is known.
+        if !is_resolved {
+            return Ok(false);
         }
         let held = cursor.held()?;
         let reader = Reader {

@@ -178,16 +178,20 @@ impl ScriptProbe for TonAdapter {
             }
             let owner = ton_destination(address.value()).map_err(|_| invalid)?.address;
             let mut is_used = self.client.is_used(&owner).await?;
+            let mut failed_lookup = None;
             for jetton in JETTONS {
                 if is_used {
                     break;
                 }
-                let wallet =
-                    self.client.jetton_wallet(&master(jetton.token)?, &owner, None).await?;
-                is_used = self.client.is_used(&wallet).await?;
+                match self.client.jetton_wallet(&master(jetton.token)?, &owner, None).await {
+                    Ok(wallet) => is_used = self.client.is_used(&wallet).await?,
+                    Err(error) => failed_lookup = Some(error),
+                }
             }
             if is_used {
                 used.push(address.clone());
+            } else if let Some(error) = failed_lookup {
+                return Err(error.into());
             }
         }
         Ok(used)
