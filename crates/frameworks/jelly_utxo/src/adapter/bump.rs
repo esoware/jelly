@@ -1,14 +1,17 @@
 use std::collections::BTreeSet;
 
 use async_trait::async_trait;
-use bitcoin::{OutPoint, Txid};
-use jelly_core::{ChainError, FeeBump, FeeQuote, FeeRate, FeeSelection, TxId, UnsignedTx};
+use bitcoin::Txid;
+use jelly_core::{
+    ChainError, CursorBytes, CursorScope, FeeBump, FeeQuote, FeeRate, FeeSelection, TxId,
+    UnsignedTx,
+};
 
 use crate::adapter::UtxoAdapter;
 use crate::adapter::child_paying::ChildPaying;
 use crate::adapter::fee::{self, FeeContext};
 use crate::adapter::replacing::Replacing;
-use crate::adapter::send;
+use crate::adapter::{send, sync};
 use crate::build::BuiltTx;
 use crate::cpfp::Unconfirmed;
 use crate::error::UtxoError;
@@ -51,14 +54,6 @@ impl ResolvedBump {
         match self.bumping {
             Bumping::Replace { ref replacing, .. } => replacing.evicted(),
             Bumping::Child { .. } => 0,
-        }
-    }
-
-    /// The outpoints the original spends, when the bump replaces it.
-    fn replaced_spends(&self) -> Option<Vec<OutPoint>> {
-        match self.bumping {
-            Bumping::Replace { ref replacing, .. } => Some(replacing.original().spends()),
-            Bumping::Child { .. } => None,
         }
     }
 }
@@ -137,13 +132,41 @@ impl UtxoAdapter {
         let rate = fee::bump_rate_of(fee, &resolved.fee_context, resolved.floor)?;
         let built = resolved.build(rate)?;
         let payload = &built.payload;
-        match resolved.replaced_spends() {
-            // A replacement spends the original's coins on purpose, so it takes over
-            // the original's claim instead of conflicting with it.
-            Some(spends) => {
-                self.claims.take_over(payload.unsigned_txid(), &payload.outpoints(), &spends);
+        match resolved.bumping {
+            Bumping::Replace { ref replacing, .. } => {
+                // No pass may have seen the original yet, and one that never does can't
+                // settle it as replaced. Under the pass lock, so no pass writes over it.
+                let pass = self.pass.lock().await;
+                let pending = replacing.pending();
+                let mut stored =
+                    sync::load_cursors(&self.params, self.cursors.as_ref(), replacing.sources())
+                        .await?;
+                for source in replacing.sources() {
+                    if let Some(cursor) = stored.get_mut(&source.address_id)
+                        && cursor.remember(&pending)
+                    {
+                        self.cursors
+                            .advance(
+                                CursorScope::Address(source.address_id),
+                                self.params.scan_stream,
+                                CursorBytes::new(cursor.encode()?),
+                            )
+                            .await
+                            .map_err(UtxoError::Cursor)?;
+                    }
+                }
+                drop(pass);
+                // A replacement spends the original's coins on purpose, so it takes over
+                // the original's claim instead of conflicting with it.
+                self.claims.take_over(
+                    payload.unsigned_txid(),
+                    &payload.outpoints(),
+                    &pending.spends,
+                );
             }
-            None => self.claims.claim(payload.unsigned_txid(), &payload.outpoints())?,
+            Bumping::Child { .. } => {
+                self.claims.claim(payload.unsigned_txid(), &payload.outpoints())?;
+            }
         }
         send::unsigned(&built, &resolved.fee_context, resolved.evicted())
     }

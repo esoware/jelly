@@ -710,3 +710,74 @@ async fn an_original_replaced_before_a_restart_is_reported_replaced_by_the_next_
          pass after the restart reported {settled:?} for it, so its row stays pending forever"
     );
 }
+
+/// The original went out and was replaced before any pass saw it, so only the bump
+/// knew it was ever pending.
+#[tokio::test]
+async fn an_original_no_pass_ever_saw_is_reported_replaced_once_its_replacement_shows() {
+    for params in REPLACEABLE {
+        let sent = sent(&params).await.unwrap();
+        let unsigned = sent.bump(HIGHER).await.unwrap();
+        let signed =
+            sent.harness.adapter.sign_tx(&unsigned, &[sent.wallet.ours.material()]).unwrap();
+        let replacement = decode(signed.raw.as_bytes()).unwrap();
+        let kept = change_of(&replacement).unwrap();
+        Ledger::new()
+            .known(&sent.wallet.funding)
+            .confirmed(&sent.wallet.payment, MINED_AT)
+            .mempool(&replacement)
+            .unconfirmed(&replacement, CHANGE_VOUT, kept)
+            .serve(&sent.harness);
+        sent.harness.drain();
+        sent.harness.sync().await.unwrap();
+
+        let original = sent.signed.txid.value().to_owned();
+        let settled: Vec<TxOutcome> = records(&sent.harness.drain())
+            .into_iter()
+            .filter(|record| record.txid.value() == original)
+            .map(|record| record.outcome)
+            .collect();
+        assert_eq!(settled, vec![TxOutcome::Replaced], "{}", params.chain);
+    }
+}
+
+/// A pass against a server that has neither the original nor its replacement can't
+/// settle the original, but mustn't forget it either.
+#[tokio::test]
+async fn an_original_a_pass_lost_sight_of_is_reported_replaced_once_its_replacement_shows() {
+    for params in REPLACEABLE {
+        let sent = sent(&params).await.unwrap();
+        let change = change_of(&sent.original).unwrap();
+        Ledger::new()
+            .known(&sent.wallet.funding)
+            .confirmed(&sent.wallet.payment, MINED_AT)
+            .mempool(&sent.original)
+            .unconfirmed(&sent.original, CHANGE_VOUT, change)
+            .serve(&sent.harness);
+        sent.harness.sync().await.unwrap();
+        let unsigned = sent.bump(HIGHER).await.unwrap();
+        let signed =
+            sent.harness.adapter.sign_tx(&unsigned, &[sent.wallet.ours.material()]).unwrap();
+        let replacement = decode(signed.raw.as_bytes()).unwrap();
+        let kept = change_of(&replacement).unwrap();
+
+        sent.wallet.ledger().serve(&sent.harness);
+        sent.harness.sync().await.unwrap();
+        Ledger::new()
+            .known(&sent.wallet.funding)
+            .confirmed(&sent.wallet.payment, MINED_AT)
+            .mempool(&replacement)
+            .unconfirmed(&replacement, CHANGE_VOUT, kept)
+            .serve(&sent.harness);
+        sent.harness.drain();
+        sent.harness.sync().await.unwrap();
+
+        let original = sent.signed.txid.value().to_owned();
+        let settled: Vec<TxOutcome> = records(&sent.harness.drain())
+            .into_iter()
+            .filter(|record| record.txid.value() == original)
+            .map(|record| record.outcome)
+            .collect();
+        assert_eq!(settled, vec![TxOutcome::Replaced], "{}", params.chain);
+    }
+}

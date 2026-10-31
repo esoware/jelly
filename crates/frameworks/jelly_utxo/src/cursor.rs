@@ -44,9 +44,11 @@ pub(crate) struct CursorUtxo {
     pub(crate) has_tokens: bool,
 }
 
-/// A mempool transaction the writing pass decoded, with enough for a later pass to
-/// settle it if a conflicting transaction replaces it, even in a session that never
-/// decoded it.
+/// A transaction a pass decoded in the mempool, or a send a replacement was built for.
+///
+/// It holds enough for a later pass to settle it if a conflicting transaction replaces
+/// it, even in a session that never decoded it, and is kept until a pass sees it mined
+/// or replaced.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CursorPending {
     pub(crate) txid: Txid,
@@ -132,6 +134,15 @@ impl SyncCursor {
 
     pub(crate) fn pending(&self) -> &[CursorPending] {
         &self.pending
+    }
+
+    /// Adds `tx` unless it's already remembered, and says whether it was added.
+    pub(crate) fn remember(&mut self, tx: &CursorPending) -> bool {
+        if self.pending.iter().any(|known| known.txid == tx.txid) {
+            return false;
+        }
+        self.pending.push(tx.clone());
+        true
     }
 
     /// A match means the address's history hasn't moved since the writing pass.
