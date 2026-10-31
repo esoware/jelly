@@ -758,9 +758,9 @@ mod tests {
         assert!(!error.is_window_too_wide(), "{error:?}");
     }
 
-    /// A public node without archive access answers a log query below its recent
-    /// window with HTTP 403, and a pruned node with header not found. Neither says
-    /// anything about a balance.
+    /// A public node answers a log query below its recent window, or one naming more
+    /// contracts than it allows, with HTTP 403, and a pruned node with header not found.
+    /// Neither says anything about a balance.
     #[test]
     fn a_host_without_the_history_a_log_query_needs_is_skipped() {
         let archive = NetError::Status { endpoint: endpoint(), status: 403 };
