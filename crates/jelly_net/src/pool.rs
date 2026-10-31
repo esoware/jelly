@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use jelly_core::{ChainId, Clock, Deadline, EndpointAttempt, Transport, duration_millis};
 use parking_lot::Mutex;
+use tokio::time::sleep;
 
 use crate::connect::{Connect, Identity};
 use crate::endpoint::Endpoint;
@@ -297,61 +298,81 @@ impl<C: Send + Sync + 'static> Pool<C> {
         F: Fn(Arc<C>) -> Fut + Send + Sync,
         Fut: Future<Output = Result<T, NetError>> + Send,
     {
-        let ordered = self.ordered(standing);
-        if ordered.is_empty() {
+        let mut queue = self.ordered(standing);
+        if queue.is_empty() {
             return Err(NetError::NoEndpoints { chain: self.chain });
         }
         let deadline = self.clock.deadline_in(self.timeouts.walk);
+        let mut sleep_left = self.timeouts.walk;
         let mut attempts: Vec<EndpointAttempt> = Vec::new();
         let mut has_tried = false;
-        let mut ready_in: Option<Duration> = None;
+        let mut ready_in: Option<Duration>;
 
-        for endpoint in ordered {
-            if has_tried && rotation == Rotation::Once {
-                break;
-            }
-            if deadline.remaining(self.clock.as_ref()) < self.timeouts.floor {
-                break;
-            }
-            if self.is_disqualified(endpoint) {
-                continue;
-            }
-            let permit = match self.pacer.try_acquire(endpoint.url()) {
-                Ok(permit) => permit,
-                Err(wait) => {
-                    ready_in = Some(ready_in.map_or(wait, |current| current.min(wait)));
+        loop {
+            let mut paced: Vec<&Endpoint> = Vec::new();
+            ready_in = None;
+            for endpoint in queue {
+                if has_tried && rotation == Rotation::Once {
+                    break;
+                }
+                if deadline.remaining(self.clock.as_ref()) < self.timeouts.floor {
+                    break;
+                }
+                if self.is_disqualified(endpoint) {
                     continue;
                 }
-            };
-            has_tried = true;
+                let permit = match self.pacer.try_acquire(endpoint.url()) {
+                    Ok(permit) => permit,
+                    Err(wait) => {
+                        ready_in = Some(ready_in.map_or(wait, |current| current.min(wait)));
+                        paced.push(endpoint);
+                        continue;
+                    }
+                };
+                has_tried = true;
 
-            // The dial, the identity check, and the call share one deadline, since
-            // separate timeouts would add up.
-            let turn = deadline.min(self.clock.deadline_in(self.timeouts.per_attempt));
-            let started_millis = self.clock.elapsed_millis();
-            let result = self.attempt(endpoint, turn, &f).await;
-            drop(permit);
-            let (outcome, error) = match result {
-                Ok(value) => {
-                    self.credit(endpoint, started_millis);
-                    return Ok(value);
+                // The dial, the identity check, and the call share one deadline, since
+                // separate timeouts would add up.
+                let turn = deadline.min(self.clock.deadline_in(self.timeouts.per_attempt));
+                let started_millis = self.clock.elapsed_millis();
+                let result = self.attempt(endpoint, turn, &f).await;
+                drop(permit);
+                let (outcome, error) = match result {
+                    Ok(value) => {
+                        self.credit(endpoint, started_millis);
+                        return Ok(value);
+                    }
+                    Err(Failed::Rotate(error)) => (Outcome::Rotate, error),
+                    Err(Failed::Classify(error)) => (classify(&error), error),
+                };
+                match outcome {
+                    Outcome::Accept => {
+                        self.credit(endpoint, started_millis);
+                        return Err(error);
+                    }
+                    Outcome::Fail => return Err(error),
+                    Outcome::Rotate => attempts.push(self.penalize(endpoint, operation, &error)),
+                    Outcome::Skip => attempts.push(EndpointAttempt::new(
+                        endpoint.label().clone(),
+                        error.kind(),
+                        reason(&error),
+                    )),
                 }
-                Err(Failed::Rotate(error)) => (Outcome::Rotate, error),
-                Err(Failed::Classify(error)) => (classify(&error), error),
-            };
-            match outcome {
-                Outcome::Accept => {
-                    self.credit(endpoint, started_millis);
-                    return Err(error);
-                }
-                Outcome::Fail => return Err(error),
-                Outcome::Rotate => attempts.push(self.penalize(endpoint, operation, &error)),
-                Outcome::Skip => attempts.push(EndpointAttempt::new(
-                    endpoint.label().clone(),
-                    error.kind(),
-                    reason(&error),
-                )),
             }
+
+            // An endpoint its pacer held back gets its turn once the pacer admits it, if
+            // an attempt still fits in the walk after the wait. Time asleep counts
+            // against the walk even on a clock that doesn't see it.
+            let Some(wait) = ready_in else { break };
+            let left = deadline.remaining(self.clock.as_ref()).min(sleep_left);
+            if (has_tried && rotation == Rotation::Once)
+                || left.saturating_sub(wait) < self.timeouts.floor
+            {
+                break;
+            }
+            sleep(wait).await;
+            sleep_left = sleep_left.saturating_sub(wait);
+            queue = paced;
         }
 
         if attempts.is_empty() {
@@ -613,13 +634,13 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn a_walk_with_every_endpoint_cooling_down_sends_nothing_and_says_so() {
+    async fn a_walk_whose_endpoints_cool_down_past_its_budget_sends_nothing_and_says_so() {
         let policy = PacerPolicy {
             min_interval: Duration::from_millis(200),
             burst: 1,
             max_concurrent: 1,
-            backoff_floor: Duration::from_secs(5),
-            backoff_ceiling: Duration::from_secs(5),
+            backoff_floor: Duration::from_secs(50),
+            backoff_ceiling: Duration::from_secs(50),
         };
         let runtime = NetRuntime::with_pacing(Arc::new(FakeClock::default()), policy);
         let connector = Arc::new(RecordingConnector::default());
@@ -639,6 +660,7 @@ mod tests {
             .expect_err("the only endpoint is cooling down");
 
         assert!(matches!(error, NetError::NoneReady { .. }), "{error}");
+        assert!(error.is_unreachable(), "{error}");
         assert!(connector.connects.lock().is_empty(), "nothing was sent");
         assert_eq!(
             runtime.health().entry(ChainId::Ethereum, URL).health.failures,

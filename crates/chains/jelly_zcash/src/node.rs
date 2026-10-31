@@ -23,10 +23,6 @@ const MAX_RESPONSE_BYTES: usize = 4_500_000;
 // Public Blockbook servers limit how fast one client reads. Zelcore's refuses with HTTP 429
 // after about forty reads half a second apart, and keeps up with about thirty a minute.
 const READ_SPACING: Duration = Duration::from_secs(2);
-// An endpoint cooling down after a failure admits no attempt, so a call waits for one.
-const ADMISSION_WAIT: Duration = Duration::from_millis(200);
-// With `ADMISSION_WAIT`, a call waits up to 20 seconds for an endpoint to admit an attempt.
-const ADMISSION_RETRIES: u32 = 100;
 
 #[async_trait]
 pub trait ZcashNode: Send + Sync + fmt::Debug {
@@ -89,50 +85,29 @@ async fn request(
     Ok(value)
 }
 
-// `NoneReady` means no endpoint admitted an attempt, so no request left, and retrying even
-// a `broadcast_once` call can't submit a transaction twice.
-async fn retry_until_admitted<T, F, Fut>(
-    operation: &'static str,
-    mut call: F,
-) -> Result<T, NetError>
-where
-    T: Send,
-    F: FnMut() -> Fut + Send,
-    Fut: Future<Output = Result<T, NetError>> + Send,
-{
-    for _ in 0..ADMISSION_RETRIES {
-        let result = call().await;
-        if !matches!(result, Err(NetError::NoneReady { .. })) {
-            return result;
-        }
-        sleep(ADMISSION_WAIT).await;
-    }
-    Err(NetError::NoneReady { chain: CHAIN, operation })
-}
-
 #[async_trait]
 impl ZcashNode for PooledNode {
     async fn get(&self, route: Route<'_>) -> Result<Value, ZcashError> {
         let _guard = self.gate.lock().await;
         sleep(READ_SPACING).await;
-        Ok(retry_until_admitted(READ, || {
-            self.pool.call(READ, classify, async |endpoint: Arc<HttpEndpoint>| {
+        Ok(self
+            .pool
+            .call(READ, classify, async |endpoint: Arc<HttpEndpoint>| {
                 read(&endpoint, route, REQUEST_TIMEOUT).await
             })
-        })
-        .await?)
+            .await?)
     }
 
     async fn broadcast(&self, raw_hex: &str) -> Result<String, ZcashError> {
         let _guard = self.gate.lock().await;
-        let response = retry_until_admitted(BROADCAST, || {
-            self.pool.broadcast_once(BROADCAST, classify, async |endpoint: Arc<HttpEndpoint>| {
+        let response = self
+            .pool
+            .broadcast_once(BROADCAST, classify, async |endpoint: Arc<HttpEndpoint>| {
                 let body =
                     HttpRequest::post_bytes("text/plain", raw_hex.as_bytes(), REQUEST_TIMEOUT);
                 request(&endpoint, "api/v2/sendtx/", "", body).await
             })
-        })
-        .await?;
+            .await?;
         response
             .get("result")
             .and_then(Value::as_str)
@@ -143,8 +118,6 @@ impl ZcashNode for PooledNode {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
     use jelly_core::{
         Amount, AssetId, ChainAdapter as _, Clock as _, SendAmount, SystemClock,
         test_util::{
@@ -201,43 +174,5 @@ mod tests {
         let quote = adapter.quote_fee(&request).await.unwrap();
         assert!(quote.fee.base_units() >= 10_000);
         assert!(quote.max_amount.is_some());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn requests_wait_when_no_endpoint_attempt_was_admitted() {
-        let calls = AtomicUsize::new(0);
-        let value = retry_until_admitted("test read", || {
-            let count = calls.fetch_add(1, Ordering::SeqCst);
-            async move {
-                if count < 2 {
-                    Err(NetError::NoneReady { chain: CHAIN, operation: "test read" })
-                } else {
-                    Ok(7)
-                }
-            }
-        })
-        .await
-        .unwrap();
-        assert_eq!(value, 7);
-        assert_eq!(calls.load(Ordering::SeqCst), 3);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn an_attempted_submission_is_never_repeated() {
-        let calls = AtomicUsize::new(0);
-        let error = retry_until_admitted("test broadcast", || {
-            calls.fetch_add(1, Ordering::SeqCst);
-            async {
-                Err::<(), _>(NetError::AllFailed {
-                    chain: CHAIN,
-                    operation: "test broadcast",
-                    attempts: Vec::new(),
-                })
-            }
-        })
-        .await
-        .unwrap_err();
-        assert!(matches!(error, NetError::AllFailed { .. }));
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 }

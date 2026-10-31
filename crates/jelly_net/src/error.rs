@@ -45,8 +45,8 @@ pub enum NetError {
     WrongNetwork { endpoint: EndpointLabel, expected: String, found: String },
     #[error("{}: no endpoint is configured", chain.display_name())]
     NoEndpoints { chain: ChainId },
-    /// No endpoint could be tried: each was held back by its pacer, disqualified for
-    /// serving another network, or past the walk's budget. Nothing was sent, so no
+    /// No endpoint could be tried: each was disqualified for serving another network, or
+    /// held back by its pacer for longer than the walk had left. Nothing was sent, so no
     /// endpoint's health moved.
     #[error("{}: no endpoint was ready for {operation}", chain.display_name())]
     NoneReady { chain: ChainId, operation: &'static str },
@@ -113,20 +113,23 @@ impl NetError {
     }
 
     /// Whether nothing could be reached, as opposed to an endpoint answering badly. An
-    /// endpoint serving another network and a chain with no endpoint both count.
+    /// endpoint serving another network, one that couldn't be tried in time, and a chain
+    /// with no endpoint all count.
     pub fn is_unreachable(&self) -> bool {
         match self {
             Self::Endpoint { kind, .. } => kind.is_unreachable(),
             Self::AllFailed { attempts, .. } => {
                 !attempts.is_empty() && attempts.iter().all(|attempt| attempt.kind.is_unreachable())
             }
-            Self::Timeout { .. } | Self::WrongNetwork { .. } | Self::NoEndpoints { .. } => true,
+            Self::Timeout { .. }
+            | Self::WrongNetwork { .. }
+            | Self::NoEndpoints { .. }
+            | Self::NoneReady { .. } => true,
             Self::Protocol { .. }
             | Self::TooLarge { .. }
             | Self::Status { .. }
             | Self::RateLimited { .. }
             | Self::Rpc { .. }
-            | Self::NoneReady { .. }
             | Self::InvalidUrl { .. }
             | Self::Defaults { .. }
             | Self::Config { .. } => false,
