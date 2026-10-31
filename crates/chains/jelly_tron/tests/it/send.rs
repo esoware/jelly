@@ -9,8 +9,8 @@ use jelly_tron::{
 };
 
 use crate::common::{
-    Answer, FRESH, FakeNode, Harness, TRX, USDT_ASSET, account, base, detail, fixture, funded,
-    has_detail, ready, request, resources, send_max, warned, watched,
+    Answer, FRESH, FakeNode, Harness, TRX, USDT_ASSET, USDT_ORIGIN, account, base, detail, fixture,
+    funded, has_detail, ready, request, resources, send_max, warned, watched,
 };
 
 #[tokio::test]
@@ -234,6 +234,25 @@ async fn the_governance_parameters_are_read_once_per_reuse_window() {
         1,
         "the prices are per network, not per quote"
     );
+}
+
+#[tokio::test]
+async fn a_token_contracts_terms_are_read_once_and_its_deployers_energy_every_time() {
+    let harness = ready(&funded(100_000_000)).await.unwrap();
+    for _ in 0..3u8 {
+        harness.adapter.build_tx(&request(USDT_ASSET, RECIPIENT, 5_000_000)).await.unwrap();
+    }
+    assert_eq!(harness.fake.count(Route::Contract), 1);
+    let deployer_reads = harness
+        .fake
+        .calls()
+        .iter()
+        .filter(|call| {
+            call.route == Route::AccountResource
+                && call.body.as_deref().is_some_and(|body| body.contains(USDT_ORIGIN))
+        })
+        .count();
+    assert_eq!(deployer_reads, 3, "the deployer's energy changes with every call to it");
 }
 
 #[tokio::test]

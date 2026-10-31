@@ -78,6 +78,19 @@ async fn a_token_contracts_deployer_pays_its_share_of_the_energy() {
 }
 
 #[tokio::test]
+async fn a_deployer_share_that_cannot_be_read_leaves_the_caller_paying_all_of_it() {
+    let origin = format!(r#""address":"{USDT_ORIGIN}""#);
+    let unread_terms = funded(100_000_000).always(Route::Contract, Answer::Transport);
+    let unread_energy = funded(100_000_000)
+        .always(Route::Contract, contract(USDT_ORIGIN, 0))
+        .on_matching(Route::AccountResource, &origin, Answer::Transport);
+    for fake in [unread_terms, unread_energy] {
+        let quote = quote(&fake, &request(USDT_ASSET, RECIPIENT, 5_000_000)).await.unwrap();
+        assert_eq!(quote.fee, Amount::from_base_units(13_026_600));
+    }
+}
+
+#[tokio::test]
 async fn a_caller_that_deployed_the_token_pays_all_of_its_energy() {
     let fake = funded(100_000_000).always(Route::Contract, contract(OWNER, 0));
     let quote = quote(&fake, &request(USDT_ASSET, RECIPIENT, 5_000_000)).await.unwrap();

@@ -2,16 +2,19 @@
 //!
 //! TRON's HTTP API has no batch form, so each method is one request and one
 //! decode, except [`TronClient::parent`], which takes at least two. A TRX quote
-//! costs four round trips and a token quote six, or seven when the token's
-//! deployer pays part of a call's energy. A pass costs one per address for
-//! the TRX balance plus one per token. When an address's history is due, it also
-//! costs one per history page, one receipt per TRC-20 row whose block the pass
-//! hasn't seen, and one parent lookup per internal transfer the native stream
-//! hasn't already reported. So nothing here fetches a value it can derive.
+//! costs four round trips and a token quote five, plus one for the token contract's
+//! terms the first time and one when its deployer pays part of a call's energy. A
+//! pass costs one per address for the TRX balance plus one per token. When an
+//! address's history is due, it also costs one per history page, one receipt per
+//! TRC-20 row whose block the pass hasn't seen, and one parent lookup per internal
+//! transfer the native stream hasn't already reported. So nothing here fetches a
+//! value it can derive.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use jelly_core::{Clock, Deadline, TokenId};
+use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 
 use crate::abi;
@@ -38,11 +41,15 @@ const PARENT_PAGES: u32 = 5;
 #[derive(Debug)]
 pub(crate) struct TronClient {
     node: Arc<dyn TronNode>,
+    /// Each token contract's energy terms, read once. A deployer can change them but
+    /// rarely does, and a stale share moves only the quoted burn, never the fee limit
+    /// or the balance check.
+    contracts: Mutex<HashMap<TokenId, SmartContract>>,
 }
 
 impl TronClient {
-    pub(crate) const fn new(node: Arc<dyn TronNode>) -> Self {
-        Self { node }
+    pub(crate) fn new(node: Arc<dyn TronNode>) -> Self {
+        Self { node, contracts: Mutex::new(HashMap::new()) }
     }
 
     /// The head block: the tip, and the TAPOS reference every transaction pins
@@ -115,19 +122,30 @@ impl TronClient {
         caller: &str,
         token: TokenId,
     ) -> Result<OriginShare, TronError> {
-        let contract: SmartContract =
-            self.node.call(&Request::contract(token.contract())?).await?.decode()?;
+        let contract = self.contract(token).await?;
+        let percent = contract.origin_percent();
         let Some(origin) = contract.origin().filter(|origin| *origin != caller) else {
             return Ok(OriginShare::NONE);
         };
-        if contract.origin_percent() == 0 {
+        if percent == 0 {
             return Ok(OriginShare::NONE);
         }
         Ok(OriginShare {
-            percent: contract.origin_percent(),
+            percent,
             limit: contract.origin_energy_limit(),
             available: self.resources(origin).await?.energy(),
         })
+    }
+
+    async fn contract(&self, token: TokenId) -> Result<SmartContract, TronError> {
+        let known = self.contracts.lock().get(&token).cloned();
+        if let Some(contract) = known {
+            return Ok(contract);
+        }
+        let contract: SmartContract =
+            self.node.call(&Request::contract(token.contract())?).await?.decode()?;
+        self.contracts.lock().insert(token, contract.clone());
+        Ok(contract)
     }
 
     /// A mined transaction's receipt, with its block, its result, and the TRX it

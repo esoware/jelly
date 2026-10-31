@@ -23,6 +23,8 @@ use crate::shape::Resources;
 use crate::token::asset_token;
 use crate::watched::Watched;
 
+const TARGET: &str = "jelly::tron::send";
+
 /// One request, resolved against the chain and built.
 ///
 /// What the transaction says about itself is read back from [`Plan::payload`]
@@ -133,7 +135,6 @@ async fn native_transfer(
     let charge = Charge {
         is_activation: !recipient.is_activated(),
         energy: None,
-        origin: OriginShare::NONE,
         params: common.params,
         resources: common.resources,
     };
@@ -190,7 +191,16 @@ async fn token_transfer(
     // roughly twice as much.
     let energy =
         inputs.client.measure_transfer(common.from, token, &common.to_body, amount).await?;
-    let origin = inputs.client.origin_share(common.from, token).await?;
+    // The deployer's share only lowers the quoted burn, and the balance check leaves it
+    // out, so a share that can't be read is quoted as none.
+    let origin = inputs.client.origin_share(common.from, token).await.unwrap_or_else(|error| {
+        tracing::debug!(
+            target: TARGET,
+            %error,
+            "the deployer's energy share is unknown, so the quote charges the caller for all of it"
+        );
+        OriginShare::NONE
+    });
     let fee_limit_sun = fee::suggested_fee_limit(energy.needed, &common.params)?;
     let header = header.with_fee_limit(fee_limit_sun, common.params.max_fee_limit_sun)?;
 
@@ -199,8 +209,7 @@ async fn token_transfer(
         // balance lives in contract storage. The plain bandwidth rule applies even
         // to a recipient with no account.
         is_activation: false,
-        energy: Some(energy),
-        origin,
+        energy: Some((energy, origin)),
         params: common.params,
         resources: common.resources,
     };
@@ -318,13 +327,7 @@ mod tests {
     }
 
     fn charge(common: &Common<'_>, is_activation: bool) -> Charge {
-        Charge {
-            is_activation,
-            energy: None,
-            origin: OriginShare::NONE,
-            params: common.params,
-            resources: common.resources,
-        }
+        Charge { is_activation, energy: None, params: common.params, resources: common.resources }
     }
 
     #[test]

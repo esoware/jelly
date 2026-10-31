@@ -52,8 +52,8 @@ pub(crate) struct BandwidthCost {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Charge {
     pub(crate) is_activation: bool,
-    pub(crate) energy: Option<EnergyReading>,
-    pub(crate) origin: OriginShare,
+    /// A contract call's measured energy and the deployer's part of it.
+    pub(crate) energy: Option<(EnergyReading, OriginShare)>,
     pub(crate) params: ChainParams,
     pub(crate) resources: Resources,
 }
@@ -68,7 +68,7 @@ impl Charge {
         };
         let energy = self
             .energy
-            .map(|reading| energy_cost(reading, self.origin, &self.resources, &self.params))
+            .map(|(reading, origin)| energy_cost(reading, origin, &self.resources, &self.params))
             .transpose()?;
         TxCost::new(bandwidth, energy, self.is_activation, &self.params)
     }
@@ -143,17 +143,16 @@ pub(crate) struct OriginShare {
 }
 
 impl OriginShare {
-    /// The caller pays it all, as for a transfer that calls no contract or a caller that
-    /// deployed the contract.
+    /// The caller pays it all, as when it deployed the contract, the deployer pays no
+    /// part, or the share can't be read.
     pub(crate) const NONE: Self = Self { percent: 0, limit: 0, available: 0 };
 
-    fn of(self, needed: u64) -> Result<u64, TronError> {
+    fn of(self, needed: u64) -> u64 {
         let share = u128::from(needed)
-            .checked_mul(u128::from(self.percent.min(100)))
-            .ok_or(TronError::Overflow { what: "a deployer's energy share" })?
+            .saturating_mul(u128::from(self.percent.min(100)))
             .checked_div(100)
             .unwrap_or_default();
-        Ok(u64::try_from(share).unwrap_or(u64::MAX).min(self.limit).min(self.available))
+        u64::try_from(share).unwrap_or(u64::MAX).min(self.limit).min(self.available)
     }
 }
 
@@ -177,7 +176,7 @@ fn energy_cost(
     resources: &Resources,
     params: &ChainParams,
 ) -> Result<EnergyCost, TronError> {
-    let from_origin = origin.of(reading.needed)?;
+    let from_origin = origin.of(reading.needed);
     let available = resources.energy();
     let shortfall = reading.needed.saturating_sub(from_origin).saturating_sub(available);
     Ok(EnergyCost {
