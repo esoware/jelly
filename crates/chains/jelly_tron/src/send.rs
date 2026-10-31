@@ -14,7 +14,7 @@ use crate::address;
 use crate::client::TronClient;
 use crate::config::{TRX, TronConfig};
 use crate::error::TronError;
-use crate::fee::{self, Charge, TxCost};
+use crate::fee::{self, Charge, OriginShare, TxCost};
 use crate::params::ChainParams;
 use crate::payload::TronPayload;
 use crate::preview;
@@ -22,6 +22,8 @@ use crate::raw::{self, Header};
 use crate::shape::Resources;
 use crate::token::asset_token;
 use crate::watched::Watched;
+
+const TARGET: &str = "jelly::tron::send";
 
 /// One request, resolved against the chain and built.
 ///
@@ -71,8 +73,8 @@ pub(crate) struct Inputs<'a> {
 /// Reads what a send needs from the chain and plans the transaction.
 ///
 /// The reads are sequential because the endpoint pacer admits only a small burst.
-/// Four round trips in order, or five for a token, beat the same number sent at
-/// once and turned away.
+/// Four round trips in order, or up to seven for a token, beat the same number sent
+/// at once and turned away.
 pub(crate) async fn resolve(
     inputs: &Inputs<'_>,
     request: &TxRequest,
@@ -189,6 +191,16 @@ async fn token_transfer(
     // roughly twice as much.
     let energy =
         inputs.client.measure_transfer(common.from, token, &common.to_body, amount).await?;
+    // The deployer's share only lowers the quoted burn, and the balance check leaves it
+    // out, so a share that can't be read is quoted as none.
+    let origin = inputs.client.origin_share(common.from, token).await.unwrap_or_else(|error| {
+        tracing::debug!(
+            target: TARGET,
+            %error,
+            "the deployer's energy share is unknown, so the quote charges the caller for all of it"
+        );
+        OriginShare::NONE
+    });
     let fee_limit_sun = fee::suggested_fee_limit(energy.needed, &common.params)?;
     let header = header.with_fee_limit(fee_limit_sun, common.params.max_fee_limit_sun)?;
 
@@ -197,7 +209,7 @@ async fn token_transfer(
         // balance lives in contract storage. The plain bandwidth rule applies even
         // to a recipient with no account.
         is_activation: false,
-        energy: Some(energy),
+        energy: Some((energy, origin)),
         params: common.params,
         resources: common.resources,
     };

@@ -10,9 +10,11 @@ use jelly_net::{
     PacerPolicy, Pool, Standing, TimeoutPolicy, json_rpc_outcome,
 };
 use tokio::sync::Notify;
+use tokio::time::{sleep, timeout};
 
 use crate::common::{
-    ENDPOINT_A, ENDPOINT_B, ENDPOINT_C, FakeConnection, endpoint, harness, harness_with, rotate,
+    ENDPOINT_A, ENDPOINT_B, ENDPOINT_C, FakeConnection, Harness, endpoint, harness, harness_with,
+    rotate,
 };
 
 const fn fail(_: &NetError) -> Outcome {
@@ -327,6 +329,118 @@ async fn a_broadcast_tries_exactly_one_endpoint() {
     };
     assert_eq!(attempts.len(), 1);
     assert_eq!(harness.connector.connects.lock().len(), 1);
+}
+
+/// One token, earned back every 200 ms, and a 5 second cooldown after a failure.
+const ONE_AT_A_TIME: PacerPolicy = PacerPolicy {
+    min_interval: Duration::from_millis(200),
+    burst: 1,
+    max_concurrent: 1,
+    backoff_floor: Duration::from_secs(5),
+    backoff_ceiling: Duration::from_secs(5),
+};
+
+/// Moves the fake clock on once the walk under test is asleep, since the pacer reads that
+/// clock and the walk sleeps on tokio's.
+async fn advance_while_asleep(harness: &Harness, by: Duration) {
+    sleep(Duration::from_millis(1)).await;
+    harness.connector.clock.advance(by);
+}
+
+async fn echo(connection: Arc<FakeConnection>) -> Result<String, NetError> {
+    Ok(connection.url.clone())
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_walk_waits_for_its_only_endpoint_to_be_paced_back_in() {
+    let harness = harness_with(&[ENDPOINT_A], ONE_AT_A_TIME).expect("a pool over one endpoint");
+    harness.pool.call("head", rotate, echo).await.expect("the first call spends the token");
+
+    let (answered, ()) = tokio::join!(
+        harness.pool.call("head", rotate, echo),
+        advance_while_asleep(&harness, Duration::from_millis(200)),
+    );
+
+    assert_eq!(answered.expect("the walk waited for the next token"), ENDPOINT_A);
+}
+
+/// A run of reads pinned to one node, as a Monero build makes for its rings, outlasts the
+/// node's burst and is paced rather than refused.
+#[tokio::test(start_paused = true)]
+async fn calls_at_one_endpoint_are_paced_past_its_burst() {
+    let harness =
+        harness_with(&[ENDPOINT_A, ENDPOINT_B], ONE_AT_A_TIME).expect("a pool over two endpoints");
+
+    for _ in 0..8u8 {
+        let (answered, ()) = tokio::join!(
+            harness.pool.call_at(ENDPOINT_B, "ring members", rotate, echo),
+            advance_while_asleep(&harness, Duration::from_millis(200)),
+        );
+        assert_eq!(answered.expect("every read reaches b"), ENDPOINT_B);
+    }
+    assert_eq!(*harness.connector.connects.lock(), vec![ENDPOINT_B.to_owned()]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_walk_comes_back_to_a_paced_endpoint_after_the_others_fail() {
+    let harness =
+        harness_with(&[ENDPOINT_A, ENDPOINT_B], ONE_AT_A_TIME).expect("a pool over two endpoints");
+    harness.pool.call_at(ENDPOINT_A, "head", rotate, echo).await.expect("a spends its token");
+    harness.connector.refused_urls.lock().push(ENDPOINT_B.to_owned());
+
+    let (answered, ()) = tokio::join!(
+        harness.pool.call("head", rotate, echo),
+        advance_while_asleep(&harness, Duration::from_millis(200)),
+    );
+
+    assert_eq!(answered.expect("a answers once it is paced back in"), ENDPOINT_A);
+    assert_eq!(
+        *harness.connector.connects.lock(),
+        vec![ENDPOINT_A.to_owned(), ENDPOINT_B.to_owned()]
+    );
+    assert_eq!(harness.health.entry(harness.pool.chain(), ENDPOINT_B).health.failures, 1);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_broadcast_waits_for_a_paced_endpoint_but_never_sends_twice() {
+    let harness =
+        harness_with(&[ENDPOINT_A, ENDPOINT_B], ONE_AT_A_TIME).expect("a pool over two endpoints");
+    for url in [ENDPOINT_A, ENDPOINT_B] {
+        harness.pool.call_at(url, "head", rotate, echo).await.expect("each spends its token");
+    }
+    let sends = AtomicU32::new(0);
+
+    let (sent, ()) = tokio::join!(
+        harness.pool.broadcast_once("broadcast", rotate, |_connection| {
+            sends.fetch_add(1, Ordering::SeqCst);
+            async { Err::<(), _>(refused()) }
+        }),
+        advance_while_asleep(&harness, Duration::from_millis(200)),
+    );
+
+    let error = sent.expect_err("the one attempt failed");
+    assert!(matches!(error, NetError::AllFailed { .. }), "{error}");
+    assert_eq!(sends.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_cooldown_longer_than_the_walk_is_not_waited_for() {
+    let policy = PacerPolicy {
+        backoff_floor: Duration::from_secs(60),
+        backoff_ceiling: Duration::from_secs(60),
+        ..ONE_AT_A_TIME
+    };
+    let harness = harness_with(&[ENDPOINT_A], policy).expect("a pool over one endpoint");
+    harness.connector.refused_urls.lock().push(ENDPOINT_A.to_owned());
+    let _ = harness.pool.call("head", rotate, echo).await;
+
+    let error = timeout(Duration::from_millis(1), harness.pool.call("head", rotate, echo))
+        .await
+        .expect("nothing waited")
+        .expect_err("a is cooling down");
+
+    assert!(matches!(error, NetError::NoneReady { .. }), "{error}");
+    assert_eq!(harness.connector.connects.lock().len(), 1, "nothing was sent");
 }
 
 #[tokio::test(start_paused = true)]

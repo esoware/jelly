@@ -76,3 +76,21 @@ async fn a_wallet_that_only_ever_received_jettons_is_found_in_use() {
     let used = adapter.script_probe().unwrap().used(&candidates).await.unwrap();
     assert_eq!(used, [candidates[1].clone()], "the deployed XAUT wallet shows the V3R2 key used");
 }
+
+#[tokio::test]
+async fn a_failed_jetton_lookup_fails_the_probe_only_when_nothing_else_shows_use() {
+    let node = Node::new();
+    let adapter = node.adapter().await.unwrap();
+    let candidates = other_versions().unwrap();
+    let owner = TonAddress::from_base64_url(candidates[0].value()).unwrap();
+    node.state.lock().used = vec![jetton_wallet_of(TokenId::EnaJetton, &owner).unwrap()];
+    let xaut = node.state.lock().jettons.remove(1);
+    assert_eq!(xaut.token, TokenId::XautJetton);
+
+    let used = adapter.script_probe().unwrap().used(&candidates[..1]).await.unwrap();
+    assert_eq!(used, [candidates[0].clone()], "the ENA wallet past the failed lookup shows use");
+
+    adapter.script_probe().unwrap().used(&candidates[1..]).await.expect_err(
+        "an address with no other sign of use may still hold the jetton that wasn't looked up",
+    );
+}

@@ -81,6 +81,20 @@ fn every_shipped_history_service_answers_without_a_key() {
     assert_eq!(services, ["https://api.routescan.io/v2/network/mainnet/evm/1/etherscan/api"]);
 }
 
+/// The publicnode.com endpoint refuses a log filter naming more than 10 contracts, and
+/// each filter names every token contract, so its row can't promise log windows.
+#[test]
+fn the_publicnode_row_promises_no_log_windows() {
+    assert!(PARAMS.tokens.len() > 10);
+    let file: DefaultEndpoints = serde_json::from_str(ENTRY.default_endpoints()).unwrap();
+    let row = file
+        .endpoints
+        .iter()
+        .find(|endpoint| endpoint.url == "https://ethereum-rpc.publicnode.com")
+        .unwrap();
+    assert_eq!(row.note.as_deref(), Some("PublicNode, no key, no log windows"));
+}
+
 /// The framework's own unit tests run on a copy of these params.
 #[test]
 fn the_params_match_the_frameworks_test_copy() {

@@ -114,6 +114,7 @@ pub(crate) fn unsigned(
         fast: fee_context.level(FeeLevel::Fast),
         slow_market: fee_context.slow_market,
         evicted,
+        left_out: built.selection.left_out,
     };
     let preview = preview(&fee_context.params, &built.payload, quote)?;
     Ok(UnsignedTx { preview, payload: TxPayload::from_bytes(built.payload.encode()) })

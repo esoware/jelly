@@ -20,8 +20,8 @@ use bitcoin::transaction::Version;
 use bitcoin::{OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid, Witness};
 use jelly_core::{
     Amount, AssetId, ChainAdapter as _, ChainError, ChainId, ChainSpec, ChainSyncProgress, Clock,
-    Deadline, EndpointLabel, FeeQuote, FeeRate, FeeSelection, ScriptKind, Transport, TxRequest,
-    UnsignedTx, WalletEvent, WatchedAddress,
+    Deadline, EndpointLabel, FeeQuote, FeeRate, FeeSelection, ScriptKind, Transport, TxRecord,
+    TxRequest, UnsignedTx, WalletEvent, WatchedAddress,
     test_util::{
         FakeClock, FakeEventSink, MemoryCursorStore, TxRequestBuilder, WatchedAddressBuilder,
     },
@@ -427,6 +427,11 @@ impl Harness {
 
     pub(crate) fn drain(&self) -> Vec<WalletEvent> {
         self.events.drain()
+    }
+
+    /// Drains the events and returns the transaction records among them.
+    pub(crate) fn records(&self) -> Vec<TxRecord> {
+        self.events.records()
     }
 
     /// A send on this harness's chain at an explicit rate.

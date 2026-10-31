@@ -137,8 +137,10 @@ impl Utxo {
         value_milli.saturating_sub(cost_milli)
     }
 
-    pub(crate) fn total(coins: &[Self]) -> Result<Amount, UtxoError> {
-        Amount::checked_sum(coins.iter().map(Self::value))
+    pub(crate) fn total<'a>(
+        coins: impl IntoIterator<Item = &'a Self>,
+    ) -> Result<Amount, UtxoError> {
+        Amount::checked_sum(coins.into_iter().map(Self::value))
             .ok_or_else(|| UtxoError::overflow("an input total"))
     }
 }

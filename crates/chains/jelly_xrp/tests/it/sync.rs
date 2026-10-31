@@ -84,6 +84,27 @@ async fn balances_are_total_xrp_and_history_uses_actual_balance_changes() {
     ));
 }
 
+#[tokio::test]
+async fn a_row_that_only_threads_an_account_does_not_stop_history() {
+    let node = Node::new();
+    node.state.lock().ledger = 90_000_001;
+    let mut trust_set = transaction(&"63".repeat(32), "tesSUCCESS", 10_000_000, 9_999_990);
+    trust_set["meta"]["AffectedNodes"].as_array_mut().unwrap().push(json!({"ModifiedNode":{
+        "LedgerEntryType":"AccountRoot","LedgerIndex":"BF".repeat(32),
+        "PreviousTxnID":"AB".repeat(32),"PreviousTxnLgrSeq":40_000_000}}));
+    let mut incoming = transaction(&"CD".repeat(32), "tesSUCCESS", 9_999_990, 10_000_990);
+    incoming["Account"] = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh".into();
+    incoming["Destination"] = OWNER.into();
+    node.state.lock().pages.push_back(json!({"account":OWNER,"validated":true,
+        "ledger_index_min":32570,"ledger_index_max":90_000_001,"transactions":[trust_set, incoming]}));
+    let adapter = node.adapter().await.unwrap();
+    let sink = FakeEventSink::new();
+    assert!(adapter.sync(Deadline::NEVER, &sink).await.unwrap().is_complete());
+    let detected: Vec<_> = sink.records().iter().map(|record| record.amount.base_units()).collect();
+    assert_eq!(detected, [0, 1000]);
+    assert_eq!(node.cursors.advance_count(), 1);
+}
+
 const TIP: u64 = 90_000_000;
 const HISTORY_LEDGERS: RangeInclusive<u64> = 50_000_001..=50_000_602;
 

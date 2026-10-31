@@ -345,6 +345,9 @@ struct Read<'a> {
 /// An address whose history moved. Its unspent set is verified, every history entry
 /// not yet reported at its current height is classified, and whatever it left
 /// pending that's in `read.replaced` is settled.
+///
+/// One gone from the history but not yet seen replaced stays remembered, since a
+/// server that never had it, or doesn't have its replacement yet, lists neither.
 fn refreshed(
     params: &UtxoParams,
     entry: &WatchedScript<'_>,
@@ -391,13 +394,15 @@ fn refreshed(
             }
         }
     }
+    let mut remembered: Vec<CursorPending> = pending.iter().map(CursorPending::from).collect();
     for left in left_pending(entry) {
         if replaced.contains(&left.txid) {
             records.push(settled(params, entry.address_id, &left));
+        } else if !history.iter().any(|item| item.txid == left.txid) {
+            remembered.push(left);
         }
     }
 
-    let remembered = pending.iter().map(CursorPending::from).collect();
     let cursor = SyncCursor::new(HistoryDigest::of(&history), &coins, &history, remembered);
     Ok(AddressPass {
         address_id: entry.address_id,

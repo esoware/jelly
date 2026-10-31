@@ -102,7 +102,7 @@ impl Lane {
 /// which chain asked.
 ///
 /// Nothing here waits. [`Pacer::try_acquire`] admits the attempt or says how long it
-/// would wait, and the pool moves on to another endpoint instead.
+/// would wait, and the pool tries the other endpoints before it waits that long.
 #[derive(Debug)]
 pub(crate) struct Pacer {
     policy: PacerPolicy,

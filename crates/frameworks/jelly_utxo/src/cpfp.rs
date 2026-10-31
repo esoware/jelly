@@ -15,7 +15,7 @@ use crate::error::UtxoError;
 use crate::original::Original;
 use crate::params::UtxoParams;
 use crate::payload::{Intent, UtxoPayload};
-use crate::select::{Eligible, Selection, Strategy, ordered_candidates};
+use crate::select::{Eligible, LeftOut, Selection, Strategy, ordered_candidates};
 use crate::utxo::{Utxo, tx_out};
 use crate::{fee, weight};
 
@@ -146,7 +146,7 @@ pub(crate) fn build_child(
         };
         inputs.push(coin);
     };
-    weight::check_standard_weight(params, weight)?;
+    weight::check_standard_weight(params, weight, inputs.len())?;
     fee::check_fee_ceiling(params, child)?;
     let tx = assemble(
         params.replacement.input_sequence(),
@@ -174,6 +174,7 @@ pub(crate) fn build_child(
         fee: child,
         weight,
         strategy: Strategy::ChildPaysForParent,
+        left_out: LeftOut::default(),
     };
     Ok(BuiltTx { payload, selection })
 }

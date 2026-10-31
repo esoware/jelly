@@ -5,6 +5,7 @@ use crate::error::UtxoError;
 use crate::fee::rate_for;
 use crate::params::UtxoParams;
 use crate::payload::UtxoPayload;
+use crate::select::LeftOut;
 use crate::utxo::value_of;
 use crate::weight::vsize;
 
@@ -14,7 +15,7 @@ const HIGH_RATE_MULTIPLE: u64 = 20;
 /// One just under the slow rate still confirms.
 const LOW_RATE_DIVISOR: u64 = 2;
 
-/// The fee context the preview warnings compare against.
+/// What the preview warnings compare against beyond the payload.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PreviewQuote {
     pub(crate) relay_floor: FeeRate,
@@ -25,6 +26,8 @@ pub(crate) struct PreviewQuote {
     pub(crate) slow_market: FeeRate,
     /// Later mempool transactions a replacement cancels along with the original.
     pub(crate) evicted: usize,
+    /// What a send-max leaves out of the balance.
+    pub(crate) left_out: LeftOut,
 }
 
 #[derive(Debug, Clone)]
@@ -159,6 +162,32 @@ fn warnings(
                 params.chain.format_amount(intent.donated)
             ),
         ));
+    }
+
+    if !quote.left_out.unconfirmed.is_zero() {
+        warnings.push(TxWarning::new(
+            TxWarningKind::Other,
+            format!(
+                "This leaves out {} from payments that are not confirmed yet. Send it once they confirm.",
+                params.chain.format_amount(quote.left_out.unconfirmed)
+            ),
+        ));
+    }
+    let overflow = params.chain.format_amount(quote.left_out.overflow);
+    match quote.left_out.overflow_count {
+        0 => {}
+        1 => warnings.push(TxWarning::new(
+            TxWarningKind::Other,
+            format!(
+                "One transaction can't spend every coin, so this leaves out 1 coin holding {overflow}. Send the maximum again to move it."
+            ),
+        )),
+        count => warnings.push(TxWarning::new(
+            TxWarningKind::Other,
+            format!(
+                "One transaction can't spend every coin, so this leaves out {count} coins holding {overflow}. Send the maximum again to move them."
+            ),
+        )),
     }
 
     for note in params.address_notes {
@@ -325,7 +354,8 @@ mod tests {
     use crate::build::build_tx;
     use crate::fee::change_floor;
     use crate::fixtures::{
-        FLOOR_QUOTE, ONE_PER_VB, TEN_PER_VB, TIP, bitcoin_cash_scene, bitcoin_scene, litecoin_scene,
+        FLOOR_QUOTE, ONE_PER_VB, TEN_PER_VB, TIP, bitcoin_cash_scene, bitcoin_scene, incoming,
+        litecoin_scene,
     };
     use crate::payload::FIELD_TO;
     use crate::test_util::test_key;
@@ -388,6 +418,38 @@ mod tests {
             tx.input.iter().map(|txin| txin.sequence).collect::<Vec<_>>(),
             vec![scene.params.replacement.input_sequence()]
         );
+    }
+
+    /// A send-max over more coins than one transaction can spend, beside a stranger's
+    /// unconfirmed payment, says what it leaves out of the balance and what to do next.
+    #[test]
+    fn a_send_max_says_what_it_leaves_out_of_the_balance() {
+        let scene = bitcoin_scene().unwrap();
+        let mut coins = scene.many_coins(1_600, |_| 10_000);
+        coins.push(incoming(&scene.ours, 1, 300_000));
+
+        let built = scene.build(None, ONE_PER_VB, &coins).unwrap();
+        let left_out = built.selection.left_out;
+        let quote = PreviewQuote { left_out, ..FLOOR_QUOTE };
+        let rendered = preview(&scene.params, &built.payload, quote).unwrap();
+
+        let messages: Vec<&str> =
+            rendered.warnings.iter().map(|warning| warning.message.as_str()).collect();
+        assert!(
+            messages.contains(
+                &"This leaves out 0.003 BTC from payments that are not confirmed yet. Send it \
+                  once they confirm."
+            ),
+            "{messages:?}"
+        );
+        let overflow = format!(
+            "One transaction can't spend every coin, so this leaves out {} coins holding {}. Send \
+             the maximum again to move them.",
+            left_out.overflow_count,
+            scene.params.chain.format_amount(left_out.overflow)
+        );
+        assert!(messages.contains(&overflow.as_str()), "{messages:?}");
+        assert_eq!(built.selection.inputs.len() + left_out.overflow_count, 1_600);
     }
 
     #[test]
@@ -553,7 +615,7 @@ mod tests {
             relay_floor: TEN_PER_VB,
             fast: TEN_PER_VB,
             slow_market: TEN_PER_VB,
-            evicted: 0,
+            ..FLOOR_QUOTE
         };
         let rendered = preview(&scene.params, &built.payload, raised).unwrap();
         assert!(
@@ -576,7 +638,7 @@ mod tests {
             relay_floor: TEN_PER_VB,
             fast: TEN_PER_VB,
             slow_market: TEN_PER_VB,
-            evicted: 0,
+            ..FLOOR_QUOTE
         };
         let rendered = preview(&scene.params, &built.payload, raised).unwrap();
         let warning = rendered

@@ -121,7 +121,7 @@ pub(crate) fn build_tx(
         outputs,
         request.tip_height,
     )?;
-    weight::check_standard_weight(params, selection.weight)?;
+    weight::check_standard_weight(params, selection.weight, selection.inputs.len())?;
     fee::check_fee_ceiling(params, selection.fee)?;
 
     let payload = UtxoPayload::assemble(

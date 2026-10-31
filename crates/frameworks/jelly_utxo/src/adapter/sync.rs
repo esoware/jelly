@@ -66,14 +66,7 @@ pub(crate) async fn run(
         }
         publish(params, events, &pass).await?;
         if !pass.is_unchanged {
-            cursors
-                .advance(
-                    CursorScope::Address(pass.address_id),
-                    params.scan_stream,
-                    CursorBytes::new(pass.cursor.encode()?),
-                )
-                .await
-                .map_err(UtxoError::Cursor)?;
+            store_cursor(params, cursors, pass.address_id, &pass.cursor).await?;
         }
         state.record(pass.address_id, pass.coins, &pass.history, pass.pending);
     }
@@ -108,6 +101,22 @@ pub(crate) async fn load_cursors<'a>(
                 .ok_or(UtxoError::UnreadableState)
         })
         .collect()
+}
+
+pub(crate) async fn store_cursor(
+    params: &UtxoParams,
+    cursors: &dyn CursorStore,
+    address_id: i64,
+    cursor: &SyncCursor,
+) -> Result<(), UtxoError> {
+    cursors
+        .advance(
+            CursorScope::Address(address_id),
+            params.scan_stream,
+            CursorBytes::new(cursor.encode()?),
+        )
+        .await
+        .map_err(UtxoError::Cursor)
 }
 
 /// Emits the records first and the balance last, the order the pump expects.

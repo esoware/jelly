@@ -60,6 +60,17 @@ pub(crate) struct Selection {
     /// Predicted weight of the signed transaction.
     pub(crate) weight: Weight,
     pub(crate) strategy: Strategy,
+    pub(crate) left_out: LeftOut,
+}
+
+/// What a send-max leaves out of the coins it could otherwise spend.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct LeftOut {
+    /// Other people's payments that aren't confirmed yet.
+    pub(crate) unconfirmed: Amount,
+    /// How many coins don't fit in one standard transaction, and what they hold.
+    pub(crate) overflow_count: usize,
+    pub(crate) overflow: Amount,
 }
 
 impl Selection {
@@ -111,7 +122,10 @@ pub(crate) fn ordered_candidates(coins: &[Utxo], rate: FeeRate, eligible: Eligib
 /// when they can't pay, because unconfirmed change carries reorg risk and a BIP-125
 /// replacement can't add it later.
 ///
-/// Send-max spends every trusted candidate instead.
+/// Send-max spends the trusted candidates instead, as many as one transaction can.
+///
+/// When the trusted coins fall short only because someone else's payment isn't
+/// confirmed yet, the refusal says so instead of naming a balance that leaves it out.
 pub(crate) fn select_coins(
     params: &UtxoParams,
     request: &SelectionRequest<'_>,
@@ -124,20 +138,29 @@ pub(crate) fn select_coins(
             chain: params.chain,
         });
     }
-    if request.should_drain {
+    let unconfirmed = Utxo::total(coins.iter().filter(|coin| !coin.is_trusted()))?;
+    let selected = if request.should_drain {
         let candidates = ordered_candidates(coins, request.fee_rate, Eligible::Trusted);
-        return drain(params, request, &candidates);
+        drain(params, request, &candidates, unconfirmed)
+    } else {
+        let confirmed = ordered_candidates(coins, request.fee_rate, Eligible::Confirmed);
+        from_candidates(params, request, &confirmed).or_else(|first| {
+            let all = ordered_candidates(coins, request.fee_rate, Eligible::Trusted);
+            if all.len() == confirmed.len() {
+                Err(first)
+            } else {
+                from_candidates(params, request, &all)
+            }
+        })
+    };
+    match selected {
+        Err(UtxoError::InsufficientFunds { needed, available })
+            if !unconfirmed.is_zero() && available.saturating_add(unconfirmed) >= needed =>
+        {
+            Err(UtxoError::Unconfirmed { amount: unconfirmed, chain: params.chain })
+        }
+        other => other,
     }
-    let confirmed = ordered_candidates(coins, request.fee_rate, Eligible::Confirmed);
-    let first = from_candidates(params, request, &confirmed);
-    if first.is_ok() {
-        return first;
-    }
-    let all = ordered_candidates(coins, request.fee_rate, Eligible::Trusted);
-    if all.len() == confirmed.len() {
-        return first;
-    }
-    from_candidates(params, request, &all)
 }
 
 fn from_candidates(
@@ -170,9 +193,9 @@ fn fewest(
     candidates: &[Utxo],
     change_floor: Amount,
 ) -> Result<(usize, Priced), UtxoError> {
-    let Some(mut priced) = price(request, candidates, change_floor)? else {
+    if price(request, candidates, change_floor)?.is_none() {
         return Err(insufficient(request, candidates)?);
-    };
+    }
     let mut input_wu = 0u64;
     let mut too_few = 0usize;
     for (count, coin) in (1..).zip(candidates) {
@@ -182,27 +205,25 @@ fn fewest(
         }
         let Some(inputs) = candidates.get(..count) else { break };
         if let Some(found) = price(request, inputs, change_floor)? {
-            weight::check_standard_weight(params, found.weight)?;
+            weight::check_standard_weight(params, found.weight, count)?;
             return Ok((count, found));
         }
         too_few = count;
     }
-    // The error names the weight of the shortest run that pays. Every candidate adds
+    // The error names the length of the shortest run that pays. Every candidate adds
     // more than its input costs, so apart from rounding a longer run pays whenever a
     // shorter one does, and a binary search finds it without pricing every run.
     let mut count = candidates.len();
     while count.saturating_sub(too_few) > 1 {
         let middle = too_few.midpoint(count);
         let Some(inputs) = candidates.get(..middle) else { break };
-        match price(request, inputs, change_floor)? {
-            Some(found) => {
-                count = middle;
-                priced = found;
-            }
-            None => too_few = middle,
+        if price(request, inputs, change_floor)?.is_some() {
+            count = middle;
+        } else {
+            too_few = middle;
         }
     }
-    Err(weight::too_heavy(params, priced.weight))
+    Err(UtxoError::TooManyInputs { inputs: count })
 }
 
 /// The heaviest selection worth making, given the weight of the lightest set that
@@ -296,6 +317,7 @@ fn changeless(
             fee: priced.fee,
             weight: priced.weight,
             strategy: Strategy::Changeless,
+            left_out: LeftOut::default(),
         }))
     })
 }
@@ -439,6 +461,7 @@ fn accumulate(
         fee: priced.fee,
         weight: priced.weight,
         strategy: Strategy::LowestWaste,
+        left_out: LeftOut::default(),
     })
 }
 
@@ -538,17 +561,20 @@ fn price(
     Ok(Some(Priced { change: None, donated, fee, weight: plain }))
 }
 
-/// Send-max, spending every candidate into one output with no change.
+/// Send-max, spending the candidates into one output with no change.
 ///
-/// Nothing to spend fails the same arithmetic as too little to cover the fee, so
-/// there's no separate empty case.
+/// When one standard transaction can't spend them all, it spends the most valuable
+/// that fit and leaves the rest for another send-max. Nothing to spend fails the same
+/// arithmetic as too little to cover the fee, so there's no separate empty case.
 fn drain(
     params: &UtxoParams,
     request: &SelectionRequest<'_>,
     candidates: &[Utxo],
+    unconfirmed: Amount,
 ) -> Result<Selection, UtxoError> {
-    let total = Utxo::total(candidates)?;
-    let weight = plain_weight(request, candidates);
+    let (spent, overflow) = candidates.split_at(fitting(params, request, candidates));
+    let total = Utxo::total(spent)?;
+    let weight = plain_weight(request, spent);
     let fee = fee::fee_for(request.fee_rate, weight)?;
     let paid = total.checked_sub(fee).ok_or_else(|| UtxoError::InsufficientFunds {
         needed: fee.saturating_add(Amount::from_base_units(1)),
@@ -559,14 +585,41 @@ fn drain(
         return Err(UtxoError::Dust { value: paid, threshold: dust, chain: params.chain });
     }
     Ok(Selection {
-        inputs: candidates.to_vec(),
+        inputs: spent.to_vec(),
         recipient_value: paid,
         change: None,
         donated: Amount::ZERO,
         fee,
         weight,
         strategy: Strategy::Drain,
+        left_out: LeftOut {
+            unconfirmed,
+            overflow_count: overflow.len(),
+            overflow: Utxo::total(overflow)?,
+        },
     })
+}
+
+/// How many candidates, from the front, one standard transaction can spend.
+fn fitting(params: &UtxoParams, request: &SelectionRequest<'_>, candidates: &[Utxo]) -> usize {
+    let fits = |count: usize| {
+        candidates
+            .get(..count)
+            .is_some_and(|inputs| plain_weight(request, inputs) <= params.max_standard_weight)
+    };
+    if fits(candidates.len()) {
+        return candidates.len();
+    }
+    let (mut fitting, mut too_many) = (0usize, candidates.len());
+    while too_many.saturating_sub(fitting) > 1 {
+        let middle = fitting.midpoint(too_many);
+        if fits(middle) {
+            fitting = middle;
+        } else {
+            too_many = middle;
+        }
+    }
+    fitting
 }
 
 /// Weight of the signed transaction paying `inputs` to the recipient alone.
@@ -576,42 +629,24 @@ fn plain_weight(request: &SelectionRequest<'_>, inputs: &[Utxo]) -> Weight {
 
 #[cfg(test)]
 mod tests {
-    use bitcoin::OutPoint;
     use jelly_core::ScriptKind;
     use proptest::{prelude::*, test_runner::RngSeed};
 
     use super::*;
     use crate::fee::{change_floor, fee_for};
     use crate::fixtures::{
-        ONE_PER_VB, Scene, TEN_PER_VB, TIP, bitcoin_scene, confirmed, incoming, litecoin_scene,
-        scene, unconfirmed,
+        ONE_PER_VB, TEN_PER_VB, bitcoin_scene, confirmed, incoming, litecoin_scene, scene,
+        unconfirmed,
     };
     use crate::script::UtxoScript;
     use crate::select::Strategy;
-    use crate::test_util::{BITCOIN, fixture_txid};
-    use crate::utxo::{Origin, units};
+    use crate::test_util::BITCOIN;
+    use crate::utxo::units;
     use crate::weight::{input_weight, predict_weight};
 
     const PROPERTY_SEED: u64 = 20_261_021;
 
     const FIFTY_PER_VB: FeeRate = FeeRate::from_sat_per_kwu(12_500);
-
-    /// A seed byte names at most 255 fixture coins, so these share one txid and
-    /// differ by output index.
-    fn many_coins(scene: &Scene, count: u32, value: u64) -> Vec<Utxo> {
-        let txid = fixture_txid(250);
-        (0..count)
-            .map(|vout| {
-                Utxo::new(
-                    OutPoint { txid, vout },
-                    units(value),
-                    scene.ours.script().clone(),
-                    Some(TIP),
-                    Origin::Ordinary,
-                )
-            })
-            .collect()
-    }
 
     #[test]
     fn selection_is_deterministic_whatever_order_the_server_listed_the_coins_in() {
@@ -679,7 +714,7 @@ mod tests {
     #[test]
     fn a_large_mempool_coin_is_not_stuck_behind_many_small_confirmed_ones() {
         let scene = scene(&BITCOIN, ScriptKind::P2pkh).unwrap();
-        let mut coins = many_coins(&scene, 700, 1_000);
+        let mut coins = scene.many_coins(700, |_| 1_000);
         coins.push(unconfirmed(&scene.ours, 1, 100_000_000));
         let selection = scene.select(&scene.selection(50_000_000, ONE_PER_VB), &coins).unwrap();
         assert_eq!(selection.inputs.len(), 1, "{:?}", selection.inputs);
@@ -693,10 +728,7 @@ mod tests {
         let scene = bitcoin_scene().unwrap();
         let request = scene.selection(500_000, ONE_PER_VB);
         let theirs = vec![incoming(&scene.ours, 1, 1_000_000)];
-        assert!(matches!(
-            scene.select(&request, &theirs),
-            Err(UtxoError::InsufficientFunds { .. })
-        ));
+        assert!(matches!(scene.select(&request, &theirs), Err(UtxoError::Unconfirmed { .. })));
         let ours = vec![unconfirmed(&scene.ours, 1, 1_000_000)];
         scene.select(&request, &ours).unwrap();
     }
@@ -704,7 +736,7 @@ mod tests {
     #[test]
     fn a_refusal_reports_only_what_the_wallet_could_spend() {
         let scene = bitcoin_scene().unwrap();
-        let coins = vec![incoming(&scene.ours, 1, 1_000_000), confirmed(&scene.ours, 2, 40_000)];
+        let coins = vec![incoming(&scene.ours, 1, 100_000), confirmed(&scene.ours, 2, 40_000)];
         match scene.select(&scene.selection(500_000, ONE_PER_VB), &coins) {
             Err(UtxoError::InsufficientFunds { available, .. }) => {
                 assert_eq!(available, units(40_000));
@@ -854,7 +886,7 @@ mod tests {
         let scene = bitcoin_scene().unwrap();
         // The large coin alone pays, and 1,500 small ones could be swept in with it.
         let mut coins = scene.coins(&[1_000_000]);
-        coins.extend(many_coins(&scene, 1_500, 10_000));
+        coins.extend(scene.many_coins(1_500, |_| 10_000));
         let mut cheap = scene.selection(50_000, ONE_PER_VB);
         cheap.long_term_fee_rate = TEN_PER_VB;
         let consolidating = scene.select(&cheap, &coins).unwrap();
@@ -915,18 +947,63 @@ mod tests {
     }
 
     #[test]
-    fn a_payment_only_an_oversized_set_could_fund_is_refused_for_its_weight() {
+    fn a_payment_only_an_oversized_set_could_fund_is_refused_by_its_coin_count() {
         let scene = scene(&BITCOIN, ScriptKind::P2pkh).unwrap();
         // About 675 legacy inputs fit in one transaction, and they hold too little.
-        let coins = many_coins(&scene, 700, 1_000);
+        let coins = scene.many_coins(700, |_| 1_000);
         let refused = scene.select(&scene.selection(580_000, ONE_PER_VB), &coins);
-        let Err(UtxoError::TooHeavy { weight, .. }) = refused else {
-            panic!("expected a refusal for weight, got {refused:?}");
-        };
-        // The refusal names the weight of the fewest coins that pay, which is 681.
-        let fewest =
-            predict_weight([UtxoScript::P2pkh; 681], [scene.theirs.script().script_pubkey()]);
-        assert_eq!(weight, fewest);
+        // The refusal names the fewest coins that pay.
+        assert!(
+            matches!(refused, Err(UtxoError::TooManyInputs { inputs: 681 })),
+            "expected a refusal for the coin count, got {refused:?}"
+        );
+    }
+
+    /// The most valuable coins go first, so what's left out is the least a sweep could
+    /// have moved.
+    #[test]
+    fn a_send_max_over_more_coins_than_one_transaction_can_spend_moves_the_most_it_can() {
+        let scene = bitcoin_scene().unwrap();
+        let coins = scene.many_coins(1_600, |vout| 10_000 + u64::from(vout));
+        let mut request = scene.selection(0, ONE_PER_VB);
+        request.should_drain = true;
+
+        let selection = scene.select(&request, &coins).unwrap();
+
+        let spent = selection.inputs.len();
+        let recipient = scene.theirs.script().script_pubkey();
+        let one_more = predict_weight(vec![UtxoScript::P2wpkh; spent + 1], [recipient]);
+        assert!(selection.weight <= BITCOIN.max_standard_weight, "{:?}", selection.weight);
+        assert!(one_more > BITCOIN.max_standard_weight, "{spent} coins left room for another");
+        assert!(selection.inputs.iter().all(|coin| coin.value() >= units(10_000 + 131)));
+        let left_out = selection.left_out;
+        assert_eq!(left_out.overflow_count, 1_600 - spent);
+        let expected: u64 =
+            (0..u64::try_from(1_600 - spent).unwrap()).map(|vout| 10_000 + vout).sum();
+        assert_eq!(left_out.overflow, units(expected));
+        assert_eq!(left_out.unconfirmed, Amount::ZERO);
+    }
+
+    #[test]
+    fn a_payment_only_unconfirmed_coins_could_fund_says_they_are_unconfirmed() {
+        let scene = bitcoin_scene().unwrap();
+        let coins = vec![confirmed(&scene.ours, 1, 100_000), incoming(&scene.ours, 2, 500_000)];
+
+        let waiting = scene.select(&scene.selection(300_000, ONE_PER_VB), &coins);
+        assert!(
+            matches!(waiting, Err(UtxoError::Unconfirmed { amount, .. }) if amount == units(500_000)),
+            "{waiting:?}"
+        );
+        let short = scene.select(&scene.selection(1_000_000, ONE_PER_VB), &coins);
+        assert!(
+            matches!(short, Err(UtxoError::InsufficientFunds { .. })),
+            "even the unconfirmed coins can't pay: {short:?}"
+        );
+
+        let mut drain = scene.selection(0, ONE_PER_VB);
+        drain.should_drain = true;
+        let only_incoming = [incoming(&scene.ours, 3, 400_000)];
+        assert!(matches!(scene.select(&drain, &only_incoming), Err(UtxoError::Unconfirmed { .. })));
     }
 
     #[test]
@@ -963,6 +1040,11 @@ mod tests {
         assert_eq!(selection.inputs.len(), 2, "{:?}", selection.inputs);
         assert!(selection.inputs.iter().all(Utxo::is_trusted));
         assert_eq!(selection.input_total().unwrap(), units(500_000));
+        assert_eq!(
+            selection.left_out,
+            LeftOut { unconfirmed: units(400_000), overflow_count: 0, overflow: Amount::ZERO },
+            "the stranger's unconfirmed payment is left out and accounted for"
+        );
         assert_eq!(
             selection.recipient_value.checked_add(selection.fee),
             Some(selection.input_total().unwrap())

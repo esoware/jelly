@@ -18,6 +18,7 @@ wire_enum! {
         AccountResource => "getaccountresource",
         ChainParameters => "getchainparameters",
         ConstantContract => "triggerconstantcontract",
+        Contract => "getcontract",
         TransactionById => "gettransactionbyid",
         TransactionInfoById => "gettransactioninfobyid",
         BroadcastHex => "broadcasthex",
@@ -160,6 +161,14 @@ impl Request {
         )
     }
 
+    pub(crate) fn contract(address: &str) -> Result<Self, TronError> {
+        Self::post(
+            Route::Contract,
+            "/wallet/getcontract",
+            &VisibleValue { value: address, visible: true },
+        )
+    }
+
     pub(crate) fn transaction_by_id(txid: &str) -> Result<Self, TronError> {
         Self::post(Route::TransactionById, "/wallet/gettransactionbyid", &ById { value: txid })
     }
@@ -255,6 +264,12 @@ struct ById<'a> {
 }
 
 #[derive(Debug, Serialize)]
+struct VisibleValue<'a> {
+    value: &'a str,
+    visible: bool,
+}
+
+#[derive(Debug, Serialize)]
 struct BroadcastHexBody {
     transaction: String,
 }
@@ -274,7 +289,7 @@ mod tests {
 
     #[test]
     fn every_route_has_one_spelling_and_a_response_cap() {
-        assert_eq!(Route::COUNT, 12);
+        assert_eq!(Route::COUNT, 13);
         for route in Route::ALL {
             assert_eq!(Route::parse(route.as_str()), Some(route), "{route}");
             assert!(route.max_response_bytes() >= 262_144, "{route}");

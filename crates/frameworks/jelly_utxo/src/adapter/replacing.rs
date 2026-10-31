@@ -1,10 +1,11 @@
 use bitcoin::ScriptBuf;
-use jelly_core::FeeRate;
+use jelly_core::{FeeRate, TxDirection};
 
 use crate::adapter::fee::FeeContext;
 use crate::adapter::state::Descendants;
 use crate::adapter::watched::{Watched, sources_led_by, sources_of, spenders};
 use crate::build::BuiltTx;
+use crate::cursor::CursorPending;
 use crate::error::UtxoError;
 use crate::original::Original;
 use crate::params::UtxoParams;
@@ -71,9 +72,16 @@ impl Replacing {
         &self.sources
     }
 
-    /// The transaction being replaced, already resolved against its funding.
-    pub(crate) const fn original(&self) -> &Original {
-        &self.original
+    /// The original as a pass leaves a send pending, in the direction the engine
+    /// recorded it, which is a self-transfer only when it paid one of its own sources.
+    pub(crate) fn pending(&self) -> CursorPending {
+        let direction =
+            if self.sources.iter().any(|source| source.address == self.recipient_address) {
+                TxDirection::SelfTransfer
+            } else {
+                TxDirection::Outgoing
+            };
+        CursorPending { txid: self.original.txid(), direction, spends: self.original.spends() }
     }
 
     /// How many later transactions the replacement cancels.

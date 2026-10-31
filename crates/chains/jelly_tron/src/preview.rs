@@ -55,10 +55,15 @@ fn details(plan: &Plan, facts: &Facts) -> Vec<TxDetail> {
         details.push(TxDetail::new("Fee limit", fee_limit(fee_limit_sun, &plan.params)));
     }
     if let Some(energy) = cost.energy {
-        details.push(TxDetail::new(
-            "Energy",
-            format!("{} needed, {} available", energy.needed, energy.available),
-        ));
+        let split = if energy.from_origin == 0 {
+            format!("{} needed, {} available", energy.needed, energy.available)
+        } else {
+            format!(
+                "{} needed, {} paid by the token contract, {} available",
+                energy.needed, energy.from_origin, energy.available
+            )
+        };
+        details.push(TxDetail::new("Energy", split));
         details.push(TxDetail::new("Energy charge", energy_charge(&energy, &plan.params)));
     }
     details.push(TxDetail::new("Estimated burn", trx_text(cost.burn_sun)));
@@ -172,7 +177,14 @@ fn bandwidth_charge(cost: &TxCost, params: &ChainParams) -> String {
 
 fn energy_charge(energy: &EnergyCost, params: &ChainParams) -> String {
     if energy.shortfall == 0 {
-        return String::from("Covered by your staked energy. No TRX is burned.");
+        let payer = if energy.from_origin == 0 {
+            "your staked energy"
+        } else if energy.from_origin >= energy.needed {
+            "the token contract"
+        } else {
+            "the token contract and your staked energy"
+        };
+        return format!("Covered by {payer}. No TRX is burned.");
     }
     format!(
         "The call is {} energy short, which burns {} sun each, {} in all.",

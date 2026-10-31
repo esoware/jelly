@@ -40,6 +40,9 @@ pub(crate) const FRESH: &str = "TEpPGH6bFVgD7J4tnGfFqAstxTS3e6bPiF";
 /// The account `token_page1.json` was recorded for.
 pub(crate) const TOKEN_HISTORY: &str = "TBdQCi6AvGhCNk17Pmhqx9eoXMRFqEBiqo";
 
+/// The mainnet USDT contract's deployer, whose own energy is spent.
+pub(crate) const USDT_ORIGIN: &str = "THPvaUhoh2Qn2y9THCZML3H815hhFhn5YC";
+
 /// The length of the `0x41 || tail` body TRON's protobuf and HTTP API carry.
 pub(crate) const BODY_BYTES: usize = 21;
 
@@ -420,12 +423,23 @@ pub(crate) fn resources(free_used: u64, staked_limit: u64, energy_limit: u64) ->
     Answer::Body(account_resource(free_used, staked_limit, energy_limit))
 }
 
+/// What `getcontract` answers for a token contract `origin` deployed, whose callers
+/// pay `user_percent` of each call's energy.
+pub(crate) fn contract(origin: &str, user_percent: u64) -> Answer {
+    Answer::Body(format!(
+        r#"{{"origin_address":"{origin}","consume_user_resource_percent":{user_percent},
+            "origin_energy_limit":10000000}}"#
+    ))
+}
+
 /// Scripts the head block, governance parameters, and sender's pools that every
-/// build and quote reads.
+/// build and quote reads, and token contracts with USDT's energy terms.
 pub(crate) fn base(fake: &Arc<FakeNode>) -> Arc<FakeNode> {
     fake.on(Route::NowBlock, Answer::body(fixture!("now_block")))
         .on(Route::ChainParameters, Answer::body(fixture!("chain_parameters")))
         .on(Route::AccountResource, Answer::body(fixture!("account_resource")))
+        .on(Route::Contract, contract(USDT_ORIGIN, 30))
+        .on_matching(Route::AccountResource, USDT_ORIGIN, resources(0, 0, 0))
 }
 
 /// A wallet that can pay. The owner holds `balance` sun, [`RECIPIENT`] has an

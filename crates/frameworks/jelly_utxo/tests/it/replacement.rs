@@ -12,7 +12,7 @@ use bitcoin::Transaction;
 use bitcoin::transaction::Version;
 use jelly_core::{
     ChainAdapter as _, ChainError, FeeQuote, FeeRate, FeeSelection, ScriptKind, SignedTx, TxId,
-    TxOutcome, TxWarningKind, UnsignedTx, test_util::records,
+    TxOutcome, TxWarningKind, UnsignedTx,
 };
 use jelly_electrum::Method;
 use jelly_utxo::{
@@ -95,6 +95,16 @@ fn change_of(tx: &Transaction) -> Fallible<u64> {
     let change =
         tx.output.get(usize::try_from(CHANGE_VOUT)?).ok_or("the transaction has no change")?;
     Ok(change.value.to_sat())
+}
+
+/// Drains the events and returns the outcomes reported for `txid` among them.
+fn outcomes_of(harness: &Harness, txid: &str) -> Vec<TxOutcome> {
+    harness
+        .records()
+        .into_iter()
+        .filter(|record| record.txid.value() == txid)
+        .map(|record| record.outcome)
+        .collect()
 }
 
 #[tokio::test]
@@ -525,13 +535,7 @@ async fn a_replaced_original_is_reported_replaced_once_its_replacement_is_mined(
             .serve(&sent.harness);
         sent.harness.sync().await.unwrap();
 
-        let original = sent.signed.txid.value().to_owned();
-        let emitted = sent.harness.drain();
-        let settled: Vec<TxOutcome> = records(&emitted)
-            .into_iter()
-            .filter(|record| record.txid.value() == original)
-            .map(|record| record.outcome)
-            .collect();
+        let settled = outcomes_of(&sent.harness, sent.signed.txid.value());
         assert_eq!(
             settled,
             vec![TxOutcome::Replaced],
@@ -615,13 +619,7 @@ async fn a_later_payment_the_mined_replacement_cancels_is_reported_replaced() {
         .serve(&sent.harness);
     sent.harness.sync().await.unwrap();
 
-    let canceled = later.compute_txid().to_string();
-    let emitted = sent.harness.drain();
-    let settled: Vec<TxOutcome> = records(&emitted)
-        .into_iter()
-        .filter(|record| record.txid.value() == canceled)
-        .map(|record| record.outcome)
-        .collect();
+    let settled = outcomes_of(&sent.harness, &later.compute_txid().to_string());
     assert_eq!(
         settled,
         vec![TxOutcome::Replaced],
@@ -696,17 +694,72 @@ async fn an_original_replaced_before_a_restart_is_reported_replaced_by_the_next_
     restarted.watch(&[sent.wallet.address()]).await.unwrap();
     restarted.sync().await.unwrap();
 
-    let original = sent.signed.txid.value().to_owned();
-    let emitted = restarted.drain();
-    let settled: Vec<TxOutcome> = records(&emitted)
-        .into_iter()
-        .filter(|record| record.txid.value() == original)
-        .map(|record| record.outcome)
-        .collect();
+    let settled = outcomes_of(&restarted, sent.signed.txid.value());
     assert_eq!(
         settled,
         vec![TxOutcome::Replaced],
         "the original the mined replacement displaced should settle as replaced, but the first \
          pass after the restart reported {settled:?} for it, so its row stays pending forever"
     );
+}
+
+/// The original went out and was replaced before any pass saw it, so only the bump
+/// knew it was ever pending.
+#[tokio::test]
+async fn an_original_no_pass_ever_saw_is_reported_replaced_once_its_replacement_shows() {
+    for params in REPLACEABLE {
+        let sent = sent(&params).await.unwrap();
+        let unsigned = sent.bump(HIGHER).await.unwrap();
+        let signed =
+            sent.harness.adapter.sign_tx(&unsigned, &[sent.wallet.ours.material()]).unwrap();
+        let replacement = decode(signed.raw.as_bytes()).unwrap();
+        let kept = change_of(&replacement).unwrap();
+        Ledger::new()
+            .known(&sent.wallet.funding)
+            .confirmed(&sent.wallet.payment, MINED_AT)
+            .mempool(&replacement)
+            .unconfirmed(&replacement, CHANGE_VOUT, kept)
+            .serve(&sent.harness);
+        sent.harness.drain();
+        sent.harness.sync().await.unwrap();
+
+        let settled = outcomes_of(&sent.harness, sent.signed.txid.value());
+        assert_eq!(settled, vec![TxOutcome::Replaced], "{}", params.chain);
+    }
+}
+
+/// A pass against a server that has neither the original nor its replacement can't
+/// settle the original, but mustn't forget it either.
+#[tokio::test]
+async fn an_original_a_pass_lost_sight_of_is_reported_replaced_once_its_replacement_shows() {
+    for params in REPLACEABLE {
+        let sent = sent(&params).await.unwrap();
+        let change = change_of(&sent.original).unwrap();
+        Ledger::new()
+            .known(&sent.wallet.funding)
+            .confirmed(&sent.wallet.payment, MINED_AT)
+            .mempool(&sent.original)
+            .unconfirmed(&sent.original, CHANGE_VOUT, change)
+            .serve(&sent.harness);
+        sent.harness.sync().await.unwrap();
+        let unsigned = sent.bump(HIGHER).await.unwrap();
+        let signed =
+            sent.harness.adapter.sign_tx(&unsigned, &[sent.wallet.ours.material()]).unwrap();
+        let replacement = decode(signed.raw.as_bytes()).unwrap();
+        let kept = change_of(&replacement).unwrap();
+
+        sent.wallet.ledger().serve(&sent.harness);
+        sent.harness.sync().await.unwrap();
+        Ledger::new()
+            .known(&sent.wallet.funding)
+            .confirmed(&sent.wallet.payment, MINED_AT)
+            .mempool(&replacement)
+            .unconfirmed(&replacement, CHANGE_VOUT, kept)
+            .serve(&sent.harness);
+        sent.harness.drain();
+        sent.harness.sync().await.unwrap();
+
+        let settled = outcomes_of(&sent.harness, sent.signed.txid.value());
+        assert_eq!(settled, vec![TxOutcome::Replaced], "{}", params.chain);
+    }
 }

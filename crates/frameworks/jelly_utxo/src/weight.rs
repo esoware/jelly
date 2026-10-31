@@ -67,22 +67,17 @@ pub(crate) const fn vsize(weight: Weight) -> u64 {
     weight.to_wu().div_ceil(Weight::WITNESS_SCALE_FACTOR)
 }
 
-/// Refuses a transaction the network wouldn't relay for its size alone.
-pub(crate) fn check_standard_weight(params: &UtxoParams, weight: Weight) -> Result<(), UtxoError> {
-    if weight > params.max_standard_weight {
-        return Err(too_heavy(params, weight));
+/// Refuses a transaction the network wouldn't relay for its size alone. With at most
+/// two outputs, only its `inputs` can make it that large.
+pub(crate) const fn check_standard_weight(
+    params: &UtxoParams,
+    weight: Weight,
+    inputs: usize,
+) -> Result<(), UtxoError> {
+    if weight.to_wu() > params.max_standard_weight.to_wu() {
+        return Err(UtxoError::TooManyInputs { inputs });
     }
     Ok(())
-}
-
-/// The refusal of a transaction of `weight`, in the unit the chain limits it by.
-pub(crate) const fn too_heavy(params: &UtxoParams, weight: Weight) -> UtxoError {
-    let maximum = params.max_standard_weight;
-    if params.has_segwit {
-        UtxoError::TooHeavy { weight, maximum }
-    } else {
-        UtxoError::TooLarge { size_bytes: vsize(weight), maximum_bytes: maximum.to_vbytes_floor() }
-    }
 }
 
 #[cfg(test)]
@@ -162,33 +157,20 @@ mod tests {
         assert_eq!(vsize(Weight::from_wu(564)), 141);
     }
 
+    /// A chain without segregated witness counts its limit in bytes, a quarter of the
+    /// weight, so every chain refuses the same weight, and the refusal counts coins
+    /// rather than either unit.
     #[test]
-    fn a_transaction_above_the_standard_weight_limit_is_refused() {
-        let maximum = Weight::from_wu(400_000);
-        check_standard_weight(&BITCOIN, maximum).unwrap();
-        assert!(matches!(
-            check_standard_weight(&BITCOIN, Weight::from_wu(400_001)),
-            Err(UtxoError::TooHeavy { .. })
-        ));
-    }
-
-    /// A chain without segregated witness counts the limit in bytes, a quarter of
-    /// the weight, and a size that rounds up past it is still refused.
-    #[test]
-    fn a_chain_without_segwit_refuses_a_transaction_by_its_size_in_bytes() {
-        for params in [BITCOIN_CASH, DOGECOIN] {
-            check_standard_weight(&params, params.max_standard_weight).unwrap();
-            let error = check_standard_weight(&params, Weight::from_wu(400_001)).unwrap_err();
-            assert!(
-                matches!(
-                    error,
-                    UtxoError::TooLarge { size_bytes: 100_001, maximum_bytes: 100_000 }
-                ),
-                "{error:?}"
-            );
+    fn a_transaction_above_the_standard_weight_limit_is_refused_by_its_coin_count() {
+        for params in [BITCOIN, BITCOIN_CASH, DOGECOIN] {
+            check_standard_weight(&params, params.max_standard_weight, 1_469).unwrap();
+            let error =
+                check_standard_weight(&params, Weight::from_wu(400_001), 1_470).unwrap_err();
+            assert!(matches!(error, UtxoError::TooManyInputs { inputs: 1_470 }), "{error:?}");
             assert_eq!(
                 error.to_string(),
-                "The transaction is 100001 bytes. The network limit is 100000 bytes."
+                "This needs 1470 coins, more than one transaction can spend. Send a smaller \
+                 amount, or first send the maximum to your own address to combine coins."
             );
         }
     }

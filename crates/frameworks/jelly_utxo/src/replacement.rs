@@ -9,7 +9,7 @@ use crate::original::Original;
 use crate::params::UtxoParams;
 use crate::payload::{Intent, PaymentReduction, Replaced, UtxoPayload};
 use crate::script::SpendableScript;
-use crate::select::{Eligible, Selection, Strategy, ordered_candidates};
+use crate::select::{Eligible, LeftOut, Selection, Strategy, ordered_candidates};
 use crate::utxo::{Utxo, tx_out, value_of};
 use crate::{fee, weight};
 
@@ -127,7 +127,7 @@ pub(crate) fn build_replacement(
 ) -> Result<BuiltTx, UtxoError> {
     let PlannedReplacement { inputs, outputs, priced } =
         plan_replacement(params, original, request)?;
-    weight::check_standard_weight(params, priced.weight)?;
+    weight::check_standard_weight(params, priced.weight, inputs.len())?;
     fee::check_fee_ceiling(params, priced.fee)?;
 
     let tx = assemble(params.replacement.input_sequence(), &inputs, outputs, request.tip_height)?;
@@ -154,6 +154,7 @@ pub(crate) fn build_replacement(
         fee: priced.fee,
         weight: priced.weight,
         strategy: Strategy::Replacement,
+        left_out: LeftOut::default(),
     };
     Ok(BuiltTx { payload, selection })
 }

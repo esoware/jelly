@@ -353,7 +353,7 @@ async fn a_quote_preserves_dust_weight_and_fee_ceiling_refusals() {
         let (harness, wallet) =
             synced(Setup::on(&limited), ScriptKind::P2wpkh, &[FUNDING_SAT]).await.unwrap();
         let error = quote_over(&harness, &wallet).await.expect_err("the transaction is too heavy");
-        assert!(error.to_string().contains("weight units"), "{error}");
+        assert!(error.to_string().contains("more than one transaction can spend"), "{error}");
     }
 }
 
