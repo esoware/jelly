@@ -2,7 +2,8 @@
 //!
 //! - Bandwidth must fit entirely in the staked pool or the free pool, or the whole cost
 //!   burns TRX.
-//! - Energy uses the account's allowance first and burns TRX for the rest.
+//! - A contract's deployer may pay part of a call's energy. The caller's allowance
+//!   covers what's left first, and TRX burns for the rest.
 //! - Activating an account can't use free bandwidth and also costs the system-contract
 //!   fee.
 
@@ -52,6 +53,7 @@ pub(crate) struct BandwidthCost {
 pub(crate) struct Charge {
     pub(crate) is_activation: bool,
     pub(crate) energy: Option<EnergyReading>,
+    pub(crate) origin: OriginShare,
     pub(crate) params: ChainParams,
     pub(crate) resources: Resources,
 }
@@ -66,7 +68,7 @@ impl Charge {
         };
         let energy = self
             .energy
-            .map(|reading| energy_cost(reading, &self.resources, &self.params))
+            .map(|reading| energy_cost(reading, self.origin, &self.resources, &self.params))
             .transpose()?;
         TxCost::new(bandwidth, energy, self.is_activation, &self.params)
     }
@@ -128,28 +130,60 @@ pub(crate) struct EnergyReading {
     pub(crate) penalty: u64,
 }
 
+/// The part of a call's energy the contract's deployer pays, split as java-tron's
+/// `ReceiptCapsule.payEnergyBill` splits it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OriginShare {
+    /// The percentage of the call's energy the deployer pays.
+    pub(crate) percent: u64,
+    /// The most the deployer pays toward one call.
+    pub(crate) limit: u64,
+    /// The deployer's own energy left.
+    pub(crate) available: u64,
+}
+
+impl OriginShare {
+    /// The caller pays it all, as for a transfer that calls no contract or a caller that
+    /// deployed the contract.
+    pub(crate) const NONE: Self = Self { percent: 0, limit: 0, available: 0 };
+
+    fn of(self, needed: u64) -> Result<u64, TronError> {
+        let share = u128::from(needed)
+            .checked_mul(u128::from(self.percent.min(100)))
+            .ok_or(TronError::Overflow { what: "a deployer's energy share" })?
+            .checked_div(100)
+            .unwrap_or_default();
+        Ok(u64::try_from(share).unwrap_or(u64::MAX).min(self.limit).min(self.available))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct EnergyCost {
     pub(crate) needed: u64,
     pub(crate) penalty: u64,
+    /// What the contract's deployer pays.
+    pub(crate) from_origin: u64,
     pub(crate) available: u64,
     /// Energy that has to be paid for in TRX.
     pub(crate) shortfall: u64,
     pub(crate) burn_sun: u64,
 }
 
-/// Unlike bandwidth, the account's energy covers what it can and TRX pays for the
-/// rest.
+/// Unlike bandwidth, the account's energy covers what it can of the caller's part and
+/// TRX pays for the rest.
 fn energy_cost(
     reading: EnergyReading,
+    origin: OriginShare,
     resources: &Resources,
     params: &ChainParams,
 ) -> Result<EnergyCost, TronError> {
+    let from_origin = origin.of(reading.needed)?;
     let available = resources.energy();
-    let shortfall = reading.needed.saturating_sub(available);
+    let shortfall = reading.needed.saturating_sub(from_origin).saturating_sub(available);
     Ok(EnergyCost {
         needed: reading.needed,
         penalty: reading.penalty,
+        from_origin,
         available,
         shortfall,
         burn_sun: shortfall
@@ -190,6 +224,9 @@ impl TxCost {
 
     /// The burn if energy use rises by the full margin `fee_limit` allows. The
     /// balance has to hold this much so that only the fee limit can stop the call.
+    ///
+    /// The deployer's share is left out, because every caller of the contract draws on
+    /// the deployer's energy and it may be gone by the time this call runs.
     pub(crate) fn padded_burn_sun(&self, params: &ChainParams) -> Result<u64, TronError> {
         let energy_sun = match self.energy {
             None => 0,
@@ -300,23 +337,63 @@ mod tests {
     fn energy_is_charged_proportionally_unlike_bandwidth() {
         let params = priced_params();
         let reading = EnergyReading { needed: 130_285, penalty: 100_635 };
-        let cost = energy_cost(reading, &resources(0, 0, 19), &params).expect("a cost");
+        let cost =
+            energy_cost(reading, OriginShare::NONE, &resources(0, 0, 19), &params).expect("a cost");
         assert_eq!(cost.available, 19);
         assert_eq!(cost.shortfall, 130_266);
         assert_eq!(cost.burn_sun, 13_026_600);
 
-        let covered = energy_cost(reading, &resources(0, 0, 130_285), &params).expect("a cost");
+        let covered = energy_cost(reading, OriginShare::NONE, &resources(0, 0, 130_285), &params)
+            .expect("a cost");
         assert_eq!(covered.shortfall, 0);
         assert_eq!(covered.burn_sun, 0);
+    }
+
+    /// A Nile test token whose deployer pays every call's energy from what it has staked,
+    /// and the mainnet USDT contract, whose deployer's energy is spent.
+    #[test]
+    fn the_deployer_pays_its_share_of_a_call_before_the_caller_burns_for_the_rest() {
+        let params = priced_params();
+        let reading = EnergyReading { needed: 29_650, penalty: 0 };
+        let nile = OriginShare { percent: 100, limit: 1_000_000_000, available: 18_257 };
+        let cost = energy_cost(reading, nile, &resources(0, 0, 0), &params).expect("a cost");
+        assert_eq!(cost.from_origin, 18_257);
+        assert_eq!(cost.shortfall, 11_393);
+        assert_eq!(cost.burn_sun, 1_139_300, "what the chain charged");
+
+        let usdt = OriginShare { percent: 70, limit: 10_000_000, available: 0 };
+        let cost = energy_cost(reading, usdt, &resources(0, 0, 0), &params).expect("a cost");
+        assert_eq!((cost.from_origin, cost.burn_sun), (0, 2_965_000));
+
+        let capped = OriginShare { percent: 70, limit: 1_000, available: 1_000_000 };
+        let cost = energy_cost(reading, capped, &resources(0, 0, 650), &params).expect("a cost");
+        assert_eq!(cost.from_origin, 1_000, "the deployer's limit per call");
+        assert_eq!(cost.shortfall, 28_000, "the caller's energy covers its part first");
+
+        let shared = OriginShare { percent: 70, limit: 10_000_000, available: 1_000_000 };
+        let cost = energy_cost(reading, shared, &resources(0, 0, 0), &params).expect("a cost");
+        assert_eq!(cost.from_origin, 20_755, "seventy percent, rounded down");
+        let bandwidth = bandwidth_cost(345, &resources(0, 600, 0), &params).expect("a cost");
+        let total = TxCost::new(bandwidth, Some(cost), false, &params).expect("a total");
+        assert_eq!(total.burn_sun, 889_500);
+        assert_eq!(
+            total.padded_burn_sun(&params).expect("a padded burn"),
+            35_580 * 100,
+            "the padded burn can't count on the deployer's energy"
+        );
     }
 
     #[test]
     fn a_total_is_the_two_burns_added() {
         let params = priced_params();
         let bandwidth = bandwidth_cost(265, &resources(600, 0, 0), &params).expect("a cost");
-        let energy =
-            energy_cost(EnergyReading { needed: 100, penalty: 0 }, &resources(0, 0, 0), &params)
-                .expect("a cost");
+        let energy = energy_cost(
+            EnergyReading { needed: 100, penalty: 0 },
+            OriginShare::NONE,
+            &resources(0, 0, 0),
+            &params,
+        )
+        .expect("a cost");
         let total = TxCost::new(bandwidth, Some(energy), false, &params).expect("a total");
         assert_eq!(total.burn_sun, 275_000);
         assert!(!total.is_activation);
@@ -346,7 +423,8 @@ mod tests {
         let params = priced_params();
         let bandwidth = bandwidth_cost(345, &resources(600, 0, 0), &params).expect("a cost");
         let reading = EnergyReading { needed: 130_285, penalty: 100_635 };
-        let energy = energy_cost(reading, &resources(0, 0, 19), &params).expect("a cost");
+        let energy =
+            energy_cost(reading, OriginShare::NONE, &resources(0, 0, 19), &params).expect("a cost");
         let total = TxCost::new(bandwidth, Some(energy), false, &params).expect("a total");
         assert_eq!(total.burn_sun, 345_000 + 13_026_600, "the point burn");
         assert_eq!(
@@ -355,7 +433,8 @@ mod tests {
             "a fifth more energy than measured, less what the account holds"
         );
 
-        let staked = energy_cost(reading, &resources(0, 0, 200_000), &params).expect("a cost");
+        let staked = energy_cost(reading, OriginShare::NONE, &resources(0, 0, 200_000), &params)
+            .expect("a cost");
         let covered = TxCost::new(bandwidth, Some(staked), false, &params).expect("a total");
         assert_eq!(covered.padded_burn_sun(&params).expect("a padded burn"), 345_000);
 

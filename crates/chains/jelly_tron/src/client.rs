@@ -2,7 +2,8 @@
 //!
 //! TRON's HTTP API has no batch form, so each method is one request and one
 //! decode, except [`TronClient::parent`], which takes at least two. A TRX quote
-//! costs four round trips and a token quote five. A pass costs one per address for
+//! costs four round trips and a token quote six, or seven when the token's
+//! deployer pays part of a call's energy. A pass costs one per address for
 //! the TRX balance plus one per token. When an address's history is due, it also
 //! costs one per history page, one receipt per TRC-20 row whose block the pass
 //! hasn't seen, and one parent lookup per internal transfer the native stream
@@ -17,14 +18,14 @@ use crate::abi;
 use crate::address;
 use crate::cursor::Stream;
 use crate::error::TronError;
-use crate::fee::EnergyReading;
+use crate::fee::{EnergyReading, OriginShare};
 use crate::history::{NativeRow, Page, Row as _};
 use crate::node::{Answered, TronNode};
 use crate::params::ChainParams;
 use crate::route::Request;
 use crate::shape::{
-    Account, BlockRef, ChainParameters, ConstantCall, NowBlock, Resources, TransactionInfo,
-    TransactionRow,
+    Account, BlockRef, ChainParameters, ConstantCall, NowBlock, Resources, SmartContract,
+    TransactionInfo, TransactionRow,
 };
 
 /// The most pages of a sender's history at one block time that a parent lookup
@@ -105,6 +106,28 @@ impl TronClient {
             return Err(TronError::CallFailed { detail });
         }
         Ok(EnergyReading { needed: call.energy_used(), penalty: call.energy_penalty() })
+    }
+
+    /// The part of a call to `token` its deployer pays for `caller`, from the energy
+    /// the deployer has left.
+    pub(crate) async fn origin_share(
+        &self,
+        caller: &str,
+        token: TokenId,
+    ) -> Result<OriginShare, TronError> {
+        let contract: SmartContract =
+            self.node.call(&Request::contract(token.contract())?).await?.decode()?;
+        let Some(origin) = contract.origin().filter(|origin| *origin != caller) else {
+            return Ok(OriginShare::NONE);
+        };
+        if contract.origin_percent() == 0 {
+            return Ok(OriginShare::NONE);
+        }
+        Ok(OriginShare {
+            percent: contract.origin_percent(),
+            limit: contract.origin_energy_limit(),
+            available: self.resources(origin).await?.energy(),
+        })
     }
 
     /// A mined transaction's receipt, with its block, its result, and the TRX it

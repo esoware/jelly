@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
 use jelly_core::{Amount, ChainAdapter as _, FeeQuote, TxDetail, TxRequest};
-use jelly_tron::{Route, test_util::RECIPIENT};
+use jelly_tron::{
+    Route,
+    test_util::{OWNER, RECIPIENT},
+};
 
 use crate::common::{
-    Answer, FRESH, FakeNode, Fallible, TRX, USDT_ASSET, detail, funded, ready, request, resources,
-    send_max,
+    Answer, FRESH, FakeNode, Fallible, TRX, USDT_ASSET, USDT_ORIGIN, contract, detail, funded,
+    ready, request, resources, send_max,
 };
 
 async fn quote(fake: &Arc<FakeNode>, request: &TxRequest) -> Fallible<FeeQuote> {
@@ -49,6 +52,36 @@ async fn a_token_transfer_spells_out_bandwidth_energy_and_the_burn() {
     );
     assert!(limit.contains("ceiling, not a charge"), "{limit}");
     assert_eq!(detail(&rows, "Estimated burn").unwrap(), "13.0266 TRX");
+}
+
+/// A token whose deployer has staked energy pays its share of each call, and only the
+/// rest is the caller's to cover.
+#[tokio::test]
+async fn a_token_contracts_deployer_pays_its_share_of_the_energy() {
+    // A longer needle than the one `funded` scripts the spent deployer under.
+    let origin = format!(r#""address":"{USDT_ORIGIN}""#);
+    let fake = funded(100_000_000).always(Route::Contract, contract(USDT_ORIGIN, 0)).on_matching(
+        Route::AccountResource,
+        &origin,
+        resources(0, 0, 100_000),
+    );
+    let ask = request(USDT_ASSET, RECIPIENT, 5_000_000);
+    let quote = quote(&fake, &ask).await.unwrap();
+    assert_eq!(quote.fee, Amount::from_base_units(3_026_600), "30285 energy burned at 100 sun");
+
+    let rows = preview_details(&fake, &ask).await.unwrap();
+    assert_eq!(
+        detail(&rows, "Energy").unwrap(),
+        "130285 needed, 100000 paid by the token contract, 19 available"
+    );
+    assert!(detail(&rows, "Energy charge").unwrap().contains("30266 energy short"));
+}
+
+#[tokio::test]
+async fn a_caller_that_deployed_the_token_pays_all_of_its_energy() {
+    let fake = funded(100_000_000).always(Route::Contract, contract(OWNER, 0));
+    let quote = quote(&fake, &request(USDT_ASSET, RECIPIENT, 5_000_000)).await.unwrap();
+    assert_eq!(quote.fee, Amount::from_base_units(13_026_600));
 }
 
 #[tokio::test]

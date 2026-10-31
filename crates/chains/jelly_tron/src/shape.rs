@@ -109,6 +109,42 @@ impl Resources {
     }
 }
 
+/// What `getcontract` answers about who deployed a contract and how a call's energy is
+/// split with them.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub(crate) struct SmartContract {
+    #[serde(default)]
+    origin_address: Option<String>,
+    /// The percentage of a call's energy the caller pays. Unset means 0.
+    #[serde(default)]
+    consume_user_resource_percent: u64,
+    /// The most energy the deployer pays toward one call.
+    #[serde(default)]
+    origin_energy_limit: u64,
+}
+
+impl SmartContract {
+    /// What java-tron's `ContractCapsule` reads an unset `origin_energy_limit` as.
+    const DEFAULT_ORIGIN_ENERGY_LIMIT: u64 = 10_000_000;
+
+    pub(crate) fn origin(&self) -> Option<&str> {
+        self.origin_address.as_deref()
+    }
+
+    /// The percentage of a call's energy the deployer pays.
+    pub(crate) const fn origin_percent(&self) -> u64 {
+        100u64.saturating_sub(self.consume_user_resource_percent)
+    }
+
+    pub(crate) const fn origin_energy_limit(&self) -> u64 {
+        if self.origin_energy_limit == 0 {
+            Self::DEFAULT_ORIGIN_ENERGY_LIMIT
+        } else {
+            self.origin_energy_limit
+        }
+    }
+}
+
 /// The governance parameters, a flat array of named values.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct ChainParameters {
@@ -372,6 +408,29 @@ mod tests {
         assert_eq!(spent.free_bandwidth(), 0, "used above the limit is empty, never negative");
         assert_eq!(spent.staked_bandwidth(), 6);
         assert_eq!(spent.energy(), 19);
+    }
+
+    #[test]
+    fn a_contract_reads_unset_energy_terms_as_java_tron_does() {
+        let usdt: SmartContract = answered(
+            Route::Contract,
+            r#"{"origin_address":"THPvaUhoh2Qn2y9THCZML3H815hhFhn5YC",
+                "consume_user_resource_percent":30,"origin_energy_limit":10000000}"#,
+        )
+        .decode()
+        .expect("decodes");
+        assert_eq!(usdt.origin(), Some("THPvaUhoh2Qn2y9THCZML3H815hhFhn5YC"));
+        assert_eq!((usdt.origin_percent(), usdt.origin_energy_limit()), (70, 10_000_000));
+
+        let unset: SmartContract =
+            answered(Route::Contract, r#"{"origin_address":"TKGRE6oiU3rEzasue4MsB6sCXXSTx9BAe3"}"#)
+                .decode()
+                .expect("decodes");
+        assert_eq!(unset.origin_percent(), 100, "the caller pays nothing of its own accord");
+        assert_eq!(unset.origin_energy_limit(), 10_000_000);
+
+        let absent: SmartContract = answered(Route::Contract, "{}").decode().expect("decodes");
+        assert_eq!(absent.origin(), None);
     }
 
     #[test]

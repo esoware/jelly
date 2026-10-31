@@ -14,7 +14,7 @@ use crate::address;
 use crate::client::TronClient;
 use crate::config::{TRX, TronConfig};
 use crate::error::TronError;
-use crate::fee::{self, Charge, TxCost};
+use crate::fee::{self, Charge, OriginShare, TxCost};
 use crate::params::ChainParams;
 use crate::payload::TronPayload;
 use crate::preview;
@@ -71,8 +71,8 @@ pub(crate) struct Inputs<'a> {
 /// Reads what a send needs from the chain and plans the transaction.
 ///
 /// The reads are sequential because the endpoint pacer admits only a small burst.
-/// Four round trips in order, or five for a token, beat the same number sent at
-/// once and turned away.
+/// Four round trips in order, or up to seven for a token, beat the same number sent
+/// at once and turned away.
 pub(crate) async fn resolve(
     inputs: &Inputs<'_>,
     request: &TxRequest,
@@ -133,6 +133,7 @@ async fn native_transfer(
     let charge = Charge {
         is_activation: !recipient.is_activated(),
         energy: None,
+        origin: OriginShare::NONE,
         params: common.params,
         resources: common.resources,
     };
@@ -189,6 +190,7 @@ async fn token_transfer(
     // roughly twice as much.
     let energy =
         inputs.client.measure_transfer(common.from, token, &common.to_body, amount).await?;
+    let origin = inputs.client.origin_share(common.from, token).await?;
     let fee_limit_sun = fee::suggested_fee_limit(energy.needed, &common.params)?;
     let header = header.with_fee_limit(fee_limit_sun, common.params.max_fee_limit_sun)?;
 
@@ -198,6 +200,7 @@ async fn token_transfer(
         // to a recipient with no account.
         is_activation: false,
         energy: Some(energy),
+        origin,
         params: common.params,
         resources: common.resources,
     };
@@ -315,7 +318,13 @@ mod tests {
     }
 
     fn charge(common: &Common<'_>, is_activation: bool) -> Charge {
-        Charge { is_activation, energy: None, params: common.params, resources: common.resources }
+        Charge {
+            is_activation,
+            energy: None,
+            origin: OriginShare::NONE,
+            params: common.params,
+            resources: common.resources,
+        }
     }
 
     #[test]
