@@ -3,14 +3,14 @@ use std::slice::from_ref;
 
 use bitcoin::consensus::deserialize;
 use bitcoin::{OutPoint, Transaction};
-use jelly_core::{FeeRate, ScriptKind};
+use jelly_core::{Amount, FeeRate, ScriptKind};
 
 use crate::build::{BuildRequest, BuiltTx, Source, build_tx};
 use crate::error::UtxoError;
 use crate::original::Original;
 use crate::params::UtxoParams;
 use crate::preview::PreviewQuote;
-use crate::select::{Selection, SelectionRequest, select_coins};
+use crate::select::{LeftOut, Selection, SelectionRequest, select_coins};
 use crate::sign::sign_tx;
 use crate::test_util::{
     BITCOIN, BITCOIN_CASH, LITECOIN, TestKey, fixture_txid, test_key, tx_paying, tx_spending,
@@ -32,8 +32,13 @@ pub(crate) const RECEIVED_SAT: u64 = 190_000;
 pub(crate) const ONE_PER_VB: FeeRate = FeeRate::from_sat_per_kwu(250);
 pub(crate) const TEN_PER_VB: FeeRate = FeeRate::from_sat_per_kwu(2_500);
 
-pub(crate) const FLOOR_QUOTE: PreviewQuote =
-    PreviewQuote { relay_floor: ONE_PER_VB, fast: ONE_PER_VB, slow_market: ONE_PER_VB, evicted: 0 };
+pub(crate) const FLOOR_QUOTE: PreviewQuote = PreviewQuote {
+    relay_floor: ONE_PER_VB,
+    fast: ONE_PER_VB,
+    slow_market: ONE_PER_VB,
+    evicted: 0,
+    left_out: LeftOut { unconfirmed: Amount::ZERO, overflow_count: 0, overflow: Amount::ZERO },
+};
 
 pub(crate) const fn kwu(value: u64) -> FeeRate {
     FeeRate::from_sat_per_kwu(value)

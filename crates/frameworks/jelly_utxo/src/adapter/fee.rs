@@ -193,7 +193,9 @@ fn price(
         Ok(built) => {
             Ok((built.selection.fee, plan.is_send_max().then_some(built.selection.recipient_value)))
         }
-        Err(UtxoError::InsufficientFunds { .. }) if !plan.is_send_max() => {
+        Err(UtxoError::InsufficientFunds { .. } | UtxoError::Unconfirmed { .. })
+            if !plan.is_send_max() =>
+        {
             let change = plan.change_script();
             let predicted =
                 predict_weight([change.kind()], [plan.to_script(), change.script_pubkey()]);

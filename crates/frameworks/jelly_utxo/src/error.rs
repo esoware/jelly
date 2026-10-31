@@ -1,4 +1,4 @@
-use bitcoin::{OutPoint, Txid, Weight};
+use bitcoin::{OutPoint, Txid};
 use jelly_core::{
     AddressError, Amount, AssetId, ChainError, ChainId, CoreError, DecimalError, EndpointLabel,
     FailureKind, FeeRate, KeyError, Rejection,
@@ -43,15 +43,18 @@ pub enum UtxoError {
     )]
     FeeCeiling { fee: Amount, ceiling: Amount, chain: ChainId },
     #[error(
-        "The transaction weighs {} weight units. The network limit is {} weight units.",
-        weight.to_wu(),
-        maximum.to_wu()
+        "This needs {inputs} coins, more than one transaction can spend. Send a smaller amount, \
+         or first send Max to your own address to combine coins."
     )]
-    TooHeavy { weight: Weight, maximum: Weight },
-    /// [`UtxoError::TooHeavy`] on a chain without segregated witness, whose limit
-    /// is a size in bytes.
-    #[error("The transaction is {size_bytes} bytes. The network limit is {maximum_bytes} bytes.")]
-    TooLarge { size_bytes: u64, maximum_bytes: u64 },
+    TooManyInputs { inputs: usize },
+    /// The coins Jelly may spend fall short only because someone else's payment isn't
+    /// confirmed yet, and `amount` is what those payments hold.
+    #[error(
+        "{} of the balance comes from payments that are not confirmed yet. Send it once they \
+         confirm.",
+        chain.format_amount(*amount)
+    )]
+    Unconfirmed { amount: Amount, chain: ChainId },
     #[error("{} sends cannot be sped up.", chain.display_name())]
     NoBumpMethod { chain: ChainId },
     #[error("Transaction {txid} did not enable fee replacement.")]
@@ -214,8 +217,8 @@ impl UtxoError {
             | Self::Dust { .. }
             | Self::BelowRelayFloor { .. }
             | Self::FeeCeiling { .. }
-            | Self::TooHeavy { .. }
-            | Self::TooLarge { .. }
+            | Self::TooManyInputs { .. }
+            | Self::Unconfirmed { .. }
             | Self::NoBumpMethod { .. }
             | Self::NotReplaceable { .. }
             | Self::RateNotIncreased { .. }
@@ -267,8 +270,8 @@ impl UtxoError {
             | Self::Dust { .. }
             | Self::BelowRelayFloor { .. }
             | Self::FeeCeiling { .. }
-            | Self::TooHeavy { .. }
-            | Self::TooLarge { .. }
+            | Self::TooManyInputs { .. }
+            | Self::Unconfirmed { .. }
             | Self::NoBumpMethod { .. }
             | Self::NotReplaceable { .. }
             | Self::RateNotIncreased { .. }
@@ -320,8 +323,8 @@ impl UtxoError {
             | Self::Dust { .. }
             | Self::BelowRelayFloor { .. }
             | Self::FeeCeiling { .. }
-            | Self::TooHeavy { .. }
-            | Self::TooLarge { .. }
+            | Self::TooManyInputs { .. }
+            | Self::Unconfirmed { .. }
             | Self::NoBumpMethod { .. }
             | Self::NotReplaceable { .. }
             | Self::RateNotIncreased { .. }
@@ -393,8 +396,8 @@ impl UtxoError {
             | Self::Dust { .. }
             | Self::BelowRelayFloor { .. }
             | Self::FeeCeiling { .. }
-            | Self::TooHeavy { .. }
-            | Self::TooLarge { .. }
+            | Self::TooManyInputs { .. }
+            | Self::Unconfirmed { .. }
             | Self::NotReplaceable { .. }
             | Self::RateNotIncreased { .. }
             | Self::RecipientNotFound
