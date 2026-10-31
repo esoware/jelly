@@ -28,12 +28,17 @@ fn balance_delta(metadata: &Value, owner: &str) -> Result<Option<i128>, XrpError
         if entry.get("LedgerEntryType").and_then(Value::as_str) != Some("AccountRoot") {
             continue;
         }
-        let fields = entry
-            .get(match change {
-                Change::Created => "NewFields",
-                Change::Modified | Change::Deleted => "FinalFields",
-            })
-            .ok_or(XrpError::Protocol)?;
+        let Some(fields) = entry.get(match change {
+            Change::Created => "NewFields",
+            Change::Modified | Change::Deleted => "FinalFields",
+        }) else {
+            // rippled writes no fields for an account the transaction only threads, whose
+            // balance is unchanged.
+            if matches!(change, Change::Modified) && entry.get("PreviousFields").is_none() {
+                continue;
+            }
+            return Err(XrpError::Protocol);
+        };
         if fields.get("Account").and_then(Value::as_str) != Some(owner) {
             continue;
         }
@@ -191,5 +196,43 @@ mod tests {
             "FinalFields":{"Account":OWNER,"Balance":"1000000"}}}]});
         assert_eq!(balance_delta(&created, OWNER).unwrap(), Some(1_000_000));
         assert_eq!(balance_delta(&deleted, OWNER).unwrap(), Some(-1_000_000));
+    }
+
+    #[test]
+    fn a_threaded_only_account_root_is_skipped_but_other_missing_fields_are_not() {
+        let threaded = json!({"ModifiedNode":{"LedgerEntryType":"AccountRoot",
+            "LedgerIndex":"BF".repeat(32),"PreviousTxnID":"AB".repeat(32),"PreviousTxnLgrSeq":1}});
+        let owner_node = json!({"ModifiedNode":{"LedgerEntryType":"AccountRoot",
+            "PreviousFields":{"Balance":"1000000"},"FinalFields":{"Account":OWNER,"Balance":"999990"}}});
+        let metadata = json!({"AffectedNodes":[owner_node, threaded]});
+        assert_eq!(balance_delta(&metadata, OWNER).unwrap(), Some(-10));
+        let only_threaded = json!({"AffectedNodes":[threaded]});
+        assert_eq!(balance_delta(&only_threaded, OWNER).unwrap(), None);
+
+        let without_final = json!({"AffectedNodes":[{"ModifiedNode":{"LedgerEntryType":"AccountRoot",
+            "PreviousFields":{"Balance":"1000000"}}}]});
+        let created_bare =
+            json!({"AffectedNodes":[{"CreatedNode":{"LedgerEntryType":"AccountRoot"}}]});
+        let deleted_bare =
+            json!({"AffectedNodes":[{"DeletedNode":{"LedgerEntryType":"AccountRoot"}}]});
+        for metadata in [without_final, created_bare, deleted_bare] {
+            assert!(matches!(balance_delta(&metadata, OWNER), Err(XrpError::Protocol)));
+        }
+    }
+
+    #[test]
+    fn a_trust_set_that_threads_its_issuer_records_the_owners_fee() {
+        let row = json!({"validated":true,"hash":"63".repeat(32),"ledger_index":40_010_838,
+        "Account":OWNER,"TransactionType":"TrustSet","Fee":"12","meta":{
+        "TransactionResult":"tesSUCCESS","AffectedNodes":[
+            {"ModifiedNode":{"LedgerEntryType":"AccountRoot",
+                "PreviousFields":{"Balance":"20000000","OwnerCount":0},
+                "FinalFields":{"Account":OWNER,"Balance":"19999988","OwnerCount":1}}},
+            {"ModifiedNode":{"LedgerEntryType":"AccountRoot","LedgerIndex":"BF".repeat(32),
+                "PreviousTxnID":"AB".repeat(32),"PreviousTxnLgrSeq":40_000_000}},
+        ]}});
+        let record = record(&row, 1, OWNER, 40_010_838).unwrap().unwrap();
+        assert_eq!(record.amount, Amount::ZERO);
+        assert_eq!(record.fee, Some(Amount::from(12u64)));
     }
 }
