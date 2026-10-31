@@ -2,10 +2,7 @@ use std::collections::BTreeSet;
 
 use async_trait::async_trait;
 use bitcoin::Txid;
-use jelly_core::{
-    ChainError, CursorBytes, CursorScope, FeeBump, FeeQuote, FeeRate, FeeSelection, TxId,
-    UnsignedTx,
-};
+use jelly_core::{ChainError, FeeBump, FeeQuote, FeeRate, FeeSelection, TxId, UnsignedTx};
 
 use crate::adapter::UtxoAdapter;
 use crate::adapter::child_paying::ChildPaying;
@@ -145,14 +142,13 @@ impl UtxoAdapter {
                     if let Some(cursor) = stored.get_mut(&source.address_id)
                         && cursor.remember(&pending)
                     {
-                        self.cursors
-                            .advance(
-                                CursorScope::Address(source.address_id),
-                                self.params.scan_stream,
-                                CursorBytes::new(cursor.encode()?),
-                            )
-                            .await
-                            .map_err(UtxoError::Cursor)?;
+                        sync::store_cursor(
+                            &self.params,
+                            self.cursors.as_ref(),
+                            source.address_id,
+                            cursor,
+                        )
+                        .await?;
                     }
                 }
                 drop(pass);

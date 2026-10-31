@@ -170,7 +170,7 @@ mod tests {
             assert_eq!(
                 error.to_string(),
                 "This needs 1470 coins, more than one transaction can spend. Send a smaller \
-                 amount, or first send Max to your own address to combine coins."
+                 amount, or first send the maximum to your own address to combine coins."
             );
         }
     }

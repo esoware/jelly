@@ -2,7 +2,8 @@ use std::error::Error;
 use std::slice::from_ref;
 
 use bitcoin::consensus::deserialize;
-use bitcoin::{OutPoint, Transaction};
+use bitcoin::hashes::Hash as _;
+use bitcoin::{OutPoint, Transaction, Txid};
 use jelly_core::{Amount, FeeRate, ScriptKind};
 
 use crate::build::{BuildRequest, BuiltTx, Source, build_tx};
@@ -108,6 +109,24 @@ impl Scene {
             .map(|(index, value)| {
                 let seed = u8::try_from(index).unwrap_or(u8::MAX).saturating_add(1);
                 confirmed(&self.ours, seed, *value)
+            })
+            .collect()
+    }
+
+    /// Confirmed coins worth `value` of their output index. A seed byte names at most
+    /// 255 fixture coins, so these share one txid that `fixture_txid` never returns and
+    /// differ by output index.
+    pub(crate) fn many_coins(&self, count: u32, value: impl Fn(u32) -> u64) -> Vec<Utxo> {
+        let txid = Txid::from_byte_array([0xcc; 32]);
+        (0..count)
+            .map(|vout| {
+                Utxo::new(
+                    OutPoint { txid, vout },
+                    units(value(vout)),
+                    self.ours.script().clone(),
+                    Some(TIP),
+                    Origin::Ordinary,
+                )
             })
             .collect()
     }

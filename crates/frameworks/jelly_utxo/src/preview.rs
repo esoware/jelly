@@ -179,13 +179,13 @@ fn warnings(
         1 => warnings.push(TxWarning::new(
             TxWarningKind::Other,
             format!(
-                "One transaction can't spend every coin, so this leaves out 1 coin holding {overflow}. Send Max again to move it."
+                "One transaction can't spend every coin, so this leaves out 1 coin holding {overflow}. Send the maximum again to move it."
             ),
         )),
         count => warnings.push(TxWarning::new(
             TxWarningKind::Other,
             format!(
-                "One transaction can't spend every coin, so this leaves out {count} coins holding {overflow}. Send Max again to move them."
+                "One transaction can't spend every coin, so this leaves out {count} coins holding {overflow}. Send the maximum again to move them."
             ),
         )),
     }
@@ -358,8 +358,8 @@ mod tests {
         litecoin_scene,
     };
     use crate::payload::FIELD_TO;
-    use crate::test_util::{fixture_txid, test_key};
-    use crate::utxo::{Origin, Utxo, units};
+    use crate::test_util::test_key;
+    use crate::utxo::units;
 
     fn kinds(warnings: &[TxWarning]) -> Vec<TxWarningKind> {
         warnings.iter().map(|warning| warning.kind).collect()
@@ -425,18 +425,7 @@ mod tests {
     #[test]
     fn a_send_max_says_what_it_leaves_out_of_the_balance() {
         let scene = bitcoin_scene().unwrap();
-        let txid = fixture_txid(250);
-        let mut coins: Vec<Utxo> = (0..1_600u32)
-            .map(|vout| {
-                Utxo::new(
-                    OutPoint { txid, vout },
-                    units(10_000),
-                    scene.ours.script().clone(),
-                    Some(TIP),
-                    Origin::Ordinary,
-                )
-            })
-            .collect();
+        let mut coins = scene.many_coins(1_600, |_| 10_000);
         coins.push(incoming(&scene.ours, 1, 300_000));
 
         let built = scene.build(None, ONE_PER_VB, &coins).unwrap();
@@ -455,7 +444,7 @@ mod tests {
         );
         let overflow = format!(
             "One transaction can't spend every coin, so this leaves out {} coins holding {}. Send \
-             Max again to move them.",
+             the maximum again to move them.",
             left_out.overflow_count,
             scene.params.chain.format_amount(left_out.overflow)
         );

@@ -100,17 +100,7 @@ async fn a_row_that_only_threads_an_account_does_not_stop_history() {
     let adapter = node.adapter().await.unwrap();
     let sink = FakeEventSink::new();
     assert!(adapter.sync(Deadline::NEVER, &sink).await.unwrap().is_complete());
-    let detected = sink
-        .drain()
-        .into_iter()
-        .filter_map(|event| {
-            if let WalletEvent::TxDetected(record) = event {
-                Some(record.amount.base_units())
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
+    let detected: Vec<_> = sink.records().iter().map(|record| record.amount.base_units()).collect();
     assert_eq!(detected, [0, 1000]);
     assert_eq!(node.cursors.advance_count(), 1);
 }

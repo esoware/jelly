@@ -138,8 +138,7 @@ pub(crate) fn select_coins(
             chain: params.chain,
         });
     }
-    let untrusted: Vec<Utxo> = coins.iter().filter(|coin| !coin.is_trusted()).cloned().collect();
-    let unconfirmed = Utxo::total(&untrusted)?;
+    let unconfirmed = Utxo::total(coins.iter().filter(|coin| !coin.is_trusted()))?;
     let selected = if request.should_drain {
         let candidates = ordered_candidates(coins, request.fee_rate, Eligible::Trusted);
         drain(params, request, &candidates, unconfirmed)
@@ -630,42 +629,24 @@ fn plain_weight(request: &SelectionRequest<'_>, inputs: &[Utxo]) -> Weight {
 
 #[cfg(test)]
 mod tests {
-    use bitcoin::OutPoint;
     use jelly_core::ScriptKind;
     use proptest::{prelude::*, test_runner::RngSeed};
 
     use super::*;
     use crate::fee::{change_floor, fee_for};
     use crate::fixtures::{
-        ONE_PER_VB, Scene, TEN_PER_VB, TIP, bitcoin_scene, confirmed, incoming, litecoin_scene,
-        scene, unconfirmed,
+        ONE_PER_VB, TEN_PER_VB, bitcoin_scene, confirmed, incoming, litecoin_scene, scene,
+        unconfirmed,
     };
     use crate::script::UtxoScript;
     use crate::select::Strategy;
-    use crate::test_util::{BITCOIN, fixture_txid};
-    use crate::utxo::{Origin, units};
+    use crate::test_util::BITCOIN;
+    use crate::utxo::units;
     use crate::weight::{input_weight, predict_weight};
 
     const PROPERTY_SEED: u64 = 20_261_021;
 
     const FIFTY_PER_VB: FeeRate = FeeRate::from_sat_per_kwu(12_500);
-
-    /// A seed byte names at most 255 fixture coins, so these share one txid and
-    /// differ by output index.
-    fn many_coins(scene: &Scene, count: u32, value: u64) -> Vec<Utxo> {
-        let txid = fixture_txid(250);
-        (0..count)
-            .map(|vout| {
-                Utxo::new(
-                    OutPoint { txid, vout },
-                    units(value),
-                    scene.ours.script().clone(),
-                    Some(TIP),
-                    Origin::Ordinary,
-                )
-            })
-            .collect()
-    }
 
     #[test]
     fn selection_is_deterministic_whatever_order_the_server_listed_the_coins_in() {
@@ -733,7 +714,7 @@ mod tests {
     #[test]
     fn a_large_mempool_coin_is_not_stuck_behind_many_small_confirmed_ones() {
         let scene = scene(&BITCOIN, ScriptKind::P2pkh).unwrap();
-        let mut coins = many_coins(&scene, 700, 1_000);
+        let mut coins = scene.many_coins(700, |_| 1_000);
         coins.push(unconfirmed(&scene.ours, 1, 100_000_000));
         let selection = scene.select(&scene.selection(50_000_000, ONE_PER_VB), &coins).unwrap();
         assert_eq!(selection.inputs.len(), 1, "{:?}", selection.inputs);
@@ -905,7 +886,7 @@ mod tests {
         let scene = bitcoin_scene().unwrap();
         // The large coin alone pays, and 1,500 small ones could be swept in with it.
         let mut coins = scene.coins(&[1_000_000]);
-        coins.extend(many_coins(&scene, 1_500, 10_000));
+        coins.extend(scene.many_coins(1_500, |_| 10_000));
         let mut cheap = scene.selection(50_000, ONE_PER_VB);
         cheap.long_term_fee_rate = TEN_PER_VB;
         let consolidating = scene.select(&cheap, &coins).unwrap();
@@ -969,7 +950,7 @@ mod tests {
     fn a_payment_only_an_oversized_set_could_fund_is_refused_by_its_coin_count() {
         let scene = scene(&BITCOIN, ScriptKind::P2pkh).unwrap();
         // About 675 legacy inputs fit in one transaction, and they hold too little.
-        let coins = many_coins(&scene, 700, 1_000);
+        let coins = scene.many_coins(700, |_| 1_000);
         let refused = scene.select(&scene.selection(580_000, ONE_PER_VB), &coins);
         // The refusal names the fewest coins that pay.
         assert!(
@@ -983,18 +964,7 @@ mod tests {
     #[test]
     fn a_send_max_over_more_coins_than_one_transaction_can_spend_moves_the_most_it_can() {
         let scene = bitcoin_scene().unwrap();
-        let txid = fixture_txid(250);
-        let coins: Vec<Utxo> = (0..1_600u32)
-            .map(|vout| {
-                Utxo::new(
-                    OutPoint { txid, vout },
-                    units(10_000 + u64::from(vout)),
-                    scene.ours.script().clone(),
-                    Some(TIP),
-                    Origin::Ordinary,
-                )
-            })
-            .collect();
+        let coins = scene.many_coins(1_600, |vout| 10_000 + u64::from(vout));
         let mut request = scene.selection(0, ONE_PER_VB);
         request.should_drain = true;
 

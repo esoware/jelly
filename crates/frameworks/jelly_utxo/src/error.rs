@@ -44,7 +44,7 @@ pub enum UtxoError {
     FeeCeiling { fee: Amount, ceiling: Amount, chain: ChainId },
     #[error(
         "This needs {inputs} coins, more than one transaction can spend. Send a smaller amount, \
-         or first send Max to your own address to combine coins."
+         or first send the maximum to your own address to combine coins."
     )]
     TooManyInputs { inputs: usize },
     /// The coins Jelly may spend fall short only because someone else's payment isn't

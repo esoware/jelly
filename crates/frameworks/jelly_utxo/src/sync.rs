@@ -365,7 +365,7 @@ fn refreshed(
         heights,
     };
     let mut records = Vec::new();
-    let mut pending: Vec<PendingTx> = Vec::new();
+    let mut pending = Vec::new();
     for item in &history {
         let confirmed = item.confirmation.height().map(|height| Confirmed {
             height,
