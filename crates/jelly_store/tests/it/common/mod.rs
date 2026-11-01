@@ -9,7 +9,7 @@ use jelly_core::{
 use jelly_store::{AddressRow, NewAddress, NewWallet, Recovered, Store, StoreError, WalletRow};
 use tempfile::TempDir;
 
-const DB_FILE: &str = "jelly.sqlite";
+pub(crate) const DB_FILE: &str = "jelly.sqlite";
 
 pub(crate) const SCHEMA_VERSION: i64 = 1;
 
@@ -68,12 +68,6 @@ pub(crate) async fn open_in(
 
 pub(crate) fn db_path(directory: &Path) -> PathBuf {
     directory.join(DB_FILE)
-}
-
-pub(crate) fn sidecar(path: &Path, suffix: &str) -> PathBuf {
-    let mut raw = path.as_os_str().to_os_string();
-    raw.push(suffix);
-    PathBuf::from(raw)
 }
 
 pub(crate) fn new_wallet(name: &str) -> NewWallet {

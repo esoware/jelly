@@ -101,9 +101,7 @@ async fn deleting_a_wallet_takes_its_addresses_with_it() {
 async fn wallet_settings_go_with_their_wallet() {
     let harness = common::harness().await.unwrap();
     let created = common::wallet(&harness.store, "fixed").await.unwrap();
-
-    let settings = harness.store.get_wallet_settings(created.id).await.unwrap();
-    assert_eq!(settings.wallet_id, created.id);
+    harness.store.get_wallet_settings(created.id).await.unwrap();
 
     harness.store.delete_wallet(created.id).await.unwrap();
     let error = harness.store.get_wallet_settings(created.id).await.expect_err("cascaded");

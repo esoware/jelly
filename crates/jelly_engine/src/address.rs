@@ -566,7 +566,6 @@ mod tests {
             script_kind: None,
             derivation_index: Some(minor),
             label: None,
-            created_at_unix_secs: 0,
         }
     }
 

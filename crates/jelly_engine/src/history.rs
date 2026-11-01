@@ -288,7 +288,6 @@ mod tests {
 
     fn row(address_id: i64, rent: Option<u128>) -> TxRow {
         TxRow {
-            id: address_id,
             address_id,
             chain: ChainId::Solana,
             asset: AssetId::Token(TokenId::UsdtSpl),

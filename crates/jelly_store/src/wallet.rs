@@ -31,8 +31,7 @@ statements! {
          VALUES (?1, ?2, ?3)";
 
     GET_SETTINGS =
-        "SELECT wallet_id, passphrase_policy, account_index FROM wallet_settings \
-         WHERE wallet_id = ?1";
+        "SELECT passphrase_policy, account_index FROM wallet_settings WHERE wallet_id = ?1";
 
     /// From `?4` on, each even parameter says whether to write the value after it, so
     /// keeping and clearing stay distinct.
@@ -47,7 +46,7 @@ statements! {
            synced_height = CASE ?8 WHEN 1 THEN ?9 ELSE synced_height END";
 
     LIST_CHAIN_STATE =
-        "SELECT wallet_id, chain, enabled, poll_secs, restore_height, synced_height \
+        "SELECT chain, enabled, poll_secs, restore_height, synced_height \
          FROM wallet_chain_state WHERE wallet_id = ?1 ORDER BY chain ASC";
 }
 
@@ -72,7 +71,6 @@ pub struct NewWallet {
 /// address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WalletSettingsRow {
-    pub wallet_id: i64,
     pub passphrase_policy: PassphrasePolicy,
     pub account_index: u32,
 }
@@ -80,7 +78,6 @@ pub struct WalletSettingsRow {
 /// A scan cursor derived from a view key is secret, so it lives in the vault, not here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChainStateRow {
-    pub wallet_id: i64,
     pub chain: ChainId,
     pub enabled: bool,
     pub poll_secs: Option<u32>,
@@ -115,7 +112,6 @@ fn map(row: &Row<'_>) -> Result<WalletRow, StoreError> {
 
 fn map_settings(row: &Row<'_>) -> Result<WalletSettingsRow, StoreError> {
     Ok(WalletSettingsRow {
-        wallet_id: row.get("wallet_id")?,
         passphrase_policy: codec::wire(row, PASSPHRASE_POLICY, PassphrasePolicy::parse)?,
         account_index: codec::int(row, ACCOUNT_INDEX)?,
     })
@@ -123,7 +119,6 @@ fn map_settings(row: &Row<'_>) -> Result<WalletSettingsRow, StoreError> {
 
 fn map_state(row: &Row<'_>) -> Result<ChainStateRow, StoreError> {
     Ok(ChainStateRow {
-        wallet_id: row.get("wallet_id")?,
         chain: codec::wire(row, STATE_CHAIN, ChainId::parse)?,
         enabled: row.get("enabled")?,
         poll_secs: codec::optional_int(row, POLL_SECS)?,

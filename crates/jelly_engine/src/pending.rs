@@ -570,7 +570,6 @@ mod tests {
             script_kind: None,
             derivation_index: Some(0),
             label: None,
-            created_at_unix_secs: 0,
         }
     }
 }

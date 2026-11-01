@@ -427,7 +427,6 @@ mod tests {
 
     fn row(chain: ChainId, is_enabled: bool) -> ChainStateRow {
         ChainStateRow {
-            wallet_id: 1,
             chain,
             enabled: is_enabled,
             poll_secs: None,
