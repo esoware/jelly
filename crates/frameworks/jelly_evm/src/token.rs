@@ -119,6 +119,17 @@ mod tests {
     }
 
     #[test]
+    fn each_network_carries_every_token_declared_on_its_chain() {
+        for params in NETWORKS {
+            let mut carried = params.tokens.to_vec();
+            carried.sort_unstable();
+            let declared: Vec<TokenId> =
+                TokenId::ALL.into_iter().filter(|token| token.chain() == params.chain).collect();
+            assert_eq!(carried, declared, "{:?}", params.chain);
+        }
+    }
+
+    #[test]
     fn an_asset_from_another_network_is_named_rather_than_looked_up() {
         let table = TokenTable::for_params(&ETHEREUM).expect("the registry parses");
         assert_eq!(table.of_asset(AssetId::Native(ChainId::Ethereum)).expect("native"), None);
