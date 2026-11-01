@@ -1,7 +1,7 @@
 //! The BIP-39 checksum, normalization, and PBKDF2 seed expansion.
 
 use jelly_core::{
-    KeyError, PhraseWords,
+    KeyError, PhraseLength,
     test_util::{MARKER, MARKER_PHRASE, assert_rejected_without_leak},
 };
 use jelly_keypair::test_util::TEST_PHRASE;
@@ -67,12 +67,12 @@ fn phrase_whitespace_and_case_are_normalized() {
 
 #[test]
 fn a_generated_phrase_has_the_requested_length_and_reparses_to_its_entropy() {
-    for words in PhraseWords::ALL {
-        let (word_count, entropy_bytes) = match words {
-            PhraseWords::Twelve => (12, 16),
-            PhraseWords::TwentyFour => (24, 32),
+    for length in PhraseLength::ALL {
+        let (word_count, entropy_bytes) = match length {
+            PhraseLength::Twelve => (12, 16),
+            PhraseLength::TwentyFour => (24, 32),
         };
-        let mnemonic = Mnemonic::generate(words).expect("generate");
+        let mnemonic = Mnemonic::generate(length).expect("generate");
         assert_eq!(mnemonic.word_count(), word_count);
         assert_eq!(mnemonic.phrase().split(' ').count(), word_count);
         assert_eq!(mnemonic.with_entropy(<[u8]>::len), entropy_bytes);
@@ -85,8 +85,8 @@ fn a_generated_phrase_has_the_requested_length_and_reparses_to_its_entropy() {
 
 #[test]
 fn two_generated_phrases_differ() {
-    let first = Mnemonic::generate(PhraseWords::TwentyFour).expect("generate");
-    let second = Mnemonic::generate(PhraseWords::TwentyFour).expect("generate");
+    let first = Mnemonic::generate(PhraseLength::TwentyFour).expect("generate");
+    let second = Mnemonic::generate(PhraseLength::TwentyFour).expect("generate");
     assert_ne!(first.phrase().as_str(), second.phrase().as_str());
 }
 

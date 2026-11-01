@@ -7,7 +7,7 @@ use std::net::TcpListener;
 use std::path::Path;
 use std::sync::Arc;
 
-use jelly_core::{ChainId, ErrorCode, PhraseWords, ProxySetting, WalletColor};
+use jelly_core::{ChainId, ErrorCode, PhraseLength, ProxySetting, WalletColor};
 use jelly_engine::{PassphraseInput, StartupError};
 use jelly_lib::{AppState, IpcError, Services, ShellConfig, StartupStatus};
 
@@ -221,7 +221,7 @@ async fn shutting_down_takes_the_engine_and_checkpoints_the_database() {
             "first",
             WalletColor::default(),
             secret(PASSWORD),
-            PhraseWords::Twelve,
+            PhraseLength::Twelve,
             PassphraseInput::None,
         )
         .await

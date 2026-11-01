@@ -1,3 +1,14 @@
+use crate::wire_enum;
+
+wire_enum! {
+    #[cfg_attr(feature = "ipc", derive(specta::Type))]
+    /// How many words a generated BIP-39 phrase has.
+    pub enum PhraseLength {
+        Twelve => "twelve",
+        TwentyFour => "twenty_four",
+    }
+}
+
 /// The words of a pasted BIP-39, Monero, or TON phrase.
 ///
 /// Commas and semicolons separate words like whitespace, and a list number before a word,
@@ -13,16 +24,4 @@ pub fn phrase_words(phrase: &str) -> impl Iterator<Item = &str> {
             })
         })
         .filter(|word| !word.is_empty())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn list_numbers_and_separators_are_not_words() {
-        let words: Vec<&str> = phrase_words("1. abandon, 2)ability;3: able\n4-about").collect();
-        assert_eq!(words, ["abandon", "ability", "able", "about"]);
-        assert_eq!(phrase_words("   ").count(), 0);
-    }
 }

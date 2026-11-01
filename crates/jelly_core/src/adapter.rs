@@ -3,14 +3,15 @@ use std::future::pending;
 
 use async_trait::async_trait;
 
-use crate::address::Address;
+use crate::address::{Address, WatchedAddress};
 use crate::chain::ChainId;
 use crate::clock::Deadline;
 use crate::error::ChainError;
 use crate::event::{ChainSyncProgress, EventSink};
+use crate::fee::{FeeQuote, FeeSelection};
 use crate::secret::KeyMaterial;
-use crate::tx::{FeeQuote, FeeSelection, SignedTx, TxId, TxRequest, UnsignedTx};
-use crate::wallet::WatchedAddress;
+use crate::send::{SignedTx, TxRequest, UnsignedTx};
+use crate::txid::TxId;
 
 /// Contract implemented by each chain adapter.
 ///

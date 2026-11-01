@@ -4,13 +4,13 @@ use std::time::Duration;
 use jelly_core::{
     Amount, AssetId, ChainAdapter as _, ChainError, ChainId, Clock as _, ErrorCode, FeeLevel,
     FeeSelection, SendAmount, TokenId, TxWarningKind,
-    test_util::{FakeClock, FakeEventSink, NullCursorStore, TxRequestBuilder},
+    test_util::{FakeClock, FakeEventSink, TxRequestBuilder},
 };
 use jelly_monero::{MoneroConfig, test_util::account_balance};
 
 use crate::common::{
-    ChainBuilder, ENDPOINT, FakeNode, Harness, PRIMARY_ID, account, config, fixture_adapter,
-    owned_in, payment, recorded, recorded_block, recorded_height, row,
+    ChainBuilder, ENDPOINT, FakeNode, Harness, NullCursorStore, PRIMARY_ID, account, config,
+    fixture_adapter, owned_in, payment, recorded, recorded_block, recorded_height, row,
 };
 
 #[tokio::test]

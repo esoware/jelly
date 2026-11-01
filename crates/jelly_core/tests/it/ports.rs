@@ -226,6 +226,55 @@ mod cursors {
     }
 }
 
+mod builds {
+    use std::collections::BTreeMap;
+
+    use jelly_core::{
+        AdapterSet, BuildRequest, ChainOutcome, KeyService, SkipReason, test_util::build_request,
+    };
+
+    use super::{ChainId, SecretText};
+
+    #[test]
+    fn a_collected_set_keeps_each_chains_reason() {
+        let set: AdapterSet = [
+            (ChainId::Tron, ChainOutcome::Skipped(SkipReason::NoEndpoints)),
+            (ChainId::Bitcoin, ChainOutcome::Skipped(SkipReason::BuildFailed)),
+        ]
+        .into_iter()
+        .collect();
+        assert!(set.built().is_empty());
+        assert!(matches!(
+            set.outcome(ChainId::Bitcoin),
+            Some(ChainOutcome::Skipped(SkipReason::BuildFailed))
+        ));
+        assert!(matches!(
+            set.outcome(ChainId::Tron),
+            Some(ChainOutcome::Skipped(SkipReason::NoEndpoints))
+        ));
+        assert!(set.adapter(ChainId::Bitcoin).is_none());
+    }
+
+    #[test]
+    fn a_blank_api_key_is_no_key_and_a_key_is_trimmed() {
+        let request = BuildRequest {
+            api_keys: BTreeMap::from([
+                (KeyService::TronGrid, SecretText::new("   ".to_owned())),
+                (KeyService::Etherscan, SecretText::new("  abc  ".to_owned())),
+            ]),
+            ..build_request(&[ChainId::Ethereum])
+        };
+        request.with_api_key(KeyService::TronGrid, |key| assert_eq!(key, None));
+        request.with_api_key(KeyService::Etherscan, |key| assert_eq!(key, Some("abc")));
+    }
+
+    #[test]
+    fn a_chain_without_a_recorded_birthday_scans_from_height_zero() {
+        let request = build_request(&[ChainId::Ethereum]);
+        assert_eq!(request.restore_height(ChainId::Monero), 0);
+    }
+}
+
 mod pins {
     use super::SpkiPin;
 

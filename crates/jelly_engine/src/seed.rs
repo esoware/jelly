@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use hmac::{Hmac, KeyInit as _, Mac as _};
 use jelly_core::{
-    ChainId, ChainTable, CoreError, KeyMaterial, PassphrasePolicy, PhraseWords, SecretText,
+    ChainId, ChainTable, CoreError, KeyMaterial, PassphrasePolicy, PhraseLength, SecretText,
 };
 use jelly_keypair::{HdKeychain, PathTemplate, Seed};
 use jelly_mnemonic::Mnemonic;
@@ -23,7 +23,7 @@ const VERIFIER_LABEL: &[u8] = b"jelly-engine/v1/passphrase-verifier";
 
 /// Where a new seed wallet's phrase comes from.
 pub(crate) enum SeedSource {
-    Generate(PhraseWords),
+    Generate(PhraseLength),
     Phrase(SecretText),
 }
 

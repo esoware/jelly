@@ -13,9 +13,9 @@ use jelly_core::{
     AdapterBuilder, AdapterSet, Address, Amount, AssetId, BalanceUpdate, BuildRequest,
     ChainAdapter, ChainError, ChainId, ChainOutcome, ChainSyncProgress, CursorStore, Deadline,
     EventSink, FeeBump, FeeQuote, FeeRate, FeeSelection, KeyKind, KeyMaterial, PendingTracker,
-    PhraseWords, RawTx, Rejection, RejectionKind, RetryPolicy, ScriptProbe, SecretText, SendAmount,
-    SignedTx, SkipReason, Subaddresses, TxCancel, TxDirection, TxId, TxPayload, TxPreview,
-    TxRecord, TxRequest, UnsignedTx, WalletColor, WalletEvent, WatchedAddress,
+    PhraseLength, RawTx, Rejection, RejectionKind, RetryPolicy, ScriptProbe, SecretText,
+    SendAmount, SignedTx, SkipReason, Subaddresses, TxCancel, TxDirection, TxId, TxPayload,
+    TxPreview, TxRecord, TxRequest, UnsignedTx, WalletColor, WalletEvent, WatchedAddress,
 };
 use jelly_engine::{
     CreatedWallet, EngineConfig, EngineDeps, PassphraseInput, WalletEngine,
@@ -102,7 +102,7 @@ impl<K: MasterKeyStore> Harness<K> {
                 name,
                 WalletColor::default(),
                 secret(PASSWORD),
-                PhraseWords::Twelve,
+                PhraseLength::Twelve,
                 PassphraseInput::None,
             )
             .await?)

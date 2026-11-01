@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use jelly_core::{PhraseWords, WalletColor, test_util::FakeClock};
+use jelly_core::{PhraseLength, WalletColor, test_util::FakeClock};
 use jelly_vault::test_util::MemoryKeyStore;
 use secrecy::SecretString;
 use tempfile::TempDir;
@@ -32,7 +32,7 @@ pub(crate) async fn seed_wallet(engine: &WalletEngine, name: &str) -> WalletReco
             name,
             WalletColor::default(),
             password(),
-            PhraseWords::Twelve,
+            PhraseLength::Twelve,
             PassphraseInput::None,
         )
         .await

@@ -5,10 +5,11 @@ use crate::address::AddressError;
 use crate::amount::Amount;
 use crate::asset::AssetId;
 use crate::build::SkipReason;
-use crate::chain::{ChainId, ScriptKind};
+use crate::chain::ChainId;
 use crate::endpoint::EndpointAttempt;
 use crate::random::EntropyError;
-use crate::tx::PendingTxId;
+use crate::script::ScriptKind;
+use crate::txid::PendingTxId;
 use crate::wire_enum;
 
 pub type BoxedSource = Box<dyn StdError + Send + Sync>;

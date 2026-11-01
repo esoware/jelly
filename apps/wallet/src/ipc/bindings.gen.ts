@@ -6,7 +6,7 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	listWallets: () => typedError<WalletRecord[], IpcError>(__TAURI_INVOKE("list_wallets")),
-	createSeedWallet: (name: string, color: WalletColor, password: string, words: PhraseWords, passphrase: PassphraseInput) => typedError<CreatedWallet, IpcError>(__TAURI_INVOKE("create_seed_wallet", { name, color, password, words, passphrase })),
+	createSeedWallet: (name: string, color: WalletColor, password: string, words: PhraseLength, passphrase: PassphraseInput) => typedError<CreatedWallet, IpcError>(__TAURI_INVOKE("create_seed_wallet", { name, color, password, words, passphrase })),
 	importSeedWallet: (name: string, color: WalletColor, password: string, phrase: string, passphrase: PassphraseInput) => typedError<null, IpcError>(__TAURI_INVOKE("import_seed_wallet", { name, color, password, phrase, passphrase })),
 	/**  Locks any wallet already open first, since the engine holds one session. */
 	unlockWallet: (walletId: number, password: string, passphrase: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("unlock_wallet", { walletId, password, passphrase })),
@@ -671,7 +671,7 @@ export type PassphrasePolicy = "none" |
 export type PendingTxId = string;
 
 /**  How many words a generated BIP-39 phrase has. */
-export type PhraseWords = "twelve" | "twenty_four";
+export type PhraseLength = "twelve" | "twenty_four";
 
 export type Platform = "macos" | "windows" | "linux";
 

@@ -5,7 +5,7 @@ import { useState } from "react"
 import type {
   PassphraseInput,
   PassphrasePolicy,
-  PhraseWords,
+  PhraseLength,
   WalletColor,
 } from "@/ipc/bindings.gen.ts"
 import { describeFailure } from "@/lib/failure.ts"
@@ -41,7 +41,7 @@ interface WalletFormState {
   confirm: string
   passphrasePolicy: PassphrasePolicy
   passphrase: string
-  words: PhraseWords
+  words: PhraseLength
   phrase: string
 }
 
@@ -191,7 +191,7 @@ function PassphraseFields({ form, errors, onChange }: PassphraseFieldsProps) {
   )
 }
 
-const PHRASE_WORD_ITEMS: readonly { value: PhraseWords; label: string }[] = [
+const PHRASE_LENGTH_ITEMS: readonly { value: PhraseLength; label: string }[] = [
   { value: "twelve", label: "12 words" },
   { value: "twenty_four", label: "24 words" },
 ]
@@ -231,7 +231,7 @@ function WalletFields({ flow, form, errors, onChange }: WalletFieldsProps) {
         <Field label="Phrase length">
           <Segmented
             value={form.words}
-            items={PHRASE_WORD_ITEMS}
+            items={PHRASE_LENGTH_ITEMS}
             onValueChange={(words) => {
               onChange({ words })
             }}

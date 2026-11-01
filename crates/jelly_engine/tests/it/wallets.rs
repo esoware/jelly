@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use jelly_core::{ChainId, CoreError, PhraseWords, SecretText, WalletColor};
+use jelly_core::{ChainId, CoreError, PhraseLength, SecretText, WalletColor};
 use jelly_engine::{
     EngineDeps, LockReason, LockState, PassphraseInput, StartupError, WalletEngine, WalletRecord,
     test_util,
@@ -49,7 +49,7 @@ async fn wallet_colors_survive_every_creation_flow_an_edit_and_restart() {
             "seed",
             seed_color.clone(),
             secret(PASSWORD),
-            PhraseWords::Twelve,
+            PhraseLength::Twelve,
             PassphraseInput::None,
         )
         .await
@@ -108,7 +108,7 @@ async fn a_one_character_password_is_accepted() {
             "tiny",
             WalletColor::default(),
             secret("J"),
-            PhraseWords::Twelve,
+            PhraseLength::Twelve,
             PassphraseInput::None,
         )
         .await
@@ -186,7 +186,7 @@ async fn a_wallet_name_is_trimmed_and_never_blank() {
             "  ",
             WalletColor::default(),
             secret(PASSWORD),
-            PhraseWords::Twelve,
+            PhraseLength::Twelve,
             PassphraseInput::None,
         )
         .await;
@@ -269,7 +269,7 @@ async fn a_wallet_whose_vault_fails_leaves_nothing_behind() {
             "doomed",
             WalletColor::default(),
             secret(PASSWORD),
-            PhraseWords::Twelve,
+            PhraseLength::Twelve,
             PassphraseInput::None,
         )
         .await;
@@ -445,7 +445,7 @@ async fn new_wallets_and_password_rotations_require_nonempty_passwords() {
                 "empty",
                 WalletColor::default(),
                 secret(""),
-                PhraseWords::Twelve,
+                PhraseLength::Twelve,
                 PassphraseInput::None,
             )
             .await

@@ -1,4 +1,4 @@
-use jelly_core::{ChainId, CoreError, PassphrasePolicy, PhraseWords, SecretText, WalletColor};
+use jelly_core::{ChainId, CoreError, PassphrasePolicy, PhraseLength, SecretText, WalletColor};
 use jelly_engine::{PassphraseInput, WalletRecord};
 
 use crate::common::{Fallible, Harness, PASSWORD, harness, prompt, secret, stored};
@@ -39,7 +39,7 @@ async fn seed_with(harness: &Harness, passphrase: PassphraseInput) -> Fallible<W
             "passphrased",
             WalletColor::default(),
             secret(PASSWORD),
-            PhraseWords::Twelve,
+            PhraseLength::Twelve,
             passphrase,
         )
         .await?;

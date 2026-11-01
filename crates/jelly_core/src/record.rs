@@ -1,6 +1,6 @@
 use crate::amount::Amount;
 use crate::asset::AssetId;
-use crate::tx::TxId;
+use crate::txid::TxId;
 use crate::wire_enum;
 
 /// A height above the cached tip counts as one confirmation, because the node is ahead

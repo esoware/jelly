@@ -1,7 +1,7 @@
 use std::fmt;
 
 use bip39::Language;
-use jelly_core::{KeyError, PhraseWords, phrase_words, random_fill};
+use jelly_core::{KeyError, PhraseLength, phrase_words, random_fill};
 use jelly_keypair::Seed;
 use sha2::Sha512;
 use unicode_normalization::UnicodeNormalization as _;
@@ -20,10 +20,10 @@ const SEED_SALT_PREFIX: &str = "mnemonic";
 pub struct Mnemonic(bip39::Mnemonic);
 
 impl Mnemonic {
-    pub fn generate(words: PhraseWords) -> Result<Self, KeyError> {
-        let entropy_bytes = match words {
-            PhraseWords::Twelve => 16,
-            PhraseWords::TwentyFour => 32,
+    pub fn generate(length: PhraseLength) -> Result<Self, KeyError> {
+        let entropy_bytes = match length {
+            PhraseLength::Twelve => 16,
+            PhraseLength::TwentyFour => 32,
         };
         let mut entropy = Zeroizing::new(vec![0u8; entropy_bytes]);
         random_fill(&mut entropy)?;

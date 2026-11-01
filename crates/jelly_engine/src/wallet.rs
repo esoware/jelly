@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use jelly_core::{
-    ChainId, CoreError, KeySource, PassphrasePolicy, PhraseWords, SecretText, WalletColor,
+    ChainId, CoreError, KeySource, PassphrasePolicy, PhraseLength, SecretText, WalletColor,
 };
 use jelly_store::{NewWallet, WalletRow};
 use jelly_vault::{BlobKind, Vault, VaultPassword};
@@ -112,7 +112,7 @@ impl WalletEngine {
         name: &str,
         color: WalletColor,
         password: SecretString,
-        words: PhraseWords,
+        words: PhraseLength,
         passphrase: PassphraseInput,
     ) -> Result<CreatedWallet, CoreError> {
         self.create_seed(name, color, password, SeedSource::Generate(words), passphrase).await
@@ -513,7 +513,7 @@ mod tests {
                         "doomed",
                         WalletColor::default(),
                         password(),
-                        PhraseWords::Twelve,
+                        PhraseLength::Twelve,
                         PassphraseInput::None,
                     )
                     .await

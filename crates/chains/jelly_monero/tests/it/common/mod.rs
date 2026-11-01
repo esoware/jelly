@@ -16,8 +16,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use jelly_core::{
-    Amount, AssetId, ChainAdapter as _, ChainId, ChainSyncProgress, Clock, CursorStore,
-    EndpointLabel, FailureKind, FeeSelection, KeyKind, KeyMaterial, Rejection, SignedTx, TxDetail,
+    Amount, AssetId, ChainAdapter as _, ChainId, ChainSyncProgress, Clock, CoreError, CursorBytes,
+    CursorScope, CursorStore, EndpointLabel, FailureKind, FeeSelection, HeldReservation, KeyKind,
+    KeyMaterial, Rejection, ReservationSlot, ScanAdvance, ScanStream, SignedTx, TxDetail,
     TxRequest, UnsignedTx, WalletEvent, WatchedAddress,
     test_util::{
         FakeClock, FakeEventSink, MemoryCursorStore, TxRequestBuilder, WatchedAddressBuilder,
@@ -814,6 +815,47 @@ pub(crate) async fn fixture_adapter(
         .await?;
     adapter.set_watch_set(&[watched(PRIMARY_ID, 0, 0, &account.address(0, 0)?)]).await?;
     Ok(adapter)
+}
+
+/// A cursor store that forgets every write.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct NullCursorStore;
+
+#[async_trait]
+impl CursorStore for NullCursorStore {
+    async fn load_scans(
+        &self,
+        _scopes: &[CursorScope],
+        _streams: &[ScanStream],
+    ) -> Result<Vec<ScanAdvance>, CoreError> {
+        Ok(Vec::new())
+    }
+
+    async fn load_reservations(
+        &self,
+        _scopes: &[CursorScope],
+        _slots: &[ReservationSlot],
+    ) -> Result<Vec<HeldReservation>, CoreError> {
+        Ok(Vec::new())
+    }
+
+    async fn advance(
+        &self,
+        _scope: CursorScope,
+        _stream: ScanStream,
+        _cursor: CursorBytes,
+    ) -> Result<(), CoreError> {
+        Ok(())
+    }
+
+    async fn reserve(
+        &self,
+        _scope: CursorScope,
+        _slot: ReservationSlot,
+        _payload: CursorBytes,
+    ) -> Result<(), CoreError> {
+        Ok(())
+    }
 }
 
 pub(crate) fn progress_event_count(events: &[WalletEvent]) -> usize {

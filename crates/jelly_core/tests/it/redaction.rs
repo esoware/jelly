@@ -1,12 +1,13 @@
+use std::collections::BTreeMap;
+
 use jelly_core::{
-    ChainError, ChainId, CursorBytes, CursorScope, EndpointAttempt, EndpointHealth,
+    BuildRequest, ChainError, ChainId, CursorBytes, CursorScope, EndpointAttempt, EndpointHealth,
     EndpointHealthRecord, EndpointLabel, EndpointOverride, FailureKind, HeldReservation,
-    ImportedKey, KeyKind, KeyMaterial, ProxySetting, ReservationSlot, ScanAdvance, ScanStream,
-    ScriptKind, SecretText,
+    ImportedKey, KeyKind, KeyMaterial, KeyService, ProxySetting, ReservationSlot, ScanAdvance,
+    ScanStream, ScriptKind, SecretText,
+    test_util::{MARKER, build_request},
 };
 use zeroize::{Zeroize as _, Zeroizing};
-
-const MARKER: &str = "correcthorsebatterystaple";
 
 fn leaks(rendering: &str) -> bool {
     rendering.contains(MARKER)
@@ -42,6 +43,19 @@ fn secret_text_never_prints_its_value() {
     assert!(!leaks(&debug), "{debug}");
     assert_eq!(debug, "SecretText(<redacted>)");
     secret.with_str(|text| assert_eq!(text, MARKER));
+}
+
+#[test]
+fn a_build_request_prints_which_services_have_a_key_but_never_the_key() {
+    let request = BuildRequest {
+        api_keys: BTreeMap::from([(KeyService::Etherscan, SecretText::new(MARKER.to_owned()))]),
+        ..build_request(&[ChainId::Ethereum])
+    };
+    let rendered = format!("{request:?}");
+    assert!(!leaks(&rendered), "{rendered}");
+    assert!(rendered.contains("api_keys_for: [Etherscan]"), "{rendered}");
+    request.with_api_key(KeyService::Etherscan, |key| assert_eq!(key, Some(MARKER)));
+    request.with_api_key(KeyService::TronGrid, |key| assert_eq!(key, None));
 }
 
 #[test]
@@ -82,7 +96,7 @@ fn a_cursor_payload_never_prints_itself() {
 fn an_endpoint_label_drops_userinfo_path_and_query() {
     let label = EndpointLabel::new(
         "HTTPS",
-        "user:correcthorsebatterystaple@Node.Example.COM/rpc?api_key=SECRET",
+        &format!("user:{MARKER}@Node.Example.COM/rpc?api_key=SECRET"),
         Some(443),
     );
     assert_eq!(label.host(), "node.example.com");
@@ -108,8 +122,7 @@ fn an_endpoint_label_survives_input_with_no_userinfo_or_path() {
 
 #[test]
 fn an_at_sign_in_the_query_is_not_read_as_userinfo() {
-    let label =
-        EndpointLabel::new("https", "node.example.com/v1?key=abc@correcthorsebatterystaple", None);
+    let label = EndpointLabel::new("https", &format!("node.example.com/v1?key=abc@{MARKER}"), None);
     assert_eq!(label.host(), "node.example.com");
     let rendered = format!("{label} {label:?}");
     assert!(!leaks(&rendered), "{rendered}");
@@ -166,7 +179,7 @@ fn an_endpoint_health_record_prints_its_url_only_as_its_label() {
 #[test]
 fn an_endpoints_down_error_names_hosts_and_no_urls() {
     let attempt = EndpointAttempt::new(
-        EndpointLabel::new("https", "node.example.com/v1?key=correcthorsebatterystaple", None),
+        EndpointLabel::new("https", &format!("node.example.com/v1?key={MARKER}"), None),
         FailureKind::Timeout,
         "no answer in 15s",
     );

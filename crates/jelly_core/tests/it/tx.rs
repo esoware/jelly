@@ -106,6 +106,29 @@ mod opaque_bytes {
     }
 }
 
+mod sources {
+    use jelly_core::test_util::TxRequestBuilder;
+
+    use super::{Amount, AssetId, ChainId};
+
+    #[test]
+    fn only_a_request_from_exactly_one_address_has_a_sole_source() {
+        let from = |sources: &[i64]| {
+            TxRequestBuilder::new(
+                7,
+                "bc1qrecipient",
+                AssetId::Native(ChainId::Bitcoin),
+                Amount::ZERO,
+            )
+            .sources(sources)
+            .build()
+        };
+        assert_eq!(from(&[7]).sole_source(), Some(7));
+        assert_eq!(from(&[7, 3]).sole_source(), None);
+        assert_eq!(from(&[]).sole_source(), None);
+    }
+}
+
 mod one_chain_per_transaction {
     use super::{
         Amount, AssetId, ChainId, RawTx, SignedTx, TxId, TxPayload, TxPreview, UnsignedTx,

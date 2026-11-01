@@ -6,10 +6,7 @@ use std::time::Duration;
 use jelly_core::{
     Amount, ChainAdapter as _, ChainError, ChainId, ChainSyncProgress, Clock as _, CursorBytes,
     CursorScope, CursorStore as _, ErrorCode, ScanStream, TxDirection, TxOutcome,
-    test_util::{
-        ControlledCursorStore, FakeClock, FakeEventSink, MemoryCursorStore, NullCursorStore,
-        records,
-    },
+    test_util::{ControlledCursorStore, FakeClock, FakeEventSink, MemoryCursorStore, records},
 };
 use jelly_monero::{
     MoneroAdapter, MoneroConfig,
@@ -20,8 +17,8 @@ use tokio::task::yield_now;
 use tokio::time::{sleep, timeout};
 
 use crate::common::{
-    CHAIN_BLOCKS, ChainBuilder, FakeNode, Harness, HookedNode, PRIMARY_ID, account,
-    balance_event_count, balances_announced, base_chain, config, fixture_adapter,
+    CHAIN_BLOCKS, ChainBuilder, FakeNode, Harness, HookedNode, NullCursorStore, PRIMARY_ID,
+    account, balance_event_count, balances_announced, base_chain, config, fixture_adapter,
     progress_event_count, recorded, recorded_block, recorded_height, watched,
 };
 

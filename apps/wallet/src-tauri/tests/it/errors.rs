@@ -6,8 +6,8 @@ use std::sync::Arc;
 use jelly_core::{
     Amount, AssetId, ChainError, ChainId, CoreError, DerivationPath, EndpointAttempt,
     EndpointHealth, EndpointHealthRecord, EndpointLabel, ErrorCode, FailureKind, FeeSelection,
-    PendingTxId, PhraseWords, Rejection, RejectionKind, RetryPolicy, SkipReason, SystemClock, TxId,
-    WalletColor,
+    PendingTxId, PhraseLength, Rejection, RejectionKind, RetryPolicy, SkipReason, SystemClock,
+    TxId, WalletColor,
 };
 use jelly_engine::{
     EngineDeps, PassphraseInput, StartupError, TxQuery, WalletEngine, test_util::NullAdapterBuilder,
@@ -71,7 +71,7 @@ async fn every_error_code_has_a_producer() {
             "first",
             WalletColor::default(),
             secret(PASSWORD),
-            PhraseWords::Twelve,
+            PhraseLength::Twelve,
             PassphraseInput::None,
         )
         .await

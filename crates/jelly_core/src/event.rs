@@ -5,7 +5,8 @@ use async_trait::async_trait;
 use crate::amount::Amount;
 use crate::asset::AssetId;
 use crate::chain::ChainId;
-use crate::tx::{TxId, TxRecord};
+use crate::record::TxRecord;
+use crate::txid::TxId;
 
 /// Sync progress as an integer in `0..=1000`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
