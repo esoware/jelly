@@ -16,13 +16,20 @@ use crate::sign;
 
 const MISMATCH: ZcashError =
     ZcashError::Internal("a stored Zcash send does not match its transaction");
+const NOT_SIGNED: ZcashError = ZcashError::Internal("a Zcash send is not signed");
 const SENDS_VERSION: u8 = 1;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct SavedSigned {
-    raw_hex: String,
+/// A signed payment's txid and its raw transaction, in hex.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SignedHex {
     pub(crate) txid: String,
+    pub(crate) raw_hex: String,
+}
+
+impl From<&SignedTx> for SignedHex {
+    fn from(tx: &SignedTx) -> Self {
+        Self { txid: tx.txid.value().to_owned(), raw_hex: hex::encode(tx.raw.as_bytes()) }
+    }
 }
 
 /// One send an address holds, from its build until it settles.
@@ -39,13 +46,13 @@ pub(crate) struct Pending {
 #[derive(Debug, Clone)]
 enum Stage {
     Built,
-    Signed(SavedSigned),
-    Sent(SavedSigned),
+    Signed(SignedHex),
+    Sent(SignedHex),
 }
 
 impl Pending {
     /// The signed transaction, once there is one.
-    pub(crate) const fn signed(&self) -> Option<&SavedSigned> {
+    pub(crate) const fn signed(&self) -> Option<&SignedHex> {
         match &self.stage {
             Stage::Built => None,
             Stage::Signed(signed) | Stage::Sent(signed) => Some(signed),
@@ -56,31 +63,25 @@ impl Pending {
         matches!(self.stage, Stage::Sent(_))
     }
 
-    /// A copy marked as broadcast. Fails unless the send is signed.
-    fn sent(&self) -> Result<Self, ZcashError> {
-        let signed = self.signed().ok_or(ZcashError::Internal("a Zcash send is not signed"))?;
-        Ok(Self { payment: self.payment.clone(), stage: Stage::Sent(signed.clone()) })
+    /// This send as the reservation stores it once it is sent, if it is signed.
+    fn stored(&self) -> Option<StoredSend> {
+        let signed = self.signed()?;
+        Some(StoredSend {
+            payment: self.payment.clone(),
+            txid: signed.txid.clone(),
+            raw_hex: signed.raw_hex.clone(),
+        })
     }
 }
 
-/// A [`Pending`] as the `zcash.sends` reservation stores it, so its field names are a
-/// stored format. A stored entry is always sent, with `signed` set.
+/// A sent [`Pending`] as the `zcash.sends` reservation stores it, so its field names are
+/// a stored format.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StoredSend {
     payment: Payment,
-    signed: Option<SavedSigned>,
-    is_sent: bool,
-}
-
-impl From<&Pending> for StoredSend {
-    fn from(pending: &Pending) -> Self {
-        Self {
-            payment: pending.payment.clone(),
-            signed: pending.signed().cloned(),
-            is_sent: pending.is_sent(),
-        }
-    }
+    txid: String,
+    raw_hex: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -142,9 +143,9 @@ impl States {
                 continue;
             }
             let held = pending.entry(address_id).or_default();
-            for entry in stored {
-                if !held.iter().any(|other| other.payment == entry.payment) {
-                    held.push(entry);
+            for send in stored {
+                if !held.iter().any(|other| other.payment == send.payment) {
+                    held.push(send);
                 }
             }
         }
@@ -176,8 +177,8 @@ impl States {
 
     /// Whether a payment held for any address spends the coin at `txid` and `index`.
     pub(crate) fn is_reserved(&self, txid: &str, index: u32) -> bool {
-        self.pending.read().values().flatten().any(|entry| {
-            entry.payment.inputs.iter().any(|held| held.txid == txid && held.index == index)
+        self.pending.read().values().flatten().any(|send| {
+            send.payment.inputs.iter().any(|coin| coin.txid == txid && coin.index == index)
         })
     }
 
@@ -198,31 +199,24 @@ impl States {
         payment: &Payment,
         signed: &SignedTx,
     ) -> Result<(), ZcashError> {
-        let saved = SavedSigned {
-            raw_hex: hex::encode(signed.raw.as_bytes()),
-            txid: signed.txid.value().to_owned(),
-        };
-        self.update(payment, |entry| {
-            if entry.is_sent() {
+        let signed = SignedHex::from(signed);
+        self.update(payment, |send| {
+            if send.is_sent() {
                 return Err(ZcashError::Invalid("This Zcash payment has already been submitted."));
             }
-            entry.stage = Stage::Signed(saved.clone());
+            send.stage = Stage::Signed(signed.clone());
             Ok(())
         })
     }
 
-    /// The held payment signed as `raw_hex` with `txid`.
-    pub(crate) fn signed_payment(&self, raw_hex: &str, txid: &str) -> Result<Payment, ZcashError> {
+    /// The held payment that `signed` signs.
+    pub(crate) fn signed_payment(&self, signed: &SignedHex) -> Result<Payment, ZcashError> {
         self.pending
             .read()
             .values()
             .flatten()
-            .find(|entry| {
-                entry
-                    .signed()
-                    .is_some_and(|signed| signed.raw_hex == raw_hex && signed.txid == txid)
-            })
-            .map(|entry| entry.payment.clone())
+            .find(|send| send.signed() == Some(signed))
+            .map(|send| send.payment.clone())
             .ok_or(ZcashError::Invalid("Build the Zcash payment again before sending."))
     }
 
@@ -231,16 +225,17 @@ impl States {
     pub(crate) async fn mark_sent(&self, payment: &Payment) -> Result<(), ZcashError> {
         self.ensure_readable()?;
         for source in &payment.sources {
-            let entries = self
+            let sends = self
                 .held(source.address_id)
                 .iter()
-                .filter(|entry| entry.is_sent() || entry.payment == *payment)
-                .map(Pending::sent)
+                .filter(|send| send.is_sent() || send.payment == *payment)
+                .map(|send| send.stored().ok_or(NOT_SIGNED))
                 .collect::<Result<Vec<_>, _>>()?;
-            self.persist(source.address_id, entries).await?;
+            self.persist(source.address_id, sends).await?;
         }
-        self.update(payment, |entry| {
-            *entry = entry.sent()?;
+        self.update(payment, |send| {
+            let signed = send.signed().cloned().ok_or(NOT_SIGNED)?;
+            send.stage = Stage::Sent(signed);
             Ok(())
         })
         .map_err(|_| ZcashError::Internal("a Zcash send is no longer pending"))
@@ -249,8 +244,8 @@ impl States {
     pub(crate) fn release_unsent(&self, payment: &Payment) {
         let mut pending = self.pending.write();
         for source in &payment.sources {
-            if let Some(entries) = pending.get_mut(&source.address_id) {
-                entries.retain(|entry| entry.is_sent() || entry.payment != *payment);
+            if let Some(sends) = pending.get_mut(&source.address_id) {
+                sends.retain(|send| send.is_sent() || send.payment != *payment);
             }
         }
     }
@@ -265,14 +260,14 @@ impl States {
             sends.retain(|send| !finished.contains(&send.payment));
         }
         self.ensure_readable()?;
-        let sent: Vec<Pending> = self
+        let sent: Vec<StoredSend> = self
             .pending
             .read()
             .get(&address_id)
             .into_iter()
             .flatten()
-            .filter(|entry| entry.is_sent())
-            .cloned()
+            .filter(|send| send.is_sent())
+            .filter_map(Pending::stored)
             .collect();
         self.persist(address_id, sent).await
     }
@@ -287,13 +282,13 @@ impl States {
         let mut pending = self.pending.write();
         let mut is_held = false;
         for source in &payment.sources {
-            for entry in pending
+            for send in pending
                 .get_mut(&source.address_id)
                 .into_iter()
                 .flatten()
-                .filter(|entry| entry.payment == *payment)
+                .filter(|send| send.payment == *payment)
             {
-                change(entry)?;
+                change(send)?;
                 is_held = true;
             }
         }
@@ -304,8 +299,7 @@ impl States {
         }
     }
 
-    async fn persist(&self, address_id: i64, pending: Vec<Pending>) -> Result<(), ZcashError> {
-        let pending = pending.iter().map(StoredSend::from).collect();
+    async fn persist(&self, address_id: i64, pending: Vec<StoredSend>) -> Result<(), ZcashError> {
         let bytes = serde_json::to_vec(&Sends { version: SENDS_VERSION, pending })
             .map_err(|_| ZcashError::Internal("a Zcash send did not serialize"))?;
         self.cursors
@@ -326,8 +320,8 @@ fn scopes(address_ids: &[i64]) -> Vec<CursorScope> {
 /// The sends stored in `rows`, refused unless every cursor in `scans` and every send
 /// decodes.
 ///
-/// Each send must have been broadcast, name the row's address among its sources, and
-/// carry a signed transaction of its payment that hashes to its txid.
+/// Each send must name the row's address among its sources and carry a signed
+/// transaction of its payment that hashes to its txid.
 fn restore(
     scans: &[ScanAdvance],
     rows: &[HeldReservation],
@@ -349,20 +343,16 @@ fn restore(
             return Err(ZcashError::Internal("stored zcash sends have an unsupported format"));
         }
         let mut sends = Vec::with_capacity(wire.pending.len());
-        for entry in wire.pending {
-            if !entry.is_sent {
-                return Err(ZcashError::Internal("a stored Zcash send was never broadcast"));
-            }
-            if !entry.payment.sources.iter().any(|source| source.address_id == address_id) {
+        for StoredSend { payment, txid, raw_hex } in wire.pending {
+            if !payment.sources.iter().any(|source| source.address_id == address_id) {
                 return Err(ZcashError::Internal("a stored Zcash send belongs to another address"));
             }
-            let signed = entry.signed.ok_or(MISMATCH)?;
-            let raw = hex::decode(&signed.raw_hex).map_err(|_| MISMATCH)?;
-            let tx = sign::validate_signed(&entry.payment, &raw).map_err(|_| MISMATCH)?;
-            if tx.txid().to_string() != signed.txid {
+            let raw = hex::decode(&raw_hex).map_err(|_| MISMATCH)?;
+            let tx = sign::validate_signed(&payment, &raw).map_err(|_| MISMATCH)?;
+            if tx.txid().to_string() != txid {
                 return Err(MISMATCH);
             }
-            sends.push(Pending { payment: entry.payment, stage: Stage::Sent(signed) });
+            sends.push(Pending { payment, stage: Stage::Sent(SignedHex { txid, raw_hex }) });
         }
         restored.insert(address_id, sends);
     }

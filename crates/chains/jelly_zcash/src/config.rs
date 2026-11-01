@@ -1,6 +1,9 @@
 use jelly_core::ChainId;
 use serde_json::Value;
+use zcash_primitives::transaction::builder::DEFAULT_TX_EXPIRY_DELTA;
 use zcash_protocol::consensus::{BlockHeight, BranchId, MAIN_NETWORK};
+
+use crate::error::ZcashError;
 
 pub(crate) const CHAIN: ChainId = ChainId::Zcash;
 // At about 150 bytes for each P2PKH input, this keeps a payment under zcashd's 100,000 byte
@@ -17,4 +20,13 @@ pub(crate) fn is_mainnet_status(status: &Value) -> bool {
 
 pub(crate) fn branch_at(height: u32) -> BranchId {
     BranchId::for_height(&MAIN_NETWORK, BlockHeight::from_u32(height))
+}
+
+/// The expiry height of a transaction built for the block at `target_height`.
+pub(crate) fn expiry_at(target_height: u32) -> Result<u32, ZcashError> {
+    let end = branch_at(target_height).height_bounds(&MAIN_NETWORK).and_then(|(_, end)| end);
+    let expiry = target_height.checked_add(DEFAULT_TX_EXPIRY_DELTA).ok_or(ZcashError::Protocol)?;
+    // A transaction is only valid in the branch it was signed for, so expiry stops at the
+    // last block before the next network upgrade, as zcashd does.
+    Ok(end.map_or(expiry, |end| expiry.min(u32::from(end).saturating_sub(1))))
 }

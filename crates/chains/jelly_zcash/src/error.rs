@@ -14,7 +14,11 @@ pub enum ZcashError {
     Protocol,
     #[error("insufficient spendable Zcash")]
     Funds { needed_zat: u64, available_zat: u64 },
-    #[error("the Zcash amount is below the minimum output amount")]
+    #[error(
+        "The amount of {} is below the minimum output amount of {}.",
+        zec(*amount_zat),
+        zec(DUST_ZAT)
+    )]
     Dust { amount_zat: u64 },
     #[error(
         "The fee of {} is below the ZIP 317 fee of {} for this payment.",
@@ -42,6 +46,7 @@ impl From<ZcashError> for ChainError {
         match error {
             ZcashError::Net(source) => source.into(),
             error @ (ZcashError::Invalid(_)
+            | ZcashError::Dust { .. }
             | ZcashError::FeeBelowMinimum { .. }
             | ZcashError::FeeAboveMaximum { .. }) => Self::invalid_input(error),
             error @ ZcashError::Protocol => Self::rpc(error),
@@ -50,14 +55,6 @@ impl From<ZcashError> for ChainError {
                 needed: Amount::from(needed_zat),
                 available: Amount::from(available_zat),
             },
-            error @ ZcashError::Dust { amount_zat } => Self::InvalidInput(
-                format!(
-                    "The amount of {} is below the minimum output amount of {}.",
-                    zec(amount_zat),
-                    zec(DUST_ZAT)
-                ),
-                Box::new(error),
-            ),
             ZcashError::Key(source) => Self::internal("Zcash key operation failed", source),
             ZcashError::Storage(source) => Self::internal("Zcash state storage failed", source),
             ZcashError::Clock(source) => Self::internal("Zcash clock", source),

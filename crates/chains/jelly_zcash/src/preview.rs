@@ -1,8 +1,6 @@
 use jelly_core::{Amount, AssetId, TxDetail, TxPreview, TxWarning, TxWarningKind};
+use zcash_transparent::{address::Script, bundle::TxOut};
 
-use zcash_transparent::address::Script;
-
-use crate::address::script;
 use crate::config::CHAIN;
 use crate::fee::conventional_fee;
 use crate::payload::Payment;
@@ -48,12 +46,7 @@ pub(crate) fn of(payment: &Payment) -> TxPreview {
 /// The ZIP 317 fee of the outputs the payment actually has, which is what a custom fee
 /// is measured against.
 fn conventional_zat(payment: &Payment) -> Option<u64> {
-    let recipient = script(&payment.to).ok()?;
-    let change = if payment.change_zat > 0 {
-        Some(script(payment.change_address().ok()?).ok()?)
-    } else {
-        None
-    };
-    let outputs: Vec<&Script> = [Some(&recipient), change.as_ref()].into_iter().flatten().collect();
-    conventional_fee(payment.target_height, &payment.inputs, &outputs).ok()
+    let outputs = payment.outputs().ok()?;
+    let scripts: Vec<&Script> = outputs.iter().map(TxOut::script_pubkey).collect();
+    conventional_fee(payment.target_height, &payment.inputs, &scripts).ok()
 }

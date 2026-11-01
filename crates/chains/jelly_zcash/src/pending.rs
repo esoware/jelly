@@ -27,12 +27,12 @@ pub(crate) async fn follow(
             .first()
             .is_some_and(|source| source.address_id == entry.address_id);
         if let Some(signed) = send.signed() {
-            let is_confirmed =
-                records.get(&signed.txid).is_some_and(|record| record.height.is_some());
-            let is_expired = cursor.is_complete
-                && tip_height > send.payment.expiry_height
-                && !records.contains_key(&signed.txid);
-            if is_expired && send.is_sent() && is_reporter {
+            let listed = records.get(&signed.txid);
+            let is_confirmed = listed.is_some_and(|record| record.height.is_some());
+            let is_expired =
+                cursor.is_complete && tip_height > send.payment.expiry_height && listed.is_none();
+            let should_report = send.is_sent() && is_reporter;
+            if is_expired && should_report {
                 let mut failed = Record::from_payment(&send.payment, &signed.txid).tx_record(
                     entry.address_id,
                     tip_height,
@@ -50,7 +50,7 @@ pub(crate) async fn follow(
             }
             if is_confirmed || is_expired {
                 finished.push(send.payment);
-            } else if send.is_sent() && is_reporter && !records.contains_key(&signed.txid) {
+            } else if should_report && listed.is_none() {
                 let unresolved = Record::from_payment(&send.payment, &signed.txid);
                 events
                     .emit(WalletEvent::TxDetected(unresolved.tx_record(

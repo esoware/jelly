@@ -179,7 +179,7 @@ async fn an_expired_send_reports_no_amount_or_fee() {
 }
 
 #[tokio::test]
-async fn broadcast_txid_mismatches_remain_reserved() {
+async fn a_broadcast_answered_with_another_txid_stays_reserved_after_restart() {
     let node = Node::new().unwrap();
     node.state.lock().has_wrong_txid = true;
     let adapter = node.adapter().await.unwrap();
@@ -189,6 +189,25 @@ async fn broadcast_txid_mismatches_remain_reserved() {
     assert!(matches!(error, ChainError::Rpc(_)), "{error:?}");
     let adapter = node.adapter().await.unwrap();
     assert_held(&adapter.quote_fee(&request()).await.unwrap_err());
+}
+
+#[tokio::test]
+async fn a_stored_send_whose_txid_was_changed_is_refused_on_restart() {
+    let node = Node::new().unwrap();
+    let adapter = node.adapter().await.unwrap();
+    let unsigned = adapter.build_tx(&request()).await.unwrap();
+    let signed = adapter.sign_tx(&unsigned, &[key().unwrap()]).unwrap();
+    adapter.broadcast(&signed).await.unwrap();
+    node.adapter().await.unwrap();
+    let scope = CursorScope::Address(1);
+    let saved =
+        node.cursors.load_reservation(scope, ReservationSlot::ZcashSends).await.unwrap().unwrap();
+    let mut sends: serde_json::Value =
+        saved.with_bytes(|bytes| serde_json::from_slice(bytes)).unwrap();
+    sends["pending"][0]["txid"] = "00".repeat(32).into();
+    let tampered = CursorBytes::new(serde_json::to_vec(&sends).unwrap());
+    node.cursors.reserve(scope, ReservationSlot::ZcashSends, tampered).await.unwrap();
+    node.adapter().await.unwrap_err();
 }
 
 #[tokio::test]

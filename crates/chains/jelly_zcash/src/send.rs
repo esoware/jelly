@@ -4,7 +4,7 @@ use zcash_protocol::value::MAX_MONEY;
 
 use crate::address::script;
 use crate::client::ZcashClient;
-use crate::config::{CHAIN, DUST_ZAT, MAX_INPUTS};
+use crate::config::{CHAIN, DUST_ZAT, MAX_INPUTS, expiry_at};
 use crate::entry::ENTRY;
 use crate::error::ZcashError;
 use crate::fee::{conventional_fee, paid_fee};
@@ -85,13 +85,14 @@ pub(crate) async fn resolve(
         coins.extend(client.coins(&source.address).await?);
     }
     coins.retain(|coin| !states.is_reserved(&coin.txid, coin.index));
+    let selection =
+        select(&coins, request.amount, target_height, &to, &change.address, chosen_zat)?;
     let normal_fee_zat = match chosen_zat {
-        None => None,
-        Some(_) => select(coins.clone(), request.amount, target_height, &to, &change.address, None)
+        None => Some(selection.fee_zat),
+        Some(_) => select(&coins, request.amount, target_height, &to, &change.address, None)
             .ok()
             .map(|normal| normal.fee_zat),
     };
-    let selection = select(coins, request.amount, target_height, &to, &change.address, chosen_zat)?;
     let moved: Vec<Source> = sources
         .into_iter()
         .enumerate()
@@ -105,7 +106,7 @@ pub(crate) async fn resolve(
         sources: moved,
         to,
         target_height,
-        expiry_height: Payment::expiry_height(target_height)?,
+        expiry_height: expiry_at(target_height)?,
         inputs: selection.inputs,
         amount_zat: selection.amount_zat,
         change_zat: selection.change_zat,
@@ -113,10 +114,6 @@ pub(crate) async fn resolve(
         dropped_change_zat: selection.dropped_change_zat,
     };
     payment.validate()?;
-    let normal_fee_zat = match chosen_zat {
-        None => Some(payment.fee_zat),
-        Some(_) => normal_fee_zat,
-    };
     Ok(Resolved { payment, normal_fee_zat })
 }
 
@@ -135,17 +132,18 @@ fn sources(watched: &[Watched], address_ids: &[i64]) -> Result<Vec<Source>, Zcas
     Ok(sources)
 }
 
-/// Picks coins largest first, with change to `change_address`, at the ZIP 317 fee or the
-/// custom fee `chosen_zat`.
+/// Picks from `coins` largest first, with change to `change_address`, at the ZIP 317 fee
+/// or the custom fee `chosen_zat`.
 fn select(
-    mut coins: Vec<Utxo>,
+    coins: &[Utxo],
     amount: SendAmount,
     target_height: u32,
     to: &str,
     change_address: &str,
     chosen_zat: Option<u64>,
 ) -> Result<Selection, ZcashError> {
-    coins.sort_by(|left, right| {
+    let mut largest_first = coins.to_vec();
+    largest_first.sort_by(|left, right| {
         right
             .value_zat
             .cmp(&left.value_zat)
@@ -171,7 +169,7 @@ fn select(
     let with_change = [&recipient, &change];
     let mut inputs = Vec::new();
     let mut total_zat = 0;
-    for coin in coins {
+    for coin in largest_first {
         // Past the grace actions each input adds the marginal fee, so a coin worth no more
         // than that adds nothing to the payment.
         if inputs.len() >= GRACE_ACTIONS && coin.value_zat <= u64::from(MARGINAL_FEE) {

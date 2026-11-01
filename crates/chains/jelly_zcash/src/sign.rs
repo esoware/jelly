@@ -12,7 +12,7 @@ use zcash_protocol::{
 use zcash_script::{pv, script::Component};
 use zcash_transparent::{
     address::Script,
-    bundle::{self, Bundle, TxIn, TxOut},
+    bundle::{self, Bundle, TxIn},
     sighash::{self, SighashType, TransparentAuthorizingContext},
 };
 
@@ -21,11 +21,11 @@ use crate::config::CHAIN;
 use crate::error::ZcashError;
 use crate::payload::Payment;
 use crate::preview;
+use crate::zat::zatoshis;
 
 // Zcash's maximum block size, which also bounds a transaction.
 const MAX_TX_BYTES: usize = 2_000_000;
 const FOREIGN_KEY: &str = "The signing key does not own these Zcash inputs.";
-const OUT_OF_RANGE: &str = "a validated Zcash amount is out of range";
 
 #[derive(Debug)]
 struct InputContext {
@@ -88,7 +88,7 @@ pub(crate) fn validate_signed(payment: &Payment, raw: &[u8]) -> Result<Transacti
         return Err(ZcashError::Protocol);
     }
     let bundle = tx.transparent_bundle().ok_or(ZcashError::Protocol)?;
-    if bundle.vin.len() != payment.inputs.len() || bundle.vout != outputs(payment)? {
+    if bundle.vin.len() != payment.inputs.len() || bundle.vout != payment.outputs()? {
         return Err(ZcashError::Protocol);
     }
     for (input, coin) in bundle.vin.iter().zip(&payment.inputs) {
@@ -128,22 +128,6 @@ fn signers(payment: &Payment, keys: &[KeyMaterial]) -> Result<Vec<Signer>, Zcash
     Ok(signers)
 }
 
-/// The payment, then the change when there is any.
-fn outputs(payment: &Payment) -> Result<Vec<TxOut>, ZcashError> {
-    let mut outputs = vec![TxOut::new(
-        Zatoshis::from_u64(payment.amount_zat).map_err(|_| ZcashError::Internal(OUT_OF_RANGE))?,
-        script(&payment.to)?,
-    )];
-    if payment.change_zat > 0 {
-        outputs.push(TxOut::new(
-            Zatoshis::from_u64(payment.change_zat)
-                .map_err(|_| ZcashError::Internal(OUT_OF_RANGE))?,
-            script(payment.change_address()?)?,
-        ));
-    }
-    Ok(outputs)
-}
-
 /// Signs each input of `payment` with the key of the source that holds its coin.
 ///
 /// `payment` must have passed `Payment::decode` and still match `approved`. `keys` is in
@@ -169,14 +153,12 @@ pub(crate) fn sign(
             .position(|source| source.address == coin.address)
             .and_then(|position| signers.get(position))
             .ok_or(ZcashError::Invalid(FOREIGN_KEY))?;
-        amounts.push(
-            Zatoshis::from_u64(coin.value_zat).map_err(|_| ZcashError::Internal(OUT_OF_RANGE))?,
-        );
+        amounts.push(zatoshis(coin.value_zat)?);
         scripts.push(script(&coin.address)?);
         owners.push(owner);
         inputs.push(TxIn::from_parts(coin.outpoint()?, Script::default(), u32::MAX));
     }
-    let outputs = outputs(payment)?;
+    let outputs = payment.outputs()?;
     let context = InputContext { amounts, scripts };
     let data = TransactionData::<Signing>::from_parts(
         TxVersion::V5,
@@ -250,6 +232,7 @@ mod tests {
     use zcash_script::script::Code;
 
     use super::*;
+    use crate::config::expiry_at;
     use crate::fixtures::{RECIPIENT, key, key_address};
     use crate::payload::{Source, Utxo};
 
@@ -355,7 +338,7 @@ mod tests {
             ],
             to: RECIPIENT.to_owned(),
             target_height: 3_514_159,
-            expiry_height: Payment::expiry_height(3_514_159).unwrap(),
+            expiry_height: expiry_at(3_514_159).unwrap(),
             inputs: vec![
                 coin("22", 2, 200_000, &second_address),
                 coin("11", 0, 100_000, &first_address),
