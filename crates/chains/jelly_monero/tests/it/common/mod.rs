@@ -866,21 +866,6 @@ pub(crate) fn balance_event_count(events: &[WalletEvent]) -> usize {
     events.iter().filter(|event| matches!(event, WalletEvent::BalanceChanged(_))).count()
 }
 
-/// The key images a signed transaction consumes, read back from its bytes.
-pub(crate) fn images_in(signed: &SignedTx) -> io::Result<Vec<[u8; 32]>> {
-    let mut bytes = signed.raw.as_bytes();
-    let transaction = Transaction::<NotPruned>::read(&mut bytes)?;
-    Ok(transaction
-        .prefix()
-        .inputs
-        .iter()
-        .filter_map(|input| match input {
-            Input::ToKey { key_image, .. } => Some(key_image.to_bytes()),
-            Input::Gen(_) => None,
-        })
-        .collect())
-}
-
 /// The positions on the blockchain of every ring member each input of `signed` names,
 /// in input order.
 pub(crate) fn rings_in(signed: &SignedTx) -> io::Result<Vec<Vec<u64>>> {

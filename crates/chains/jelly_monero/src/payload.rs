@@ -1,9 +1,8 @@
 use jelly_core::TxPayload;
 use monero_wallet::send::SignableTransaction;
 
-use crate::byte_count::ByteCount;
 use crate::error::MoneroError;
-use crate::reader::Reader;
+use crate::frame::{ByteCount, Reader, write_text};
 use crate::subaddress::Subaddress;
 
 /// Identifies this adapter's signing payload.
@@ -36,22 +35,23 @@ impl UnsignedPayload {
     /// straight into a frame sized up front, which never grows and so leaves no
     /// copy behind.
     pub(crate) fn encode(&self) -> Result<TxPayload, MoneroError> {
-        let endpoint = self.endpoint.as_bytes();
-        let length = u16::try_from(endpoint.len()).map_err(|_| MoneroError::Internal {
-            context: "the ring endpoint does not fit in an unsigned transaction",
-        })?;
         let mut counted = ByteCount::default();
         self.signable.write(&mut counted).map_err(|_| unserializable())?;
         let mut framed = Vec::with_capacity(
-            HEADER_BYTES.saturating_add(endpoint.len()).saturating_add(counted.total()),
+            HEADER_BYTES.saturating_add(self.endpoint.len()).saturating_add(counted.total()),
         );
         framed.extend_from_slice(MAGIC);
         framed.extend_from_slice(&self.public_spend);
         framed.extend_from_slice(&self.build_height.to_le_bytes());
         framed.extend_from_slice(&self.subaddress.major.to_le_bytes());
         framed.extend_from_slice(&self.subaddress.minor.to_le_bytes());
-        framed.extend_from_slice(&length.to_le_bytes());
-        framed.extend_from_slice(endpoint);
+        write_text(
+            &mut framed,
+            &self.endpoint,
+            MoneroError::Internal {
+                context: "the ring endpoint does not fit in an unsigned transaction",
+            },
+        )?;
         self.signable.write(&mut framed).map_err(|_| unserializable())?;
         Ok(TxPayload::from_bytes(framed))
     }

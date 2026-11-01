@@ -1,5 +1,5 @@
 use jelly_core::{Address, AddressCodec, AddressError, ChainId};
-use monero_address::{AddressType, MoneroAddress, Network};
+use monero_address::{MoneroAddress, Network};
 
 use crate::entry::ENTRY;
 use crate::error::MoneroError;
@@ -43,28 +43,6 @@ fn parse(value: &str) -> Result<MoneroAddress, AddressError> {
     })
 }
 
-/// What kind of address a payment is going to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RecipientKind {
-    Standard,
-    Subaddress,
-    Integrated,
-    Featured,
-}
-
-impl RecipientKind {
-    /// What the preview shows, so a person can see they're paying an integrated
-    /// address.
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::Standard => "Standard address",
-            Self::Subaddress => "Subaddress",
-            Self::Integrated => "Integrated address",
-            Self::Featured => "Featured address",
-        }
-    }
-}
-
 /// A recipient validated by the chain entry, whose refusals carry no fragment of
 /// the input.
 ///
@@ -73,7 +51,6 @@ impl RecipientKind {
 #[derive(Debug)]
 pub(crate) struct Recipient {
     address: MoneroAddress,
-    kind: RecipientKind,
     canonical: String,
 }
 
@@ -87,21 +64,11 @@ impl Recipient {
         let address = parse(&canonical).map_err(|_| MoneroError::Internal {
             context: "a validated monero address did not re-parse",
         })?;
-        let kind = match address.kind() {
-            AddressType::Legacy => RecipientKind::Standard,
-            AddressType::LegacyIntegrated(_) => RecipientKind::Integrated,
-            AddressType::Subaddress => RecipientKind::Subaddress,
-            AddressType::Featured { .. } => RecipientKind::Featured,
-        };
-        Ok(Self { address, kind, canonical })
+        Ok(Self { address, canonical })
     }
 
     pub(crate) const fn address(&self) -> MoneroAddress {
         self.address
-    }
-
-    pub(crate) const fn kind(&self) -> RecipientKind {
-        self.kind
     }
 
     pub(crate) fn canonical(&self) -> &str {
@@ -154,22 +121,8 @@ mod tests {
         );
 
         let recipient = Recipient::parse(&integrated.address).expect("an integrated address");
-        assert_eq!(recipient.kind(), RecipientKind::Integrated);
         assert_eq!(recipient.payment_id(), Some(payment_id));
         assert_eq!(recipient.canonical(), integrated.address);
-    }
-
-    #[test]
-    fn a_primary_address_and_a_subaddress_are_told_apart() {
-        let account = account();
-        let primary = Recipient::parse(&account.address(0, 0).expect("an address"))
-            .expect("the primary address");
-        assert_eq!(primary.kind(), RecipientKind::Standard);
-
-        let sub =
-            Recipient::parse(&account.address(1, 4).expect("an address")).expect("a subaddress");
-        assert_eq!(sub.kind(), RecipientKind::Subaddress);
-        assert!(sub.payment_id().is_none());
     }
 
     #[test]

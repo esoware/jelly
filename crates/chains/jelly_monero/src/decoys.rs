@@ -16,7 +16,7 @@ use rand_core_06::OsRng;
 use zeroize::Zeroizing;
 
 use crate::error::MoneroError;
-use crate::node::MoneroNode;
+use crate::node::{MoneroNode, height_index};
 use crate::params::RING_LEN;
 
 const TARGET: &str = "jelly::monero::decoys";
@@ -153,8 +153,7 @@ pub(crate) async fn select_rings(
     candidates: &[Candidate],
     chosen: &mut BTreeMap<[u8; 32], Vec<u64>>,
 ) -> Result<Vec<OutputWithDecoys>, MoneroError> {
-    let height = usize::try_from(distribution.height())
-        .map_err(|_| MoneroError::HeightOutOfRange { height: distribution.height() })?;
+    let height = height_index(distribution.height())?;
     let source = RingSource { node, distribution, height, failure: Mutex::new(None) };
     let mut selected = Vec::with_capacity(candidates.len());
     for candidate in candidates {

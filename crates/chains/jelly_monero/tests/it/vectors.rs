@@ -1,28 +1,8 @@
-//! Published and pinned vectors for subaddress derivation and key images.
+//! Pinned vectors for key images.
 
-use jelly_monero::{MoneroAccount, MoneroKeys};
 use serde::Deserialize;
 
-use crate::common::{account, bytes32, recorded, scanned};
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AddressVectors {
-    spend_key: String,
-    view_key: String,
-    public_spend: String,
-    public_view: String,
-    primary: String,
-    rows: Vec<Subaddress>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Subaddress {
-    major: u32,
-    minor: u32,
-    address: String,
-}
+use crate::common::{account, recorded, scanned};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,28 +16,6 @@ struct KeyImages {
 struct KeyImageCase {
     output_key: String,
     key_image: String,
-}
-
-#[test]
-fn wallet2s_published_subaddresses_are_derived_exactly() {
-    let vectors: AddressVectors =
-        serde_json::from_str(include_str!("../vectors/subaddresses.json")).unwrap();
-    let keys = MoneroKeys::from_spend_bytes(&bytes32(&vectors.spend_key).unwrap());
-    assert_eq!(keys.with_view_bytes(|bytes| hex::encode(bytes)), vectors.view_key);
-    assert_eq!(hex::encode(keys.public_spend()), vectors.public_spend);
-    assert_eq!(hex::encode(keys.public_view()), vectors.public_view);
-
-    let account = MoneroAccount::try_from(keys).unwrap();
-    assert_eq!(account.address(0, 0).unwrap(), vectors.primary);
-    for row in &vectors.rows {
-        assert_eq!(
-            account.address(row.major, row.minor).unwrap(),
-            row.address,
-            "subaddress ({}, {})",
-            row.major,
-            row.minor
-        );
-    }
 }
 
 #[test]

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use jelly_core::{SendAmount, TxRequest, UnsignedTx, random_bytes};
+use jelly_core::{Amount, SendAmount, TxRequest, UnsignedTx, random_bytes};
 use monero_interface::FeeRate;
 use monero_wallet::OutputWithDecoys;
 use monero_wallet::ringct::RctType;
@@ -15,7 +15,7 @@ use crate::decoys::{Candidate, Distribution, select_rings};
 use crate::error::MoneroError;
 use crate::fee::{self, Chosen, MoneroPriority};
 use crate::node::MoneroNode;
-use crate::params::{ASSET, piconero};
+use crate::params::ASSET;
 use crate::payload::UnsignedPayload;
 use crate::preview;
 use crate::subaddress::Subaddress;
@@ -41,7 +41,7 @@ impl Request {
         let subaddress =
             watched.subaddress_of(address_id).ok_or(MoneroError::NotWatched { address_id })?;
         let recipient = Recipient::parse(&request.to)?;
-        let fee = fee::chosen_fee(&request.fee)?;
+        let fee = Chosen::try_from(&request.fee)?;
         let target_piconero = match request.amount {
             SendAmount::Max => None,
             SendAmount::Exact { value } => {
@@ -106,7 +106,7 @@ pub(crate) async fn build(
     if plan.candidates.is_empty() {
         return Err(MoneroError::InsufficientFunds {
             asset: ASSET,
-            needed: piconero(plan.target_piconero.unwrap_or_default()),
+            needed: Amount::from(plan.target_piconero.unwrap_or_default()),
             available: plan.balance.spendable(),
         });
     }
@@ -114,13 +114,13 @@ pub(crate) async fn build(
     if let Some(target) = plan.target_piconero
         && available < target
     {
-        if plan.is_truncated && plan.balance.spendable() >= piconero(target) {
+        if plan.is_truncated && plan.balance.spendable() >= Amount::from(target) {
             return Err(MoneroError::TooManyInputs { maximum: config.inputs() });
         }
         return Err(MoneroError::InsufficientFunds {
             asset: ASSET,
-            needed: piconero(target),
-            available: piconero(available),
+            needed: Amount::from(target),
+            available: Amount::from(available),
         });
     }
 
@@ -173,11 +173,11 @@ async fn assemble(
                 .ok_or(MoneroError::Internal { context: "input selection went out of range" })?;
             rings.extend(select_rings(node, distribution, more, chosen).await?);
         }
-        let chosen = rings
+        let selected = rings
             .get(..wanted)
             .ok_or(MoneroError::Internal { context: "input selection went out of range" })?;
         let input_sum = total_of(&plan.candidates, wanted);
-        match resolve_sweep(chosen, plan, input_sum, &change, &outgoing_view_key) {
+        match resolve_sweep(selected, plan, input_sum, &change, &outgoing_view_key) {
             Ok(signable) => {
                 let fee = signable.necessary_fee();
                 let sent = plan.target_piconero.unwrap_or_else(|| input_sum.saturating_sub(fee));
@@ -199,9 +199,9 @@ async fn assemble(
                 }
                 return Err(MoneroError::InsufficientFunds {
                     asset: ASSET,
-                    needed: piconero(plan.target_piconero.unwrap_or_default())
-                        .saturating_add(piconero(necessary_fee.unwrap_or_default())),
-                    available: piconero(inputs),
+                    needed: Amount::from(plan.target_piconero.unwrap_or_default())
+                        .saturating_add(Amount::from(necessary_fee.unwrap_or_default())),
+                    available: Amount::from(inputs),
                 });
             }
             Err(other) => return Err(MoneroError::Build(other)),

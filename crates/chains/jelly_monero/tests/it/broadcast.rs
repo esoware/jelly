@@ -8,10 +8,12 @@ use jelly_core::{
     ScanStream, SignedTx,
     test_util::{FakeClock, MemoryCursorStore},
 };
-use jelly_monero::test_util::{account_balance, in_flight, refusal, stored_scan, stored_sends};
+use jelly_monero::test_util::{
+    account_balance, in_flight, key_images, refusal, stored_scan, stored_sends,
+};
 use parking_lot::Mutex;
 
-use crate::common::{ENDPOINT, FakeNode, Harness, config, fixture_adapter, images_in};
+use crate::common::{ENDPOINT, FakeNode, Harness, config, fixture_adapter};
 
 #[tokio::test]
 async fn a_broadcast_reserves_its_inputs_and_persists_before_the_bytes_go_out() {
@@ -36,7 +38,7 @@ async fn a_broadcast_reserves_its_inputs_and_persists_before_the_bytes_go_out() 
         .await
         .unwrap()
         .expect("the send was recorded before it went out");
-    let images = images_in(&signed).unwrap();
+    let images = key_images(&signed).unwrap();
     assert_eq!(images.len(), 1);
     let image = images.first().expect("a key image");
     assert!(
@@ -210,7 +212,7 @@ async fn retrying_after_reservation_persistence_fails_never_sends_untracked_byte
         let raw = signed.raw.as_bytes();
         for held in [before, after] {
             assert!(held.with_bytes(|bytes| bytes.windows(raw.len()).any(|window| window == raw)));
-            for image in images_in(&signed).unwrap() {
+            for image in key_images(&signed).unwrap() {
                 assert!(held.with_bytes(|bytes| bytes.windows(32).any(|window| window == image)));
             }
         }

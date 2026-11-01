@@ -13,19 +13,6 @@ pub(crate) enum MoneroPriority {
     Elevated,
 }
 
-impl MoneroPriority {
-    /// wallet2's own names, which the preview shows beside the fee. A level names a
-    /// speed and this names the rate it paid, so the two differ when the normal level
-    /// finds the chain quiet.
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::Unimportant => "Unimportant",
-            Self::Normal => "Normal",
-            Self::Elevated => "Elevated",
-        }
-    }
-}
-
 /// The most a fee may pay per unit of weight, whether a node quotes it or the user
 /// chooses it.
 ///
@@ -151,14 +138,20 @@ const EXTRA_SIZE: u64 = 44;
 ///
 /// Another chain's fee selection is refused instead of defaulted, because it means the
 /// interface and the adapter disagree about which chain is being paid.
-pub(crate) fn chosen_fee(selection: &FeeSelection) -> Result<Chosen, MoneroError> {
-    match *selection {
-        FeeSelection::Level { level } => Ok(Chosen::Level(level)),
-        FeeSelection::Rate { ref rate } => {
-            rate.trim().parse::<u64>().map(Chosen::Rate).map_err(|_| MoneroError::FeeRateUnreadable)
-        }
-        FeeSelection::Evm { .. } | FeeSelection::Solana { .. } | FeeSelection::Total { .. } => {
-            Err(MoneroError::ForeignFeeSelection)
+impl TryFrom<&FeeSelection> for Chosen {
+    type Error = MoneroError;
+
+    fn try_from(selection: &FeeSelection) -> Result<Self, MoneroError> {
+        match *selection {
+            FeeSelection::Level { level } => Ok(Self::Level(level)),
+            FeeSelection::Rate { ref rate } => rate
+                .trim()
+                .parse::<u64>()
+                .map(Self::Rate)
+                .map_err(|_| MoneroError::FeeRateUnreadable),
+            FeeSelection::Evm { .. } | FeeSelection::Solana { .. } | FeeSelection::Total { .. } => {
+                Err(MoneroError::ForeignFeeSelection)
+            }
         }
     }
 }
@@ -201,8 +194,8 @@ pub(crate) fn automatic_priority(
 ///
 /// Only quotes and input counts use this. The fee a transaction commits to is always
 /// `SignableTransaction::necessary_fee`, from the real weight.
-pub(crate) fn estimate_weight(n_inputs: usize) -> u64 {
-    let inputs = u64::try_from(n_inputs).unwrap_or(u64::MAX);
+pub(crate) fn estimate_weight(input_count: usize) -> u64 {
+    let inputs = u64::try_from(input_count).unwrap_or(u64::MAX);
     let outputs = PAYMENT_AND_CHANGE;
     let ring = u64::from(RING_LEN);
     // Prefix with version and unlock time.
@@ -233,10 +226,10 @@ pub(crate) fn estimate_weight(n_inputs: usize) -> u64 {
     size.saturating_add(4)
 }
 
-/// The fee a payment spending `n_inputs` outputs would pay at this rate,
+/// The fee a payment spending `input_count` outputs would pay at this rate,
 /// quantized the way the network quantizes it.
-pub(crate) fn estimate_fee(rate: FeeRate, n_inputs: usize) -> Amount {
-    Amount::from_base_units(rate.calculate_fee_from_weight(estimate_weight(n_inputs)))
+pub(crate) fn estimate_fee(rate: FeeRate, input_count: usize) -> Amount {
+    Amount::from_base_units(rate.calculate_fee_from_weight(estimate_weight(input_count)))
 }
 
 /// The fewest leading outputs whose total covers the payment and the fee for
@@ -341,11 +334,11 @@ mod tests {
     fn a_level_or_a_whole_rate_is_read_and_another_chains_fee_is_refused() {
         for level in FeeLevel::ALL {
             assert_eq!(
-                chosen_fee(&FeeSelection::Level { level }).expect("a level"),
+                Chosen::try_from(&FeeSelection::Level { level }).expect("a level"),
                 Chosen::Level(level)
             );
         }
-        let rate = |text: &str| chosen_fee(&FeeSelection::Rate { rate: text.to_owned() });
+        let rate = |text: &str| Chosen::try_from(&FeeSelection::Rate { rate: text.to_owned() });
         assert_eq!(rate(" 80000 ").expect("a whole rate"), Chosen::Rate(80_000));
         for unreadable in ["1.5", "-3", "fast", ""] {
             assert!(
@@ -354,7 +347,7 @@ mod tests {
             );
         }
         assert!(matches!(
-            chosen_fee(&FeeSelection::Solana { priority_fee_lamports: "3".to_owned() }),
+            Chosen::try_from(&FeeSelection::Solana { priority_fee_lamports: "3".to_owned() }),
             Err(MoneroError::ForeignFeeSelection)
         ));
     }

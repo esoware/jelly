@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 use std::mem;
 
-use jelly_core::{TxDetection, TxDirection, TxId, TxOutcome, TxRecord};
+use jelly_core::{Amount, TxDetection, TxDirection, TxId, TxOutcome, TxRecord};
 use monero_interface::ScannableBlock;
 use monero_wallet::WalletOutput;
 use monero_wallet::transaction::{Pruned, Transaction};
 
-use crate::params::{ASSET, CHAIN, piconero};
+use crate::params::{ASSET, CHAIN};
 use crate::sign::key_images_of;
 use crate::state::{BlockRef, OwnedOutput, Recorded, ScanState};
 use crate::subaddress::Subaddress;
@@ -124,7 +124,7 @@ fn payment_records(
                 address_id,
                 TxId::new(CHAIN, hex::encode(txid)),
                 TxDirection::Incoming,
-                piconero(amount),
+                Amount::from(amount),
             )
             .confirmed_at(block.block.height, timestamp_of(block.timestamp_secs), tip)
             .outcome(TxOutcome::Success)
@@ -197,9 +197,9 @@ fn record_spends(
                 address_id,
                 TxId::new(CHAIN, hex::encode(spending.txid)),
                 direction,
-                piconero(net_piconero),
+                Amount::from(net_piconero),
             )
-            .fee(piconero(spending.fee_piconero))
+            .fee(Amount::from(spending.fee_piconero))
             .confirmed_at(block.block.height, timestamp_of(block.timestamp_secs), tip)
             .outcome(TxOutcome::Success)
             .detection(TxDetection::Full)

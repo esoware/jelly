@@ -14,14 +14,17 @@ use jelly_core::{
 };
 use jelly_monero::{
     MoneroAdapter, MoneroConfig,
-    test_util::{account_balance, in_flight, replace_scan, stored_scan, stored_sends},
+    test_util::{
+        account_balance, in_flight, key_images, replace_scan, replace_sends, stored_scan,
+        stored_sends,
+    },
 };
 use monero_address::SubaddressIndex;
 use tokio::sync::Notify;
 
 use crate::common::{
     ChainBuilder, ENDPOINT, FakeNode, Fallible, Harness, PRIMARY_ID, base_chain, bytes32, config,
-    fixture_adapter, images_in, owned_in, payment, reopen, stranger, watched,
+    fixture_adapter, owned_in, payment, reopen, stranger, watched,
 };
 
 #[derive(Debug)]
@@ -225,7 +228,7 @@ async fn terminal_replay(
     let chain = match case {
         TerminalCase::Landed => funded_chain()?.landed(landed, 1, &signed),
         TerminalCase::Displaced => {
-            funded_chain()?.spending(landed, 1, [0xee; 32], &images_in(&signed)?, 900)
+            funded_chain()?.spending(landed, 1, [0xee; 32], &key_images(&signed)?, 900)
         }
         TerminalCase::Abandoned => {
             harness.node.forget(&bytes32(signed.txid.value())?);
@@ -333,7 +336,7 @@ fn failed(records: &[TxRecord]) -> Option<&TxRecord> {
 async fn a_send_that_lands_stops_being_in_flight_and_is_reported_once() {
     let harness = Harness::new().await.unwrap();
     let (_, signed) = harness.send(Some(1_000)).await.unwrap();
-    let images = images_in(&signed).unwrap();
+    let images = key_images(&signed).unwrap();
     let mut txid = [0u8; 32];
     hex::decode_to_slice(signed.txid.value(), &mut txid).unwrap();
 
@@ -403,7 +406,7 @@ async fn the_change_of_a_landed_send_is_not_reported_as_a_payment_in() {
 async fn a_send_displaced_by_a_conflicting_transaction_is_reported_failed() {
     let harness = Harness::new().await.unwrap();
     let (_, signed) = harness.send(Some(1_000)).await.unwrap();
-    let images = images_in(&signed).unwrap();
+    let images = key_images(&signed).unwrap();
 
     // Something else spent the same key image, which only one transaction can.
     let landed = harness.tip.saturating_add(1);
@@ -658,11 +661,7 @@ async fn an_unreadable_sends_blob_refuses_every_unlock_and_is_left_as_it_was() {
     let truncated = saved.with_bytes(|bytes| bytes[..bytes.len().saturating_sub(1)].to_vec());
     let broadcasts = harness.node.broadcast_endpoints().len();
     for bytes in [future, truncated, b"unreadable".to_vec()] {
-        harness
-            .cursors
-            .reserve(CursorScope::Wallet, ReservationSlot::MoneroSends, CursorBytes::copied(&bytes))
-            .await
-            .unwrap();
+        replace_sends(&*harness.cursors, CursorBytes::copied(&bytes)).await.unwrap();
         for _ in 0..2 {
             reopen(&harness, harness.account.clone(), harness.height, config()).await.unwrap_err();
         }

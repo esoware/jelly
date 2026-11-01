@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use jelly_core::{
-    Amount, BalanceUpdate, ChainSyncProgress, Clock, Deadline, EventSink, RetryPolicy, TxRecord,
-    WalletEvent, duration_millis,
+    Amount, BalanceUpdate, ChainSyncProgress, Clock, Deadline, EventSink, TxRecord, WalletEvent,
+    duration_millis,
 };
 use monero_address::SubaddressIndex;
 use monero_interface::ScannableBlock;
@@ -13,15 +13,13 @@ use tokio::task::{JoinSet, spawn_blocking};
 
 use crate::account::MoneroAccount;
 use crate::balance::MoneroBalance;
-use crate::broadcast::BroadcastReply;
 use crate::config::MoneroConfig;
 use crate::cursor::Blobs;
 use crate::error::MoneroError;
-use crate::node::{MoneroNode, broadcast_through_ring};
+use crate::node::{MoneroNode, height_of_index};
 use crate::params::{ASSET, CHAIN, REORG_WINDOW};
-use crate::pending::{InFlight, Settled, TerminalSend, is_out_of_budget, settled};
+use crate::pending::follow_up;
 use crate::record::{Scanned, record_block, spends_in};
-use crate::sign::parse_signed;
 use crate::state::{BlockLink, BlockRef, ScanState, timelock_now_secs};
 use crate::subaddress::Subaddress;
 use crate::watched::Watched;
@@ -162,7 +160,10 @@ async fn scan_forward(pass: &Pass<'_>, tip: u64, overlap: u64) -> Result<Option<
     }
     let budget_end = next.saturating_add(pass.config.pass_blocks().saturating_sub(1)).min(tip);
 
-    let mut scanner = scanner_for(pass.account, lookahead);
+    let account = Arc::clone(pass.account);
+    let mut scanner = spawn_blocking(move || scanner_for(&account, lookahead))
+        .await
+        .map_err(|_| MoneroError::ScanTask)?;
     let mut reported = next;
     let checkpoint_every_millis = duration_millis(pass.config.checkpoint_interval);
     let mut last_checkpoint_millis = pass.clock.elapsed_millis();
@@ -242,7 +243,8 @@ fn spawn_fetch(
     fetching.spawn(async move { node.blocks(from..=to).await.map(|blocks| (blocks, from)) });
 }
 
-/// A scanner registered with the whole subaddress window.
+/// A scanner registered with the whole subaddress window. The caller runs it on a
+/// blocking thread, because each subaddress costs a point multiplication.
 ///
 /// Subaddresses have to be registered before a block is scanned, so the window is a
 /// wallet-wide setting instead of following the watch set. An address outside it
@@ -272,7 +274,7 @@ fn scan_blocks(
 ) -> Result<(Scanner, Vec<Scanned>), MoneroError> {
     let mut scanned = Vec::with_capacity(blocks.len());
     for block in blocks {
-        let height = height_of(&block)?;
+        let height = height_of_index(block.block.number())?;
         let hash = block.block.hash();
         let timestamp_secs = block.block.header.timestamp;
         let spends = spends_in(&block);
@@ -320,149 +322,6 @@ fn apply(
     Some(records.into_iter().map(WalletEvent::TxDetected).collect())
 }
 
-/// Decides each in-flight transaction's fate, resending the ones its ring node lost.
-///
-/// The node that served a transaction's ring is the only one asked about it and the
-/// only one its bytes go to, so its origin isn't spread over the pool. Another node is
-/// asked only while that one can't be reached at all, and a node that can't answer is
-/// asked again next pass. A transaction is resent only once it's in neither the
-/// node's pool nor its chain.
-///
-/// The terminal sends are written before `settled_through` moves past them, whether or
-/// not the sends blob changed for any other reason.
-async fn follow_up(pass: &Pass<'_>, tip: u64, has_acknowledged: bool) -> Result<(), MoneroError> {
-    let waiting_sends: Vec<InFlight> = pass.state.lock().in_flight_sends().cloned().collect();
-    for send in waiting_sends {
-        // Bound separately, because a guard in the match scrutinee would still be
-        // held when an arm locks the state again.
-        let verdict = settled(&pass.state.lock(), &send);
-        match verdict {
-            Some(Settled::Landed { height }) => {
-                pass.state.lock().retire_landed(&send.txid)?;
-                tracing::info!(target: TARGET, height, "a monero send landed");
-                continue;
-            }
-            Some(Settled::Displaced) => {
-                pass.state.lock().retire_failed(&send.txid)?;
-                continue;
-            }
-            None => {}
-        }
-
-        let ring = Some(send.endpoint.as_str());
-        let asked = match pass.node.is_known(ring, send.txid).await {
-            Err(error) if error.is_unreachable() => {
-                pass.node.is_known(None, send.txid).await.map(|is_known| (is_known, None))
-            }
-            answered => answered.map(|is_known| (is_known, ring)),
-        };
-        let (is_known, via) = match asked {
-            Ok(asked) => asked,
-            Err(error) => {
-                tracing::debug!(
-                    target: TARGET,
-                    %error,
-                    "no node could say whether a monero send is still in flight"
-                );
-                continue;
-            }
-        };
-        if is_known {
-            continue;
-        }
-        if is_out_of_budget(&send, tip, pass.config.abandon_after_blocks) {
-            pass.state.lock().retire_failed(&send.txid)?;
-        } else {
-            resend(pass, &send, via).await?;
-        }
-    }
-    let terminal = {
-        let mut state = pass.state.lock();
-        let landed: Vec<_> = state
-            .terminal_sends
-            .iter()
-            .filter(|send| send.is_failed && state.has_spend(send.txid))
-            .map(|send| send.txid)
-            .collect();
-        for send in &mut state.terminal_sends {
-            if landed.contains(&send.txid) {
-                send.is_failed = false;
-            }
-        }
-        state.terminal_sends.clone()
-    };
-    let has_pruned = pass.state.lock().prune_rings();
-    if has_acknowledged || has_pruned || !terminal.is_empty() {
-        pass.blobs.write_sends(pass.state).await?;
-    }
-    for send in &terminal {
-        if send.is_failed {
-            report_failed(pass, send).await;
-        }
-    }
-    let mut state = pass.state.lock();
-    state.settled_through =
-        terminal.iter().map(|send| send.checkpoint).fold(state.settled_through, u64::max);
-    Ok(())
-}
-
-/// Resends the identical bytes, which is always safe because the txid is derived
-/// from them and the network deduplicates.
-///
-/// They go through the ring node, or through the pool for `None` when the ring node
-/// couldn't be reached.
-async fn resend(pass: &Pass<'_>, send: &InFlight, via: Option<&str>) -> Result<(), MoneroError> {
-    let Ok(transaction) = parse_signed(&send.raw) else {
-        tracing::warn!(
-            target: TARGET,
-            "a stored monero transaction does not decode, so it cannot be resent"
-        );
-        return Ok(());
-    };
-    let reply = match via {
-        Some(endpoint) => broadcast_through_ring(pass.node.as_ref(), endpoint, &transaction).await,
-        None => pass.node.broadcast(None, &transaction).await,
-    };
-    match reply {
-        Ok(BroadcastReply::Accepted) => Ok(()),
-        Ok(BroadcastReply::Refused(rejection)) => {
-            if rejection.retry == RetryPolicy::FinalEverywhere {
-                return pass.state.lock().retire_failed(&send.txid);
-            }
-            tracing::debug!(
-                target: TARGET,
-                detail = %rejection.detail,
-                "a monero resend was refused"
-            );
-            Ok(())
-        }
-        Err(error) => {
-            tracing::debug!(
-                target: TARGET,
-                %error,
-                "a monero resend did not reach a node"
-            );
-            Ok(())
-        }
-    }
-}
-
-async fn report_failed(pass: &Pass<'_>, send: &TerminalSend) {
-    let Some(address_id) = pass.watched.attribute(send.subaddress) else { return };
-    let seen_at = match pass.clock.now_secs() {
-        Ok(secs) => Some(secs),
-        Err(error) => {
-            tracing::warn!(
-                target: TARGET,
-                %error,
-                "the system clock is unreadable, so this record is left for the store to time"
-            );
-            None
-        }
-    };
-    pass.events.emit(WalletEvent::TxDetected(send.failed_record(address_id, seen_at))).await;
-}
-
 /// Each watched address whose spendable balance differs from its last announcement.
 ///
 /// A subaddress left with no outputs after a reorganization or a rescan announces
@@ -492,7 +351,7 @@ fn links_of(blocks: &[ScannableBlock], from: u64) -> Result<Vec<BlockLink>, Mone
     let mut links = Vec::with_capacity(blocks.len());
     let mut expected = from;
     for block in blocks {
-        let height = height_of(block)?;
+        let height = height_of_index(block.block.number())?;
         if height != expected {
             return Err(MoneroError::BlockRange { expected, found: height });
         }
@@ -504,11 +363,6 @@ fn links_of(blocks: &[ScannableBlock], from: u64) -> Result<Vec<BlockLink>, Mone
         });
     }
     Ok(links)
-}
-
-fn height_of(block: &ScannableBlock) -> Result<u64, MoneroError> {
-    u64::try_from(block.block.number())
-        .map_err(|_| MoneroError::Internal { context: "a block height does not fit in u64" })
 }
 
 /// Progress from the wallet birthday to the chain tip.
