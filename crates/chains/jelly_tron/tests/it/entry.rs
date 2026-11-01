@@ -4,7 +4,7 @@ use jelly_core::{
 };
 use jelly_keypair::{
     Bip32Path, PathTemplate, generate_key, parse_path,
-    test_util::{TEST_PHRASE, test_seed},
+    test_util::{BIP84_WIF, TEST_PHRASE, test_seed},
 };
 use jelly_net::DefaultEndpoints;
 use jelly_tron::{ENTRY, SPEC};
@@ -269,7 +269,7 @@ fn a_keystore_document_asks_for_its_password_and_then_imports() {
 #[test]
 fn keys_in_other_encodings_are_not_recognized() {
     for input in [
-        "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d",
+        BIP84_WIF,
         TEST_PHRASE,
         "[7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7]",
         &"ab".repeat(64),

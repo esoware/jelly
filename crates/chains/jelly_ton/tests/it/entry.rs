@@ -4,7 +4,10 @@ use jelly_core::{
     AddressError, ChainId, KeyError, KeyKind, ScriptKind, SecretText,
     test_util::{MARKER_PHRASE, assert_redacted},
 };
-use jelly_keypair::{Seed, generate_key, parse_path, test_util::TEST_PHRASE};
+use jelly_keypair::{
+    Seed, generate_key, parse_path,
+    test_util::{BIP84_WIF, TEST_PHRASE},
+};
 use jelly_ton::{ENTRY, SPEC};
 use serde::Deserialize;
 use serde_json::Value;
@@ -141,12 +144,7 @@ fn a_seed_phrase_fails_as_a_ton_seed() {
 
 #[test]
 fn text_in_no_accepted_encoding_is_an_unknown_format_and_is_not_claimed() {
-    for input in [
-        "",
-        "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d",
-        &"ab".repeat(31),
-        &"ab".repeat(64),
-    ] {
+    for input in ["", BIP84_WIF, &"ab".repeat(31), &"ab".repeat(64)] {
         assert!(matches!(ENTRY.import_key(input, None), Err(KeyError::UnknownFormat)), "{input}");
         assert_eq!(ENTRY.recognize_key(input), None, "{input}");
     }

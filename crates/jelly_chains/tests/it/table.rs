@@ -1,13 +1,12 @@
 use jelly_chains::chains;
 use jelly_core::{AddressError, ChainId, KeyError, KeyKind, test_util::key_material};
+use jelly_keypair::test_util::BIP84_WIF;
 
 /// The Ethereum key the all-abandon BIP-39 test phrase derives at `m/44'/60'/0'/0/0`,
 /// and its address.
 const HEX_KEY: &str = "1ab42cc412b618bdea3a599e3c9bae199ebf030895b039e9db1e30dafb12b727";
 const ETHEREUM_ADDRESS: &str = "0x9858EfFD232B4033E47d90003D41EC34EcaEda94";
 
-/// BIP-84 publishes this WIF for `m/84'/0'/0'/0/0` of the all-abandon phrase.
-const BIP84_WIF: &str = "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d";
 /// The same phrase's keys at `m/44'/145'/0'/0/0`, `m/44'/2'/0'/0/0`, and
 /// `m/44'/3'/0'/0/0`.
 const BITCOIN_CASH_WIF: &str = "KxbEv3FeYig2afQp7QEA9R3gwqdTBFwAJJ6Ma7j1SkmZoxC9bAXZ";

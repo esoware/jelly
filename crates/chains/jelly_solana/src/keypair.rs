@@ -128,6 +128,8 @@ fn keypair_seed(raw: &[u8]) -> Result<Zeroizing<[u8; SEED_BYTES]>, KeyError> {
 
 #[cfg(test)]
 mod tests {
+    use jelly_keypair::test_util::BIP84_WIF;
+
     use super::*;
 
     const SEED: [u8; SEED_BYTES] = [7; SEED_BYTES];
@@ -208,7 +210,7 @@ mod tests {
             "1,2,3]",
             "not base58 !!!",
             "hello world there",
-            "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d",
+            BIP84_WIF,
             r#"{"crypto":{}}"#,
         ] {
             assert_eq!(recognize(input), None, "{input:?}");

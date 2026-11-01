@@ -1,7 +1,11 @@
 use bitcoin::bip32;
 use curve25519_dalek::Scalar;
 use jelly_core::{KeyError, KeyKind};
-use jelly_keypair::{parse_path, signing_context, test_util::test_seed};
+use jelly_keypair::{
+    Secp256k1Key, parse_path, signing_context,
+    test_util::{BIP84_WIF, key_at, test_seed},
+    wif_encode,
+};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -34,6 +38,13 @@ fn the_seed_derives_the_published_bip84_and_bip86_keys() {
     assert_eq!(hex::encode(bip84.public_compressed()), suite.bip84_pubkey);
     let bip86 = seed.secp256k1_at(&parse_path(&suite.bip86_x_only_path).unwrap()).unwrap();
     assert_eq!(hex::encode(&bip86.public_compressed()[1..]), suite.bip86_x_only);
+}
+
+#[test]
+fn the_seed_derives_the_published_bip84_wif() {
+    let key = Secp256k1Key::from_key_material(&key_at("m/84'/0'/0'/0/0").unwrap()).unwrap();
+    let wif = key.with_secret_bytes(|secret| wif_encode(secret, 0x80));
+    assert_eq!(wif.as_str(), BIP84_WIF);
 }
 
 #[test]

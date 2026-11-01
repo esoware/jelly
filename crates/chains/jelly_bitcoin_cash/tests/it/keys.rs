@@ -7,7 +7,7 @@ use jelly_core::{
 };
 use jelly_keypair::{
     PathTemplate,
-    test_util::{key_at, uncompressed_wif},
+    test_util::{BIP84_WIF, key_at, uncompressed_wif},
     wif_encode,
 };
 use jelly_utxo::test_util::address_at;
@@ -15,9 +15,6 @@ use jelly_utxo::test_util::address_at;
 /// The WIF of `m/44'/145'/0'/0/0`, reproduced by `bip_utils`, an independent
 /// implementation. It carries Bitcoin's version byte, as Electron Cash writes it.
 const BITCOIN_CASH_WIF: &str = "KxbEv3FeYig2afQp7QEA9R3gwqdTBFwAJJ6Ma7j1SkmZoxC9bAXZ";
-
-/// BIP-84 publishes this Bitcoin WIF for `m/84'/0'/0'/0/0`.
-const BITCOIN_WIF: &str = "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d";
 
 const NAME: &str = "Bitcoin WIF key";
 
@@ -49,10 +46,10 @@ fn an_exported_key_reimports_to_the_same_address() {
 /// key.
 #[test]
 fn a_bitcoin_wif_imports() {
-    let imported = ENTRY.import_key(BITCOIN_WIF, None).unwrap();
+    let imported = ENTRY.import_key(BIP84_WIF, None).unwrap();
     assert_eq!(imported.named_script, None);
     ENTRY.address(&imported.material, None).unwrap();
-    assert_eq!(ENTRY.recognize_key(BITCOIN_WIF), Some(NAME));
+    assert_eq!(ENTRY.recognize_key(BIP84_WIF), Some(NAME));
 }
 
 #[test]

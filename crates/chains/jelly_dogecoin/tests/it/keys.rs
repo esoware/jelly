@@ -7,7 +7,7 @@ use jelly_core::{
 use jelly_dogecoin::{ENTRY, SPEC};
 use jelly_keypair::{
     PathTemplate,
-    test_util::{key_at, uncompressed_wif},
+    test_util::{BIP84_WIF, key_at, uncompressed_wif},
     wif_encode,
 };
 use jelly_utxo::test_util::address_at;
@@ -15,9 +15,6 @@ use jelly_utxo::test_util::address_at;
 /// The Dogecoin WIF of `m/44'/3'/0'/0/0`, reproduced by `bip_utils`, an independent
 /// implementation.
 const DOGECOIN_WIF: &str = "QPkeC1ZfHx3c9g7WTj9cQ8gnvk2iSAfAcbq1aVAWjNTwDAKfZUzx";
-
-/// BIP-84 publishes this Bitcoin WIF for `m/84'/0'/0'/0/0`.
-const BITCOIN_WIF: &str = "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d";
 
 const NAME: &str = "Dogecoin WIF key";
 
@@ -99,8 +96,8 @@ fn a_version_byte_names_only_its_own_network() {
         );
         assert_eq!(ENTRY.recognize_key(&wif), None, "{version:#x}");
     }
-    assert!(matches!(ENTRY.import_key(BITCOIN_WIF, None), Err(KeyError::UnknownFormat)));
-    assert_eq!(ENTRY.recognize_key(BITCOIN_WIF), None);
+    assert!(matches!(ENTRY.import_key(BIP84_WIF, None), Err(KeyError::UnknownFormat)));
+    assert_eq!(ENTRY.recognize_key(BIP84_WIF), None);
 }
 
 #[test]

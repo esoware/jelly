@@ -8,6 +8,9 @@ use crate::wif;
 pub const TEST_PHRASE: &str =
     "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
+/// BIP-84 publishes the WIF for `m/84'/0'/0'/0/0` of the all-abandon phrase.
+pub const BIP84_WIF: &str = "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d";
+
 /// The BIP-39 seed of the all-abandon phrase with no passphrase, the wallet BIP-84 and
 /// BIP-86 publish keys and addresses for.
 const TEST_SEED: [u8; Seed::LEN] = [

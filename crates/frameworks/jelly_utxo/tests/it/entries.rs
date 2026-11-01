@@ -2,9 +2,8 @@
 //! entry must recognize exactly the keys of its own version byte.
 
 use jelly_core::{ChainEntry, ChainId};
+use jelly_keypair::test_util::BIP84_WIF;
 
-/// BIP-84 publishes this Bitcoin WIF for `m/84'/0'/0'/0/0`.
-const BITCOIN_WIF: &str = "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d";
 /// The Litecoin WIF of `m/44'/2'/0'/0/0`.
 const LITECOIN_WIF: &str = "T5b4RiWRs7XG8xZ2bCHBoJcn4JrpMTbGRFYXgoZHd7nD8izwqhMK";
 /// The Dogecoin WIF of `m/44'/3'/0'/0/0`.
@@ -15,9 +14,9 @@ const ENTRIES: [&dyn ChainEntry; 4] =
 
 #[test]
 fn a_wif_imports_into_every_chain_its_version_byte_names() {
-    let prefixed = format!("p2wpkh:{BITCOIN_WIF}");
+    let prefixed = format!("p2wpkh:{BIP84_WIF}");
     for (input, chains) in [
-        (BITCOIN_WIF, [ChainId::Bitcoin, ChainId::BitcoinCash].as_slice()),
+        (BIP84_WIF, [ChainId::Bitcoin, ChainId::BitcoinCash].as_slice()),
         (prefixed.as_str(), &[ChainId::Bitcoin, ChainId::BitcoinCash]),
         (LITECOIN_WIF, &[ChainId::Litecoin]),
         (DOGECOIN_WIF, &[ChainId::Dogecoin]),
@@ -36,7 +35,7 @@ fn a_wif_imports_into_every_chain_its_version_byte_names() {
 #[test]
 fn a_key_another_chain_owns_is_named_by_that_chain() {
     for (input, owner, name) in [
-        (BITCOIN_WIF, ChainId::Bitcoin, "Bitcoin WIF key"),
+        (BIP84_WIF, ChainId::Bitcoin, "Bitcoin WIF key"),
         (LITECOIN_WIF, ChainId::Litecoin, "Litecoin WIF key"),
         (DOGECOIN_WIF, ChainId::Dogecoin, "Dogecoin WIF key"),
     ] {

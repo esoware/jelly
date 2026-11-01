@@ -6,7 +6,7 @@ use jelly_core::{
 };
 use jelly_keypair::{
     PathTemplate, parse_path,
-    test_util::{key_at, test_seed, uncompressed_wif},
+    test_util::{BIP84_WIF, key_at, test_seed, uncompressed_wif},
     wif_encode,
 };
 use jelly_litecoin::{ENTRY, SPEC};
@@ -15,9 +15,6 @@ use jelly_utxo::test_util::address_at;
 /// The Litecoin WIF of `m/44'/2'/0'/0/0`, cross-checked against an independent
 /// implementation.
 const LITECOIN_WIF: &str = "T5b4RiWRs7XG8xZ2bCHBoJcn4JrpMTbGRFYXgoZHd7nD8izwqhMK";
-
-/// BIP-84 publishes this Bitcoin WIF for `m/84'/0'/0'/0/0`.
-const BITCOIN_WIF: &str = "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d";
 
 const NAME: &str = "Litecoin WIF key";
 
@@ -111,7 +108,7 @@ fn a_version_byte_names_only_its_own_network() {
         );
         assert_eq!(ENTRY.recognize_key(&wif), None, "{version:#x}");
     }
-    for input in [BITCOIN_WIF.to_owned(), format!("p2wpkh:{BITCOIN_WIF}")] {
+    for input in [BIP84_WIF.to_owned(), format!("p2wpkh:{BIP84_WIF}")] {
         assert!(matches!(ENTRY.import_key(&input, None), Err(KeyError::UnknownFormat)), "{input}");
         assert_eq!(ENTRY.recognize_key(&input), None, "{input}");
     }

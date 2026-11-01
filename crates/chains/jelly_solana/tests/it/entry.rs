@@ -4,7 +4,7 @@ use jelly_core::{
 };
 use jelly_keypair::{
     Bip32Path, PathTemplate, generate_key, parse_path,
-    test_util::{TEST_PHRASE, test_seed},
+    test_util::{BIP84_WIF, TEST_PHRASE, test_seed},
 };
 use jelly_net::DefaultEndpoints;
 use jelly_solana::{ENTRY, SPEC};
@@ -281,13 +281,9 @@ fn a_password_changes_nothing_about_a_plain_key() {
 /// table's job.
 #[test]
 fn keys_in_other_encodings_are_not_recognized() {
-    for input in [
-        "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d",
-        TEST_PHRASE,
-        r#"{"crypto":{"cipher":"aes-128-ctr"},"version":3}"#,
-        "0x1234",
-        "",
-    ] {
+    for input in
+        [BIP84_WIF, TEST_PHRASE, r#"{"crypto":{"cipher":"aes-128-ctr"},"version":3}"#, "0x1234", ""]
+    {
         assert_eq!(ENTRY.recognize_key(input), None, "{input:?}");
         assert!(matches!(ENTRY.import_key(input, None), Err(KeyError::UnknownFormat)), "{input:?}");
     }

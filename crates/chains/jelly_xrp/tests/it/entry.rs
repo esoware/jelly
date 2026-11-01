@@ -2,7 +2,7 @@ use jelly_core::{
     AddressError, ChainId, KeyError, KeyKind,
     test_util::{MARKER_PHRASE, assert_redacted},
 };
-use jelly_keypair::{Seed, generate_key, parse_path};
+use jelly_keypair::{Seed, generate_key, parse_path, test_util::BIP84_WIF};
 use jelly_xrp::{ENTRY, SPEC};
 use serde::Deserialize;
 use serde_json::Value;
@@ -57,13 +57,7 @@ fn an_exported_key_imports_to_the_same_address_with_or_without_a_prefix() {
 
 #[test]
 fn text_in_no_accepted_encoding_is_an_unknown_format_and_is_not_claimed() {
-    for input in [
-        "",
-        "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d",
-        &"ab".repeat(31),
-        &"ab".repeat(64),
-        MARKER_PHRASE,
-    ] {
+    for input in ["", BIP84_WIF, &"ab".repeat(31), &"ab".repeat(64), MARKER_PHRASE] {
         assert!(matches!(ENTRY.import_key(input, None), Err(KeyError::UnknownFormat)), "{input}");
         assert_eq!(ENTRY.recognize_key(input), None, "{input}");
     }

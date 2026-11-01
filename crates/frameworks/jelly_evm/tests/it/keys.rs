@@ -3,7 +3,7 @@ use jelly_core::{
     test_util::{MARKER_PHRASE, assert_redacted, key_material},
 };
 use jelly_evm::test_util::PAYEE;
-use jelly_keypair::test_util::TEST_PHRASE;
+use jelly_keypair::test_util::{BIP84_WIF, TEST_PHRASE};
 use serde::Deserialize;
 
 use crate::common::{ENTRIES, Fallible};
@@ -95,7 +95,7 @@ fn text_in_no_accepted_encoding_is_an_unknown_format() {
             &"zz".repeat(32),
             &"ab".repeat(33),
             TEST_PHRASE,
-            "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d",
+            BIP84_WIF,
         ] {
             assert!(
                 matches!(entry.import_key(input, None), Err(KeyError::UnknownFormat)),

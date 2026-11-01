@@ -1,11 +1,11 @@
 use jelly_core::{ChainId, KeyError, KeyKind, test_util::key_material};
 use jelly_keypair::{
     decode_secret_hex, encode_secret_hex, export_web3_key, import_web3_key, is_secret_hex,
-    recognize_web3_key, test_util::uncompressed_wif, wif_decode, wif_encode, wif_version,
+    recognize_web3_key,
+    test_util::{BIP84_WIF, uncompressed_wif},
+    wif_decode, wif_encode, wif_version,
 };
 use zeroize::Zeroizing;
-
-use crate::common::BIP84_WIF;
 
 const SECRET_HEX: &str = "4646464646464646464646464646464646464646464646464646464646464646";
 

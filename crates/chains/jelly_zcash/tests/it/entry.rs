@@ -4,7 +4,7 @@ use jelly_core::{
 };
 use jelly_keypair::{
     PathTemplate, Secp256k1Key, generate_key, parse_path,
-    test_util::{test_seed, uncompressed_wif},
+    test_util::{BIP84_WIF, test_seed, uncompressed_wif},
     wif_encode,
 };
 use jelly_zcash::{ENTRY, SPEC};
@@ -13,10 +13,6 @@ use zeroize::Zeroizing;
 use crate::common::{CHAIN, OWNER, RECIPIENT};
 
 const SECRET: &str = "2d8f68944bdbfbc0769542fba8fc2d2a3de67393334471624364c7006da2aa54";
-
-/// BIP-84 publishes the WIF for `m/84'/0'/0'/0/0` of the all-abandon phrase. Zcash kept
-/// Bitcoin's version byte, so it's a Zcash key too.
-const BIP84_WIF: &str = "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d";
 
 const P2PKH: Option<ScriptKind> = Some(ScriptKind::P2pkh);
 
@@ -163,6 +159,7 @@ fn a_generated_key_produces_a_p2pkh_address_the_codec_accepts() {
     assert_eq!(ENTRY.codec().script_kind(&address), P2PKH);
 }
 
+/// Zcash kept Bitcoin's version byte, so the BIP-84 WIF is a Zcash key too.
 #[test]
 fn a_bitcoin_wif_and_bare_hex_import_and_name_their_formats() {
     let from_wif = ENTRY.import_key(BIP84_WIF, None).unwrap();

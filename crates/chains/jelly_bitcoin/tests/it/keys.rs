@@ -8,13 +8,12 @@ use jelly_core::{
 };
 use jelly_keypair::{
     PathTemplate, signing_context,
-    test_util::{key_at, uncompressed_wif},
+    test_util::{BIP84_WIF, key_at, uncompressed_wif},
     wif_encode,
 };
 use jelly_utxo::test_util::address_at;
 
-/// BIP-84 publishes the WIF for `m/84'/0'/0'/0/0` next to the address.
-const BIP84_WIF: &str = "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d";
+/// BIP-84 publishes the address for `m/84'/0'/0'/0/0` next to the WIF.
 const BIP84_ADDRESS: &str = "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu";
 
 /// The secret scalar one as an uncompressed WIF, and the P2PKH address of its

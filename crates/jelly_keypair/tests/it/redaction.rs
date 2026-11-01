@@ -1,7 +1,9 @@
 use jelly_core::test_util::{MARKER, assert_rejected_without_leak};
-use jelly_keypair::{Secp256k1Key, Seed, parse_path, test_util::test_seed, wif_decode};
-
-use crate::common::BIP84_WIF;
+use jelly_keypair::{
+    Secp256k1Key, Seed, parse_path,
+    test_util::{BIP84_WIF, test_seed},
+    wif_decode,
+};
 
 #[test]
 fn a_rejected_private_key_or_seed_never_appears_in_its_error() {
