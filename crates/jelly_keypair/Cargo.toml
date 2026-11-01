@@ -11,8 +11,8 @@ workspace = true
 
 [features]
 default = []
-# The all-abandon test keychain, Seed::from_bytes, and uncompressed WIFs, which other
-# crates' tests use. Enable only from [dev-dependencies].
+# The all-abandon test seed, Seed::from_bytes, and uncompressed WIFs, which other crates'
+# tests use. Enable only from [dev-dependencies].
 test-util = []
 
 [dependencies]

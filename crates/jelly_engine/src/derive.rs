@@ -16,7 +16,7 @@ pub(crate) fn expected_address(session: &Session, row: &AddressRow) -> Result<St
         KeySource::Derived { ref path } => {
             let path = parse_path(path.as_str())?;
             let script = spec.resolve_script(purpose_of(&path), row.script_kind)?;
-            let key = session.keychain().key_material_at(spec.key_kind, &path)?;
+            let key = session.seed().key_material_at(spec.key_kind, &path)?;
             Ok(entry.address(&key, script)?)
         }
         KeySource::Imported { ref vault_entry } => {
@@ -62,7 +62,7 @@ pub(crate) fn resolve_key(session: &Session, row: &AddressRow) -> Result<KeyMate
         KeySource::Derived { ref path } => {
             let path = parse_path(path.as_str())?;
             let kind = session.entry(row.chain).spec().key_kind;
-            Ok(session.keychain().key_material_at(kind, &path)?)
+            Ok(session.seed().key_material_at(kind, &path)?)
         }
         KeySource::Imported { ref vault_entry } => imported_key(session, vault_entry),
         KeySource::Subaddress { major, minor } => {

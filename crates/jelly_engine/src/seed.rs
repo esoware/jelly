@@ -5,7 +5,7 @@ use hmac::{Hmac, KeyInit as _, Mac as _};
 use jelly_core::{
     ChainId, ChainTable, CoreError, KeyMaterial, PassphrasePolicy, PhraseLength, SecretText,
 };
-use jelly_keypair::{HdKeychain, PathTemplate, Seed};
+use jelly_keypair::{PathTemplate, Seed};
 use jelly_mnemonic::Mnemonic;
 use jelly_store::WalletSettingsRow;
 use jelly_vault::{BlobContent, BlobKind, SecretBlob, UnlockedVault, Vault, VaultPassword};
@@ -29,7 +29,7 @@ pub(crate) enum SeedSource {
 
 /// The keys a wallet's seed gives its session at one account index.
 pub(crate) struct SeedKeys {
-    pub(crate) keychain: HdKeychain,
+    pub(crate) seed: Seed,
     pub(crate) account: u32,
     /// The account key of every chain whose spec needs one to scan. Adapters share these
     /// until a lock retires them.
@@ -37,7 +37,7 @@ pub(crate) struct SeedKeys {
 }
 
 impl SeedKeys {
-    fn derive(keychain: HdKeychain, account: u32, table: &ChainTable) -> Result<Self, CoreError> {
+    fn derive(seed: Seed, account: u32, table: &ChainTable) -> Result<Self, CoreError> {
         let mut account_keys = BTreeMap::new();
         for entry in table.entries() {
             let spec = entry.spec();
@@ -45,10 +45,10 @@ impl SeedKeys {
                 continue;
             }
             let path = PathTemplate::parse(spec.default_path)?.path_at(account)?;
-            let key = keychain.key_material_at(spec.key_kind, &path)?;
+            let key = seed.key_material_at(spec.key_kind, &path)?;
             account_keys.insert(spec.chain, Arc::new(key));
         }
-        Ok(Self { keychain, account, account_keys })
+        Ok(Self { seed, account, account_keys })
     }
 }
 
@@ -85,10 +85,10 @@ pub(crate) async fn derive_seed(
         let passphrase_text = Zeroizing::new(
             passphrase.value().map_or_else(String::new, |value| value.with_str(str::to_owned)),
         );
-        let keychain = HdKeychain::from_seed(mnemonic.to_seed(&passphrase_text));
+        let seed = mnemonic.to_seed(&passphrase_text);
         drop(mnemonic);
-        let verifier = verifier_tag(keychain.seed())?;
-        let keys = SeedKeys::derive(keychain, account, table)?;
+        let verifier = verifier_tag(&seed)?;
+        let keys = SeedKeys::derive(seed, account, table)?;
         let stored_passphrase = match passphrase.policy() {
             PassphrasePolicy::Stored => Some(passphrase_text),
             PassphrasePolicy::None | PassphrasePolicy::Prompt => None,
@@ -131,18 +131,18 @@ pub(crate) async fn unlock_vault_and_keys(
 ) -> Result<(UnlockedVault, SeedKeys), CoreError> {
     blocking(move || {
         let vault = handle.unlock(&password)?;
-        let keychain = open_keychain(&vault, settings.passphrase_policy, supplied)?;
-        let keys = SeedKeys::derive(keychain, settings.account_index, table)?;
+        let seed = open_seed(&vault, settings.passphrase_policy, supplied)?;
+        let keys = SeedKeys::derive(seed, settings.account_index, table)?;
         Ok::<_, CoreError>((vault, keys))
     })
     .await
 }
 
-fn open_keychain(
+fn open_seed(
     vault: &UnlockedVault,
     policy: PassphrasePolicy,
     supplied: Option<SecretText>,
-) -> Result<HdKeychain, CoreError> {
+) -> Result<Seed, CoreError> {
     let entropy = vault.read_first(BlobKind::SeedEntropy).ok_or_else(|| {
         CoreError::internal_without_source("this wallet has no seed in its vault")
     })?;
@@ -158,7 +158,7 @@ fn open_keychain(
         }
     };
     let mnemonic = entropy.with_bytes(Mnemonic::from_entropy)?;
-    Ok(HdKeychain::from_seed(mnemonic.to_seed(&passphrase_text)))
+    Ok(mnemonic.to_seed(&passphrase_text))
 }
 
 /// A stored passphrase blob as the text it was stored from.

@@ -6,7 +6,7 @@ use bitcoin::{ScriptBuf, WScriptHash};
 use jelly_core::{ChainAdapter as _, ChainError, ScriptKind, TxWarningKind};
 use jelly_keypair::{
     parse_path,
-    test_util::{TEST_PHRASE, test_keychain},
+    test_util::{TEST_PHRASE, test_seed},
 };
 use jelly_utxo::{
     UtxoParams,
@@ -70,7 +70,7 @@ fn every_script_kind_a_table_derives_gives_the_recorded_address_and_script() {
 fn every_derived_litecoin_address_matches_the_cross_checked_vectors() {
     let file = address_vectors(&LITECOIN).unwrap();
     assert_eq!(text(&file, "phrase"), TEST_PHRASE);
-    let keychain = test_keychain();
+    let seed = test_seed();
     let derived = rows(&file, "/derived");
     assert_eq!(derived.len(), 4);
 
@@ -81,7 +81,7 @@ fn every_derived_litecoin_address_matches_the_cross_checked_vectors() {
             ScriptKind::parse(&name).ok_or_else(|| format!("{name} is not a script kind")).unwrap();
         let expected = text(row, "address");
 
-        let pubkey = keychain.secp256k1_at(&path).unwrap().public_compressed();
+        let pubkey = seed.secp256k1_at(&path).unwrap().public_compressed();
         assert_eq!(LITECOIN.key_address(kind, &pubkey).unwrap(), expected);
         assert_eq!(jelly_litecoin::ENTRY.validate_address(&expected).unwrap().value(), expected);
 
@@ -360,13 +360,13 @@ fn the_two_segwit_chains_read_the_same_scripts() {
 
 #[test]
 fn one_key_has_other_addresses_but_the_same_scripts_on_litecoin_and_bitcoin() {
-    let keychain = test_keychain();
+    let seed = test_seed();
     for (text, kind) in [
         ("m/84'/0'/0'/0/0", ScriptKind::P2wpkh),
         ("m/49'/0'/0'/0/0", ScriptKind::P2shP2wpkh),
         ("m/44'/0'/0'/0/0", ScriptKind::P2pkh),
     ] {
-        let pubkey = keychain.secp256k1_at(&parse_path(text).unwrap()).unwrap().public_compressed();
+        let pubkey = seed.secp256k1_at(&parse_path(text).unwrap()).unwrap().public_compressed();
         let bitcoin_address = BITCOIN.key_address(kind, &pubkey).unwrap();
         let litecoin_address = LITECOIN.key_address(kind, &pubkey).unwrap();
         assert_ne!(bitcoin_address, litecoin_address);

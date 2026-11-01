@@ -3,7 +3,7 @@
 use bip39::Language;
 use bitcoin::bip32::{Xpriv, Xpub};
 use bitcoin::secp256k1::Secp256k1;
-use jelly_keypair::{HdKeychain, parse_path};
+use jelly_keypair::parse_path;
 use jelly_mnemonic::Mnemonic;
 use serde::Deserialize;
 use sha2::{Digest as _, Sha256};
@@ -32,12 +32,11 @@ fn phrases_and_seeds_match_the_published_trezor_vectors() {
 
         let seed = parsed.to_seed("TREZOR");
         assert_eq!(seed.with_bytes(|bytes| hex::encode(bytes)), *seed_hex);
-        let keychain = HdKeychain::from_seed(seed);
         let expected = Xpub::from_priv(
             &Secp256k1::signing_only(),
             &xprv.parse::<Xpriv>().expect("the vector xprv parses"),
         );
-        assert_eq!(keychain.xpub_at(&master).expect("the master xpub"), expected.to_string());
+        assert_eq!(seed.xpub_at(&master).expect("the master xpub"), expected.to_string());
     }
 }
 

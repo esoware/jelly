@@ -2,7 +2,7 @@ use jelly_core::{
     AddressError, ChainId, KeyError, KeyKind,
     test_util::{MARKER_PHRASE, assert_redacted},
 };
-use jelly_keypair::{HdKeychain, Seed, generate_key, parse_path};
+use jelly_keypair::{Seed, generate_key, parse_path};
 use jelly_xrp::{ENTRY, SPEC};
 use serde::Deserialize;
 use serde_json::Value;
@@ -27,11 +27,10 @@ fn vectors() -> Result<Vectors, serde_json::Error> {
 #[test]
 fn derived_keys_match_the_published_addresses_and_secrets_at_the_default_path() {
     let suite = vectors().unwrap();
-    let keychain =
-        HdKeychain::from_seed(Seed::from_bytes(&hex::decode(&suite.seed).unwrap()).unwrap());
+    let seed = Seed::from_bytes(&hex::decode(&suite.seed).unwrap()).unwrap();
     for row in &suite.derived {
         let material =
-            keychain.key_material_at(SPEC.key_kind, &parse_path(&row.path).unwrap()).unwrap();
+            seed.key_material_at(SPEC.key_kind, &parse_path(&row.path).unwrap()).unwrap();
         assert_eq!(material.kind(), KeyKind::Secp256k1);
         material.with_bytes(|bytes| assert_eq!(bytes.len(), 32));
         assert!(format!("{material:?}").contains("redacted"));

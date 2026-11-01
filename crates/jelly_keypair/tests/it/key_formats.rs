@@ -1,4 +1,4 @@
-use jelly_core::{ChainId, KeyError, KeyKind, KeyMaterial};
+use jelly_core::{ChainId, KeyError, KeyKind, test_util::key_material};
 use jelly_keypair::{
     decode_secret_hex, encode_secret_hex, export_web3_key, import_web3_key, is_secret_hex,
     recognize_web3_key, test_util::uncompressed_wif, wif_decode, wif_encode, wif_version,
@@ -83,7 +83,7 @@ fn a_keystore_is_named_by_its_shape_and_needs_its_password() {
 fn other_text_and_other_curves_are_refused() {
     assert_eq!(recognize_web3_key("0x1234"), None);
     assert!(matches!(import_web3_key("0x1234", None), Err(KeyError::UnknownFormat)));
-    let ed25519 = KeyMaterial::new(KeyKind::Ed25519Seed, Zeroizing::new(vec![7; 32]));
+    let ed25519 = key_material(KeyKind::Ed25519Seed, 7);
     assert!(matches!(
         export_web3_key(&ed25519, ChainId::Tron),
         Err(KeyError::WrongKeyKind { chain: ChainId::Tron })

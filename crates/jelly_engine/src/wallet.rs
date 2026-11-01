@@ -354,7 +354,7 @@ impl WalletEngine {
         }
     }
 
-    /// A wrong passphrase opens a different wallet, so the keychain is checked against the
+    /// A wrong passphrase opens a different wallet, so the seed is checked against the
     /// first derived address, or against the verifier stored at creation if there's none.
     async fn verify_passphrase(&self, session: &Session) -> Result<(), CoreError> {
         let rows = self.inner.store.list_addresses(session.wallet_id(), None).await?;
@@ -368,8 +368,7 @@ impl WalletEngine {
         let Some(stored) = stored else {
             return Ok(());
         };
-        let is_match =
-            stored.with_bytes(|tag| seed::is_verifier_match(session.keychain().seed(), tag));
+        let is_match = stored.with_bytes(|tag| seed::is_verifier_match(session.seed(), tag));
         if is_match { Ok(()) } else { Err(CoreError::WrongPassphrase) }
     }
 

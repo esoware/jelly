@@ -92,7 +92,7 @@ pub(crate) fn sign(tx: &UnsignedTx, key: &KeyMaterial) -> Result<(Payment, Signe
     if key.kind() != KeyKind::Secp256k1 {
         return Err(not_owner);
     }
-    let key = key.with_bytes(Secp256k1Key::from_secret_bytes)?;
+    let key = Secp256k1Key::from_key_material(key)?;
     let pubkey = key.public_compressed();
     if pubkey_address(&pubkey) != payment.from {
         return Err(not_owner);

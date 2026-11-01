@@ -13,7 +13,6 @@
 use bitcoin::absolute::LockTime;
 use bitcoin::consensus::serialize;
 use bitcoin::hashes::Hash as _;
-use bitcoin::secp256k1::{Keypair, SecretKey};
 use bitcoin::transaction::Version;
 use bitcoin::{OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid, Weight, Witness};
 use jelly_core::{
@@ -24,7 +23,7 @@ use jelly_electrum::{
     Method,
     test_util::{Answer, FakeElectrum, script_hash},
 };
-use jelly_keypair::{parse_path, purpose_of, signing_context, test_util::key_at};
+use jelly_keypair::{Secp256k1Key, parse_path, purpose_of, test_util::key_at};
 use serde::Deserialize;
 
 use crate::adapter::UtxoAdapter;
@@ -145,10 +144,9 @@ pub fn test_key(params: &UtxoParams, kind: ScriptKind, seed: u8) -> Result<TestK
     if let Some(slot) = secret.last_mut() {
         *slot = seed;
     }
-    let secret_key = SecretKey::from_slice(&secret)
-        .map_err(|_| UtxoError::signing("the fixture seed is not a scalar"))?;
-    let keypair = Keypair::from_secret_key(signing_context(), &secret_key);
-    let pubkey = keypair.public_key().serialize();
+    let pubkey = Secp256k1Key::from_secret_bytes(&secret)
+        .map_err(|_| UtxoError::signing("the fixture seed is not a scalar"))?
+        .public_compressed();
     let address = params.key_address(kind, &pubkey)?;
     let script = params.spendable_script(&address)?;
     Ok(TestKey { secret, pubkey, address, script })

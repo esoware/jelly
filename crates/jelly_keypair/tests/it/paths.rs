@@ -1,16 +1,13 @@
 use bitcoin::bip32::{self, ChildNumber};
 use jelly_core::{DerivationPath, KeyError, KeyKind};
-use jelly_keypair::{
-    PathTemplate, account_prefix, parse_path, stored_path, test_util::test_keychain,
-};
+use jelly_keypair::{PathTemplate, account_prefix, parse_path, stored_path, test_util::test_seed};
 use proptest::prelude::*;
 
 /// The path Phantom and Solflare use.
 const SOLANA_TEMPLATE: &str = "m/44'/501'/{index}'/0'";
 
-#[expect(clippy::expect_used, reason = "test helper")]
-fn solana() -> PathTemplate {
-    PathTemplate::parse(SOLANA_TEMPLATE).expect("the template parses")
+fn solana() -> Result<PathTemplate, KeyError> {
+    PathTemplate::parse(SOLANA_TEMPLATE)
 }
 
 fn stored(items: &[&str]) -> Vec<DerivationPath> {
@@ -48,7 +45,7 @@ fn the_account_prefix_ends_at_the_last_hardened_component() {
 
 #[test]
 fn a_family_recognizes_only_its_own_instances() {
-    let template = solana();
+    let template = solana().unwrap();
     assert_eq!(template.index_of(&parse_path("m/44'/501'/7'/0'").unwrap()), Some(7));
     assert_eq!(template.index_of(&parse_path("m/44'/501'/7'/0").unwrap()), None);
     assert_eq!(template.index_of(&parse_path("m/44'/501'/7'").unwrap()), None);
@@ -129,7 +126,7 @@ fn a_path_deeper_than_bip32_allows_is_refused() {
 fn a_path_error_names_its_component_from_one() {
     let error = parse_path("m/44'/x").expect_err("a malformed component");
     assert_eq!(error.to_string(), "Derivation path component 2 is invalid.");
-    let error = test_keychain()
+    let error = test_seed()
         .key_material_at(KeyKind::Ed25519Seed, &parse_path("m/44'/501'/0'/0").unwrap())
         .expect_err("a soft component");
     assert_eq!(error.to_string(), "Add an apostrophe to harden path component 4.");
@@ -163,7 +160,7 @@ fn a_placeholder_with_an_unknown_marker_is_an_invalid_component() {
 
 #[test]
 fn an_index_past_the_bip32_limit_is_refused() {
-    for template in [PathTemplate::bip44(86, 0), solana()] {
+    for template in [PathTemplate::bip44(86, 0), solana().unwrap()] {
         template.path_at(0x7fff_ffff).expect("the largest index");
         assert!(matches!(
             template.path_at(0x8000_0000),
@@ -183,7 +180,7 @@ fn a_bip44_family_renders_its_purpose_and_coin() {
         rendered(&PathTemplate::bip44(84, 2).path_at(9).expect("a path")),
         "m/84'/2'/0'/0/9"
     );
-    let solana = solana().path_at(3).expect("a path");
+    let solana = solana().unwrap().path_at(3).expect("a path");
     assert_eq!(rendered(&solana), "m/44'/501'/3'/0'");
     assert!(solana.into_iter().all(ChildNumber::is_hardened));
 }
@@ -211,7 +208,7 @@ fn the_next_index_fills_the_first_gap() {
     assert_eq!(next_default(&PathTemplate::bip44(44, 60), &noise), "m/44'/60'/0'/0/0");
 
     let used = stored(&["m/44'/501'/0'/0'", "m/44'/501'/1'/0'"]);
-    assert_eq!(next_default(&solana(), &used), "m/44'/501'/2'/0'");
+    assert_eq!(next_default(&solana().unwrap(), &used), "m/44'/501'/2'/0'");
 }
 
 proptest! {

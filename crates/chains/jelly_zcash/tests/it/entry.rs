@@ -4,7 +4,7 @@ use jelly_core::{
 };
 use jelly_keypair::{
     PathTemplate, Secp256k1Key, generate_key, parse_path,
-    test_util::{test_keychain, uncompressed_wif},
+    test_util::{test_seed, uncompressed_wif},
     wif_encode,
 };
 use jelly_zcash::{ENTRY, SPEC};
@@ -140,10 +140,10 @@ fn an_uppercase_shielded_address_is_refused_as_unsupported_like_its_lowercase_sp
 
 #[test]
 fn exported_keys_reimport_to_the_same_address() {
-    let keychain = test_keychain();
+    let seed = test_seed();
     let template = PathTemplate::parse(SPEC.default_path).unwrap();
     for index in [0, 1, 7] {
-        let material = keychain.key_material_at(SPEC.key_kind, &template.path_at(index).unwrap());
+        let material = seed.key_material_at(SPEC.key_kind, &template.path_at(index).unwrap());
         let material = material.unwrap();
         assert_eq!(material.kind(), KeyKind::Secp256k1);
         let address = ENTRY.address(&material, P2PKH).unwrap();
@@ -167,7 +167,7 @@ fn a_generated_key_produces_a_p2pkh_address_the_codec_accepts() {
 fn a_bitcoin_wif_and_bare_hex_import_and_name_their_formats() {
     let from_wif = ENTRY.import_key(BIP84_WIF, None).unwrap();
     assert_eq!(ENTRY.recognize_key(BIP84_WIF), Some("Bitcoin WIF key"));
-    let derived = test_keychain().secp256k1_at(&parse_path("m/84'/0'/0'/0/0").unwrap()).unwrap();
+    let derived = test_seed().secp256k1_at(&parse_path("m/84'/0'/0'/0/0").unwrap()).unwrap();
     let secret = derived.with_secret_bytes(|bytes| hex::encode(bytes));
     from_wif.material.with_bytes(|bytes| assert_eq!(hex::encode(bytes), secret));
     for input in [secret.clone(), format!(" 0x{} ", secret.to_uppercase())] {

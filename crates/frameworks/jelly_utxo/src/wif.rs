@@ -42,7 +42,7 @@ impl WifFormat {
     pub(crate) fn import(self, input: &str) -> Result<ImportedKey, KeyError> {
         let trimmed = input.trim();
         if let Some(secret) = decode_secret_hex(trimmed) {
-            let key = Secp256k1Key::from_secret_bytes(secret.as_slice())?;
+            let key = Secp256k1Key::from_secret_bytes(&secret)?;
             return Ok(ImportedKey { material: key.key_material(), named_script: None });
         }
         let (wif, prefix) = split_electrum_prefix(trimmed);

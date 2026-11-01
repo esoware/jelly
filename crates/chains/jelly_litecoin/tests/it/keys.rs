@@ -6,7 +6,7 @@ use jelly_core::{
 };
 use jelly_keypair::{
     PathTemplate, parse_path,
-    test_util::{key_at, test_keychain, uncompressed_wif},
+    test_util::{key_at, test_seed, uncompressed_wif},
     wif_encode,
 };
 use jelly_litecoin::{ENTRY, SPEC};
@@ -29,7 +29,7 @@ fn the_litecoin_wif_round_trips() {
 
     let imported = ENTRY.import_key(LITECOIN_WIF, None).unwrap();
     assert_eq!(imported.named_script, None);
-    let derived = test_keychain().secp256k1_at(&parse_path(litecoin_path).unwrap()).unwrap();
+    let derived = test_seed().secp256k1_at(&parse_path(litecoin_path).unwrap()).unwrap();
     imported.material.with_bytes(|bytes| {
         derived.with_secret_bytes(|secret| assert_eq!(bytes, secret.as_slice()));
     });

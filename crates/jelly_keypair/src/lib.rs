@@ -9,9 +9,10 @@ mod bip32;
 mod ed25519;
 #[cfg(test)]
 mod fixtures;
+mod generation;
 mod keccak;
-mod keychain;
 mod keystore;
+mod monero_spend;
 mod path;
 mod secp256k1;
 mod secret_hex;
@@ -23,8 +24,8 @@ mod web3_key;
 mod wif;
 
 pub use crate::ed25519::Ed25519Key;
+pub use crate::generation::generate_key;
 pub use crate::keccak::{keccak_address_bytes, keccak256};
-pub use crate::keychain::{HdKeychain, generate_key};
 pub use crate::path::{
     PathTemplate, account_prefix, child_index, parse_path, purpose_of, stored_path,
 };

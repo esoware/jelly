@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use jelly_core::{ChainEntry, ChainId, ChainTable, Clock, CoreError, KeyMaterial, wire_enum};
-use jelly_keypair::HdKeychain;
+use jelly_keypair::Seed;
 use jelly_store::WalletRow;
 use jelly_vault::{UnlockedVault, VaultError, VaultPassword};
 use parking_lot::{RwLock, RwLockReadGuard};
@@ -134,8 +134,8 @@ impl Session {
         self.table.entry(chain)
     }
 
-    pub(crate) const fn keychain(&self) -> &HdKeychain {
-        &self.keys.keychain
+    pub(crate) const fn seed(&self) -> &Seed {
+        &self.keys.seed
     }
 
     /// The account index the keys were opened for, which the wallet's subaddress chains

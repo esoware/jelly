@@ -274,7 +274,7 @@ impl WalletEngine {
     pub async fn get_xpub(&self, path: &DerivationPath) -> Result<String, CoreError> {
         let session = self.require_session().await?;
         let path = parse_path(path.as_str())?;
-        Ok(session.keychain().xpub_at(&path)?)
+        Ok(session.seed().xpub_at(&path)?)
     }
 
     /// The account-level xpub behind a derived address, when it has one.
@@ -291,7 +291,7 @@ impl WalletEngine {
         let Some(account) = account_prefix(&path) else {
             return Ok(None);
         };
-        Ok(Some(session.keychain().xpub_at(&account)?))
+        Ok(Some(session.seed().xpub_at(&account)?))
     }
 
     /// Every row of the wallet sharing `row`'s standalone key, `row` included.
@@ -403,7 +403,7 @@ impl WalletEngine {
         let entry = session.entry(chain);
         let spec = entry.spec();
         let script_kind = spec.resolve_script(purpose_of(path), script)?;
-        let key = session.keychain().key_material_at(spec.key_kind, path)?;
+        let key = session.seed().key_material_at(spec.key_kind, path)?;
         let address = entry.address(&key, script_kind)?;
         // Solana's family varies a middle component, so the index is whichever one the
         // family varies. A path outside the family falls back to its last component.

@@ -25,7 +25,7 @@ pub struct Secp256k1Key {
 }
 
 impl Secp256k1Key {
-    pub fn from_secret_bytes(bytes: &[u8]) -> Result<Self, KeyError> {
+    pub fn from_secret_bytes(bytes: &[u8; 32]) -> Result<Self, KeyError> {
         let mut secret_key =
             SecretKey::from_slice(bytes).map_err(|_| KeyError::InvalidSecretKey)?;
         let public = PublicKey::from_secret_key(signing_context(), &secret_key);
@@ -34,12 +34,15 @@ impl Secp256k1Key {
         Ok(Self { secret, public })
     }
 
-    /// The key `material` holds, refusing material of another kind.
+    /// The key `material` holds, refusing material of another kind or length.
     pub fn from_key_material(material: &KeyMaterial) -> Result<Self, KeyError> {
         if material.kind() != KeyKind::Secp256k1 {
             return Err(KeyError::InvalidSecretKey);
         }
-        material.with_bytes(Self::from_secret_bytes)
+        material.with_bytes(|bytes| {
+            let secret = <&[u8; 32]>::try_from(bytes).map_err(|_| KeyError::InvalidSecretKey)?;
+            Self::from_secret_bytes(secret)
+        })
     }
 
     pub fn with_secret_bytes<R>(&self, read: impl FnOnce(&[u8; 32]) -> R) -> R {

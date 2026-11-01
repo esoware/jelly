@@ -124,7 +124,7 @@ impl ChainEntry for ZcashEntry {
         _password: Option<&SecretText>,
     ) -> Result<ImportedKey, KeyError> {
         let key = if let Some(secret) = decode_secret_hex(input) {
-            Secp256k1Key::from_secret_bytes(secret.as_slice())?
+            Secp256k1Key::from_secret_bytes(&secret)?
         } else {
             let wif = wif_decode(input)?;
             if wif.version != WIF_VERSION {

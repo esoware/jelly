@@ -4,7 +4,7 @@ use jelly_core::{
 };
 use jelly_keypair::{
     Bip32Path, PathTemplate, generate_key, parse_path,
-    test_util::{TEST_PHRASE, test_keychain},
+    test_util::{TEST_PHRASE, test_seed},
 };
 use jelly_net::DefaultEndpoints;
 use jelly_tron::{ENTRY, SPEC};
@@ -63,7 +63,7 @@ fn default_path(index: u32) -> Result<Bip32Path, KeyError> {
 }
 
 fn derived(path: &Bip32Path) -> Result<KeyMaterial, KeyError> {
-    test_keychain().key_material_at(SPEC.key_kind, path)
+    test_seed().key_material_at(SPEC.key_kind, path)
 }
 
 fn address_of(material: &KeyMaterial) -> Result<String, KeyError> {

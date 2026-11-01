@@ -118,7 +118,7 @@ fn signers(payment: &Payment, keys: &[KeyMaterial]) -> Result<Vec<Signer>, Zcash
     }
     let mut signers = Vec::with_capacity(keys.len());
     for (source, material) in payment.sources.iter().zip(keys) {
-        let key = material.with_bytes(Secp256k1Key::from_secret_bytes)?;
+        let key = Secp256k1Key::from_key_material(material)?;
         let pubkey = key.public_compressed();
         if pubkey_address(&pubkey)? != source.address {
             return Err(ZcashError::Invalid(FOREIGN_KEY));

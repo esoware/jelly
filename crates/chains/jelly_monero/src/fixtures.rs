@@ -1,7 +1,7 @@
 //! Fixtures the unit tests share.
 
 use jelly_core::{EndpointLabel, KeyKind, KeyMaterial};
-use jelly_keypair::{PathTemplate, test_util::test_keychain};
+use jelly_keypair::{PathTemplate, test_util::test_seed};
 use monero_interface::ScannableBlock;
 use monero_wallet::Scanner;
 use monero_wallet::block::Block;
@@ -20,7 +20,7 @@ pub(crate) fn hd_account(index: u32) -> KeyMaterial {
         .and_then(|template| template.path_at(index))
         .expect("a default path");
     let material =
-        test_keychain().key_material_at(KeyKind::MoneroSpend, &path).expect("an account key");
+        test_seed().key_material_at(KeyKind::MoneroSpend, &path).expect("an account key");
     assert_eq!(material.kind(), SPEC.key_kind);
     material
 }

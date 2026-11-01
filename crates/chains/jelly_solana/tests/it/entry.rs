@@ -4,7 +4,7 @@ use jelly_core::{
 };
 use jelly_keypair::{
     Bip32Path, PathTemplate, generate_key, parse_path,
-    test_util::{TEST_PHRASE, test_keychain},
+    test_util::{TEST_PHRASE, test_seed},
 };
 use jelly_net::DefaultEndpoints;
 use jelly_solana::{ENTRY, SPEC};
@@ -52,7 +52,7 @@ fn default_path(index: u32) -> Result<Bip32Path, KeyError> {
 }
 
 fn derived(path: &Bip32Path) -> Result<KeyMaterial, KeyError> {
-    test_keychain().key_material_at(SPEC.key_kind, path)
+    test_seed().key_material_at(SPEC.key_kind, path)
 }
 
 fn address_of(material: &KeyMaterial) -> Result<String, KeyError> {
@@ -196,7 +196,7 @@ fn solana_addresses_have_no_script() {
 
 #[test]
 fn a_solana_address_is_its_public_key() {
-    let key = test_keychain().ed25519_at(&default_path(0).unwrap()).expect("a key");
+    let key = test_seed().ed25519_at(&default_path(0).unwrap()).expect("a key");
     let address = address_of(&key.key_material()).unwrap();
     let decoded = bs58::decode(&address).into_vec().expect("base58");
     assert_eq!(decoded, key.public_bytes());
@@ -250,7 +250,7 @@ fn the_vault_bytes_reimport_as_hex() {
 
 #[test]
 fn every_keypair_encoding_imports_the_documented_address() {
-    let key = test_keychain().ed25519_at(&default_path(0).unwrap()).expect("a key");
+    let key = test_seed().ed25519_at(&default_path(0).unwrap()).expect("a key");
     let keypair = key.to_keypair_bytes();
     let encoded = hex::encode(keypair.as_slice());
     let json = format!("[{}]", keypair.iter().map(u8::to_string).collect::<Vec<_>>().join(","));

@@ -24,7 +24,7 @@ use jelly_core::{
         FakeClock, FakeEventSink, MemoryCursorStore, TxRequestBuilder, WatchedAddressBuilder,
     },
 };
-use jelly_keypair::{PathTemplate, test_util::test_keychain};
+use jelly_keypair::{PathTemplate, test_util::test_seed};
 use jelly_monero::{
     BroadcastReply, Distribution, FeeLadder, MoneroAccount, MoneroAdapter, MoneroConfig,
     MoneroError, MoneroKeys, MoneroNode, SPEC,
@@ -93,7 +93,7 @@ pub(crate) fn recorded() -> serde_json::Result<Recorded> {
 /// default path.
 pub(crate) fn hd_account(index: u32) -> Fallible<KeyMaterial> {
     let path = PathTemplate::parse(SPEC.default_path)?.path_at(index)?;
-    Ok(test_keychain().key_material_at(SPEC.key_kind, &path)?)
+    Ok(test_seed().key_material_at(SPEC.key_kind, &path)?)
 }
 
 pub(crate) fn bytes32(value: &str) -> Fallible<[u8; 32]> {
