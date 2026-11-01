@@ -333,10 +333,7 @@ pub(crate) fn of_native(
             reverted.insert(row.hash);
         }
         if is_from_me && moved.fee.is_none() {
-            moved.fee = receipt_fee_wei.get(&row.hash).copied().or_else(|| {
-                let (gas_price, gas_used) = row.gas_price.zip(row.gas_used)?;
-                gas_price.checked_mul(u128::from(gas_used))
-            });
+            moved.fee = sender_fee(receipt_fee_wei, row.hash, row.gas_price, row.gas_used);
         }
     }
     for row in internal {
@@ -385,13 +382,19 @@ pub(crate) fn of_tokens(
         moved.confirmed = Some((row.block_number, Some(row.timestamp)));
         // Only the sender paid for the gas, and only once per transaction.
         if sent_by_owner.contains(&row.hash) && moved.fee.is_none() {
-            moved.fee = receipt_fee_wei.get(&row.hash).copied().or_else(|| {
-                let (gas_price, gas_used) = row.gas_price.zip(row.gas_used)?;
-                gas_price.checked_mul(u128::from(gas_used))
-            });
+            moved.fee = sender_fee(receipt_fee_wei, row.hash, row.gas_price, row.gas_used);
         }
     }
     of_moves(moves, tip)
+}
+
+fn sender_fee(
+    receipt_fee_wei: &HashMap<B256, u128>,
+    txid: B256,
+    gas_price: Option<u128>,
+    gas_used: Option<u64>,
+) -> Option<u128> {
+    receipt_fee_wei.get(&txid).copied().or_else(|| gas_price?.checked_mul(u128::from(gas_used?)))
 }
 
 #[cfg(test)]

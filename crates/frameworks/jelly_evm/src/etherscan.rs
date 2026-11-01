@@ -27,13 +27,13 @@ const MAX_PAGES: u32 = 10;
 /// from forcing unbounded allocation.
 const MAX_PAGE_BYTES: usize = 4 * 1024 * 1024;
 
-/// The Etherscan-family envelope.
+/// The Etherscan-family response body.
 ///
 /// A `status` of `0` isn't always a failure. An empty history comes back as an
 /// empty array or as a string result with a no-transactions message, and a
 /// refused key comes back as a string result.
 #[derive(Debug, Deserialize)]
-struct Envelope<'a> {
+struct Response<'a> {
     #[serde(default)]
     status: String,
     #[serde(default)]
@@ -54,11 +54,11 @@ pub(crate) struct Page<T> {
 /// Rows are decoded one at a time, so an unreadable row costs that row and a
 /// warning, not the page.
 pub(crate) fn read_page<T: DeserializeOwned>(body: &str) -> Result<Page<T>, EvmError> {
-    let envelope: Envelope<'_> = serde_json::from_str(body).map_err(|source| {
+    let response: Response<'_> = serde_json::from_str(body).map_err(|source| {
         EvmError::HistoryShape { line: source.line(), column: source.column() }
     })?;
-    let Some(result) = envelope.result else {
-        return Err(EvmError::HistoryRefused(HistoryRefusal::classify(&envelope.message)));
+    let Some(result) = response.result else {
+        return Err(EvmError::HistoryRefused(HistoryRefusal::classify(&response.message)));
     };
     if let Ok(raw_rows) = serde_json::from_str::<Vec<&RawValue>>(result.get()) {
         let served = raw_rows.len();
@@ -82,12 +82,12 @@ pub(crate) fn read_page<T: DeserializeOwned>(body: &str) -> Result<Page<T>, EvmE
     let detail: String = serde_json::from_str(result.get()).map_err(|source| {
         EvmError::HistoryShape { line: source.line(), column: source.column() }
     })?;
-    if envelope.status == "0" && envelope.message.to_ascii_lowercase().contains("no transactions") {
+    if response.status == "0" && response.message.to_ascii_lowercase().contains("no transactions") {
         return Ok(Page { rows: Vec::new(), served: 0 });
     }
     Err(EvmError::HistoryRefused(HistoryRefusal::classify(&format!(
         "{} {detail}",
-        envelope.message
+        response.message
     ))))
 }
 
@@ -472,7 +472,7 @@ mod tests {
     }
 
     #[test]
-    fn a_body_that_is_not_the_envelope_reports_a_position_and_no_text() {
+    fn a_body_that_is_not_the_response_shape_reports_a_position_and_no_text() {
         let error = read_page::<NativeRow>("<html>502 bad gateway</html>").expect_err("not json");
         assert!(matches!(error, EvmError::HistoryShape { .. }), "{error:?}");
         let rendered = format!("{error} {error:?}");

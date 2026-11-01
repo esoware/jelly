@@ -6,8 +6,8 @@ use std::time::Duration;
 use alloy::primitives::{Address, B256, U256};
 use async_trait::async_trait;
 use jelly_core::{
-    Amount, AssetId, ChainAdapter as _, ChainId, Clock, CursorScope, CursorStore as _, ScanStream,
-    TokenId, TxDetection, TxDirection, TxOutcome, WalletEvent,
+    Amount, AssetId, ChainAdapter as _, ChainId, Clock, TokenId, TxDetection, TxDirection,
+    TxOutcome, WalletEvent,
     test_util::{FakeClock, FakeEventSink, MemoryCursorStore},
 };
 use jelly_evm::{
@@ -105,13 +105,7 @@ async fn an_indexed_pass_records_native_and_token_history_and_asks_for_no_logs()
 async fn a_complete_indexed_read_closes_both_frontiers() {
     let harness = indexed().await.unwrap();
     harness.sync().await.unwrap();
-    let stored = harness
-        .cursors
-        .load_scan(CursorScope::Address(7), ScanStream::EvmLogScan)
-        .await
-        .unwrap()
-        .expect("a cursor row");
-    let cursor: Value = stored.with_bytes(|bytes| serde_json::from_slice(bytes)).unwrap();
+    let cursor = harness.stored_cursor().await.unwrap();
     assert_eq!(
         cursor.get("forwardTo").and_then(Value::as_u64),
         Some(TIP - ETHEREUM.indexer_lag_blocks()),
@@ -147,13 +141,7 @@ async fn a_truncated_indexed_read_resumes_where_its_shortest_list_stopped() {
     harness.node.always(Method::Call, Answer::ok(&aggregate(&sheet(5 * ETH))));
 
     harness.sync().await.unwrap();
-    let stored = harness
-        .cursors
-        .load_scan(CursorScope::Address(7), ScanStream::EvmLogScan)
-        .await
-        .unwrap()
-        .expect("a cursor row");
-    let cursor: Value = stored.with_bytes(|bytes| serde_json::from_slice(bytes)).unwrap();
+    let cursor = harness.stored_cursor().await.unwrap();
     // The internal list is untruncated and empty, so the native and token lists
     // decide. Native rows reach 18_000_005 and token rows only 18_000_002, and the
     // pass claims one block below the lower of the two, because that block may be

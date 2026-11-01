@@ -1,8 +1,8 @@
 use alloy::primitives::Address;
 use alloy::sol_types;
 use jelly_core::{
-    Amount, AssetId, ChainError, ChainId, CoreError, EndpointLabel, FailureKind, KeyError, KeyKind,
-    Rejection,
+    AddressError, Amount, AssetId, ChainError, ChainId, CoreError, EndpointLabel, KeyError,
+    KeyKind, Rejection,
 };
 use jelly_net::{NetError, Outcome, json_rpc_outcome};
 
@@ -30,8 +30,7 @@ pub enum EvmError {
     /// Not a host failure. The log scan shrinks the window and retries.
     #[error("{endpoint}: the log window is wider than this endpoint allows")]
     LogWindowTooWide { endpoint: EndpointLabel },
-    /// An answer this build can't read, blamed on the endpoint so the pool
-    /// rotates.
+    /// An answer this build can't read, blamed on the endpoint that sent it.
     #[error("{endpoint}: the {method} answer cannot be used: {detail}")]
     Answer { endpoint: EndpointLabel, method: Method, detail: String },
     /// Mapped explicitly, not with `#[from]`, so no other [`CoreError`] is
@@ -55,10 +54,9 @@ pub enum EvmError {
     NotWatched { address_id: i64 },
     #[error("Choose one address to send from.")]
     NotOneSource,
-    /// The detail comes from the address codec, whose messages never carry a
-    /// fragment of their input.
-    #[error("Enter a valid EVM address. {detail}")]
-    InvalidAddress { detail: String },
+    /// The codec's own refusal, which never carries a fragment of its input.
+    #[error("Enter a valid EVM address. {0}")]
+    InvalidAddress(AddressError),
     #[error("Enter a 64-digit hexadecimal transaction ID.")]
     NotATxid,
     /// The adapter isn't tracking this transaction, so it holds no nonce slot to
@@ -206,10 +204,7 @@ impl EvmError {
             | NetError::AllFailed { .. }
             | NetError::InvalidUrl { .. }
             | NetError::Defaults { .. }
-            | NetError::Config { .. }) => match other.into_source_of::<Self>() {
-                Ok(inner) => inner,
-                Err(other) => Self::Net(other),
-            },
+            | NetError::Config { .. }) => Self::Net(other),
         }
     }
 
@@ -227,157 +222,6 @@ impl EvmError {
             return Self::Reverted { endpoint, method, message };
         }
         Self::Rpc { endpoint, method, code, message }
-    }
-
-    pub(crate) const fn label(&self) -> Option<&EndpointLabel> {
-        match *self {
-            Self::Net(ref inner) => inner.label(),
-            Self::Rpc { ref endpoint, .. }
-            | Self::Reverted { ref endpoint, .. }
-            | Self::LogWindowTooWide { ref endpoint }
-            | Self::Answer { ref endpoint, .. } => Some(endpoint),
-            Self::Rejected(_)
-            | Self::Cursor(_)
-            | Self::UnreadableState
-            | Self::UnwatchedSigner
-            | Self::ForeignChain { .. }
-            | Self::ForeignChainId { .. }
-            | Self::ForeignAsset { .. }
-            | Self::ForeignFeeSelection
-            | Self::NotWatched { .. }
-            | Self::NotOneSource
-            | Self::InvalidAddress { .. }
-            | Self::NotATxid
-            | Self::NotOurs { .. }
-            | Self::AlreadyConfirmed { .. }
-            | Self::InsufficientFunds { .. }
-            | Self::NotAnInteger { .. }
-            | Self::NotHex { .. }
-            | Self::IntegerTooWide { .. }
-            | Self::ValueTooWide { .. }
-            | Self::GasAboveCap { .. }
-            | Self::TipAboveCap { .. }
-            | Self::FeeOverflow { .. }
-            | Self::ReplacementUnderpriced { .. }
-            | Self::WouldFail
-            | Self::NoContract { .. }
-            | Self::AbiDecode { .. }
-            | Self::BadConstant { .. }
-            | Self::Payload { .. }
-            | Self::Encode { .. }
-            | Self::EmptyBatch
-            | Self::HistoryKeyMissing
-            | Self::HistoryRefused(_)
-            | Self::HistoryShape { .. }
-            | Self::WrongKeyKind { .. }
-            | Self::WrongKeyLength { .. }
-            | Self::KeyNotOwner
-            | Self::Signing(_)
-            | Self::UnencodableRecovery { .. } => None,
-        }
-    }
-
-    pub(crate) const fn kind(&self) -> FailureKind {
-        match *self {
-            Self::Net(ref inner) => inner.kind(),
-            Self::Rpc { .. }
-            | Self::Reverted { .. }
-            | Self::LogWindowTooWide { .. }
-            | Self::Answer { .. }
-            | Self::Rejected(_) => FailureKind::Protocol,
-            Self::Cursor(_)
-            | Self::UnreadableState
-            | Self::UnwatchedSigner
-            | Self::ForeignChain { .. }
-            | Self::ForeignChainId { .. }
-            | Self::ForeignAsset { .. }
-            | Self::ForeignFeeSelection
-            | Self::NotWatched { .. }
-            | Self::NotOneSource
-            | Self::InvalidAddress { .. }
-            | Self::NotATxid
-            | Self::NotOurs { .. }
-            | Self::AlreadyConfirmed { .. }
-            | Self::InsufficientFunds { .. }
-            | Self::NotAnInteger { .. }
-            | Self::NotHex { .. }
-            | Self::IntegerTooWide { .. }
-            | Self::ValueTooWide { .. }
-            | Self::GasAboveCap { .. }
-            | Self::TipAboveCap { .. }
-            | Self::FeeOverflow { .. }
-            | Self::ReplacementUnderpriced { .. }
-            | Self::WouldFail
-            | Self::NoContract { .. }
-            | Self::AbiDecode { .. }
-            | Self::BadConstant { .. }
-            | Self::Payload { .. }
-            | Self::Encode { .. }
-            | Self::EmptyBatch
-            | Self::HistoryKeyMissing
-            | Self::HistoryRefused(_)
-            | Self::HistoryShape { .. }
-            | Self::WrongKeyKind { .. }
-            | Self::WrongKeyLength { .. }
-            | Self::KeyNotOwner
-            | Self::Signing(_)
-            | Self::UnencodableRecovery { .. } => FailureKind::Client,
-        }
-    }
-
-    /// Transport failures, unreadable answers and non-final RPC errors are about
-    /// one host, so they rotate. Everything else fails without trying another host.
-    pub(crate) const fn outcome(&self) -> Outcome {
-        match *self {
-            Self::Net(_) | Self::Answer { .. } => Outcome::Rotate,
-            Self::Rpc { code, .. } => {
-                if code == GETH_REVERT_CODE {
-                    Outcome::Fail
-                } else {
-                    json_rpc_outcome(code)
-                }
-            }
-            Self::Rejected(_)
-            | Self::Reverted { .. }
-            | Self::LogWindowTooWide { .. }
-            | Self::Cursor(_)
-            | Self::UnreadableState
-            | Self::UnwatchedSigner
-            | Self::ForeignChain { .. }
-            | Self::ForeignChainId { .. }
-            | Self::ForeignAsset { .. }
-            | Self::ForeignFeeSelection
-            | Self::NotWatched { .. }
-            | Self::NotOneSource
-            | Self::InvalidAddress { .. }
-            | Self::NotATxid
-            | Self::NotOurs { .. }
-            | Self::AlreadyConfirmed { .. }
-            | Self::InsufficientFunds { .. }
-            | Self::NotAnInteger { .. }
-            | Self::NotHex { .. }
-            | Self::IntegerTooWide { .. }
-            | Self::ValueTooWide { .. }
-            | Self::GasAboveCap { .. }
-            | Self::TipAboveCap { .. }
-            | Self::FeeOverflow { .. }
-            | Self::ReplacementUnderpriced { .. }
-            | Self::WouldFail
-            | Self::NoContract { .. }
-            | Self::AbiDecode { .. }
-            | Self::BadConstant { .. }
-            | Self::Payload { .. }
-            | Self::Encode { .. }
-            | Self::EmptyBatch
-            | Self::HistoryKeyMissing
-            | Self::HistoryRefused(_)
-            | Self::HistoryShape { .. }
-            | Self::WrongKeyKind { .. }
-            | Self::WrongKeyLength { .. }
-            | Self::KeyNotOwner
-            | Self::Signing(_)
-            | Self::UnencodableRecovery { .. } => Outcome::Fail,
-        }
     }
 
     pub(crate) const fn is_window_too_wide(&self) -> bool {
@@ -410,7 +254,7 @@ impl EvmError {
             | Self::ForeignFeeSelection
             | Self::NotWatched { .. }
             | Self::NotOneSource
-            | Self::InvalidAddress { .. }
+            | Self::InvalidAddress(_)
             | Self::NotATxid
             | Self::NotOurs { .. }
             | Self::AlreadyConfirmed { .. }
@@ -468,7 +312,7 @@ impl From<EvmError> for ChainError {
             | EvmError::ForeignFeeSelection
             | EvmError::HistoryKeyMissing) => Self::unsupported(error),
 
-            error @ EvmError::InvalidAddress { .. } => Self::invalid_address(error),
+            error @ EvmError::InvalidAddress(_) => Self::invalid_address(error),
 
             error @ (EvmError::NotWatched { .. }
             | EvmError::NotOneSource
@@ -499,21 +343,6 @@ impl From<EvmError> for ChainError {
     }
 }
 
-/// Keeps the original as the source, so the typed value survives the round trip
-/// through the pool.
-impl From<EvmError> for NetError {
-    fn from(error: EvmError) -> Self {
-        if let EvmError::Net(net) = error {
-            return net;
-        }
-        let Some(endpoint) = error.label().cloned() else {
-            return Self::config("an evm failure with no endpoint", error);
-        };
-        let kind = error.kind();
-        Self::endpoint(&endpoint, kind, error)
-    }
-}
-
 /// The pool classifier for idempotent reads.
 pub(crate) fn classify(error: &NetError) -> Outcome {
     match *error {
@@ -536,9 +365,7 @@ pub(crate) fn classify(error: &NetError) -> Outcome {
         | NetError::AllFailed { .. }
         | NetError::InvalidUrl { .. }
         | NetError::Defaults { .. }
-        | NetError::Config { .. } => {
-            error.source_of::<EvmError>().map_or(Outcome::Rotate, EvmError::outcome)
-        }
+        | NetError::Config { .. } => Outcome::Rotate,
     }
 }
 
@@ -704,11 +531,13 @@ mod tests {
     }
 
     #[test]
-    fn the_standard_codes_stop_a_read_and_a_transport_failure_rotates() {
+    fn the_standard_codes_and_a_revert_stop_a_read_and_anything_else_rotates() {
         for code in [-32700, -32600, -32601, -32602, 3] {
             assert_eq!(classify(&rpc(code, "whatever")), Outcome::Fail, "{code}");
         }
-        assert_eq!(classify(&rpc(-32603, "internal error")), Outcome::Rotate);
+        for code in [-32000, -32005, -32010, -32603, 0] {
+            assert_eq!(classify(&rpc(code, "internal error")), Outcome::Rotate, "{code}");
+        }
         assert_eq!(classify(&rpc(-32000, "execution reverted")), Outcome::Fail);
         assert_eq!(classify(&NetError::NoEndpoints { chain: ChainId::Ethereum }), Outcome::Rotate);
     }
@@ -771,22 +600,6 @@ mod tests {
     }
 
     #[test]
-    fn a_typed_failure_survives_a_round_trip_through_the_pool() {
-        let original = EvmError::answer(&endpoint(), Method::GetLogs, "no topics");
-        let net = NetError::from(original);
-        let recovered = EvmError::from_net(Method::GetLogs, net);
-        assert!(matches!(recovered, EvmError::Answer { method: Method::GetLogs, .. }));
-    }
-
-    #[test]
-    fn a_failure_with_no_endpoint_still_survives_the_round_trip() {
-        let original = EvmError::NotATxid;
-        let net = NetError::from(original);
-        assert!(matches!(net, NetError::Config { .. }));
-        assert!(matches!(EvmError::from_net(Method::Call, net), EvmError::NotATxid));
-    }
-
-    #[test]
     fn a_log_window_complaint_is_never_read_as_a_send_refusal() {
         // Range complaints also say `too large`, so the oversized row matches
         // whole phrases only.
@@ -820,21 +633,9 @@ mod tests {
     }
 
     #[test]
-    fn a_revert_is_read_from_its_wording_and_an_rpc_error_outcome_from_its_code() {
+    fn a_revert_is_read_from_its_wording() {
         assert!(is_revert("execution reverted: ERC20: insufficient allowance"));
         assert!(is_revert("gas required exceeds allowance (30000000)"));
         assert!(!is_revert("nonce too low"));
-        let answer = |code| EvmError::Rpc {
-            endpoint: endpoint(),
-            method: Method::ChainId,
-            code,
-            message: String::new(),
-        };
-        for code in [-32700, -32600, -32601, -32602, 3] {
-            assert_eq!(answer(code).outcome(), Outcome::Fail, "{code}");
-        }
-        for code in [-32000, -32005, -32010, -32603, 0] {
-            assert_eq!(answer(code).outcome(), Outcome::Rotate, "{code}");
-        }
     }
 }

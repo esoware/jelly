@@ -24,11 +24,7 @@ async fn seed_settlement_store(
         .load_scan(CursorScope::Address(7), ScanStream::EvmLogScan)
         .await?
         .ok_or("baseline")?;
-    let reservation = harness
-        .cursors
-        .load_reservation(CursorScope::Address(7), ReservationSlot::EvmNonces)
-        .await?
-        .ok_or("reservation")?;
+    let reservation = harness.stored_sent_set().await?.ok_or("reservation")?;
     cursors
         .committed()
         .advance(CursorScope::Address(7), ScanStream::EvmLogScan, baseline.clone())
@@ -261,12 +257,7 @@ async fn a_settled_receipt_explains_the_balance_after_a_restart_and_is_cleared_o
     adapter.sync(harness.deadline(), &events).await.unwrap();
     assert!(!events.drain().iter().any(|event| matches!(event, WalletEvent::TxDetected(row) if row.detection == TxDetection::BalanceDelta)));
     adapter.sync(harness.deadline(), &events).await.unwrap();
-    let saved = harness
-        .cursors
-        .load_reservation(CursorScope::Address(7), ReservationSlot::EvmNonces)
-        .await
-        .unwrap()
-        .unwrap();
+    let saved = harness.stored_sent_set().await.unwrap().unwrap();
     assert!(saved.with_bytes(|bytes| {
         serde_json::from_slice::<serde_json::Value>(bytes).unwrap()["settled"]
             .as_array()
@@ -454,19 +445,10 @@ async fn a_send_no_node_knows_goes_out_again_as_the_bytes_it_was_signed_as() {
 async fn the_bytes_a_pass_sends_again_survive_a_restart() {
     let harness = Harness::signer(Setup::default().one_window(), 12).await.unwrap();
     let signed = harness.send(&payment(PEER, 12)).await.unwrap();
-    let stored = harness
-        .cursors
-        .load_reservation(CursorScope::Address(7), ReservationSlot::EvmNonces)
-        .await
-        .unwrap()
-        .expect("a stored set");
+    let stored = harness.stored_sent_set().await.unwrap().expect("a stored set");
 
     let restarted = Harness::new(Setup::default().one_window()).unwrap();
-    restarted
-        .cursors
-        .reserve(CursorScope::Address(7), ReservationSlot::EvmNonces, stored)
-        .await
-        .unwrap();
+    restarted.seed_sent_set(stored).await.unwrap();
     restarted.watch(&[watched(7, ChainId::Ethereum, SIGNER)]).await.unwrap();
     restarted.node.quiet(&sheet(5 * ETH));
     restarted.node.always(Method::GetTransactionReceipt, Answer::ok("null"));
@@ -611,22 +593,13 @@ async fn a_self_send_receipt_is_recorded_as_a_self_transfer() {
 }
 
 #[tokio::test]
-async fn the_watched_set_survives_a_restart_of_the_adapter() {
+async fn the_sent_set_survives_a_restart_of_the_adapter() {
     let harness = Harness::sent().await.unwrap();
-    let stored = harness
-        .cursors
-        .load_reservation(CursorScope::Address(7), ReservationSlot::EvmNonces)
-        .await
-        .unwrap()
-        .expect("a stored set");
+    let stored = harness.stored_sent_set().await.unwrap().expect("a stored set");
     assert!(!stored.is_empty());
 
     let restarted = Harness::new(Setup::on(&DEEP_ETHEREUM).one_window()).unwrap();
-    restarted
-        .cursors
-        .reserve(CursorScope::Address(7), ReservationSlot::EvmNonces, stored.clone())
-        .await
-        .unwrap();
+    restarted.seed_sent_set(stored.clone()).await.unwrap();
     restarted.watch(&[watched(7, ChainId::Ethereum, SIGNER)]).await.unwrap();
     assert_eq!(restarted.adapter.in_flight(), 1, "the send survived the restart");
 
@@ -654,15 +627,10 @@ async fn an_address_that_left_the_watch_set_is_forgotten() {
 }
 
 #[tokio::test]
-async fn an_unreadable_stored_send_set_blocks_every_operation_and_is_never_overwritten() {
+async fn an_unreadable_stored_sent_set_blocks_every_operation_and_is_never_overwritten() {
     let original = Harness::signer(Setup::default().one_window(), 12).await.unwrap();
     let signed = original.send(&payment(PEER, 12)).await.unwrap();
-    let saved = original
-        .cursors
-        .load_reservation(CursorScope::Address(7), ReservationSlot::EvmNonces)
-        .await
-        .unwrap()
-        .unwrap();
+    let saved = original.stored_sent_set().await.unwrap().unwrap();
     let mut invalid_fee: serde_json::Value =
         saved.with_bytes(|bytes| serde_json::from_slice(bytes)).unwrap();
     invalid_fee["entries"][0]["maxFeePerGas"] = serde_json::json!("0");
@@ -675,11 +643,7 @@ async fn an_unreadable_stored_send_set_blocks_every_operation_and_is_never_overw
         invalid_fee.as_slice(),
     ] {
         let restarted = Harness::new(Setup::default().one_window()).unwrap();
-        restarted
-            .cursors
-            .reserve(CursorScope::Address(7), ReservationSlot::EvmNonces, saved.clone())
-            .await
-            .unwrap();
+        restarted.seed_sent_set(saved.clone()).await.unwrap();
         restarted.watch(&[watched(7, ChainId::Ethereum, SIGNER)]).await.unwrap();
         restarted
             .cursors
@@ -711,13 +675,6 @@ async fn an_unreadable_stored_send_set_blocks_every_operation_and_is_never_overw
                 .unwrap()
                 .with_bytes(|stored| stored == bytes)
         );
-        assert_eq!(
-            restarted
-                .cursors
-                .load_reservation(CursorScope::Address(7), ReservationSlot::EvmNonces)
-                .await
-                .unwrap(),
-            Some(saved.clone())
-        );
+        assert_eq!(restarted.stored_sent_set().await.unwrap(), Some(saved.clone()));
     }
 }

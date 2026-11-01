@@ -1,13 +1,12 @@
 use jelly_core::{
-    Amount, ChainAdapter as _, ChainError, FeeLevel, FeeQuote, FeeSelection, SendAmount, TokenId,
-    WalletEvent,
+    Amount, ChainAdapter as _, ChainError, FeeLevel, FeeSelection, SendAmount, TokenId, WalletEvent,
 };
 use jelly_evm::Method;
 
 use crate::common::{
     self, ARBITRUM, AVALANCHE, Answer, BASE, ETH, ETHEREUM, Fallible, GWEI, Harness, L1_FEE_WEI,
-    NETWORKS, OWNER, PEER, SHEET_ENTRIES, Setup, detail, evm_fee, quantity, request, sheet,
-    sheet_index, usdt, word,
+    NETWORKS, OWNER, PEER, SHEET_ENTRIES, Setup, custom_fee, detail, evm_fee, quantity, request,
+    sheet, sheet_index, usdt, word,
 };
 
 /// Scripts the nonce, native balance, fee history, gas estimate and L1 data fee a
@@ -19,24 +18,6 @@ fn preflight(harness: &Harness, nonce: u64, native_wei: u128, key: &str) -> Fall
     harness.node.always(Method::EstimateGas, Answer::ok(&quantity(21_000)));
     harness.node.always(Method::Call, Answer::ok(&word(L1_FEE_WEI)));
     Ok(())
-}
-
-/// The gas limit, cap and tip a quote's custom fee pays.
-fn priced(quote: &FeeQuote) -> Fallible<(u64, u128, u128)> {
-    let Some(FeeSelection::Evm {
-        ref gas_limit,
-        ref max_fee_per_gas,
-        ref max_priority_fee_per_gas,
-    }) = quote.custom
-    else {
-        return Err("an evm quote names an evm custom fee".into());
-    };
-    let read = |text: &Option<String>| text.as_deref().unwrap_or_default().parse::<u128>();
-    Ok((
-        gas_limit.as_deref().unwrap_or_default().parse()?,
-        read(max_fee_per_gas)?,
-        read(max_priority_fee_per_gas)?,
-    ))
 }
 
 /// The recorded history's three columns have medians of 1, 2 and 3 gwei over a
@@ -53,7 +34,7 @@ async fn a_normal_quote_pays_the_normal_level() {
 
     let quote = harness.adapter.quote_fee(&request(PEER, ETHEREUM.native(), ETH)).await.unwrap();
     assert_eq!(
-        priced(&quote).unwrap(),
+        custom_fee(&quote).unwrap(),
         (21_000, 14_400_000_000 + NORMAL_TIP_WEI, NORMAL_TIP_WEI),
         "a transfer that runs no code uses exactly its intrinsic gas, so it is not padded"
     );
@@ -99,7 +80,7 @@ async fn a_level_quote_pays_that_levels_pair_and_a_level_build_matches_it() {
         let mut request = request(PEER, ETHEREUM.native(), ETH);
         request.fee = FeeSelection::Level { level };
         let quote = harness.adapter.quote_fee(&request).await.unwrap();
-        assert_eq!(priced(&quote).unwrap(), (21_000, cap, tip), "{level}");
+        assert_eq!(custom_fee(&quote).unwrap(), (21_000, cap, tip), "{level}");
         assert_eq!(
             quote.levels.iter().find(|row| row.level == level).map(|row| row.fee),
             Some(quote.fee),
@@ -123,7 +104,7 @@ async fn a_c_chain_quote_tips_what_its_own_oracle_would_over_its_base_fee() {
     let quote = harness.adapter.quote_fee(&request(PEER, AVALANCHE.native(), ETH)).await.unwrap();
     let base_fee = 2_503_533_220;
     let tip = 150;
-    assert_eq!(priced(&quote).unwrap(), (21_000, 3_004_239_864 + tip, tip));
+    assert_eq!(custom_fee(&quote).unwrap(), (21_000, 3_004_239_864 + tip, tip));
     assert_eq!(quote.fee.base_units(), 21_000 * (base_fee + tip));
     assert!(quote.levels.iter().all(|row| row.fee == quote.fee), "{:?}", quote.levels);
 }
@@ -154,7 +135,7 @@ async fn a_level_tip_falls_back_to_the_network_floor_when_none_was_sampled() {
 
             let quote =
                 harness.adapter.quote_fee(&request(PEER, network.native(), ETH)).await.unwrap();
-            let (_, _, tip) = priced(&quote).unwrap();
+            let (_, _, tip) = custom_fee(&quote).unwrap();
             assert_eq!(tip, network.min_priority_fee_wei, "{:?} {key}", network.chain);
         }
     }
@@ -179,7 +160,7 @@ async fn a_send_max_quote_leaves_the_worst_case_behind() {
     let mut request = request(PEER, ETHEREUM.native(), 0);
     request.amount = SendAmount::Max;
     let quote = harness.adapter.quote_fee(&request).await.unwrap();
-    let (limit, cap, _) = priced(&quote).unwrap();
+    let (limit, cap, _) = custom_fee(&quote).unwrap();
     let worst = u128::from(limit).checked_mul(cap).unwrap();
     assert_eq!(quote.max_amount.map(Amount::base_units), ETH.checked_sub(worst));
 }
@@ -229,7 +210,7 @@ async fn a_custom_pair_is_quoted_at_what_it_is_expected_to_pay() {
     let mut request = request(PEER, ETHEREUM.native(), ETH);
     request.fee = evm_fee(None, Some(99 * GWEI), Some(3 * GWEI));
     let quote = harness.adapter.quote_fee(&request).await.unwrap();
-    assert_eq!(priced(&quote).unwrap(), (21_000, 99 * GWEI, 3 * GWEI));
+    assert_eq!(custom_fee(&quote).unwrap(), (21_000, 99 * GWEI, 3 * GWEI));
     assert_eq!(
         quote.fee.base_units(),
         21_000 * 15 * GWEI,
@@ -247,7 +228,7 @@ async fn a_pinned_pair_is_quoted_at_its_worst_case_when_the_node_will_not_serve_
     let mut request = request(PEER, ETHEREUM.native(), ETH);
     request.fee = evm_fee(None, Some(99 * GWEI), Some(3 * GWEI));
     let quote = harness.adapter.quote_fee(&request).await.unwrap();
-    assert_eq!(priced(&quote).unwrap(), (21_000, 99 * GWEI, 3 * GWEI));
+    assert_eq!(custom_fee(&quote).unwrap(), (21_000, 99 * GWEI, 3 * GWEI));
     assert_eq!(quote.fee.base_units(), 21_000 * 99 * GWEI, "no base fee to price against");
 
     let unsigned = harness.adapter.build_tx(&request).await.unwrap();
@@ -266,7 +247,7 @@ async fn half_a_fee_set_by_hand_takes_the_other_half_from_the_market() {
     let mut request = request(PEER, ETHEREUM.native(), ETH);
     request.fee = evm_fee(None, Some(99 * GWEI), None);
     let quote = harness.adapter.quote_fee(&request).await.unwrap();
-    assert_eq!(priced(&quote).unwrap(), (21_000, 99 * GWEI, NORMAL_TIP_WEI));
+    assert_eq!(custom_fee(&quote).unwrap(), (21_000, 99 * GWEI, NORMAL_TIP_WEI));
 }
 
 #[tokio::test]
@@ -278,7 +259,7 @@ async fn a_gas_limit_set_by_hand_is_used_and_named() {
     let mut request = request(PEER, ETHEREUM.native(), ETH);
     request.fee = evm_fee(Some(30_000), None, None);
     let quote = harness.adapter.quote_fee(&request).await.unwrap();
-    assert_eq!(priced(&quote).unwrap().0, 30_000);
+    assert_eq!(custom_fee(&quote).unwrap().0, 30_000);
     assert!(
         harness.node.calls_to(Method::EstimateGas).is_empty(),
         "a limit set by hand needs no estimate"
@@ -373,7 +354,7 @@ async fn a_token_quote_pads_the_estimate_and_reads_the_token_balance() {
     harness.node.always(Method::EstimateGas, Answer::ok(&quantity(65_000)));
 
     let quote = harness.adapter.quote_fee(&request(PEER, usdt(), 2_500_000)).await.unwrap();
-    assert_eq!(priced(&quote).unwrap().0, 78_000, "the estimate and a fifth again");
+    assert_eq!(custom_fee(&quote).unwrap().0, 78_000, "the estimate and a fifth again");
     assert_eq!(harness.node.calls_to(Method::Call).len(), 1, "one balanceOf, inside the batch");
 }
 
@@ -471,7 +452,7 @@ async fn an_op_stack_send_max_leaves_the_l1_data_fee_behind_with_the_gas() {
     let mut request = request(PEER, BASE.native(), 0);
     request.amount = SendAmount::Max;
     let quote = harness.adapter.quote_fee(&request).await.unwrap();
-    let (limit, cap, _) = priced(&quote).unwrap();
+    let (limit, cap, _) = custom_fee(&quote).unwrap();
     let reserved =
         u128::from(limit).checked_mul(cap).and_then(|gas| gas.checked_add(2 * L1_FEE_WEI)).unwrap();
     assert_eq!(
@@ -502,5 +483,5 @@ async fn an_arbitrum_payment_pays_the_gas_its_estimate_says_its_l1_data_costs() 
     harness.node.always(Method::EstimateGas, Answer::ok(&quantity(300_000)));
 
     let quote = harness.adapter.quote_fee(&request(PEER, ARBITRUM.native(), ETH)).await.unwrap();
-    assert_eq!(priced(&quote).unwrap().0, 360_000);
+    assert_eq!(custom_fee(&quote).unwrap().0, 360_000);
 }

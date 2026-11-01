@@ -371,7 +371,7 @@ mod tests {
     }
 
     #[test]
-    fn required_cursor_fields_are_independently_validated() {
+    fn a_cursor_missing_its_judgment_or_checkpoint_is_refused_and_only_the_judgment_may_be_null() {
         let cursor =
             ScanCursor { native_balance: Some(5), native_nonce: Some(0), ..ScanCursor::default() };
         let document: serde_json::Value =

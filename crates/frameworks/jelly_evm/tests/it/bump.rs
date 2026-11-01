@@ -6,7 +6,8 @@ use jelly_evm::Method;
 
 use crate::common::{
     ARBITRUM, Answer, DEEP_ETHEREUM, ETH, Fallible, GWEI, Harness, PEER, SIGNER, Setup, TEST_KEY,
-    detail, evm_fee, gwei_text, key_material, payment, quantity, receipt_for, sheet, watched,
+    custom_fee, detail, evm_fee, gwei_text, key_material, payment, quantity, receipt_for, sheet,
+    watched,
 };
 
 const NONCE: u64 = 7;
@@ -81,16 +82,6 @@ impl Sent {
     }
 }
 
-/// The pair a quote's custom fee asks for, as wei per gas.
-fn pair_of(fee: Option<&FeeSelection>) -> Fallible<(u128, u128)> {
-    let Some(FeeSelection::Evm { max_fee_per_gas, max_priority_fee_per_gas, .. }) = fee else {
-        return Err("an evm quote offers an evm custom fee".into());
-    };
-    let cap = max_fee_per_gas.as_deref().ok_or("a quote pins its cap")?.parse::<u128>()?;
-    let tip = max_priority_fee_per_gas.as_deref().ok_or("a quote pins its tip")?.parse::<u128>()?;
-    Ok((cap, tip))
-}
-
 #[tokio::test]
 async fn a_normal_quote_clears_what_the_node_charges_to_replace() {
     let sent = sent().await.unwrap();
@@ -99,7 +90,7 @@ async fn a_normal_quote_clears_what_the_node_charges_to_replace() {
     // Geth and its forks need both halves at least 10 percent higher.
     let min_cap = CAP_WEI.saturating_mul(110).saturating_div(100);
     let min_tip = TIP_WEI.saturating_mul(110).saturating_div(100);
-    let (cap, tip) = pair_of(quote.custom.as_ref()).unwrap();
+    let (_, cap, tip) = custom_fee(&quote).unwrap();
     assert!(cap >= min_cap, "{cap} is below {min_cap}");
     assert!(tip >= min_tip, "{tip} is below {min_tip}");
 }
@@ -142,8 +133,9 @@ async fn a_normal_replacement_pays_the_normal_level_raised_to_the_floor() {
 async fn a_replacement_at_a_level_takes_that_levels_tip_and_quotes_every_level_raised() {
     let sent = sent().await.unwrap();
     let quote = sent.quote(&FeeSelection::Level { level: FeeLevel::Slow }).await.unwrap();
+    let (_, cap, tip) = custom_fee(&quote).unwrap();
     assert_eq!(
-        pair_of(quote.custom.as_ref()).unwrap(),
+        (cap, tip),
         (33 * GWEI, 1_100_000_000),
         "the slow tip is under the floor, so both halves are the floor"
     );
@@ -357,10 +349,7 @@ async fn an_arbitrum_cancel_pays_the_gas_its_estimate_names() {
 
     let cancel = harness.adapter.tx_cancel().expect("arbitrum can cancel");
     let quote = cancel.quote_cancel(&signed.txid, &FeeSelection::NORMAL).await.unwrap();
-    let Some(FeeSelection::Evm { gas_limit, .. }) = quote.custom else {
-        panic!("an evm quote names an evm custom fee")
-    };
-    assert_eq!(gas_limit.as_deref(), Some("144000"), "the estimate and a fifth again");
+    assert_eq!(custom_fee(&quote).unwrap().0, 144_000, "the estimate and a fifth again");
 }
 
 #[tokio::test]

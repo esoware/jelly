@@ -14,8 +14,9 @@ use alloy::primitives::U256;
 use async_trait::async_trait;
 use jelly_core::{
     Amount, AssetId, ChainAdapter as _, ChainEntry, ChainError, ChainId, ChainSyncProgress, Clock,
-    CursorScope, CursorStore as _, Deadline, FeeSelection, KeyKind, KeyMaterial, ReservationSlot,
-    SignedTx, TokenId, Transport, TxDetail, TxRecord, TxRequest, WalletEvent, WatchedAddress,
+    CursorBytes, CursorScope, CursorStore as _, Deadline, FeeQuote, FeeSelection, KeyKind,
+    KeyMaterial, ReservationSlot, ScanStream, SignedTx, TokenId, Transport, TxDetail, TxRecord,
+    TxRequest, WalletEvent, WatchedAddress,
     test_util::{
         FakeClock, FakeEventSink, MemoryCursorStore, TxRequestBuilder, WatchedAddressBuilder,
         key_material_of,
@@ -130,6 +131,24 @@ pub(crate) fn evm_fee(gas: Option<u64>, cap: Option<u128>, tip: Option<u128>) ->
         max_fee_per_gas: cap.map(|value| value.to_string()),
         max_priority_fee_per_gas: tip.map(|value| value.to_string()),
     }
+}
+
+/// The gas limit, cap and tip a quote's custom fee pays.
+pub(crate) fn custom_fee(quote: &FeeQuote) -> Fallible<(u64, u128, u128)> {
+    let Some(FeeSelection::Evm {
+        ref gas_limit,
+        ref max_fee_per_gas,
+        ref max_priority_fee_per_gas,
+    }) = quote.custom
+    else {
+        return Err("an evm quote names an evm custom fee".into());
+    };
+    let read = |text: &Option<String>| text.as_deref().unwrap_or_default().parse::<u128>();
+    Ok((
+        gas_limit.as_deref().unwrap_or_default().parse()?,
+        read(max_fee_per_gas)?,
+        read(max_priority_fee_per_gas)?,
+    ))
 }
 
 /// A quantity as a node writes it.
@@ -525,13 +544,22 @@ impl Harness {
         Ok(signed)
     }
 
-    /// The txids of the sends the fixture address's stored set holds, in order.
-    pub(crate) async fn stored_txids(&self) -> Fallible<Vec<String>> {
-        let stored = self
+    /// The fixture address's stored sent set, if a send wrote one.
+    pub(crate) async fn stored_sent_set(&self) -> Fallible<Option<CursorBytes>> {
+        Ok(self
             .cursors
             .load_reservation(CursorScope::Address(7), ReservationSlot::EvmNonces)
-            .await?
-            .ok_or("a stored set")?;
+            .await?)
+    }
+
+    /// Stores `set` as the fixture address's sent set, as an earlier session left it.
+    pub(crate) async fn seed_sent_set(&self, set: CursorBytes) -> Fallible<()> {
+        Ok(self.cursors.reserve(CursorScope::Address(7), ReservationSlot::EvmNonces, set).await?)
+    }
+
+    /// The txids of the sends the fixture address's stored set holds, in order.
+    pub(crate) async fn stored_txids(&self) -> Fallible<Vec<String>> {
+        let stored = self.stored_sent_set().await?.ok_or("a stored set")?;
         let set: serde_json::Value = stored.with_bytes(|bytes| serde_json::from_slice(bytes))?;
         Ok(set
             .get("entries")
@@ -540,6 +568,16 @@ impl Harness {
             .iter()
             .filter_map(|entry| entry["txid"].as_str().map(str::to_owned))
             .collect())
+    }
+
+    /// The fixture address's stored scan cursor, as JSON.
+    pub(crate) async fn stored_cursor(&self) -> Fallible<serde_json::Value> {
+        let stored = self
+            .cursors
+            .load_scan(CursorScope::Address(7), ScanStream::EvmLogScan)
+            .await?
+            .ok_or("a stored cursor")?;
+        Ok(stored.with_bytes(|bytes| serde_json::from_slice(bytes))?)
     }
 
     /// Drains the events and returns the transaction records among them.

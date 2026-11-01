@@ -81,13 +81,7 @@ async fn one_pass_reads_the_tip_the_history_and_the_balances_and_stores_a_cursor
     assert_eq!(outgoing.direction, TxDirection::Outgoing);
     assert_eq!(outgoing.amount.base_units(), 1_000_000);
 
-    let stored = harness
-        .cursors
-        .load_scan(CursorScope::Address(7), ScanStream::EvmLogScan)
-        .await
-        .unwrap()
-        .expect("a stored cursor");
-    let cursor: Value = stored.with_bytes(|bytes| serde_json::from_slice(bytes)).unwrap();
+    let cursor = harness.stored_cursor().await.unwrap();
     assert_eq!(cursor.get("version").and_then(Value::as_u64), Some(1));
     assert_eq!(cursor.get("forwardTo").and_then(Value::as_u64), Some(TIP));
     assert_eq!(
@@ -647,13 +641,7 @@ async fn a_window_no_endpoint_will_serve_leaves_the_cursor_alone_and_the_balance
         .count();
     assert_eq!(balances, SHEET_ENTRIES, "the balance sheet is read whatever the log walk did");
 
-    let stored = harness
-        .cursors
-        .load_scan(CursorScope::Address(7), ScanStream::EvmLogScan)
-        .await
-        .unwrap()
-        .expect("a cursor row");
-    let cursor: Value = stored.with_bytes(|bytes| serde_json::from_slice(bytes)).unwrap();
+    let cursor = harness.stored_cursor().await.unwrap();
     assert_eq!(
         cursor.get("forwardTo").and_then(Value::as_u64),
         None,
@@ -672,13 +660,7 @@ async fn a_pass_whose_budget_has_run_out_walks_no_windows() {
     let progress = harness.sync_expired().await.unwrap();
     assert_eq!(progress.tip_height(), Some(TIP));
     assert!(harness.node.calls_to(Method::GetLogs).is_empty(), "no window was asked for");
-    let stored = harness
-        .cursors
-        .load_scan(CursorScope::Address(7), ScanStream::EvmLogScan)
-        .await
-        .unwrap()
-        .expect("a cursor row");
-    let cursor: Value = stored.with_bytes(|bytes| serde_json::from_slice(bytes)).unwrap();
+    let cursor = harness.stored_cursor().await.unwrap();
     assert_eq!(cursor.get("forwardTo").and_then(Value::as_u64), None, "nothing was scanned");
 }
 

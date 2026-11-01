@@ -27,11 +27,11 @@ mod method;
 mod node;
 mod params;
 mod payload;
-mod pending;
 mod preview;
 mod record;
 mod rpc;
 mod send;
+mod sent_set;
 mod sign;
 mod sync;
 #[cfg(feature = "test-util")]

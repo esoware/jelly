@@ -2,7 +2,7 @@ use alloy::primitives::{Address, B256, Bytes, keccak256};
 use jelly_core::{Amount, AssetId, ChainId};
 
 use crate::fee::FeePair;
-use crate::ledger::{Envelope, Ledger, State, Tracked};
+use crate::ledger::{Envelope, Ledger, Tracked};
 use crate::params::EvmParams;
 use crate::payload::Intent;
 use crate::test_util::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, OPTIMISM, POLYGON};
@@ -34,8 +34,8 @@ pub(crate) fn payment(from: Address, to: Address) -> Intent {
     Intent { from, asset: NATIVE, to, amount: Amount::from_base_units(1) }
 }
 
-pub(crate) fn held(from: Address, nonce: u64, cap: u128, now_millis: u64) -> Tracked {
-    Tracked::held(payment(from, address(9)), nonce, pair(cap), now_millis)
+pub(crate) fn held(from: Address, nonce: u64, cap: u128) -> Tracked {
+    Tracked::held(payment(from, address(9)), nonce, pair(cap), 0)
 }
 
 /// Stand-in signed bytes for `seed`, paired with their keccak hash as the txid.
@@ -49,10 +49,7 @@ pub(crate) fn txid_of(seed: u8) -> B256 {
 }
 
 pub(crate) fn signed(from: Address, nonce: u64, cap: u128, seed: u8) -> Tracked {
-    Tracked {
-        state: State::Signed { envelope: envelope(seed), is_sent: false },
-        ..held(from, nonce, cap, 0)
-    }
+    Tracked::signed(payment(from, address(9)), nonce, pair(cap), None, envelope(seed))
 }
 
 /// A ledger holding one send signed from `seed` at nonce 5, already broadcast.

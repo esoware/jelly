@@ -8,7 +8,7 @@ use alloy::hex;
 use jelly_core::{Amount, TxDetail, TxPreview, TxWarning, TxWarningKind};
 
 use crate::error::EvmError;
-use crate::fee::FeeMarket;
+use crate::fee::{FeeMarket, GasSource};
 use crate::params::EvmParams;
 use crate::payload::EvmPayload;
 use crate::send::Plan;
@@ -32,6 +32,10 @@ pub(crate) fn of(
     let amount_symbol = plan.asset.coin().symbol();
     let calldata = built.input();
     let target = built.call_target().unwrap_or(plan.to);
+    let gas_source = match plan.gas.source() {
+        GasSource::Estimated => "Estimated by the node",
+        GasSource::UserOverride => "Set by hand",
+    };
 
     let mut details = vec![
         TxDetail::new("Chain id", params.chain_id.to_string()),
@@ -42,7 +46,7 @@ pub(crate) fn of(
         TxDetail::new("Value in wei", built.value().to_string()),
         TxDetail::new("Nonce", plan.nonce.to_string()),
         TxDetail::new("Gas limit", plan.gas.limit().to_string()),
-        TxDetail::new("Gas limit source", plan.gas.source().label()),
+        TxDetail::new("Gas limit source", gas_source),
         TxDetail::new(
             "Max fee per gas",
             format!("{} ({} wei)", gwei(plan.fee.max_fee_per_gas()), plan.fee.max_fee_per_gas()),

@@ -95,7 +95,7 @@ impl EvmAdapter {
             }
             SendAmount::Exact { value } => value.base_units(),
         };
-        let shape = Shape::of(token, to, provisional, calldata.as_deref());
+        let shape = Shape::of(token, to, provisional, calldata.as_ref());
         let gas = self.gas_limit(overrides, from, &shape, read.native_balance_wei).await?;
         // The provisional amount is never below the real one, so the sized
         // transaction is never shorter and its L1 fee bounds the real fee.

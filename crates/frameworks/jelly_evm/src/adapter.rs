@@ -24,14 +24,13 @@ use crate::client::EvmClient;
 use crate::config::EvmConfig;
 use crate::error::EvmError;
 use crate::history::HistoryApi;
-use crate::ledger::{Envelope, Ledger, State, Tracked};
+use crate::ledger::{Envelope, Ledger, Tracked};
 use crate::node::EvmNode;
 use crate::params::EvmParams;
-use crate::pending::{load_pending, store_pending};
 use crate::sync::{self, Carried, PassInputs};
 use crate::token::TokenTable;
 use crate::watched::{self, Watched};
-use crate::{send, sign};
+use crate::{send, sent_set, sign};
 
 /// Short enough to re-register a recovered endpoint well inside one poll
 /// interval, long enough not to hammer a dead one.
@@ -60,7 +59,7 @@ pub struct EvmAdapter {
     /// Held for a whole build, so a build's nonce is in the ledger before the
     /// next build picks one.
     building: AsyncMutex<()>,
-    /// Serializes pending-set writes, so a slow write of an older snapshot can't
+    /// Serializes sent-set writes, so a slow write of an older snapshot can't
     /// overwrite a newer one.
     writing: AsyncMutex<()>,
     is_blocked: AtomicBool,
@@ -139,17 +138,17 @@ impl EvmAdapter {
         sync::load_cursors(cursors, &missing)
             .await
             .inspect_err(|error| self.block_if_unreadable(error))?;
-        let restored = load_pending(cursors, self.params.chain, watched, &missing)
+        let restored = sent_set::load(cursors, self.params.chain, watched, &missing)
             .await
             .inspect_err(|error| self.block_if_unreadable(error))?;
         self.ledger.lock().restore(restored);
         Ok(())
     }
 
-    async fn persist_pending(&self, owner: Address) -> Result<(), EvmError> {
+    async fn store_sent_set(&self, owner: Address) -> Result<(), EvmError> {
         self.ensure_readable()?;
         let watched = self.watch_set();
-        store_pending(self.cursors.as_ref(), &self.ledger, &self.writing, &watched, owner).await
+        sent_set::store(self.cursors.as_ref(), &self.ledger, &self.writing, &watched, owner).await
     }
 }
 
@@ -249,13 +248,12 @@ impl ChainAdapter for EvmAdapter {
         self.ensure_readable()?;
         let watched = self.watch_set();
         let cutoff = deadline.cutoff(self.clock.as_ref());
-        let history = if carried.is_history_unserved { None } else { self.history.as_deref() };
         let inputs = PassInputs {
             params: self.params,
             config: &self.config,
             tokens: &self.tokens,
             client: &self.client,
-            history,
+            history: self.history.as_deref(),
             cursors: self.cursors.as_ref(),
             clock: self.clock.as_ref(),
             ledger: &self.ledger,
@@ -322,21 +320,18 @@ impl ChainAdapter for EvmAdapter {
             return Err(EvmError::UnwatchedSigner.into());
         }
         let signed = sign::sign(self.params, &payload, key)?;
-        let txid = txid_of(&signed.txid)?;
-        let held = Tracked::held(
+        let envelope = Envelope {
+            txid: txid_of(&signed.txid)?,
+            raw: Bytes::copy_from_slice(signed.raw.as_bytes()),
+        };
+        let tracked = Tracked::signed(
             payload.intent(),
             payload.nonce(),
             payload.fee()?,
-            self.clock.elapsed_millis(),
+            payload.calldata(),
+            envelope,
         );
-        self.ledger.lock().record_signed(Tracked {
-            calldata: payload.calldata(),
-            state: State::Signed {
-                envelope: Envelope { txid, raw: Bytes::copy_from_slice(signed.raw.as_bytes()) },
-                is_sent: false,
-            },
-            ..held
-        });
+        self.ledger.lock().record_signed(tracked);
         Ok(signed)
     }
 
@@ -362,7 +357,7 @@ impl ChainAdapter for EvmAdapter {
             ledger.mark_sent(txid);
             (sender, was_sent)
         };
-        if let Err(error) = self.persist_pending(sender).await {
+        if let Err(error) = self.store_sent_set(sender).await {
             // An earlier attempt may already be in a mempool, so only a first
             // attempt gives its slot back.
             if !was_sent {
@@ -380,7 +375,7 @@ impl ChainAdapter for EvmAdapter {
                 let released =
                     !was_sent && self.ledger.lock().release_refused(txid, rejection.retry);
                 if released {
-                    self.persist_pending(sender).await?;
+                    self.store_sent_set(sender).await?;
                 }
                 Err(EvmError::Rejected(rejection).into())
             }
@@ -408,12 +403,4 @@ impl PendingTracker for EvmAdapter {
         self.ledger.lock().release_held(payload.from(), payload.nonce());
         Ok(())
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const fn assert_send_sync<T: Send + Sync>() {}
-    const _: () = assert_send_sync::<EvmAdapter>();
 }

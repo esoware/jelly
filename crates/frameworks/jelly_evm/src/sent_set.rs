@@ -14,8 +14,8 @@ use crate::watched::{Watched, address_of};
 
 const VERSION: u8 = 1;
 
-/// Where an address's watched sends live. They're a reservation, not scan progress,
-/// because another send mustn't reuse their nonces.
+/// Where an address's sent set lives. It's a reservation, not scan progress,
+/// because another send mustn't reuse its nonces.
 const SENDS_SLOT: ReservationSlot = ReservationSlot::EvmNonces;
 
 /// One address's sent set as stored.
@@ -25,20 +25,20 @@ const SENDS_SLOT: ReservationSlot = ReservationSlot::EvmNonces;
 /// slot means nothing after a restart.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct StoredSet {
+struct SentSet {
     version: u8,
     settled: Vec<StoredSettlement>,
-    entries: Vec<Stored>,
+    entries: Vec<StoredSend>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct StoredSettlement {
-    tracked: Stored,
+    tracked: StoredSend,
     receipt: Option<Receipt>,
     checkpoint: u64,
 }
 
-impl StoredSet {
+impl SentSet {
     fn of(ledger: &Ledger, from: Address) -> Self {
         Self {
             version: VERSION,
@@ -48,7 +48,7 @@ impl StoredSet {
                 .filter(|entry| entry.tracked.from == from)
                 .filter_map(|entry| {
                     Some(StoredSettlement {
-                        tracked: Stored::of(&entry.tracked, entry.tracked.sent()?),
+                        tracked: StoredSend::of(&entry.tracked, entry.tracked.sent()?),
                         receipt: entry.receipt.clone(),
                         checkpoint: entry.checkpoint,
                     })
@@ -56,13 +56,13 @@ impl StoredSet {
                 .collect(),
             entries: ledger
                 .sent_from(from)
-                .map(|(entry, envelope)| Stored::of(entry, envelope))
+                .map(|(entry, envelope)| StoredSend::of(entry, envelope))
                 .collect(),
         }
     }
 
     fn encode(&self) -> Result<Vec<u8>, EvmError> {
-        serde_json::to_vec(self).map_err(|source| EvmError::Encode { what: "pending set", source })
+        serde_json::to_vec(self).map_err(|source| EvmError::Encode { what: "sent set", source })
     }
 
     fn decode(bytes: &[u8]) -> Option<Self> {
@@ -98,7 +98,7 @@ impl StoredSet {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Stored {
+struct StoredSend {
     from: Address,
     nonce: u64,
     txid: B256,
@@ -117,7 +117,7 @@ struct Stored {
     landing: Option<Landing>,
 }
 
-impl Stored {
+impl StoredSend {
     fn of(entry: &Tracked, envelope: &Envelope) -> Self {
         Self {
             from: entry.from,
@@ -135,11 +135,11 @@ impl Stored {
     }
 }
 
-impl TryFrom<Stored> for Tracked {
+impl TryFrom<StoredSend> for Tracked {
     type Error = EvmError;
 
     /// Refuses bytes that don't hash to the txid, which no broadcast of ours writes.
-    fn try_from(stored: Stored) -> Result<Self, Self::Error> {
+    fn try_from(stored: StoredSend) -> Result<Self, Self::Error> {
         if keccak256(&stored.raw) != stored.txid {
             return Err(EvmError::UnreadableState);
         }
@@ -166,7 +166,7 @@ impl TryFrom<Stored> for Tracked {
 
 /// Stores `owner`'s sent set. Takes only the ports it uses, because a broadcast
 /// writes it outside any pass.
-pub(crate) async fn store_pending(
+pub(crate) async fn store(
     cursors: &dyn CursorStore,
     ledger: &Mutex<Ledger>,
     writing: &AsyncMutex<()>,
@@ -177,7 +177,7 @@ pub(crate) async fn store_pending(
     let Some(address_id) = address_of(watched, owner) else {
         return Ok(());
     };
-    let set = StoredSet::of(&ledger.lock(), owner);
+    let set = SentSet::of(&ledger.lock(), owner);
     cursors
         .reserve(CursorScope::Address(address_id), SENDS_SLOT, CursorBytes::new(set.encode()?))
         .await
@@ -189,7 +189,7 @@ pub(crate) async fn store_pending(
 ///
 /// A set that doesn't read back, or holds a send of another network or of an
 /// address its row doesn't watch, is [`EvmError::UnreadableState`].
-pub(crate) async fn load_pending(
+pub(crate) async fn load(
     cursors: &dyn CursorStore,
     chain: ChainId,
     watched: &[Watched],
@@ -207,7 +207,7 @@ pub(crate) async fn load_pending(
         };
         let (row_entries, row_settled) = row
             .payload
-            .with_bytes(StoredSet::decode)
+            .with_bytes(SentSet::decode)
             .and_then(|set| set.into_entries().ok())
             .filter(|(row_entries, row_settled)| {
                 row_entries
@@ -232,15 +232,15 @@ mod tests {
         let mut ledger = Ledger::new();
         let owner = address(1);
         let txid = txid_of(2);
-        ledger.hold(held(owner, 5, 1_000, 0));
+        ledger.hold(held(owner, 5, 1_000));
         ledger.record_signed(signed(owner, 6, 1_000, 2));
         ledger.mark_sent(txid);
         ledger.land(txid, Some(Landing { height: 31, block_hash: None }));
 
-        let stored = StoredSet::of(&ledger, owner);
+        let stored = SentSet::of(&ledger, owner);
         assert_eq!(stored.entries.len(), 1, "a held slot is not persisted");
         let bytes = stored.encode().expect("it encodes");
-        let read = StoredSet::decode(&bytes).expect("it decodes");
+        let read = SentSet::decode(&bytes).expect("it decodes");
         assert_eq!(read, stored);
 
         let mut fresh = Ledger::new();
@@ -261,7 +261,7 @@ mod tests {
         let owner = address(1);
         let txid = txid_of(5);
         let deposit = Bytes::from_static(&[0xd0, 0xe3, 0x0d, 0xb0]);
-        ledger.hold(held(owner, 4, 1_000, 0));
+        ledger.hold(held(owner, 4, 1_000));
         let mut call = signed(owner, 4, 1_000, 5);
         call.calldata = Some(deposit.clone());
         ledger.record_signed(call);
@@ -269,7 +269,7 @@ mod tests {
         assert_eq!(ledger.len(), 1, "the build's slot was filled in");
 
         let mut fresh = Ledger::new();
-        fresh.restore(StoredSet::of(&ledger, owner).into_entries().unwrap());
+        fresh.restore(SentSet::of(&ledger, owner).into_entries().unwrap());
         let entry = fresh.entry(txid).expect("the entry");
         assert_eq!(entry.calldata, Some(deposit));
     }
@@ -281,25 +281,25 @@ mod tests {
         assert_eq!(ledger.entry(txid).and_then(Tracked::sent_bytes), Some(&envelope(6).raw));
 
         let mut fresh = Ledger::new();
-        fresh.restore(StoredSet::of(&ledger, address(1)).into_entries().unwrap());
+        fresh.restore(SentSet::of(&ledger, address(1)).into_entries().unwrap());
         assert_eq!(fresh.entry(txid).and_then(Tracked::sent_bytes), Some(&envelope(6).raw));
     }
 
     #[test]
     fn stored_bytes_that_do_not_hash_to_their_txid_are_refused() {
         let ledger = sent_ledger(6);
-        let mut stored = serde_json::to_value(StoredSet::of(&ledger, address(1))).unwrap();
+        let mut stored = serde_json::to_value(SentSet::of(&ledger, address(1))).unwrap();
         stored["entries"][0]["raw"] = serde_json::json!("0x0207");
-        let set = StoredSet::decode(&serde_json::to_vec(&stored).unwrap()).expect("it decodes");
+        let set = SentSet::decode(&serde_json::to_vec(&stored).unwrap()).expect("it decodes");
         assert!(matches!(set.into_entries(), Err(EvmError::UnreadableState)));
     }
 
     #[test]
     fn a_stored_set_from_another_version_or_shape_is_refused() {
-        assert!(StoredSet::decode(b"not json").is_none());
-        assert!(StoredSet::decode(br#"{"version":9,"entries":[],"settled":[]}"#).is_none());
+        assert!(SentSet::decode(b"not json").is_none());
+        assert!(SentSet::decode(br#"{"version":9,"entries":[],"settled":[]}"#).is_none());
         let empty =
-            StoredSet::decode(br#"{"version":1,"entries":[],"settled":[]}"#).expect("it decodes");
+            SentSet::decode(br#"{"version":1,"entries":[],"settled":[]}"#).expect("it decodes");
         assert!(empty.entries.is_empty());
     }
 }

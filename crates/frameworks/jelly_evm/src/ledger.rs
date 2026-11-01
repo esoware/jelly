@@ -8,7 +8,7 @@ use crate::fee::FeePair;
 use crate::payload::Intent;
 use crate::rpc::{Landing, Receipt};
 
-const TARGET: &str = "jelly::evm::pending";
+const TARGET: &str = "jelly::evm::ledger";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum State {
@@ -66,6 +66,28 @@ impl Tracked {
             fee,
             calldata: None,
             state: State::Held { since_millis: now_millis },
+            landing: None,
+        }
+    }
+
+    /// Signed and not yet sent.
+    pub(crate) const fn signed(
+        intent: Intent,
+        nonce: u64,
+        fee: FeePair,
+        calldata: Option<Bytes>,
+        envelope: Envelope,
+    ) -> Self {
+        let Intent { from, asset, to, amount } = intent;
+        Self {
+            from,
+            nonce,
+            asset,
+            amount,
+            to,
+            fee,
+            calldata,
+            state: State::Signed { envelope, is_sent: false },
             landing: None,
         }
     }
@@ -441,9 +463,9 @@ mod tests {
         let owner = address(1);
         assert_eq!(ledger.next_nonce(owner, 5), 5, "with nothing held the node decides");
 
-        ledger.hold(held(owner, 5, 1_000, 0));
+        ledger.hold(held(owner, 5, 1_000));
         assert_eq!(ledger.next_nonce(owner, 5), 6, "a held slot the node cannot know about");
-        ledger.hold(held(owner, 6, 1_000, 0));
+        ledger.hold(held(owner, 6, 1_000));
         assert_eq!(ledger.next_nonce(owner, 5), 7);
 
         assert_eq!(ledger.next_nonce(address(2), 5), 5, "another sender has its own slots");
@@ -455,7 +477,7 @@ mod tests {
         let mut ledger = Ledger::new();
         let owner = address(1);
         for nonce in [5, 6, 7] {
-            ledger.hold(held(owner, nonce, 1_000, 0));
+            ledger.hold(held(owner, nonce, 1_000));
         }
         assert_eq!(ledger.next_nonce(owner, 2), 8, "a node that trails the chain leaves no gap");
 
@@ -463,7 +485,7 @@ mod tests {
         assert_eq!(ledger.len(), 2);
         assert_eq!(ledger.next_nonce(owner, 5), 6, "the node's count stops below the gap");
         assert_eq!(ledger.next_nonce(owner, 7), 8, "a count past the gap says it was filled");
-        ledger.hold(held(owner, 6, 1_000, 0));
+        ledger.hold(held(owner, 6, 1_000));
         assert_eq!(ledger.next_nonce(owner, 5), 8, "a filled gap is no gap");
 
         ledger.release_held(owner, 7);
@@ -477,8 +499,8 @@ mod tests {
         let owner = address(1);
         assert_eq!(ledger.replacement_floor(owner, 5).expect("no floor"), None);
 
-        ledger.hold(held(owner, 5, 1_000, 0));
-        ledger.hold(held(owner, 5, 2_000, 0));
+        ledger.hold(held(owner, 5, 1_000));
+        ledger.hold(held(owner, 5, 2_000));
         let floor = ledger.replacement_floor(owner, 5).expect("a floor").expect("occupied");
         assert_eq!(floor.max_fee_per_gas(), 2_200, "the highest of the two, a tenth higher");
         assert_eq!(ledger.replacement_floor(owner, 6).expect("no floor"), None);
@@ -502,7 +524,7 @@ mod tests {
     fn a_held_slot_is_released_by_a_discard_and_a_sent_one_never_is() {
         let mut ledger = Ledger::new();
         let owner = address(1);
-        ledger.hold(held(owner, 5, 1_000, 0));
+        ledger.hold(held(owner, 5, 1_000));
         ledger.release_held(owner, 5);
         assert_eq!(ledger.len(), 0);
 
@@ -519,7 +541,7 @@ mod tests {
         let mut ledger = Ledger::new();
         let owner = address(1);
         let txid = txid_of(3);
-        ledger.hold(held(owner, 5, 1_000, 0));
+        ledger.hold(held(owner, 5, 1_000));
 
         ledger.record_signed(signed(owner, 5, 1_000, 3));
         assert_eq!(ledger.len(), 1, "the slot was filled in, not doubled");
@@ -572,7 +594,7 @@ mod tests {
     fn a_held_slot_expires_and_a_sent_one_does_not() {
         let mut ledger = Ledger::new();
         let owner = address(1);
-        ledger.hold(held(owner, 5, 1_000, 0));
+        ledger.hold(held(owner, 5, 1_000));
         let txid = txid_of(1);
         ledger.record_signed(signed(owner, 6, 1_000, 1));
         ledger.mark_sent(txid);
@@ -582,7 +604,7 @@ mod tests {
         ledger.expire_held(2_000, 1_000);
         assert_eq!(ledger.len(), 1);
         assert_eq!(ledger.next_nonce(owner, 0), 5, "the expired slot is a gap below the sent one");
-        ledger.hold(held(owner, 5, 1_000, 0));
+        ledger.hold(held(owner, 5, 1_000));
         assert_eq!(ledger.next_nonce(owner, 0), 7, "the sent slot still holds its nonce");
     }
 
@@ -698,8 +720,8 @@ mod tests {
     #[test]
     fn senders_that_left_the_watch_set_are_forgotten() {
         let mut ledger = Ledger::new();
-        ledger.hold(held(address(1), 1, 1_000, 0));
-        ledger.hold(held(address(2), 1, 1_000, 0));
+        ledger.hold(held(address(1), 1, 1_000));
+        ledger.hold(held(address(2), 1, 1_000));
         ledger.retain_senders(&[address(1)]);
         assert_eq!(ledger.len(), 1);
         ledger.retain_senders(&[]);
