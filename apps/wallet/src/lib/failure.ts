@@ -1,21 +1,19 @@
 import type {
   EndpointAttempt,
   FailureKind,
-  IpcErrorCode,
   IpcErrorDetail,
   RejectionKind,
   RetryPolicy,
   SkipReason,
 } from "@/ipc/bindings.gen.ts"
 import { IpcError } from "@/ipc/client.ts"
-import type { IpcErrorKind } from "@/ipc/client.ts"
 import { chainName, formatAssetAmount } from "@/lib/chain.ts"
 
 const MAX_LISTED_ATTEMPTS = 3
 
 const INTERNAL_FAILURE = "Jelly encountered an internal error."
 
-const CODE_MESSAGES: Record<IpcErrorCode, string> = {
+const CODE_MESSAGES: Record<IpcError["code"], string> = {
   starting: "Jelly is still starting.",
   locked: "The wallet is locked.",
   wrong_password: "The password is incorrect.",
@@ -42,10 +40,6 @@ const CODE_MESSAGES: Record<IpcErrorCode, string> = {
   prices_unavailable: "Prices are unavailable right now.",
   panic: INTERNAL_FAILURE,
   internal: INTERNAL_FAILURE,
-}
-
-const KIND_MESSAGES: Record<IpcErrorKind, string> = {
-  backend: "Jelly could not complete the request.",
   transport: "Jelly could not reach the wallet engine.",
   unrecognized: INTERNAL_FAILURE,
 }
@@ -140,5 +134,5 @@ export function describeFailure(error: unknown): string {
   if (error.code === "invalid_input" && error.message.length > 0) {
     return error.message
   }
-  return error.code === null ? KIND_MESSAGES[error.kind] : CODE_MESSAGES[error.code]
+  return CODE_MESSAGES[error.code]
 }

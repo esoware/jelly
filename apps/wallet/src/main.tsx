@@ -60,32 +60,29 @@ declare module "@tanstack/react-query" {
 
 const RETRY_LIMIT = 2
 
-function makeQueryClient(): QueryClient {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        networkMode: "always",
-        refetchOnWindowFocus: false,
-        staleTime: Number.POSITIVE_INFINITY,
-        gcTime: Number.POSITIVE_INFINITY,
-        retry: (failureCount, error) => !hasCode(error, "locked") && failureCount < RETRY_LIMIT,
-      },
-      mutations: { networkMode: "always", retry: false, gcTime: 0 },
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      networkMode: "always",
+      refetchOnWindowFocus: false,
+      staleTime: Number.POSITIVE_INFINITY,
+      gcTime: Number.POSITIVE_INFINITY,
+      retry: (failureCount, error) => !hasCode(error, "locked") && failureCount < RETRY_LIMIT,
     },
-  })
-}
+    mutations: { networkMode: "always", retry: false, gcTime: 0 },
+  },
+})
 
 const TOAST_LIMIT = 3
 
 interface ProvidersProps {
-  client: QueryClient
   children: ReactNode
 }
 
-function Providers({ client, children }: ProvidersProps) {
+function Providers({ children }: ProvidersProps) {
   return (
     <StrictMode>
-      <QueryClientProvider client={client}>
+      <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Toast.Provider toastManager={toastManager} limit={TOAST_LIMIT}>
             {children}
@@ -105,15 +102,6 @@ async function setRootData(key: string, value: Promise<string>): Promise<void> {
   }
 }
 
-refuseBrowserInput()
-await Promise.all([
-  setRootData("backdrop", appCommands.windowBackdrop()),
-  setRootData("windowControls", appCommands.windowControls()),
-  setRootData("platform", appCommands.platform()),
-])
-
-const queryClient = makeQueryClient()
-
 function logRenderFailure(
   scope: string,
   error: unknown,
@@ -129,7 +117,7 @@ async function boot(root: Root): Promise<void> {
     await loadCatalog()
   } catch (error) {
     root.render(
-      <Providers client={queryClient}>
+      <Providers>
         <BootFailed message={describeFailure(error)} />
       </Providers>,
     )
@@ -139,11 +127,18 @@ async function boot(root: Root): Promise<void> {
   const router = makeRouter(queryClient)
   startSession(queryClient, router)
   root.render(
-    <Providers client={queryClient}>
+    <Providers>
       <RouterProvider router={router} />
     </Providers>,
   )
 }
+
+refuseBrowserInput()
+await Promise.all([
+  setRootData("backdrop", appCommands.windowBackdrop()),
+  setRootData("windowControls", appCommands.windowControls()),
+  setRootData("platform", appCommands.platform()),
+])
 
 const container = document.querySelector("#root")
 

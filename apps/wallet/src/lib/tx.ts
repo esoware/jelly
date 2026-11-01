@@ -101,7 +101,7 @@ export function outcomeLabel(row: TxEntry): string | null {
   }
 }
 
-function hasNotRun(row: TxEntry): boolean {
+export function hasNotRun(row: TxEntry): boolean {
   return outcomeLabel(row) !== null
 }
 
@@ -137,8 +137,7 @@ export function canCancel(row: TxEntry): boolean {
 }
 
 export function describeIncomingTx(row: TxEntry, prices: Prices): string {
-  const price = priceForAsset(row.asset, prices)
-  const value = price === null ? null : fiatValue(row.amount, assetDecimals(row.asset), price)
+  const value = fiatValue(row.amount, assetDecimals(row.asset), priceForAsset(row.asset, prices))
   const fiat = value === null ? "" : ` (${formatFiat(value, prices.currency)})`
   const txid = truncateMiddle(row.txid, TXID_HEAD_CHARS, TXID_TAIL_CHARS)
   return `${formatAssetAmount(row.amount, row.asset)}${fiat} - ${txid}`

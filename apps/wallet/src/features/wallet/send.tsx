@@ -18,7 +18,6 @@ import type {
   TxRequest,
 } from "@/ipc/bindings.gen.ts"
 import { ZERO_AMOUNT, addAmounts, formatAmount, toBaseUnits } from "@/lib/amount.ts"
-import type { Parsed } from "@/lib/amount.ts"
 import {
   assetDecimals,
   assetLabel,
@@ -30,6 +29,7 @@ import {
 import { describeFailure } from "@/lib/failure.ts"
 import { CURRENCIES, PRICE_DECIMALS, fiatToBaseUnits } from "@/lib/fiat.ts"
 import { NONE } from "@/lib/format.ts"
+import type { Parsed } from "@/lib/format.ts"
 import { addressBalance } from "@/lib/portfolio.ts"
 import { addressQueries } from "@/query/address.ts"
 import { moneyQueries } from "@/query/money.ts"

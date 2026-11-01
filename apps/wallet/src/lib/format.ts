@@ -1,3 +1,5 @@
+export type Parsed<T> = { isOk: true; value: T } | { isOk: false; error: string }
+
 export const NONE = "-"
 
 export const ELLIPSIS = "..."
@@ -12,6 +14,23 @@ export function truncateMiddle(value: string, head: number, tail: number): strin
     return value
   }
   return `${value.slice(0, head)}${ELLIPSIS}${value.slice(-tail)}`
+}
+
+const WHOLE_NUMBER = /^\d+$/u
+
+export const MAX_U32 = 4_294_967_295
+
+export function parseWhole(raw: string, max: number, error: string): Parsed<number> {
+  const trimmed = raw.trim()
+  if (!WHOLE_NUMBER.test(trimmed)) {
+    return { isOk: false, error }
+  }
+  const value = Number(trimmed)
+  return value > max ? { isOk: false, error: "Enter a smaller number." } : { isOk: true, value }
+}
+
+export function parseOptionalWhole(raw: string, max: number, error: string): Parsed<number | null> {
+  return raw.trim() === "" ? { isOk: true, value: null } : parseWhole(raw, max, error)
 }
 
 export const MS_PER_SECOND = 1000

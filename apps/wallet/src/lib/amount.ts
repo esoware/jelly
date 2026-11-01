@@ -1,7 +1,6 @@
 import type { Amount } from "@/ipc/bindings.gen.ts"
 import { ELLIPSIS, NONE } from "@/lib/format.ts"
-
-export type Parsed<T> = { isOk: true; value: T } | { isOk: false; error: string }
+import type { Parsed } from "@/lib/format.ts"
 
 export const ZERO_AMOUNT = 0n
 

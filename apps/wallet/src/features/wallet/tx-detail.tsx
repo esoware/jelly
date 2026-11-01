@@ -33,6 +33,7 @@ import {
   canBumpFee,
   canCancel,
   directionSign,
+  hasNotRun,
   isAmountUnknown,
   outcomeLabel,
   shownAmount,
@@ -86,12 +87,11 @@ export function useTxFiat(row: TxEntry): TxFiatValues {
   const raw = isAmountUnknown(row) ? null : amountToBigInt(shownAmount(row))
   const signed = raw === null ? null : raw * directionSign(shownDirection(row))
   const decimals = assetDecimals(row.asset)
-  const livePrice = priceForAsset(row.asset, prices)
 
   return {
     currency: prices.currency,
-    currentValue: livePrice === null ? null : fiatValue(signed, decimals, livePrice),
-    historicalValue: historicalPrice === null ? null : fiatValue(signed, decimals, historicalPrice),
+    currentValue: fiatValue(signed, decimals, priceForAsset(row.asset, prices)),
+    historicalValue: fiatValue(signed, decimals, historicalPrice),
     isCurrentStale: isPriceStale(row.asset, prices),
   }
 }
@@ -259,7 +259,6 @@ function TxFacts({ row, onBumpFee, onCancel }: TxFactsProps) {
   const explorer = explorerTxUrl(chain, row.txid)
   const canBump = canBumpFee(row)
   const isCancellable = canCancel(row)
-  const hasNotRun = outcomeLabel(row) !== null
   const time =
     row.timestampUnixSecs === null
       ? "Time unavailable"
@@ -281,7 +280,9 @@ function TxFacts({ row, onBumpFee, onCancel }: TxFactsProps) {
       <TxFact label="Time">{time}</TxFact>
       <TxFact label="Status">
         <span className="flex items-baseline gap-1.5">
-          {hasNotRun ? null : <ConfirmationMark chain={chain} confirmations={row.confirmations} />}
+          {hasNotRun(row) ? null : (
+            <ConfirmationMark chain={chain} confirmations={row.confirmations} />
+          )}
           {statusText(row, chain)}
         </span>
       </TxFact>

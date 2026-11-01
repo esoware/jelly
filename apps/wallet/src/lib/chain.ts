@@ -41,10 +41,6 @@ export function allChains(): readonly ChainId[] {
   return [...chainsById.keys()]
 }
 
-function allAssets(): readonly AssetMeta[] {
-  return [...assetsByKey.values()]
-}
-
 export function chainMeta(chain: ChainId): ChainMeta {
   const entry = chainsById.get(chain)
   if (entry === undefined) {
@@ -74,8 +70,6 @@ export function assetFromKey(key: string): AssetId | null {
   return assetsByKey.get(key)?.asset ?? null
 }
 
-const MAX_EXPLORER_TXID_CHARS = 128
-
 export function isChainId(value: string): value is ChainId {
   return allChains().some((chain) => chain === value)
 }
@@ -91,6 +85,8 @@ export function hasScriptChoice(chain: ChainId): boolean {
 export function examplePath(chain: ChainId): string {
   return chainMeta(chain).defaultPath.replace("{index}", "0")
 }
+
+const MAX_EXPLORER_TXID_CHARS = 128
 
 export function explorerTxUrl(chain: ChainId, txid: string): string | null {
   if (txid.length === 0 || txid.length > MAX_EXPLORER_TXID_CHARS || /[^A-Za-z0-9]/u.test(txid)) {
@@ -156,7 +152,7 @@ function nativeFirst(asset: AssetId): number {
 }
 
 export function assetsForChain(chain: ChainId): AssetId[] {
-  return allAssets()
+  return [...assetsByKey.values()]
     .filter((entry) => entry.chain === chain)
     .map((entry) => entry.asset)
     .toSorted((a, b) => nativeFirst(a) - nativeFirst(b))

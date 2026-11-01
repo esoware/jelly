@@ -1,9 +1,9 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
 import { useState } from "react"
 
-import { MAX_U32, parseWhole } from "@/features/settings/layout.tsx"
 import { hasCode } from "@/ipc/client.ts"
 import { describeFailure } from "@/lib/failure.ts"
+import { MAX_U32, parseWhole } from "@/lib/format.ts"
 import { exportCommands } from "@/query/export.ts"
 import { useIpcMutation } from "@/query/mutation.ts"
 import { patchSettings, settingCommands, settingKeys, settingQueries } from "@/query/setting.ts"

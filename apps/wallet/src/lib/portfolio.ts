@@ -84,8 +84,7 @@ export function allocate(holdings: readonly Holdings[], prices: Prices): Allocat
     .flatMap((entry) => [entry, ...entry.tokens])
     .filter((position) => !isZeroAmount(position.amount))
     .map(({ asset, amount, decimals }): AssetValue => {
-      const price = priceForAsset(asset, prices)
-      const value = price === null ? null : fiatValue(amount, decimals, price)
+      const value = fiatValue(amount, decimals, priceForAsset(asset, prices))
       return {
         asset,
         amount,

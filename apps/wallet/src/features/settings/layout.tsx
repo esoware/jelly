@@ -1,24 +1,6 @@
 import { Outlet, useLocation, useNavigate } from "@tanstack/react-router"
 
-import type { Parsed } from "@/lib/amount.ts"
 import { Segmented } from "@/ui/segmented.tsx"
-
-const WHOLE_NUMBER = /^\d+$/u
-
-export const MAX_U32 = 4_294_967_295
-
-export function parseWhole(raw: string, max: number, error: string): Parsed<number> {
-  const trimmed = raw.trim()
-  if (!WHOLE_NUMBER.test(trimmed)) {
-    return { isOk: false, error }
-  }
-  const value = Number(trimmed)
-  return value > max ? { isOk: false, error: "Enter a smaller number." } : { isOk: true, value }
-}
-
-export function parseOptionalWhole(raw: string, max: number, error: string): Parsed<number | null> {
-  return raw.trim() === "" ? { isOk: true, value: null } : parseWhole(raw, max, error)
-}
 
 const SECTIONS = [
   { value: "/settings/chains", label: "Chains" },

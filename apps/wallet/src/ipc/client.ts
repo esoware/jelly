@@ -1,7 +1,11 @@
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { writeText } from "@tauri-apps/plugin-clipboard-manager"
 
-import type { IpcErrorCode, IpcErrorDetail } from "@/ipc/bindings.gen.ts"
+import type {
+  IpcError as IpcErrorPayload,
+  IpcErrorCode,
+  IpcErrorDetail,
+} from "@/ipc/bindings.gen.ts"
 
 const IPC_ERROR_CODES: Readonly<Record<IpcErrorCode, true>> = {
   starting: true,
@@ -32,68 +36,53 @@ const IPC_ERROR_CODES: Readonly<Record<IpcErrorCode, true>> = {
   internal: true,
 }
 
-function isIpcErrorCode(value: string): value is IpcErrorCode {
-  return Object.hasOwn(IPC_ERROR_CODES, value)
-}
-
-export type IpcErrorKind = "backend" | "transport" | "unrecognized"
-
 const TRANSPORT_DIAGNOSTIC = "IPC transport failed without a message"
 
 const UNRECOGNIZED_DIAGNOSTIC = "IPC rejection was not an error payload"
 
 export class IpcError extends Error {
-  readonly kind: IpcErrorKind
-  readonly code: IpcErrorCode | null
+  readonly code: IpcErrorCode | "transport" | "unrecognized"
   readonly detail: IpcErrorDetail | null
 
   constructor(
-    kind: IpcErrorKind,
-    code: IpcErrorCode | null,
+    code: IpcError["code"],
     message: string,
     detail: IpcErrorDetail | null,
     options?: ErrorOptions,
   ) {
     super(message, options)
     this.name = "IpcError"
-    this.kind = kind
     this.code = code
     this.detail = detail
   }
 }
 
-interface WirePayload {
-  code: string
-  message: string
-  detail?: IpcErrorDetail | null
-}
-
-function isWirePayload(value: unknown): value is WirePayload {
-  if (typeof value !== "object" || value === null) {
-    return false
-  }
+function isIpcErrorPayload(value: unknown): value is IpcErrorPayload {
   return (
+    typeof value === "object" &&
+    value !== null &&
     "code" in value &&
     typeof value.code === "string" &&
+    Object.hasOwn(IPC_ERROR_CODES, value.code) &&
     "message" in value &&
-    typeof value.message === "string"
+    typeof value.message === "string" &&
+    "detail" in value
   )
 }
 
 export function errorFromPayload(payload: unknown): IpcError {
-  if (!isWirePayload(payload)) {
-    const message =
-      typeof payload === "string" && payload.length > 0 ? payload : UNRECOGNIZED_DIAGNOSTIC
-    return new IpcError("unrecognized", null, message, null, { cause: payload })
+  if (isIpcErrorPayload(payload)) {
+    return new IpcError(payload.code, payload.message, payload.detail, { cause: payload })
   }
-  const code = isIpcErrorCode(payload.code) ? payload.code : null
-  return new IpcError("backend", code, payload.message, payload.detail ?? null, { cause: payload })
+  const message =
+    typeof payload === "string" && payload.length > 0 ? payload : UNRECOGNIZED_DIAGNOSTIC
+  return new IpcError("unrecognized", message, null, { cause: payload })
 }
 
 function errorFromRejection(reason: unknown): IpcError {
   const message =
     reason instanceof Error && reason.message.length > 0 ? reason.message : TRANSPORT_DIAGNOSTIC
-  return new IpcError("transport", null, message, null, { cause: reason })
+  return new IpcError("transport", message, null, { cause: reason })
 }
 
 export function hasCode(error: unknown, code: IpcErrorCode): boolean {
@@ -108,12 +97,6 @@ export function onSessionLost(listener: () => void): void {
   sessionLostListeners.add(listener)
 }
 
-function announceSessionLost(): void {
-  for (const listener of sessionLostListeners) {
-    listener()
-  }
-}
-
 export async function unwrap<T>(call: Promise<IpcResult<T>>): Promise<T> {
   const result = await call.catch((error: unknown) => {
     throw errorFromRejection(error)
@@ -123,18 +106,11 @@ export async function unwrap<T>(call: Promise<IpcResult<T>>): Promise<T> {
   }
   const error = errorFromPayload(result.error)
   if (error.code === "locked") {
-    announceSessionLost()
+    for (const listener of sessionLostListeners) {
+      listener()
+    }
   }
   throw error
-}
-
-export function fireAndForget<T>(call: Promise<IpcResult<T>>): void {
-  async function swallow(): Promise<void> {
-    try {
-      await unwrap(call)
-    } catch {}
-  }
-  void swallow()
 }
 
 export function attempt(action: string, call: () => Promise<unknown>): void {
@@ -148,6 +124,18 @@ export function attempt(action: string, call: () => Promise<unknown>): void {
     }
   }
   void run()
+}
+
+interface EventChannel<T> {
+  listen: (handler: (event: { payload: T }) => void) => Promise<unknown>
+}
+
+export function subscribe<T>(channel: EventChannel<T>, listener: (payload: T) => void): void {
+  attempt("Event listener registration", () =>
+    channel.listen((event) => {
+      listener(event.payload)
+    }),
+  )
 }
 
 export async function copyToClipboard(value: string, isSensitive = false): Promise<boolean> {

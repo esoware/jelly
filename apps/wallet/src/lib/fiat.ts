@@ -7,8 +7,8 @@ import {
   signPrefix,
   toBaseUnits,
 } from "@/lib/amount.ts"
-import type { Parsed } from "@/lib/amount.ts"
 import { assetKey } from "@/lib/chain.ts"
+import type { Parsed } from "@/lib/format.ts"
 
 export const PRICE_DECIMALS = 8
 
@@ -34,10 +34,10 @@ export const CURRENCIES: Readonly<Record<FiatCurrency, CurrencyInfo>> = {
 export function fiatValue(
   amount: Amount | bigint | null,
   decimals: number,
-  price: bigint,
+  price: bigint | null,
 ): bigint | null {
   const raw = amountToBigInt(amount)
-  return raw === null ? null : (raw * price) / pow10(decimals)
+  return raw === null || price === null ? null : (raw * price) / pow10(decimals)
 }
 
 export function fiatToBaseUnits(

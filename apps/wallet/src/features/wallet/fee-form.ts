@@ -1,7 +1,7 @@
 import type { ChainId, FeeLevel, FeeSelection } from "@/ipc/bindings.gen.ts"
 import { formatAmount, isZeroAmount, toBaseUnits } from "@/lib/amount.ts"
-import type { Parsed } from "@/lib/amount.ts"
 import { assetDecimals, assetSymbol, chainMeta, nativeAsset } from "@/lib/chain.ts"
+import type { Parsed } from "@/lib/format.ts"
 
 const GWEI_DECIMALS = 9
 

@@ -10,7 +10,7 @@ import type {
   WalletColor,
   WalletRecord,
 } from "@/ipc/bindings.gen.ts"
-import { fireAndForget, unwrap } from "@/ipc/client.ts"
+import { attempt, unwrap } from "@/ipc/client.ts"
 
 export const walletKeys = {
   root: ["wallets"] as const,
@@ -81,7 +81,7 @@ export const walletCommands = {
     unwrap(commands.deleteWallet(walletId, password, confirmation)),
 
   touch: (): void => {
-    fireAndForget(commands.touchSession())
+    attempt("Session touch", () => unwrap(commands.touchSession()))
   },
 }
 

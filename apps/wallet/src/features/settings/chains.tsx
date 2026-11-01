@@ -1,9 +1,9 @@
 import { useState } from "react"
 
-import { MAX_U32, parseOptionalWhole } from "@/features/settings/layout.tsx"
 import type { ChainId, WalletRecord } from "@/ipc/bindings.gen.ts"
-import type { Parsed } from "@/lib/amount.ts"
 import { allChains, assetSymbol, chainName, nativeAsset } from "@/lib/chain.ts"
+import { MAX_U32, parseOptionalWhole } from "@/lib/format.ts"
+import type { Parsed } from "@/lib/format.ts"
 import { chainCommands, chainKeys } from "@/query/chain.ts"
 import { useIpcMutation } from "@/query/mutation.ts"
 import { txKeys } from "@/query/tx.ts"
