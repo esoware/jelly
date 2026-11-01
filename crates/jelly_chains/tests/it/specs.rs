@@ -31,43 +31,26 @@ fn every_chain_derives_under_its_expected_coin_type() {
     }
 }
 
-/// A seed has one address on Ethereum and BNB Smart Chain.
+/// A seed has one address on Ethereum and every EVM network, under each network's own name.
+///
+/// The rollups pay gas in ether, and wallets derive Avalanche's C-Chain at Ethereum's coin
+/// type even though its X-Chain and P-Chain derive at Avalanche's own 9000.
 #[test]
-fn bsc_shares_ethereums_coin_type() {
-    assert_eq!(chains().spec(ChainId::Bsc).slip44, chains().spec(ChainId::Ethereum).slip44);
-    assert_eq!(ChainId::Bsc.display_name(), "BNB Smart Chain");
-}
-
-/// A seed has one address on Ethereum and Polygon.
-#[test]
-fn polygon_shares_ethereums_coin_type() {
-    assert_eq!(chains().spec(ChainId::Polygon).slip44, chains().spec(ChainId::Ethereum).slip44);
-    assert_eq!(ChainId::Polygon.display_name(), "Polygon");
-}
-
-/// Every rollup pays gas in ether, so a seed has Ethereum's address on it, while the
-/// network keeps its own name.
-#[test]
-fn the_rollups_share_ethereums_coin_type() {
+fn every_evm_network_derives_ethereums_address_under_its_own_name() {
     let ethereum = chains().spec(ChainId::Ethereum);
-    for chain in [ChainId::Arbitrum, ChainId::Base, ChainId::Optimism] {
+    for (chain, name) in [
+        (ChainId::Arbitrum, "Arbitrum One"),
+        (ChainId::Base, "Base"),
+        (ChainId::Optimism, "OP Mainnet"),
+        (ChainId::Bsc, "BNB Smart Chain"),
+        (ChainId::Polygon, "Polygon"),
+        (ChainId::Avalanche, "Avalanche C-Chain"),
+    ] {
         let spec = chains().spec(chain);
         assert_eq!(spec.slip44, ethereum.slip44, "{}", chain.as_str());
         assert_eq!(spec.default_path, ethereum.default_path, "{}", chain.as_str());
+        assert_eq!(chain.display_name(), name);
     }
-    assert_eq!(ChainId::Arbitrum.display_name(), "Arbitrum One");
-    assert_eq!(ChainId::Base.display_name(), "Base");
-    assert_eq!(ChainId::Optimism.display_name(), "OP Mainnet");
-}
-
-/// The X-Chain and P-Chain derive at Avalanche's own coin type 9000, but wallets derive the
-/// C-Chain at Ethereum's, so a seed has one address on both.
-#[test]
-fn the_c_chain_shares_ethereums_coin_type() {
-    let spec = chains().spec(ChainId::Avalanche);
-    assert_eq!(spec.slip44, chains().spec(ChainId::Ethereum).slip44);
-    assert_eq!(spec.default_path, chains().spec(ChainId::Ethereum).default_path);
-    assert_eq!(ChainId::Avalanche.display_name(), "Avalanche C-Chain");
 }
 
 #[test]

@@ -1,30 +1,31 @@
 use std::sync::LazyLock;
 
-use jelly_core::ChainTable;
+use jelly_core::{ChainEntry, ChainId, ChainTable};
 
-/// Every chain's entry in [`jelly_core::ChainId::ALL`] order, which the constructor checks.
-static CHAINS: LazyLock<ChainTable> = LazyLock::new(|| {
-    ChainTable::new(&[
-        jelly_bitcoin::ENTRY,
-        jelly_litecoin::ENTRY,
-        jelly_dogecoin::ENTRY,
-        jelly_bitcoin_cash::ENTRY,
-        jelly_zcash::ENTRY,
-        jelly_ethereum::ENTRY,
-        jelly_arbitrum::ENTRY,
-        jelly_base::ENTRY,
-        jelly_optimism::ENTRY,
-        jelly_bsc::ENTRY,
-        jelly_polygon::ENTRY,
-        jelly_avalanche::ENTRY,
-        jelly_solana::ENTRY,
-        jelly_tron::ENTRY,
-        jelly_xrp::ENTRY,
-        jelly_ton::ENTRY,
-        jelly_monero::ENTRY,
-    ])
-});
+static CHAINS: LazyLock<ChainTable> = LazyLock::new(|| ChainTable::new(&ChainId::ALL.map(entry)));
 
 pub fn chains() -> &'static ChainTable {
     &CHAINS
+}
+
+fn entry(chain: ChainId) -> &'static dyn ChainEntry {
+    match chain {
+        ChainId::Bitcoin => jelly_bitcoin::ENTRY,
+        ChainId::Litecoin => jelly_litecoin::ENTRY,
+        ChainId::Dogecoin => jelly_dogecoin::ENTRY,
+        ChainId::BitcoinCash => jelly_bitcoin_cash::ENTRY,
+        ChainId::Zcash => jelly_zcash::ENTRY,
+        ChainId::Ethereum => jelly_ethereum::ENTRY,
+        ChainId::Arbitrum => jelly_arbitrum::ENTRY,
+        ChainId::Base => jelly_base::ENTRY,
+        ChainId::Optimism => jelly_optimism::ENTRY,
+        ChainId::Bsc => jelly_bsc::ENTRY,
+        ChainId::Polygon => jelly_polygon::ENTRY,
+        ChainId::Avalanche => jelly_avalanche::ENTRY,
+        ChainId::Solana => jelly_solana::ENTRY,
+        ChainId::Tron => jelly_tron::ENTRY,
+        ChainId::Xrp => jelly_xrp::ENTRY,
+        ChainId::Ton => jelly_ton::ENTRY,
+        ChainId::Monero => jelly_monero::ENTRY,
+    }
 }

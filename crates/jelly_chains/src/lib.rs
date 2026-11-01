@@ -2,7 +2,7 @@
 //! It's the only crate that depends on the chain crates, and everything else reaches a
 //! chain through [`chains`].
 //!
-//! A new chain needs an entry in the table and an arm in each match here.
+//! A new chain needs an arm in each match here.
 
 #![deny(clippy::float_arithmetic)]
 mod factory;

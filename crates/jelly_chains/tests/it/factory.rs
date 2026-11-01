@@ -96,8 +96,8 @@ fn rendered(set: &AdapterSet, chain: ChainId) -> Fallible<String> {
     Ok(format!("{adapter:?}"))
 }
 
-fn adapter(set: &AdapterSet, chain: ChainId) -> Fallible<Arc<dyn ChainAdapter>> {
-    set.adapter(chain).cloned().ok_or_else(|| format!("{chain} has no adapter").into())
+fn adapter(set: &AdapterSet, chain: ChainId) -> Fallible<&Arc<dyn ChainAdapter>> {
+    set.adapter(chain).ok_or_else(|| format!("{chain} has no adapter").into())
 }
 
 /// Every chain the set has a reason for instead of an adapter, in chain order.
@@ -141,7 +141,7 @@ async fn only_the_chains_that_were_asked_for_appear() {
 
 #[tokio::test]
 async fn a_factory_with_nothing_attached_skips_every_chain_as_a_failed_build() {
-    let set = AdapterFactory::new().build(&Harness::new().unwrap().keyless(&ChainId::ALL)).await;
+    let set = AdapterFactory::new().build(&build_request(&ChainId::ALL)).await;
     assert!(set.built().is_empty());
     assert_eq!(skipped(&set), every_chain_skipped_for(SkipReason::BuildFailed));
 }
@@ -303,8 +303,8 @@ async fn every_adapter_holds_the_requests_cursor_store_until_it_is_dropped() {
     }
 }
 
-#[tokio::test]
-async fn the_factory_prints_nothing_but_whether_it_is_attached() {
+#[test]
+fn the_factory_prints_nothing_but_whether_it_is_attached() {
     assert_eq!(format!("{:?}", AdapterFactory::new()), "AdapterFactory { is_attached: false, .. }");
     let harness = Harness::new().unwrap();
     assert_eq!(format!("{:?}", harness.factory), "AdapterFactory { is_attached: true, .. }");

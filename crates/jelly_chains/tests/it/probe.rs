@@ -39,6 +39,7 @@ async fn a_bsc_node_answering_for_bsc_is_verified() {
 
 #[tokio::test]
 async fn xrp_nodes_must_report_mainnet_and_cannot_omit_the_network_id() {
+    let network = direct_network().unwrap();
     let cases = [
         (r#"{"result":{"info":{"network_id":0}}}"#, ProbeReport::Verified { latency_ms: 0 }),
         (r#"{"result":{"info":{"network_id":1}}}"#, ProbeReport::WrongNetwork),
@@ -49,7 +50,6 @@ async fn xrp_nodes_must_report_mainnet_and_cannot_omit_the_network_id() {
     ];
     for (body, expected) in cases {
         let (url, server) = serve(vec![("200 OK", body)]).await.unwrap();
-        let network = direct_network().unwrap();
         let endpoint = Endpoint::parse(ChainId::Xrp, Transport::HttpJsonrpc, &url).unwrap();
         assert_eq!(probe(&network, &endpoint).await, expected);
         let requests = server.await.unwrap().unwrap();
@@ -59,6 +59,7 @@ async fn xrp_nodes_must_report_mainnet_and_cannot_omit_the_network_id() {
 
 #[tokio::test]
 async fn ton_nodes_must_match_both_mainnet_genesis_hashes() {
+    let network = direct_network().unwrap();
     let cases = [
         (
             r#"{"ok":true,"result":{"init":{"root_hash":"F6OpKZKqvqeFp6CQmFomXNMfMj2EnaUSOXN+Mh+wVWk=","file_hash":"XplPz01CXAps5qeSWUtxcyBfdAo5zVb1N979KLSKD24="}}}"#,
@@ -75,7 +76,6 @@ async fn ton_nodes_must_match_both_mainnet_genesis_hashes() {
     ];
     for (body, expected) in cases {
         let (url, server) = serve(vec![("200 OK", body)]).await.unwrap();
-        let network = direct_network().unwrap();
         let endpoint = Endpoint::parse(ChainId::Ton, Transport::HttpJsonrpc, &url).unwrap();
         assert_eq!(probe(&network, &endpoint).await, expected);
         let requests = server.await.unwrap().unwrap();
@@ -85,6 +85,7 @@ async fn ton_nodes_must_match_both_mainnet_genesis_hashes() {
 
 #[tokio::test]
 async fn zcash_blockbook_endpoints_must_match_mainnet_and_its_genesis() {
+    let network = direct_network().unwrap();
     let mainnet = r#"{"blockbook":{"coin":"Zcash"},"backend":{"chain":"main"}}"#;
     let genesis =
         r#"{"blockHash":"00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce08"}"#;
@@ -98,7 +99,6 @@ async fn zcash_blockbook_endpoints_must_match_mainnet_and_its_genesis() {
         ),
     ] {
         let (url, server) = serve(vec![("200 OK", status), ("200 OK", block)]).await.unwrap();
-        let network = direct_network().unwrap();
         let endpoint = Endpoint::parse(ChainId::Zcash, Transport::Blockbook, &url).unwrap();
         assert_eq!(probe(&network, &endpoint).await, expected);
         let requests = server.await.unwrap().unwrap();
