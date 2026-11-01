@@ -557,10 +557,10 @@ async fn a_pass_that_moves_nothing_writes_no_cursor() {
 }
 
 #[tokio::test]
-async fn a_pass_over_no_addresses_reports_complete_without_a_round_trip() {
+async fn a_pass_over_no_addresses_reports_no_heights_without_a_round_trip() {
     let harness = Harness::ethereum().unwrap();
     let progress = harness.sync().await.unwrap();
-    assert!(progress.is_complete());
+    assert_eq!(progress.synced_height(), None);
     assert_eq!(progress.tip_height(), None);
     assert!(harness.node.calls().is_empty());
 }
@@ -884,14 +884,27 @@ async fn a_backfill_walks_down_over_successive_passes() {
     let harness = Harness::new(setup).unwrap();
     harness.watch_owner().await.unwrap();
     harness.node.quiet(&sheet(0));
+    let lowest_from_block = || {
+        let windows = harness.node.calls_to(Method::GetLogs);
+        harness.node.forget_calls();
+        windows
+            .iter()
+            .map(|call| {
+                let params: Value = serde_json::from_str(&call.params).unwrap();
+                let from = params[0]["fromBlock"].as_str().unwrap().trim_start_matches("0x");
+                u64::from_str_radix(from, 16).unwrap()
+            })
+            .min()
+    };
 
-    let first = harness.sync().await.unwrap();
-    assert!(first.progress_permille() < 1_000, "the history is not covered yet");
-    let second = harness.sync().await.unwrap();
-    assert!(second.progress_permille() > first.progress_permille(), "the backfill moved");
-    for _ in 0..4u8 {
+    let mut reached = u64::MAX;
+    while reached > SHORT_HISTORY.backfill_floor {
         harness.sync().await.unwrap();
+        let lowest = lowest_from_block().expect("a pass short of the floor sends a window");
+        assert!(lowest < reached, "the backfill moved");
+        reached = lowest;
     }
-    let done = harness.sync().await.unwrap();
-    assert_eq!(done.progress_permille(), 1_000, "the walk reached the floor");
+    assert_eq!(reached, SHORT_HISTORY.backfill_floor, "the walk reached the floor");
+    harness.sync().await.unwrap();
+    assert_eq!(lowest_from_block(), None, "nothing is left to walk");
 }

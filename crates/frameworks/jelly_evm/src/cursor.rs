@@ -1,4 +1,3 @@
-use jelly_core::ChainSyncProgress;
 use serde::{Deserialize, Serialize};
 
 use crate::config::EvmConfig;
@@ -204,13 +203,6 @@ impl ScanCursor {
             floor
         }
     }
-
-    pub(crate) fn progress_permille(self, floor: u64, tip: u64) -> u16 {
-        let (Some(from), Some(to)) = (self.backfill_from, self.forward_to) else {
-            return 0;
-        };
-        ChainSyncProgress::permille_of(to.saturating_sub(from), tip.saturating_sub(floor))
-    }
 }
 
 #[cfg(test)]
@@ -231,7 +223,6 @@ mod tests {
         assert_eq!((window.from, window.to, window.blocks()), (901, 1_000, 100));
         assert_eq!(window.frontier, Frontier::Forward);
         assert_eq!(cursor.next_backfill(0, 100), None, "the backfill needs a starting point");
-        assert_eq!(cursor.progress_permille(0, 1_000), 0);
     }
 
     #[test]
@@ -266,7 +257,6 @@ mod tests {
         }
         assert_eq!(cursor.next_backfill(700, 100), None);
         assert!(cursor.is_backfill_complete(700));
-        assert_eq!(cursor.progress_permille(700, 1_000), 1_000);
         assert_eq!(cursor.forward_to, Some(1_000), "the backfill never moves the tip frontier");
     }
 
@@ -274,7 +264,7 @@ mod tests {
     fn a_tip_at_the_floor_leaves_nothing_to_scan() {
         let mut cursor = ScanCursor::default();
         cursor.apply(Window { from: 700, to: 700, frontier: Frontier::Forward });
-        assert_eq!(cursor.progress_permille(700, 700), 1_000);
+        assert!(cursor.is_backfill_complete(700));
     }
 
     /// `eth_getLogs` answers about the chain as it is now, so the overlap re-reads
@@ -346,11 +336,6 @@ mod tests {
             cursor.history_from(FLOOR, 0),
             FLOOR,
             "a log walk that only touched the tip has not covered the history"
-        );
-        assert_eq!(
-            cursor.progress_permille(FLOOR, 18_000_100),
-            0,
-            "a hundred blocks of thirteen million is not one part in a thousand"
         );
     }
 

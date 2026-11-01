@@ -345,9 +345,7 @@ impl ChainAdapter for FakeAdapter {
             events.emit(WalletEvent::TxDetected(record)).await;
         }
         self.state.syncs.fetch_add(1, Ordering::SeqCst);
-        Ok(ChainSyncProgress::new(self.chain)
-            .with_heights(Some(tip), Some(tip))
-            .with_progress(1000))
+        Ok(ChainSyncProgress::new(self.chain).with_heights(Some(tip), Some(tip)))
     }
 
     async fn quote_fee(&self, _request: &TxRequest) -> Result<FeeQuote, ChainError> {
@@ -704,8 +702,8 @@ pub(crate) fn detected_so_far(events: &mut broadcast::Receiver<WalletEvent>) -> 
 pub(crate) async fn settled(engine: &WalletEngine) -> Fallible<()> {
     let sink = test_util::event_sink(engine);
     let mut events = engine.subscribe();
-    for permille in [1, 2] {
-        let marker = ChainSyncProgress::new(MARKER_CHAIN).with_progress(permille);
+    for tip in [1, 2] {
+        let marker = ChainSyncProgress::new(MARKER_CHAIN).with_heights(None, Some(tip));
         sink.emit(WalletEvent::SyncProgress(marker)).await;
         while events.recv().await? != WalletEvent::SyncProgress(marker) {}
     }

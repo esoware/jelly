@@ -330,8 +330,7 @@ async fn a_tip_first_reported_in_flight_is_still_announced() {
     let state = harness.builder.state(CHAIN);
     state.stop_emitting();
     state.tip.store(TIP + 1, Ordering::SeqCst);
-    let partway =
-        ChainSyncProgress::new(CHAIN).with_progress(500).with_heights(None, Some(TIP + 1));
+    let partway = ChainSyncProgress::new(CHAIN).with_heights(None, Some(TIP + 1));
     test_util::event_sink(&harness.engine).emit(WalletEvent::SyncProgress(partway)).await;
     let mut received = through_partway(&mut events).await.unwrap();
 

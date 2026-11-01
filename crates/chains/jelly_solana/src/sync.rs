@@ -62,21 +62,11 @@ pub(crate) async fn run(
     Ok(progress(inputs, watched, tip))
 }
 
-/// The share of addresses that have finished their first full history walk, because
-/// a Solana history has no floor to measure against.
-///
-/// `synced_height` stays absent until every address has finished, because a wallet
-/// still filling in history isn't synced to the tip.
+/// `synced_height` stays absent until every address has finished its first full
+/// history walk, because a wallet still filling in history isn't synced to the tip.
 fn progress(inputs: &PassInputs<'_>, watched: &[Watched], tip: Tip) -> ChainSyncProgress {
-    let total = watched.len();
-    let done = watched.iter().filter(|entry| inputs.states.is_complete(entry.address_id)).count();
-    let synced = (done == total).then_some(tip.slot);
-    ChainSyncProgress::new(CHAIN)
-        .with_fraction(
-            u64::try_from(done).unwrap_or(u64::MAX),
-            u64::try_from(total).unwrap_or(u64::MAX),
-        )
-        .with_heights(synced, Some(tip.slot))
+    let is_synced = watched.iter().all(|entry| inputs.states.is_complete(entry.address_id));
+    ChainSyncProgress::new(CHAIN).with_heights(is_synced.then_some(tip.slot), Some(tip.slot))
 }
 
 async fn emit_balances(

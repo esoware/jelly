@@ -99,11 +99,10 @@ pub(crate) async fn run(
 ) -> Result<ChainSyncProgress, EvmError> {
     let chain = inputs.params.chain;
     if watched.is_empty() {
-        return Ok(ChainSyncProgress::new(chain).with_progress(ChainSyncProgress::MAX_PERMILLE));
+        return Ok(ChainSyncProgress::new(chain));
     }
 
     let tip = inputs.client.block_number().await?;
-    let floor = inputs.params.backfill_floor;
     let ids: Vec<i64> = watched.iter().map(|entry| entry.address_id).collect();
     let mut cursors = load_cursors(inputs.cursors, &ids).await?;
     let stored = cursors.clone();
@@ -153,35 +152,27 @@ pub(crate) async fn run(
             .is_some_and(|cursor| stored.get(address_id).map(judgment) == Some(judgment(cursor)))
     });
 
-    Ok(progress(chain, watched, &cursors, floor, tip))
+    Ok(progress(chain, watched, &cursors, tip))
 }
 
-/// Progress is averaged over the watch set. The synced height is the lowest
-/// forward frontier, and absent while any address is unscanned.
+/// The synced height is the lowest forward frontier, and absent while any address is
+/// unscanned.
 fn progress(
     chain: ChainId,
     watched: &[Watched],
     cursors: &BTreeMap<i64, ScanCursor>,
-    floor: u64,
     tip: u64,
 ) -> ChainSyncProgress {
-    let mut sum = 0u64;
     let mut lowest: Option<u64> = None;
     let mut every_address_scanned = true;
     for entry in watched {
         let cursor = cursors.get(&entry.address_id).copied().unwrap_or_default();
-        sum = sum.saturating_add(u64::from(cursor.progress_permille(floor, tip)));
         match cursor.forward_to {
             Some(here) => lowest = Some(lowest.map_or(here, |low| low.min(here))),
             None => every_address_scanned = false,
         }
     }
-    let counted = u64::try_from(watched.len()).unwrap_or(1).max(1);
-    let permille = u16::try_from(sum.checked_div(counted).unwrap_or(0))
-        .unwrap_or(ChainSyncProgress::MAX_PERMILLE);
-    ChainSyncProgress::new(chain)
-        .with_progress(permille)
-        .with_heights(lowest.filter(|_| every_address_scanned), Some(tip))
+    ChainSyncProgress::new(chain).with_heights(lowest.filter(|_| every_address_scanned), Some(tip))
 }
 
 pub(crate) async fn load_cursors(

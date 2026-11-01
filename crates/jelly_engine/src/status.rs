@@ -109,9 +109,7 @@ mod tests {
         let board = StatusBoard::default();
         board.preload_height(ChainId::Bitcoin, 800_000);
 
-        let partway = ChainSyncProgress::new(ChainId::Bitcoin)
-            .with_progress(500)
-            .with_heights(None, Some(800_010));
+        let partway = ChainSyncProgress::new(ChainId::Bitcoin).with_heights(None, Some(800_010));
         board.record_progress(partway);
 
         let found = board.heights(ChainId::Bitcoin).expect("the heights");

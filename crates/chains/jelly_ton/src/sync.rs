@@ -15,7 +15,6 @@ use crate::watched::Watched;
 const TARGET: &str = "jelly::ton::sync";
 /// How many pages of transactions one walk reads in a pass.
 const PAGES_PER_PASS: usize = 3;
-const PARTIAL_PROGRESS_PERMILLE: u16 = 500;
 
 /// The context every walk of one address shares in a pass.
 struct Pass<'a> {
@@ -48,11 +47,7 @@ pub(crate) async fn run(
             is_complete = false;
         }
     }
-    let progress_permille =
-        if is_complete { ChainSyncProgress::MAX_PERMILLE } else { PARTIAL_PROGRESS_PERMILLE };
-    Ok(ChainSyncProgress::new(CHAIN)
-        .with_progress(progress_permille)
-        .with_heights(is_complete.then_some(tip), Some(tip)))
+    Ok(ChainSyncProgress::new(CHAIN).with_heights(is_complete.then_some(tip), Some(tip)))
 }
 
 impl Pass<'_> {

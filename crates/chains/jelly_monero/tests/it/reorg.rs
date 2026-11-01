@@ -1,4 +1,4 @@
-use jelly_core::{Amount, ChainSyncProgress, test_util::records};
+use jelly_core::{Amount, test_util::records};
 use jelly_monero::{MoneroConfig, test_util::account_balance};
 use monero_interface::ScannableBlock;
 
@@ -47,7 +47,7 @@ async fn a_shallow_reorganization_is_located_without_rescanning_the_wallet() {
     let before = harness.node.block_calls();
     let (progress, events) = harness.sync().await.unwrap();
     assert_eq!(progress.synced_height(), Some(tip));
-    assert_eq!(progress.progress_permille(), ChainSyncProgress::MAX_PERMILLE);
+    assert!(progress.is_complete());
     assert_eq!(
         account_balance(&harness.adapter, 0).total(),
         held,

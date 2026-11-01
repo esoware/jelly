@@ -89,17 +89,17 @@ pub(crate) async fn run(
     scan_to_tip(pass, tip).await?;
     follow_up(pass, tip, has_acknowledged).await?;
 
-    let (restore, synced, balances) = {
+    let (synced, balances) = {
         let guard = pass.state.lock();
         let now_secs = timelock_now_secs(pass.clock);
-        (guard.restore_height(), guard.synced_height(), guard.balances(tip, now_secs))
+        (guard.synced_height(), guard.balances(tip, now_secs))
     };
     for update in balance_changes(pass.watched, announced, &balances) {
         pass.events.emit(WalletEvent::BalanceChanged(update)).await;
         announced.insert(update.address_id, update.balance);
     }
     pass.blobs.write_scan(pass.state).await?;
-    Ok(progress_of(restore, synced, tip))
+    Ok(progress_of(synced, tip))
 }
 
 /// Scans forward, rewinding and retrying when a batch disagrees with what was
@@ -218,7 +218,7 @@ async fn scan_forward(pass: &Pass<'_>, tip: u64, overlap: u64) -> Result<Option<
 
         if frontier.saturating_sub(reported) >= PROGRESS_EVERY_BLOCKS || frontier > budget_end {
             reported = frontier;
-            pass.events.try_emit(WalletEvent::SyncProgress(progress_of(restore, batch_end, tip)));
+            pass.events.try_emit(WalletEvent::SyncProgress(progress_of(batch_end, tip)));
         }
 
         let now_millis = pass.clock.elapsed_millis();
@@ -365,15 +365,10 @@ fn links_of(blocks: &[ScannableBlock], from: u64) -> Result<Vec<BlockLink>, Mone
     Ok(links)
 }
 
-/// Progress from the wallet birthday to the chain tip.
-///
 /// A wallet that has scanned past the tip of a node that's behind claims no more
 /// of the chain than that node has.
-fn progress_of(restore_height: u64, synced: u64, tip: u64) -> ChainSyncProgress {
-    let synced = synced.min(tip);
-    ChainSyncProgress::new(CHAIN)
-        .with_fraction(synced.saturating_sub(restore_height), tip.saturating_sub(restore_height))
-        .with_heights(Some(synced), Some(tip))
+fn progress_of(synced: u64, tip: u64) -> ChainSyncProgress {
+    ChainSyncProgress::new(CHAIN).with_heights(Some(synced.min(tip)), Some(tip))
 }
 
 #[cfg(test)]
@@ -386,22 +381,18 @@ mod tests {
     use crate::params::MAX_HARDFORK_VERSION;
 
     #[test]
-    fn progress_is_a_fraction_of_the_whole_restore() {
-        let full = progress_of(100, 1_100, 1_100);
-        assert_eq!(full.progress_permille(), ChainSyncProgress::MAX_PERMILLE);
+    fn progress_reports_the_synced_height_no_higher_than_the_tip() {
+        let full = progress_of(1_100, 1_100);
         assert_eq!(full.synced_height(), Some(1_100));
         assert_eq!(full.tip_height(), Some(1_100));
 
-        let half = progress_of(100, 600, 1_100);
-        assert_eq!(half.progress_permille(), 500);
+        let partial = progress_of(600, 1_100);
+        assert_eq!(partial.synced_height(), Some(600));
+        assert_eq!(partial.tip_height(), Some(1_100));
 
-        let nothing = progress_of(100, 100, 100);
-        assert_eq!(
-            nothing.progress_permille(),
-            ChainSyncProgress::MAX_PERMILLE,
-            "a wallet born at the tip is fully synced"
-        );
-        assert_eq!(progress_of(100, 90, 1_100).progress_permille(), 0, "never below zero");
+        let ahead = progress_of(1_200, 1_100);
+        assert_eq!(ahead.synced_height(), Some(1_100), "a node that's behind caps the claim");
+        assert_eq!(ahead.tip_height(), Some(1_100));
     }
 
     /// A block whose header names this hardfork version.

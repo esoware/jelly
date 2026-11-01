@@ -3,9 +3,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use jelly_core::{
-    Amount, AssetId, ChainAdapter as _, ChainError, ChainId, ChainSyncProgress, Clock as _,
-    CursorBytes, CursorScope, CursorStore as _, Deadline, ScanStream, TokenId, TxDetection,
-    TxDirection, TxOutcome, WalletEvent,
+    Amount, AssetId, ChainAdapter as _, ChainError, ChainId, Clock as _, CursorBytes, CursorScope,
+    CursorStore as _, Deadline, ScanStream, TokenId, TxDetection, TxDirection, TxOutcome,
+    WalletEvent,
     test_util::{FakeClock, FakeEventSink, MemoryCursorStore, WatchedAddressBuilder, records},
 };
 use jelly_tron::{
@@ -32,7 +32,7 @@ async fn a_pass_reports_every_balance_and_the_tip() {
     let progress = pass(&harness, &sink).await.unwrap();
     assert_eq!(progress.chain(), ChainId::Tron);
     assert_eq!(progress.tip_height(), Some(85_304_913));
-    assert_eq!(progress.progress_permille(), ChainSyncProgress::MAX_PERMILLE);
+    assert!(progress.is_complete());
     assert_eq!(
         progress.synced_height(),
         Some(85_304_913),
@@ -223,7 +223,7 @@ async fn the_backfill_walks_older_pages_and_then_closes() {
     let sink = FakeEventSink::new();
     let progress = pass(&harness, &sink).await.unwrap();
     assert_eq!(progress.synced_height(), Some(85_304_913));
-    assert_eq!(progress.progress_permille(), ChainSyncProgress::MAX_PERMILLE);
+    assert!(progress.is_complete());
 }
 
 #[tokio::test]
@@ -439,7 +439,7 @@ async fn an_empty_watch_set_is_a_complete_pass() {
     harness.adapter.set_watch_set(&[]).await.unwrap();
     let sink = FakeEventSink::new();
     let progress = pass(&harness, &sink).await.unwrap();
-    assert_eq!(progress.progress_permille(), ChainSyncProgress::MAX_PERMILLE);
+    assert!(progress.is_complete());
     assert_eq!(progress.synced_height(), Some(85_304_913));
     assert!(sink.is_empty());
 }
@@ -468,7 +468,7 @@ async fn dropping_an_address_from_the_watch_set_stops_following_its_sends() {
     harness.adapter.set_watch_set(&[]).await.unwrap();
     assert_eq!(harness.adapter.in_flight(), 0, "a dropped address leaves nothing to follow");
     let progress = pass(&harness, &FakeEventSink::new()).await.unwrap();
-    assert_eq!(progress.progress_permille(), ChainSyncProgress::MAX_PERMILLE);
+    assert!(progress.is_complete());
 }
 
 const TOKEN_TXID: &str = "abe1ec9aee76590c0d69681c7ac9f4f97c95d9516271244dd3d979b44c80a09d";

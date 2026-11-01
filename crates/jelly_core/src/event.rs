@@ -8,44 +8,18 @@ use crate::chain::ChainId;
 use crate::record::TxRecord;
 use crate::txid::TxId;
 
-/// Sync progress as an integer in `0..=1000`.
+/// How far a chain has synced: the height its scan has covered and the chain's tip, each
+/// absent when the adapter doesn't know it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChainSyncProgress {
     chain: ChainId,
-    progress_permille: u16,
     synced_height: Option<u64>,
     tip_height: Option<u64>,
 }
 
 impl ChainSyncProgress {
-    pub const MAX_PERMILLE: u16 = 1000;
-
     pub const fn new(chain: ChainId) -> Self {
-        Self { chain, progress_permille: 0, synced_height: None, tip_height: None }
-    }
-
-    #[must_use]
-    pub const fn with_progress(mut self, permille: u16) -> Self {
-        self.progress_permille =
-            if permille > Self::MAX_PERMILLE { Self::MAX_PERMILLE } else { permille };
-        self
-    }
-
-    /// Progress as `done` of `total`, which [`ChainSyncProgress::permille_of`] converts.
-    #[must_use]
-    pub fn with_fraction(self, done: u64, total: u64) -> Self {
-        self.with_progress(Self::permille_of(done, total))
-    }
-
-    /// `done` of `total` in permille, rounded down and capped at full. A total of zero is
-    /// full, since a chain with nothing to scan is synced.
-    pub fn permille_of(done: u64, total: u64) -> u16 {
-        let full = u128::from(Self::MAX_PERMILLE);
-        let scaled = u128::from(done.min(total))
-            .saturating_mul(full)
-            .checked_div(u128::from(total))
-            .unwrap_or(full);
-        u16::try_from(scaled).unwrap_or(Self::MAX_PERMILLE)
+        Self { chain, synced_height: None, tip_height: None }
     }
 
     #[must_use]
@@ -59,10 +33,6 @@ impl ChainSyncProgress {
         self.chain
     }
 
-    pub const fn progress_permille(self) -> u16 {
-        self.progress_permille
-    }
-
     pub const fn synced_height(self) -> Option<u64> {
         self.synced_height
     }
@@ -73,7 +43,7 @@ impl ChainSyncProgress {
 
     #[cfg(feature = "test-util")]
     pub const fn is_complete(self) -> bool {
-        self.progress_permille >= Self::MAX_PERMILLE
+        matches!((self.synced_height, self.tip_height), (Some(synced), Some(tip)) if synced == tip)
     }
 }
 

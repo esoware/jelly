@@ -62,14 +62,12 @@ pub(crate) async fn run(
         if !pass.sync_address(entry).await? {
             return Ok(progress);
         }
-        let done = u64::try_from(index.saturating_add(1)).unwrap_or(u64::MAX);
-        let total = u64::try_from(watched.len()).unwrap_or(u64::MAX);
-        events.try_emit(WalletEvent::SyncProgress(progress.with_fraction(done, total)));
+        if index == 0 {
+            events.try_emit(WalletEvent::SyncProgress(progress));
+        }
     }
     pass.fetched_previous_outputs.clear();
-    Ok(progress
-        .with_heights(Some(u64::from(tip.height)), Some(u64::from(tip.height)))
-        .with_progress(ChainSyncProgress::MAX_PERMILLE))
+    Ok(progress.with_heights(Some(u64::from(tip.height)), Some(u64::from(tip.height))))
 }
 
 impl Pass<'_> {

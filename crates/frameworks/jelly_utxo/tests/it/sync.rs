@@ -11,9 +11,9 @@ use bitcoin::consensus::serialize;
 use bitcoin::hashes::Hash as _;
 use bitcoin::{CompactTarget, OutPoint, TxMerkleNode};
 use jelly_core::{
-    Amount, AssetId, ChainAdapter as _, ChainError, ChainSyncProgress, Clock as _, CursorBytes,
-    CursorScope, CursorStore as _, EventSink, FeeSelection, ScriptKind, TxDetection, TxDirection,
-    TxId, TxOutcome, WalletEvent, confirmations,
+    Amount, AssetId, ChainAdapter as _, ChainError, Clock as _, CursorBytes, CursorScope,
+    CursorStore as _, EventSink, FeeSelection, ScriptKind, TxDetection, TxDirection, TxId,
+    TxOutcome, WalletEvent, confirmations,
     test_util::{ControlledCursorStore, FakeEventSink, MemoryCursorStore, records},
 };
 use jelly_electrum::{Method, test_util::Answer};
@@ -202,7 +202,7 @@ async fn one_pass_reports_the_balance_the_history_and_the_cursor() {
         let progress = harness.sync().await.unwrap();
         assert_eq!(progress.chain(), params.chain);
         assert_eq!(progress.tip_height(), Some(u64::from(TIP)));
-        assert_eq!(progress.progress_permille(), ChainSyncProgress::MAX_PERMILLE);
+        assert!(progress.is_complete());
 
         let emitted = harness.drain();
         let records = records(&emitted);
