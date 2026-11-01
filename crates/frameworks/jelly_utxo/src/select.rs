@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 use std::slice::from_ref;
 
 use bitcoin::{Script, Weight};
-use jelly_core::{Amount, FeeRate, wire_enum};
+use jelly_core::{Amount, FeeRate, SendAmount, wire_enum};
 
 use crate::error::UtxoError;
 use crate::params::UtxoParams;
@@ -33,9 +33,7 @@ wire_enum! {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct SelectionRequest<'a> {
-    /// What the recipient must receive. Ignored when `should_drain` is set.
-    pub(crate) target: Amount,
-    pub(crate) should_drain: bool,
+    pub(crate) amount: SendAmount,
     pub(crate) fee_rate: FeeRate,
     /// The rate a change output is assumed to cost to spend later. It drives the
     /// waste metric, decides whether a small leftover is worth paying back, and
@@ -49,8 +47,7 @@ pub(crate) struct SelectionRequest<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Selection {
     pub(crate) inputs: Vec<Utxo>,
-    /// What the recipient receives. Equals the request's target except when
-    /// draining.
+    /// What the recipient receives, the exact amount unless this is a send-max.
     pub(crate) recipient_value: Amount,
     pub(crate) change: Option<Amount>,
     /// Leftover too small to be worth a change output. It goes to the miner and is
@@ -131,27 +128,32 @@ pub(crate) fn select_coins(
     request: &SelectionRequest<'_>,
     coins: &[Utxo],
 ) -> Result<Selection, UtxoError> {
-    if request.target > params.max_money {
+    if let SendAmount::Exact { value } = request.amount
+        && value > params.max_money
+    {
         return Err(UtxoError::AboveMaxMoney {
-            value: request.target,
+            value,
             maximum: params.max_money,
             chain: params.chain,
         });
     }
     let unconfirmed = Utxo::total(coins.iter().filter(|coin| !coin.is_trusted()))?;
-    let selected = if request.should_drain {
-        let candidates = ordered_candidates(coins, request.fee_rate, Eligible::Trusted);
-        drain(params, request, &candidates, unconfirmed)
-    } else {
-        let confirmed = ordered_candidates(coins, request.fee_rate, Eligible::Confirmed);
-        from_candidates(params, request, &confirmed).or_else(|first| {
-            let all = ordered_candidates(coins, request.fee_rate, Eligible::Trusted);
-            if all.len() == confirmed.len() {
-                Err(first)
-            } else {
-                from_candidates(params, request, &all)
-            }
-        })
+    let selected = match request.amount {
+        SendAmount::Max => {
+            let candidates = ordered_candidates(coins, request.fee_rate, Eligible::Trusted);
+            drain(params, request, &candidates, unconfirmed)
+        }
+        SendAmount::Exact { value: target } => {
+            let confirmed = ordered_candidates(coins, request.fee_rate, Eligible::Confirmed);
+            from_candidates(params, request, target, &confirmed).or_else(|first| {
+                let all = ordered_candidates(coins, request.fee_rate, Eligible::Trusted);
+                if all.len() == confirmed.len() {
+                    Err(first)
+                } else {
+                    from_candidates(params, request, target, &all)
+                }
+            })
+        }
     };
     match selected {
         Err(UtxoError::InsufficientFunds { needed, available })
@@ -163,19 +165,21 @@ pub(crate) fn select_coins(
     }
 }
 
+/// Pays exactly `target`.
 fn from_candidates(
     params: &UtxoParams,
     request: &SelectionRequest<'_>,
+    target: Amount,
     candidates: &[Utxo],
 ) -> Result<Selection, UtxoError> {
     let change_floor =
         fee::change_floor(params, request.long_term_fee_rate, request.change_script)?;
-    let (count, priced) = fewest(params, request, candidates, change_floor)?;
+    let (count, priced) = fewest(params, request, target, candidates, change_floor)?;
     let cap = weight_cap(params, request, priced.weight);
-    if let Some(found) = changeless(request, candidates, cap, change_floor)? {
+    if let Some(found) = changeless(request, target, candidates, cap, change_floor)? {
         return Ok(found);
     }
-    accumulate(request, candidates, count, priced, cap, change_floor)
+    accumulate(request, target, candidates, count, priced, cap, change_floor)
 }
 
 /// The length of the shortest run from the front of the ordered candidates that
@@ -190,11 +194,12 @@ fn from_candidates(
 fn fewest(
     params: &UtxoParams,
     request: &SelectionRequest<'_>,
+    target: Amount,
     candidates: &[Utxo],
     change_floor: Amount,
 ) -> Result<(usize, Priced), UtxoError> {
-    if price(request, candidates, change_floor)?.is_none() {
-        return Err(insufficient(request, candidates)?);
+    if price(request, target, candidates, change_floor)?.is_none() {
+        return Err(insufficient(request, target, candidates)?);
     }
     let mut input_wu = 0u64;
     let mut too_few = 0usize;
@@ -204,7 +209,7 @@ fn fewest(
             break;
         }
         let Some(inputs) = candidates.get(..count) else { break };
-        if let Some(found) = price(request, inputs, change_floor)? {
+        if let Some(found) = price(request, target, inputs, change_floor)? {
             weight::check_standard_weight(params, found.weight, count)?;
             return Ok((count, found));
         }
@@ -217,7 +222,7 @@ fn fewest(
     while count.saturating_sub(too_few) > 1 {
         let middle = too_few.midpoint(count);
         let Some(inputs) = candidates.get(..middle) else { break };
-        if price(request, inputs, change_floor)?.is_some() {
+        if price(request, target, inputs, change_floor)?.is_some() {
             count = middle;
         } else {
             too_few = middle;
@@ -251,6 +256,7 @@ fn weight_cap(params: &UtxoParams, request: &SelectionRequest<'_>, lightest: Wei
 /// only picks coins, and [`price`] re-checks every set it would keep.
 fn changeless(
     request: &SelectionRequest<'_>,
+    target: Amount,
     candidates: &[Utxo],
     cap: Weight,
     change_floor: Amount,
@@ -258,7 +264,7 @@ fn changeless(
     let Some(first) = candidates.first() else {
         return Ok(None);
     };
-    if request.target.is_zero() {
+    if target.is_zero() {
         return Ok(None);
     }
     let rate_per_kwu = i128::from(request.fee_rate.sat_per_kwu());
@@ -271,7 +277,7 @@ fn changeless(
     let charged_overhead_wu =
         weight::vsize(Weight::from_wu(overhead_wu)).saturating_mul(Weight::WITNESS_SCALE_FACTOR);
 
-    let target_milli = milli(request.target)?
+    let target_milli = milli(target)?
         .checked_add(rate_per_kwu.saturating_mul(i128::from(charged_overhead_wu)))
         .ok_or_else(|| UtxoError::overflow("a selection target"))?;
     // `price` makes change only from what's left after the change output's own fee,
@@ -303,7 +309,7 @@ fn changeless(
     search(&coins, &bounds, |picked| {
         let inputs: Vec<Utxo> =
             picked.iter().filter_map(|index| candidates.get(*index)).cloned().collect();
-        let Some(priced) = price(request, &inputs, change_floor)? else {
+        let Some(priced) = price(request, target, &inputs, change_floor)? else {
             return Ok(None);
         };
         if priced.change.is_some() || priced.weight > cap {
@@ -311,7 +317,7 @@ fn changeless(
         }
         Ok(Some(Selection {
             inputs,
-            recipient_value: request.target,
+            recipient_value: target,
             change: None,
             donated: priced.donated,
             fee: priced.fee,
@@ -426,6 +432,7 @@ fn search(
 /// mempool chain that relay policy limits.
 fn accumulate(
     request: &SelectionRequest<'_>,
+    target: Amount,
     candidates: &[Utxo],
     count: usize,
     priced: Priced,
@@ -437,7 +444,7 @@ fn accumulate(
     let mut best = (waste(request, &inputs, &priced)?, inputs.len(), priced);
     for coin in rest.iter().filter(|coin| coin.is_confirmed()) {
         inputs.push(coin.clone());
-        let Some(priced) = price(request, &inputs, change_floor)? else { continue };
+        let Some(priced) = price(request, target, &inputs, change_floor)? else { continue };
         if priced.weight > cap {
             break;
         }
@@ -455,7 +462,7 @@ fn accumulate(
     inputs.truncate(count);
     Ok(Selection {
         inputs,
-        recipient_value: request.target,
+        recipient_value: target,
         change: priced.change,
         donated: priced.donated,
         fee: priced.fee,
@@ -472,14 +479,13 @@ fn accumulate(
 /// candidate is spent, since each adds more than it costs.
 fn insufficient(
     request: &SelectionRequest<'_>,
+    target: Amount,
     candidates: &[Utxo],
 ) -> Result<UtxoError, UtxoError> {
     let available = Utxo::total(candidates)?;
     let fee = fee::fee_for(request.fee_rate, plain_weight(request, candidates))?;
-    let needed = request
-        .target
-        .checked_add(fee)
-        .ok_or_else(|| UtxoError::overflow("the amount a payment needs"))?;
+    let needed =
+        target.checked_add(fee).ok_or_else(|| UtxoError::overflow("the amount a payment needs"))?;
     Ok(UtxoError::InsufficientFunds { needed, available })
 }
 
@@ -522,10 +528,11 @@ struct Priced {
     weight: Weight,
 }
 
-/// Prices one input set with and without change, keeping change when it reaches
-/// `change_floor`. `None` when the set can't pay.
+/// Prices one input set paying `target`, with and without change, keeping change when
+/// it reaches `change_floor`. `None` when the set can't pay.
 fn price(
     request: &SelectionRequest<'_>,
+    target: Amount,
     inputs: &[Utxo],
     change_floor: Amount,
 ) -> Result<Option<Priced>, UtxoError> {
@@ -537,7 +544,7 @@ fn price(
     );
     let fee_with_change = fee::fee_for(request.fee_rate, with_change)?;
     if let Some(change) =
-        total.checked_sub(request.target).and_then(|left| left.checked_sub(fee_with_change))
+        total.checked_sub(target).and_then(|left| left.checked_sub(fee_with_change))
         && change >= change_floor
     {
         return Ok(Some(Priced {
@@ -552,8 +559,7 @@ fn price(
     // says so.
     let plain = plain_weight(request, inputs);
     let fee_plain = fee::fee_for(request.fee_rate, plain)?;
-    let Some(donated) =
-        total.checked_sub(request.target).and_then(|left| left.checked_sub(fee_plain))
+    let Some(donated) = total.checked_sub(target).and_then(|left| left.checked_sub(fee_plain))
     else {
         return Ok(None);
     };
@@ -763,8 +769,7 @@ mod tests {
 
         // A send-max out of the same coins is the most this address can deliver, and
         // the refusal is short by exactly the amount the payment exceeds it.
-        let mut drain = scene.selection(0, TEN_PER_VB);
-        drain.should_drain = true;
+        let drain = scene.send_max(TEN_PER_VB);
         let sendable = scene.select(&drain, &coins).unwrap().recipient_value;
         assert_eq!(
             needed.checked_sub(available),
@@ -965,8 +970,7 @@ mod tests {
     fn a_send_max_over_more_coins_than_one_transaction_can_spend_moves_the_most_it_can() {
         let scene = bitcoin_scene().unwrap();
         let coins = scene.many_coins(1_600, |vout| 10_000 + u64::from(vout));
-        let mut request = scene.selection(0, ONE_PER_VB);
-        request.should_drain = true;
+        let request = scene.send_max(ONE_PER_VB);
 
         let selection = scene.select(&request, &coins).unwrap();
 
@@ -1000,8 +1004,7 @@ mod tests {
             "even the unconfirmed coins can't pay: {short:?}"
         );
 
-        let mut drain = scene.selection(0, ONE_PER_VB);
-        drain.should_drain = true;
+        let drain = scene.send_max(ONE_PER_VB);
         let only_incoming = [incoming(&scene.ours, 3, 400_000)];
         assert!(matches!(scene.select(&drain, &only_incoming), Err(UtxoError::Unconfirmed { .. })));
     }
@@ -1010,8 +1013,7 @@ mod tests {
     fn draining_pays_the_fee_out_of_the_amount_and_makes_no_change() {
         let scene = bitcoin_scene().unwrap();
         let coins = scene.coins(&[70_000, 30_000]);
-        let mut request = scene.selection(0, ONE_PER_VB);
-        request.should_drain = true;
+        let request = scene.send_max(ONE_PER_VB);
         let selection = scene.select(&request, &coins).unwrap();
 
         assert_eq!(selection.strategy, Strategy::Drain);
@@ -1033,8 +1035,7 @@ mod tests {
             unconfirmed(&scene.ours, 2, 300_000),
             incoming(&scene.ours, 3, 400_000),
         ];
-        let mut request = scene.selection(0, ONE_PER_VB);
-        request.should_drain = true;
+        let request = scene.send_max(ONE_PER_VB);
 
         let selection = scene.select(&request, &coins).unwrap();
         assert_eq!(selection.inputs.len(), 2, "{:?}", selection.inputs);
@@ -1063,8 +1064,7 @@ mod tests {
         };
         assert_eq!(available, units(100_000), "both tiers failed, so both coins were candidates");
 
-        let mut drain = scene.selection(0, ONE_PER_VB);
-        drain.should_drain = true;
+        let drain = scene.send_max(ONE_PER_VB);
         let sendable = scene.select(&drain, &coins).unwrap().recipient_value;
         assert_eq!(
             needed.checked_sub(available),
@@ -1076,8 +1076,7 @@ mod tests {
     #[test]
     fn draining_an_address_that_cannot_pay_its_own_fee_fails_cleanly() {
         let scene = bitcoin_scene().unwrap();
-        let mut request = scene.selection(0, TEN_PER_VB);
-        request.should_drain = true;
+        let request = scene.send_max(TEN_PER_VB);
         assert!(matches!(scene.select(&request, &[]), Err(UtxoError::InsufficientFunds { .. })));
     }
 
@@ -1085,15 +1084,17 @@ mod tests {
     fn draining_into_a_dust_payment_is_refused_rather_than_built() {
         let scene = bitcoin_scene().unwrap();
         let coins = scene.coins(&[400]);
-        let mut request = scene.selection(0, ONE_PER_VB);
-        request.should_drain = true;
+        let request = scene.send_max(ONE_PER_VB);
         assert!(matches!(scene.select(&request, &coins), Err(UtxoError::Dust { .. })));
     }
 
     #[test]
     fn a_target_above_the_chains_supply_is_refused_before_anything_is_priced() {
         let scene = bitcoin_scene().unwrap();
-        let request = SelectionRequest { target: Amount::MAX, ..scene.selection(1, ONE_PER_VB) };
+        let request = SelectionRequest {
+            amount: SendAmount::Exact { value: Amount::MAX },
+            ..scene.selection(1, ONE_PER_VB)
+        };
         assert!(matches!(scene.select(&request, &[]), Err(UtxoError::AboveMaxMoney { .. })));
     }
 

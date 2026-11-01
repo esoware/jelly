@@ -8,7 +8,7 @@ use crate::adapter::UtxoAdapter;
 use crate::adapter::child_paying::ChildPaying;
 use crate::adapter::fee::{self, FeeContext};
 use crate::adapter::replacing::Replacing;
-use crate::adapter::{send, sync};
+use crate::adapter::send;
 use crate::build::BuiltTx;
 use crate::cpfp::Unconfirmed;
 use crate::error::UtxoError;
@@ -21,14 +21,16 @@ use crate::utxo::Utxo;
 const MAX_PACKAGE: usize = 24;
 
 enum Bumping {
-    Replace { replacing: Replacing, extras: Vec<Utxo> },
-    Child { child: ChildPaying, coins: Vec<Utxo> },
+    Replace(Replacing),
+    Child(ChildPaying),
 }
 
 /// A bump resolved against the chain. It builds at any rate with no I/O, so a quote
 /// prices every level against the same coins.
 struct ResolvedBump {
     bumping: Bumping,
+    /// The spendable coins of the bump's sources.
+    coins: Vec<Utxo>,
     fee_context: FeeContext,
     tip_height: u32,
     /// The cheapest rate the network takes for the bump.
@@ -38,19 +40,19 @@ struct ResolvedBump {
 impl ResolvedBump {
     fn build(&self, rate: FeeRate) -> Result<BuiltTx, UtxoError> {
         match self.bumping {
-            Bumping::Replace { ref replacing, ref extras } => {
-                replacing.build(&self.fee_context, extras, self.tip_height, rate)
+            Bumping::Replace(ref replacing) => {
+                replacing.build(&self.fee_context, &self.coins, self.tip_height, rate)
             }
-            Bumping::Child { ref child, ref coins } => {
-                child.build(&self.fee_context, coins, self.tip_height, rate)
+            Bumping::Child(ref child) => {
+                child.build(&self.fee_context, &self.coins, self.tip_height, rate)
             }
         }
     }
 
     const fn evicted(&self) -> usize {
         match self.bumping {
-            Bumping::Replace { ref replacing, .. } => replacing.evicted(),
-            Bumping::Child { .. } => 0,
+            Bumping::Replace(ref replacing) => replacing.evicted(),
+            Bumping::Child(_) => 0,
         }
     }
 }
@@ -76,37 +78,31 @@ impl UtxoAdapter {
         let method =
             self.params.bump_method.ok_or(UtxoError::NoBumpMethod { chain: self.params.chain })?;
         let original = self.pending_original(txid).await?;
-        match method {
+        let bumping = match method {
             BumpMethod::Replace => {
                 let descendants = self.state.read().descendants(original.txid())?;
-                let replacing =
-                    Replacing::resolve(&self.params, &self.watch_set(), original, descendants)?;
-                let fee_context = self.fee_context().await;
-                let floor = replacing.min_rate(&fee_context.params)?;
-                let (extras, known_tip) = self.snapshot(replacing.sources()).await?;
-                let tip_height = send::tip_height(&self.client, known_tip).await?;
-                Ok(ResolvedBump {
-                    bumping: Bumping::Replace { replacing, extras },
-                    fee_context,
-                    tip_height,
-                    floor,
-                })
+                Bumping::Replace(Replacing::resolve(
+                    &self.params,
+                    &self.watch_set(),
+                    original,
+                    descendants,
+                )?)
             }
             BumpMethod::ChildPaysForParent => {
                 let ancestors = self.unconfirmed_ancestors(&original).await?;
-                let child = ChildPaying::resolve(&self.watch_set(), &original, ancestors)?;
-                let fee_context = self.fee_context().await;
-                let floor = child.min_rate()?;
-                let (coins, known_tip) = self.snapshot(child.sources()).await?;
-                let tip_height = send::tip_height(&self.client, known_tip).await?;
-                Ok(ResolvedBump {
-                    bumping: Bumping::Child { child, coins },
-                    fee_context,
-                    tip_height,
-                    floor,
-                })
+                Bumping::Child(ChildPaying::resolve(&self.watch_set(), &original, ancestors)?)
             }
-        }
+        };
+        let fee_context = self.fee_context().await;
+        let (floor, sources) = match bumping {
+            Bumping::Replace(ref replacing) => {
+                (replacing.min_rate(&fee_context.params)?, replacing.sources())
+            }
+            Bumping::Child(ref child) => (child.min_rate()?, child.sources()),
+        };
+        let (coins, known_tip) = self.snapshot(sources).await?;
+        let tip_height = send::tip_height(&self.client, known_tip).await?;
+        Ok(ResolvedBump { bumping, coins, fee_context, tip_height, floor })
     }
 
     async fn quote_bump_at(&self, txid: &TxId, fee: &FeeSelection) -> Result<FeeQuote, UtxoError> {
@@ -130,25 +126,17 @@ impl UtxoAdapter {
         let built = resolved.build(rate)?;
         let payload = &built.payload;
         match resolved.bumping {
-            Bumping::Replace { ref replacing, .. } => {
+            Bumping::Replace(ref replacing) => {
                 // No pass may have seen the original yet, and one that never does can't
                 // settle it as replaced. Under the pass lock, so no pass writes over it.
                 let pass = self.pass.lock().await;
                 let pending = replacing.pending();
-                let mut stored =
-                    sync::load_cursors(&self.params, self.cursors.as_ref(), replacing.sources())
-                        .await?;
+                let mut stored = self.load_cursors(replacing.sources()).await?;
                 for source in replacing.sources() {
                     if let Some(cursor) = stored.get_mut(&source.address_id)
                         && cursor.remember(&pending)
                     {
-                        sync::store_cursor(
-                            &self.params,
-                            self.cursors.as_ref(),
-                            source.address_id,
-                            cursor,
-                        )
-                        .await?;
+                        self.store_cursor(source.address_id, cursor).await?;
                     }
                 }
                 drop(pass);
@@ -160,7 +148,7 @@ impl UtxoAdapter {
                     &pending.spends,
                 );
             }
-            Bumping::Child { .. } => {
+            Bumping::Child(_) => {
                 self.claims.claim(payload.unsigned_txid(), &payload.outpoints())?;
             }
         }

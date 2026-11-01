@@ -321,6 +321,14 @@ impl UtxoParams {
     pub(crate) fn txid(&self, txid: Txid) -> TxId {
         TxId::new(self.chain, txid.to_string())
     }
+
+    /// Refuses a pool, watch row, or transaction of another chain.
+    pub(crate) fn check_chain(&self, found: ChainId) -> Result<(), UtxoError> {
+        if found != self.chain {
+            return Err(UtxoError::ForeignChain { expected: self.chain, found });
+        }
+        Ok(())
+    }
 }
 
 /// A `BlockHash` stores the reverse of the display byte order the tables use.

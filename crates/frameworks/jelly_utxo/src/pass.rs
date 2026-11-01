@@ -157,7 +157,7 @@ impl PassOutcome {
 /// The outcome is a pure function of what this pass fetched and what `watched`
 /// carried in, so a pass that fails midway leaves every stored cursor intact,
 /// and a reorg needs no special handling.
-pub(crate) async fn sync_pass(
+pub(crate) async fn run(
     params: &UtxoParams,
     client: &ElectrumClient,
     watched: &[WatchedScript<'_>],
@@ -619,7 +619,7 @@ mod tests {
         chain.serve_two_rounds();
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
-        let outcome = sync_pass(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
 
         assert_eq!(outcome.tip_height, TIP);
         assert_eq!(outcome.addresses.len(), 1);
@@ -671,7 +671,7 @@ mod tests {
                 pending: &[],
             });
         }
-        let outcome = sync_pass(&BITCOIN, &client, &watched, &events).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &watched, &events).await.unwrap();
 
         let emitted = events.drain();
         assert_eq!(emitted.len(), watched.len(), "one before each address");
@@ -708,17 +708,15 @@ mod tests {
         let cursor = {
             let client = chain.client().await.unwrap();
             let events = FakeEventSink::new();
-            let outcome =
-                sync_pass(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
+            let outcome = run(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
             outcome.addresses.first().expect("one address").cursor.clone()
         };
 
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
         let before = chain.fake.server.calls().len();
-        let outcome = sync_pass(&BITCOIN, &client, &chain.watched(Some(cursor.clone())), &events)
-            .await
-            .unwrap();
+        let outcome =
+            run(&BITCOIN, &client, &chain.watched(Some(cursor.clone())), &events).await.unwrap();
 
         let address = outcome.addresses.first().expect("one address");
         assert!(address.is_unchanged);
@@ -748,7 +746,7 @@ mod tests {
         chain.serve_two_rounds();
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
-        let first = sync_pass(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
+        let first = run(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
         let decoded = first.addresses.first().expect("one address").clone();
         assert_eq!(decoded.pending.iter().map(|tx| tx.txid).collect::<Vec<Txid>>(), vec![txid]);
 
@@ -757,14 +755,14 @@ mod tests {
             .into_iter()
             .map(|entry| WatchedScript { pending: &decoded.pending, ..entry })
             .collect();
-        let quiet = sync_pass(&BITCOIN, &client, &known, &events).await.unwrap();
+        let quiet = run(&BITCOIN, &client, &known, &events).await.unwrap();
         let address = quiet.addresses.first().expect("one address");
         assert!(address.is_unchanged);
         assert_eq!(address.pending, decoded.pending, "the pending set carries over");
 
         chain.serve_two_rounds();
         let later = chain.watched(Some(decoded.cursor));
-        let refetched = sync_pass(&BITCOIN, &client, &later, &events).await.unwrap();
+        let refetched = run(&BITCOIN, &client, &later, &events).await.unwrap();
         let address = refetched.addresses.first().expect("one address");
         assert!(!address.is_unchanged);
         assert_eq!(address.pending, decoded.pending);
@@ -844,8 +842,7 @@ mod tests {
         chain.serve_two_rounds();
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
-        let outcome =
-            sync_pass(&BITCOIN, &client, &chain.watched(Some(stale)), &events).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &chain.watched(Some(stale)), &events).await.unwrap();
         let address = outcome.addresses.first().expect("one address");
         assert!(!address.is_unchanged);
         assert_eq!(address.records.len(), 1);
@@ -894,7 +891,7 @@ mod tests {
             cursor: None,
             pending: &[],
         }];
-        let outcome = sync_pass(&BITCOIN, &client, &watched, &events).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &watched, &events).await.unwrap();
 
         let address = outcome.addresses.first().expect("one address");
         assert_eq!(Utxo::total(&address.coins).unwrap(), units(RETURNED_SAT));
@@ -959,7 +956,7 @@ mod tests {
             cursor: None,
             pending: &[],
         }];
-        let outcome = sync_pass(&BITCOIN, &client, &watched, &FakeEventSink::new()).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &watched, &FakeEventSink::new()).await.unwrap();
         let address = outcome.addresses.first().expect("one address");
         let wanted = child.compute_txid().to_string();
         let record = address.records.iter().find(|record| record.txid.value() == wanted).unwrap();
@@ -993,7 +990,7 @@ mod tests {
         );
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
-        let outcome = sync_pass(&BITCOIN, &client, &chain.watched(None), &events).await;
+        let outcome = run(&BITCOIN, &client, &chain.watched(None), &events).await;
         assert!(
             matches!(
                 outcome,
@@ -1014,7 +1011,7 @@ mod tests {
         chain.fake.unspent(&[]);
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
-        let outcome = sync_pass(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
 
         let address = outcome.addresses.first().expect("one address");
         assert!(address.coins.is_empty());
@@ -1028,7 +1025,7 @@ mod tests {
         let chain = chain().unwrap();
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
-        let outcome = sync_pass(&BITCOIN, &client, &[], &events).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &[], &events).await.unwrap();
         assert_eq!(outcome.tip_height, TIP);
         assert!(outcome.addresses.is_empty());
         assert!(outcome.live_outpoints().is_empty());

@@ -20,8 +20,8 @@ use bitcoin::transaction::Version;
 use bitcoin::{OutPoint, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid, Witness};
 use jelly_core::{
     Amount, AssetId, ChainAdapter as _, ChainError, ChainId, ChainSpec, ChainSyncProgress, Clock,
-    Deadline, EndpointLabel, FeeQuote, FeeRate, FeeSelection, ScriptKind, Transport, TxRecord,
-    TxRequest, UnsignedTx, WalletEvent, WatchedAddress,
+    CursorStore, Deadline, EndpointLabel, FeeQuote, FeeRate, FeeSelection, ScriptKind, Transport,
+    TxRecord, TxRequest, UnsignedTx, WalletEvent, WatchedAddress,
     test_util::{
         FakeClock, FakeEventSink, MemoryCursorStore, TxRequestBuilder, WatchedAddressBuilder,
     },
@@ -369,7 +369,7 @@ impl Harness {
     pub(crate) fn with_store(
         setup: Setup,
         cursors: Arc<MemoryCursorStore>,
-        store: Arc<dyn jelly_core::CursorStore>,
+        store: Arc<dyn CursorStore>,
     ) -> Fallible<Self> {
         let params = setup.params;
         let clock = Arc::new(FakeClock::default());

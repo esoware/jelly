@@ -337,14 +337,13 @@ mod tests {
     use bitcoin::Amount as BtcAmount;
     use bitcoin::consensus::deserialize;
     use bitcoin::secp256k1::{XOnlyPublicKey, ecdsa as ecdsa_sig, schnorr};
-    use jelly_core::ScriptKind;
-    use jelly_core::test_util::key_material;
+    use jelly_core::{ScriptKind, test_util::key_material};
     use jelly_keypair::Secp256k1Key;
     use serde::Deserialize;
 
     use super::*;
+    use crate::build::{BuildRequest, Source, build_tx};
     use crate::fixtures::{Fallible, ONE_PER_VB, bitcoin_scene, confirmed, litecoin_scene, scene};
-    use crate::payload::source_key;
     use crate::test_util::{BITCOIN, TestKey, test_key};
     use crate::utxo::{Utxo, units};
 
@@ -544,19 +543,21 @@ mod tests {
         ));
     }
 
-    /// The declared source becomes another address the key owns, so the ownership
-    /// check would pass and the input would be left for no one to sign.
+    /// The declared source is another address the key owns, so the ownership check
+    /// would pass and the input would be left for no one to sign.
     #[test]
     fn an_input_no_source_owns_is_refused_rather_than_left_unsigned() {
         let scene = bitcoin_scene().unwrap();
         let elsewhere = test_key(&BITCOIN, ScriptKind::P2wpkh, 9).unwrap();
-        let built = scene.build(Some(100_000), ONE_PER_VB, &scene.coins(&[500_000])).unwrap();
-
-        let mut moved = built.payload.psbt().clone();
-        moved.proprietary.insert(source_key(0), elsewhere.address().as_bytes().to_vec());
-        let payload = UtxoPayload::decode(&moved.serialize()).unwrap();
+        let coins = scene.coins(&[500_000]);
+        let request = BuildRequest {
+            sources: vec![Source { address: elsewhere.address(), script: scene.ours.script() }],
+            ..scene.request(Some(100_000), ONE_PER_VB, &coins)
+        };
+        let built = build_tx(&scene.params, &request).unwrap();
+        assert_eq!(built.payload.intent().sources, [elsewhere.address()]);
         assert!(matches!(
-            sign_tx(&scene.params, &payload, &[elsewhere.material()]),
+            sign_tx(&scene.params, &built.payload, &[elsewhere.material()]),
             Err(UtxoError::Payload { .. })
         ));
     }

@@ -349,6 +349,7 @@ fn flatten(
 #[cfg(test)]
 mod tests {
     use bitcoin::base58;
+    use jelly_core::ScriptKind;
 
     use super::*;
     use crate::build::build_tx;
@@ -357,7 +358,6 @@ mod tests {
         FLOOR_QUOTE, ONE_PER_VB, TEN_PER_VB, TIP, bitcoin_cash_scene, bitcoin_scene, incoming,
         litecoin_scene,
     };
-    use crate::payload::FIELD_TO;
     use crate::test_util::test_key;
     use crate::utxo::units;
 
@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn litecoins_bitcoin_shaped_legacy_address_is_flagged_and_bitcoins_is_not() {
         let ltc = litecoin_scene().unwrap();
-        let wrapped = test_key(&ltc.params, jelly_core::ScriptKind::P2shP2wpkh, 5).unwrap();
+        let wrapped = test_key(&ltc.params, ScriptKind::P2shP2wpkh, 5).unwrap();
         // Litecoin writes P2SH under its own version byte, so a legacy `3...` address
         // has to be constructed rather than derived.
         let legacy = {
@@ -681,21 +681,17 @@ mod tests {
         assert!(rendered.details.iter().all(|detail| detail.label != "Virtual size"));
     }
 
+    /// The payload names a stranger as the recipient while its payment pays someone
+    /// else.
     #[test]
     fn a_payload_whose_recipient_is_not_paid_is_refused() {
         let scene = bitcoin_scene().unwrap();
-        let stranger = test_key(&scene.params, jelly_core::ScriptKind::P2wpkh, 9).unwrap();
-        let built = scene.build(Some(50_000), ONE_PER_VB, &scene.coins(&[200_000])).unwrap();
-        let mut moved = built.payload.psbt().clone();
-        let key = moved
-            .proprietary
-            .keys()
-            .find(|key| key.subtype == FIELD_TO)
-            .cloned()
-            .expect("the recipient field");
-        moved.proprietary.insert(key, stranger.address().as_bytes().to_vec());
-        let payload = UtxoPayload::decode(&moved.serialize()).unwrap();
-        assert!(matches!(decode(&scene.params, &payload), Err(UtxoError::RecipientNotFound)));
+        let stranger = test_key(&scene.params, ScriptKind::P2wpkh, 9).unwrap();
+        let coins = scene.coins(&[200_000]);
+        let mut request = scene.request(Some(50_000), ONE_PER_VB, &coins);
+        request.to = stranger.address();
+        let built = build_tx(&scene.params, &request).unwrap();
+        assert!(matches!(decode(&scene.params, &built.payload), Err(UtxoError::RecipientNotFound)));
     }
 
     #[test]

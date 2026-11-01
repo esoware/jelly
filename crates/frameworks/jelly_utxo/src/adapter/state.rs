@@ -8,7 +8,7 @@ use jelly_electrum::HistoryEntry;
 use crate::adapter::watched::Watched;
 use crate::claim::OutpointClaims;
 use crate::error::UtxoError;
-use crate::sync::PendingTx;
+use crate::pass::PendingTx;
 use crate::utxo::Utxo;
 
 #[derive(Debug, Clone, Default)]
@@ -23,11 +23,11 @@ struct AddressState {
 
 /// What a replacement evicts besides the original.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Descendants {
+pub(super) struct Descendants {
     /// Their total fee, which BIP-125 rule 3 makes the replacement cover on top of
     /// the original's.
-    pub(crate) fee: Amount,
-    pub(crate) count: usize,
+    pub(super) fee: Amount,
+    pub(super) count: usize,
 }
 
 /// What the last pass saw, read by builds, confirmation counts, and replacements
@@ -38,18 +38,18 @@ pub(crate) struct Descendants {
 /// the history the pass read. Nothing carries over, so the next full pass picks up
 /// any cursor a cut pass advanced.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct ChainState {
+pub(super) struct ChainState {
     tip: Option<u32>,
     addresses: BTreeMap<i64, AddressState>,
 }
 
 impl ChainState {
     /// An empty state for a pass that read `tip_height`.
-    pub(crate) const fn at_tip(tip_height: u32) -> Self {
+    pub(super) const fn at_tip(tip_height: u32) -> Self {
         Self { tip: Some(tip_height), addresses: BTreeMap::new() }
     }
 
-    pub(crate) fn record(
+    pub(super) fn record(
         &mut self,
         address_id: i64,
         coins: Vec<Utxo>,
@@ -61,12 +61,12 @@ impl ChainState {
     }
 
     /// The tip the last pass saw, absent until there has been one.
-    pub(crate) const fn tip(&self) -> Option<u32> {
+    pub(super) const fn tip(&self) -> Option<u32> {
         self.tip
     }
 
     /// The mempool transactions the last pass decoded, by address.
-    pub(crate) fn pending_by_address(&self) -> BTreeMap<i64, Arc<[PendingTx]>> {
+    pub(super) fn pending_by_address(&self) -> BTreeMap<i64, Arc<[PendingTx]>> {
         self.addresses
             .iter()
             .map(|(address_id, state)| (*address_id, Arc::clone(&state.pending)))
@@ -75,20 +75,20 @@ impl ChainState {
 
     /// The unspent coins of `address_id` minus claimed ones, or `None` until a pass
     /// has reported on it.
-    pub(crate) fn spendable(&self, address_id: i64, claims: &OutpointClaims) -> Option<Vec<Utxo>> {
+    pub(super) fn spendable(&self, address_id: i64, claims: &OutpointClaims) -> Option<Vec<Utxo>> {
         self.addresses.get(&address_id).map(|state| claims.spendable(&state.coins))
     }
 
     /// Depth of `txid` against the tip the last pass saw. A transaction no pass
     /// has seen is zero, not an error.
-    pub(crate) fn confirmations(&self, txid: &Txid) -> u32 {
+    pub(super) fn confirmations(&self, txid: &Txid) -> u32 {
         let height =
             self.addresses.values().find_map(|state| state.heights.get(txid).copied().flatten());
         confirmations(height.map(u64::from), u64::from(self.tip.unwrap_or(0)))
     }
 
     /// Whether the last pass saw `txid` in the mempool and in no block.
-    pub(crate) fn is_pending(&self, txid: &Txid) -> bool {
+    pub(super) fn is_pending(&self, txid: &Txid) -> bool {
         let mut sightings =
             self.addresses.values().filter_map(|state| state.heights.get(txid)).peekable();
         sightings.peek().is_some() && sightings.all(Option::is_none)
@@ -96,7 +96,7 @@ impl ChainState {
 
     /// The mempool transactions the last pass saw that descend from `txid`, across
     /// every watched address. A replacement of `txid` evicts all of them.
-    pub(crate) fn descendants(&self, txid: Txid) -> Result<Descendants, UtxoError> {
+    pub(super) fn descendants(&self, txid: Txid) -> Result<Descendants, UtxoError> {
         let mut pending: BTreeMap<Txid, &PendingTx> = BTreeMap::new();
         for tx in self.addresses.values().flat_map(|state| state.pending.iter()) {
             pending.entry(tx.txid).or_insert(tx);
@@ -127,7 +127,7 @@ impl ChainState {
     ///
     /// Leaves claims alone. The engine resets the watch set before every pass, so
     /// releasing them here would free every claimed coin each poll.
-    pub(crate) fn retain(&mut self, watched: &[Watched]) {
+    pub(super) fn retain(&mut self, watched: &[Watched]) {
         self.addresses.retain(|id, _| watched.iter().any(|entry| entry.address_id == *id));
     }
 }

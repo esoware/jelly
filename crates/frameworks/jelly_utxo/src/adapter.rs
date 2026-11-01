@@ -80,22 +80,19 @@ impl UtxoAdapter {
         fee_api: Option<Arc<dyn FeeApi>>,
     ) -> Result<Self, ChainError> {
         let chain = params.chain;
-        let found = pool.chain();
-        if found != chain {
-            return Err(UtxoError::ForeignChain { expected: chain, found }.into_chain_error(chain));
-        }
+        params.check_chain(pool.chain()).map_err(|error| error.into_chain_error(chain))?;
         if pool.endpoints().is_empty() {
-            return Err(UtxoError::Net(NetError::NoEndpoints { chain }).into_chain_error(chain));
+            return Err(NetError::NoEndpoints { chain }.into());
         }
         Ok(Self {
             params: *params,
-            client: UtxoClient::new(pool, fee_api),
+            client: UtxoClient::new(pool),
             cursors,
             clock,
             watched: RwLock::new(Arc::from([])),
             state: RwLock::new(ChainState::default()),
             claims: OutpointClaims::default(),
-            fee_cache: FeeCache::default(),
+            fee_cache: FeeCache::new(fee_api),
             pass: Mutex::new(()),
             is_blocked: AtomicBool::new(false),
         })
@@ -132,9 +129,7 @@ impl UtxoAdapter {
         let resolved = watched::resolve(&self.params, addresses)?;
         let watched = self.watch_set();
         let admitted = resolved.iter().filter(|entry| !watched.contains(entry));
-        sync::load_cursors(&self.params, self.cursors.as_ref(), admitted)
-            .await
-            .inspect_err(|error| self.block_if_unreadable(error))?;
+        self.load_cursors(admitted).await.inspect_err(|error| self.block_if_unreadable(error))?;
         self.state.write().retain(&resolved);
         *self.watched.write() = Arc::from(resolved);
         Ok(())
@@ -190,9 +185,7 @@ impl UtxoAdapter {
         if unreported.is_empty() {
             return Ok((coins, tip));
         }
-        let mut stored =
-            sync::load_cursors(&self.params, self.cursors.as_ref(), unreported.iter().copied())
-                .await?;
+        let mut stored = self.load_cursors(unreported.iter().copied()).await?;
         for source in unreported {
             if let Some(cursor) = stored.remove(&source.address_id) {
                 coins.extend(self.claims.spendable(&cursor.restore(&source.script)));
@@ -268,27 +261,16 @@ impl ChainAdapter for UtxoAdapter {
         let watched = self.watch_set();
         let pending = self.state.read().pending_by_address();
         let budget = deadline.remaining(self.clock.as_ref());
-        let running = sync::run(
-            &self.params,
-            &self.client,
-            self.cursors.as_ref(),
-            &self.claims,
-            &watched,
-            &pending,
-            events,
-        );
-        let Ok(passed) = timeout(budget, running).await else {
+        let Ok(passed) = timeout(budget, self.run_pass(&watched, &pending, events)).await else {
             return Err(ChainError::endpoints_down(
                 self.params.chain,
                 "a sync pass inside its deadline",
                 Vec::new(),
             ));
         };
-        let outcome = passed
+        passed
             .inspect_err(|error| self.block_if_unreadable(error))
-            .map_err(|error| error.into_chain_error(self.params.chain))?;
-        *self.state.write() = outcome.state;
-        Ok(outcome.progress)
+            .map_err(|error| error.into_chain_error(self.params.chain))
     }
 
     /// Returns on any Electrum notification without trusting its content. A failed

@@ -9,24 +9,21 @@ use crate::script::SpendableScript;
 /// A watched address and its script. The script carries its kind, so nothing
 /// downstream classifies the address again.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Watched {
-    pub(crate) address_id: i64,
-    pub(crate) address: String,
-    pub(crate) script: SpendableScript,
+pub(super) struct Watched {
+    pub(super) address_id: i64,
+    pub(super) address: String,
+    pub(super) script: SpendableScript,
 }
 
 /// Rejects the whole watch set if any address is unspendable, because skipping
 /// one could report a false zero balance.
-pub(crate) fn resolve(
+pub(super) fn resolve(
     params: &UtxoParams,
     addresses: &[WatchedAddress],
 ) -> Result<Vec<Watched>, UtxoError> {
     let mut watched = Vec::with_capacity(addresses.len());
     for entry in addresses {
-        let found = entry.chain();
-        if found != params.chain {
-            return Err(UtxoError::ForeignChain { expected: params.chain, found });
-        }
+        params.check_chain(entry.chain())?;
         let address = params.canonical(entry.address.value())?;
         let script = params.spendable_script(&address)?;
         watched.push(Watched { address_id: entry.id, address, script });
@@ -34,7 +31,7 @@ pub(crate) fn resolve(
     Ok(watched)
 }
 
-pub(crate) fn sources_of(watched: &[Watched]) -> Vec<Source<'_>> {
+pub(super) fn sources_of(watched: &[Watched]) -> Vec<Source<'_>> {
     watched.iter().map(|entry| Source { address: &entry.address, script: &entry.script }).collect()
 }
 
@@ -42,7 +39,7 @@ pub(crate) fn sources_of(watched: &[Watched]) -> Vec<Source<'_>> {
 ///
 /// Fails with [`UtxoError::NotOurs`] when there are none, since nothing could fund or
 /// sign a bump.
-pub(crate) fn spenders(
+pub(super) fn spenders(
     watched: &[Watched],
     original: &Original,
 ) -> Result<Vec<Watched>, UtxoError> {
@@ -63,7 +60,7 @@ pub(crate) fn spenders(
 
 /// The sources a bump may draw coins from: `first`, which the bump pays back to, then
 /// every other spender.
-pub(crate) fn sources_led_by(first: Option<&Watched>, spenders: Vec<Watched>) -> Vec<Watched> {
+pub(super) fn sources_led_by(first: Option<&Watched>, spenders: Vec<Watched>) -> Vec<Watched> {
     let mut sources: Vec<Watched> = first.into_iter().cloned().collect();
     for spender in spenders {
         if !sources.contains(&spender) {

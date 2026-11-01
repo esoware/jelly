@@ -15,7 +15,7 @@ use crate::utxo::Utxo;
 /// last other output that does. A send that only paid the wallet, such as an earlier
 /// child, has no payment, so its last output is the change and it can be sped up too.
 #[derive(Debug, Clone)]
-pub(crate) struct ChildPaying {
+pub(super) struct ChildPaying {
     package: Package,
     /// The change address first, which the child pays back to, then every address the
     /// send spends from. The child adds coins only from these.
@@ -24,7 +24,7 @@ pub(crate) struct ChildPaying {
 }
 
 impl ChildPaying {
-    pub(crate) fn resolve(
+    pub(super) fn resolve(
         watched: &[Watched],
         original: &Original,
         ancestors: Vec<Unconfirmed>,
@@ -51,19 +51,19 @@ impl ChildPaying {
         })
     }
 
-    pub(crate) fn sources(&self) -> &[Watched] {
+    pub(super) fn sources(&self) -> &[Watched] {
         &self.sources
     }
 
     /// The cheapest rate that still raises what the package pays.
-    pub(crate) fn min_rate(&self) -> Result<FeeRate, UtxoError> {
+    pub(super) fn min_rate(&self) -> Result<FeeRate, UtxoError> {
         let current = self.package.rate()?;
         Ok(FeeRate::from_sat_per_kwu(current.sat_per_kwu().saturating_add(1)))
     }
 
     /// `coins` are the spendable coins of the sources, the change among them unless
     /// something already spends it.
-    pub(crate) fn build(
+    pub(super) fn build(
         &self,
         fee_context: &FeeContext,
         coins: &[Utxo],
@@ -75,7 +75,7 @@ impl ChildPaying {
             .find(|coin| coin.outpoint() == self.change)
             .ok_or(UtxoError::ChangeSpent { txid: self.package.parent() })?;
         let request = ChildRequest {
-            rate,
+            fee_rate: rate,
             sources: sources_of(&self.sources),
             change,
             extras: coins,

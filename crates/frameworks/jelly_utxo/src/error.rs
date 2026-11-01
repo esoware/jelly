@@ -443,10 +443,7 @@ pub(crate) fn classify(error: &NetError) -> Outcome {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const fn units(value: u128) -> Amount {
-        Amount::from_base_units(value)
-    }
+    use crate::utxo::units;
 
     #[test]
     fn money_in_a_refusal_is_shown_in_the_chains_coin_rather_than_base_units() {
