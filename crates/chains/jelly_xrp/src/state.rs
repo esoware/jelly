@@ -40,6 +40,12 @@ pub(crate) struct SignedBlob {
     pub(crate) blob: String,
 }
 
+impl From<&SignedTx> for SignedBlob {
+    fn from(tx: &SignedTx) -> Self {
+        Self { hash: tx.txid.value().to_owned(), blob: hex::encode_upper(tx.raw.as_bytes()) }
+    }
+}
+
 impl Pending {
     const fn signed(&self) -> Option<&SignedBlob> {
         match &self.stage {
@@ -53,27 +59,14 @@ impl Pending {
     }
 }
 
-/// A [`Pending`] as the `xrp.sends` reservation stores it, so its field names are a stored
-/// format. A stored entry is always sent, with both `hash` and `blob` set.
+/// A sent [`Pending`] as the `xrp.sends` reservation stores it, so its field names are a
+/// stored format.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StoredSend {
     payment: Payment,
-    hash: Option<String>,
-    blob: Option<String>,
-    is_sent: bool,
-}
-
-impl From<&Pending> for StoredSend {
-    fn from(pending: &Pending) -> Self {
-        let signed = pending.signed();
-        Self {
-            payment: pending.payment.clone(),
-            hash: signed.map(|signed| signed.hash.clone()),
-            blob: signed.map(|signed| signed.blob.clone()),
-            is_sent: pending.is_sent(),
-        }
-    }
+    hash: String,
+    blob: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -178,10 +171,7 @@ impl States {
         if entry.is_sent() {
             return Err(XrpError::Busy);
         }
-        entry.stage = Stage::Signed(SignedBlob {
-            hash: signed.txid.value().to_owned(),
-            blob: hex::encode_upper(signed.raw.as_bytes()),
-        });
+        entry.stage = Stage::Signed(SignedBlob::from(signed));
         Ok(())
     }
 
@@ -193,23 +183,22 @@ impl States {
         if tx.chain() != CHAIN || sign::txid(tx.raw.as_bytes()) != tx.txid.value() {
             return Err(invalid);
         }
-        let blob = hex::encode_upper(tx.raw.as_bytes());
+        let presented = SignedBlob::from(tx);
         let (address_id, payment, signed) = self
             .pending
             .read()
             .iter()
             .find_map(|(address_id, entry)| {
-                let signed = entry.signed().filter(|signed| signed.hash == tx.txid.value())?;
+                let signed = entry.signed().filter(|signed| signed.hash == presented.hash)?;
                 Some((*address_id, entry.payment.clone(), signed.clone()))
             })
             .ok_or(XrpError::Invalid("Build the XRP payment again before sending."))?;
-        if signed.blob != blob {
+        if signed.blob != presented.blob {
             return Err(invalid);
         }
-        let sent = Pending { payment, stage: Stage::Sent(signed) };
-        self.persist(address_id, Some(&sent)).await?;
-        self.pending.write().insert(address_id, sent);
-        Ok(blob)
+        self.persist_sent(address_id, &payment, &signed).await?;
+        self.pending.write().insert(address_id, Pending { payment, stage: Stage::Sent(signed) });
+        Ok(presented.blob)
     }
 
     /// Stops holding the unsent send of `address_id` without storing anything, because
@@ -222,17 +211,25 @@ impl States {
         self.pending.write().retain(|_, entry| entry.is_sent() || entry.payment != *payment);
     }
 
-    pub(crate) async fn persist(
+    /// Stores that `address_id` holds `payment`, sent as `signed`.
+    pub(crate) async fn persist_sent(
         &self,
         address_id: i64,
-        pending: Option<&Pending>,
+        payment: &Payment,
+        signed: &SignedBlob,
     ) -> Result<(), XrpError> {
+        let sent = StoredSend {
+            payment: payment.clone(),
+            hash: signed.hash.clone(),
+            blob: signed.blob.clone(),
+        };
+        self.persist(address_id, Some(sent)).await
+    }
+
+    async fn persist(&self, address_id: i64, pending: Option<StoredSend>) -> Result<(), XrpError> {
         self.ensure_readable()?;
-        let bytes = serde_json::to_vec(&Sends {
-            version: SENDS_VERSION,
-            pending: pending.map(StoredSend::from),
-        })
-        .map_err(|_| XrpError::Internal("an XRP send did not serialize"))?;
+        let bytes = serde_json::to_vec(&Sends { version: SENDS_VERSION, pending })
+            .map_err(|_| XrpError::Internal("an XRP send did not serialize"))?;
         self.cursors
             .reserve(
                 CursorScope::Address(address_id),
@@ -256,7 +253,7 @@ fn scopes(address_ids: &[i64]) -> Vec<CursorScope> {
 }
 
 /// The sends stored in `rows`. Fails unless every cursor in `scans` and every send reads,
-/// and each send was broadcast with a blob that hashes to its id.
+/// and each send's blob hashes to its id.
 fn restore(
     scans: &[ScanAdvance],
     rows: &[HeldReservation],
@@ -277,19 +274,14 @@ fn restore(
         if wire.version != SENDS_VERSION {
             return Err(XrpError::Internal("stored xrp sends have an unsupported format"));
         }
-        if let Some(stored) = wire.pending {
-            stored.payment.validate()?;
-            if !stored.is_sent {
-                return Err(XrpError::Internal("a stored XRP send was never broadcast"));
-            }
-            let blob = stored.blob.ok_or(MISMATCH)?;
-            let hash = stored.hash.ok_or(MISMATCH)?;
+        if let Some(StoredSend { payment, hash, blob }) = wire.pending {
+            payment.validate()?;
             let bytes = hex::decode(&blob).map_err(|_| MISMATCH)?;
             if sign::txid(&bytes) != hash {
                 return Err(MISMATCH);
             }
             let stage = Stage::Sent(SignedBlob { hash, blob });
-            restored.insert(address_id, Pending { payment: stored.payment, stage });
+            restored.insert(address_id, Pending { payment, stage });
         }
     }
     Ok(restored)

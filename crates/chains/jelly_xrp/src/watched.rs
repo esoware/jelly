@@ -1,10 +1,10 @@
 use jelly_core::WatchedAddress;
 
-use crate::address::{XrpDestination, xrp_address, xrp_destination};
+use crate::address::{XrpDestination, classic_address};
 use crate::config::CHAIN;
 use crate::error::XrpError;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct Watched {
     pub(crate) address_id: i64,
     /// The classic address, whatever spelling the store holds.
@@ -15,12 +15,12 @@ pub(crate) struct Watched {
 pub(crate) fn resolve(addresses: &[WatchedAddress]) -> Result<Vec<Watched>, XrpError> {
     let mut watched = Vec::with_capacity(addresses.len());
     for entry in addresses {
-        let XrpDestination { account, tag } = xrp_destination(entry.address.value())
+        let XrpDestination { account, tag } = XrpDestination::parse(entry.address.value())
             .map_err(|_| XrpError::Invalid("The XRP source address is not valid."))?;
         if entry.chain() != CHAIN || tag.is_some() {
             return Err(XrpError::Invalid("An XRP source must be an untagged mainnet account."));
         }
-        watched.push(Watched { address_id: entry.id, address: xrp_address(&account) });
+        watched.push(Watched { address_id: entry.id, address: classic_address(&account) });
     }
     Ok(watched)
 }
@@ -32,16 +32,9 @@ mod tests {
 
     use super::*;
     use crate::address::CODEC;
+    use crate::fixtures::assert_refused;
 
     const OWNER: &str = "rfxdLwsZnoespnTDDb1Xhvbc8EFNdztaoq";
-
-    #[track_caller]
-    fn assert_refused(addresses: &[WatchedAddress], message: &str) {
-        assert!(
-            matches!(resolve(addresses), Err(XrpError::Invalid(text)) if text == message),
-            "expected {message:?}"
-        );
-    }
 
     #[test]
     fn a_watched_address_resolves_to_its_classic_spelling() {
@@ -55,12 +48,15 @@ mod tests {
     fn one_unreadable_tagged_or_foreign_row_refuses_the_whole_watch_set() {
         let owner = WatchedAddressBuilder::new(7, CHAIN, OWNER).build();
         let unreadable = WatchedAddressBuilder::new(8, CHAIN, "not an address").build();
-        assert_refused(&[owner.clone(), unreadable], "The XRP source address is not valid.");
+        assert_refused(
+            &resolve(&[owner.clone(), unreadable]).unwrap_err(),
+            "The XRP source address is not valid.",
+        );
         let untagged_only = "An XRP source must be an untagged mainnet account.";
         let tagged = CODEC.validate(&format!("xrpl:{OWNER}?dt=0")).unwrap().into_value();
         let tagged = WatchedAddressBuilder::new(8, CHAIN, &tagged).build();
-        assert_refused(&[owner.clone(), tagged], untagged_only);
+        assert_refused(&resolve(&[owner.clone(), tagged]).unwrap_err(), untagged_only);
         let foreign = WatchedAddressBuilder::new(8, ChainId::Bitcoin, OWNER).build();
-        assert_refused(&[owner, foreign], untagged_only);
+        assert_refused(&resolve(&[owner, foreign]).unwrap_err(), untagged_only);
     }
 }

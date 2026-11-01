@@ -1,7 +1,7 @@
 use jelly_core::TxPayload;
 use serde::{Deserialize, Serialize};
 
-use crate::address::{xrp_address, xrp_destination};
+use crate::address::classic_account;
 use crate::config::{MAX_DELETION_FEE_DROPS, MAX_DROPS, MAX_FEE_DROPS, VALIDITY_LEDGERS};
 use crate::error::XrpError;
 
@@ -43,8 +43,6 @@ pub(crate) struct Payment {
 
 impl Payment {
     pub(crate) fn validate(&self) -> Result<(), XrpError> {
-        let from = xrp_destination(&self.from).map_err(|_| XrpError::Invalid(INVALID_PAYMENT))?;
-        let to = xrp_destination(&self.to).map_err(|_| XrpError::Invalid(INVALID_PAYMENT))?;
         let is_kind_consistent = match self.kind {
             SendKind::Payment => self.fee_drops <= MAX_FEE_DROPS,
             SendKind::AccountDelete => {
@@ -53,8 +51,8 @@ impl Payment {
                     && !self.is_activation
             }
         };
-        if xrp_address(&from.account) != self.from
-            || xrp_address(&to.account) != self.to
+        if classic_account(&self.from).is_none()
+            || classic_account(&self.to).is_none()
             || self.from == self.to
             || !is_kind_consistent
             || self.amount_drops == 0

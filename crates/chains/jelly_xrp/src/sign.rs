@@ -2,7 +2,7 @@ use jelly_core::{KeyKind, KeyMaterial, RawTx, SignedTx, TxId, UnsignedTx};
 use jelly_keypair::Secp256k1Key;
 use sha2::{Digest as _, Sha512};
 
-use crate::address::{pubkey_address, xrp_destination};
+use crate::address::{classic_account, pubkey_address};
 use crate::config::CHAIN;
 use crate::error::XrpError;
 use crate::payload::{Payment, SendKind};
@@ -30,12 +30,10 @@ fn serialize(
     pubkey: &[u8; 33],
     signature: Option<&[u8]>,
 ) -> Result<Vec<u8>, XrpError> {
-    let account = xrp_destination(&payment.from)
-        .map_err(|_| XrpError::Internal("a validated XRP payment has an unreadable sender"))?
-        .account;
-    let destination = xrp_destination(&payment.to)
-        .map_err(|_| XrpError::Internal("a validated XRP payment has an unreadable recipient"))?
-        .account;
+    let account = classic_account(&payment.from)
+        .ok_or(XrpError::Internal("a validated XRP payment has an unreadable sender"))?;
+    let destination = classic_account(&payment.to)
+        .ok_or(XrpError::Internal("a validated XRP payment has an unreadable recipient"))?;
     // The XRP Ledger's canonical binary format: each field behind its header byte, sorted by
     // type code and then field code. That puts TransactionType (Payment 0 or AccountDelete
     // 21), Flags (tfFullyCanonicalSig), Sequence, DestinationTag, LastLedgerSequence, a
@@ -112,6 +110,7 @@ mod tests {
     use serde::Deserialize;
 
     use super::*;
+    use crate::fixtures::assert_refused;
 
     #[derive(Deserialize)]
     struct Vectors {
@@ -162,14 +161,6 @@ mod tests {
 
     fn key(vector: &Vector, kind: KeyKind) -> KeyMaterial {
         key_material_of(kind, hex::decode(&vector.private_key).unwrap())
-    }
-
-    #[track_caller]
-    fn assert_refused(error: &XrpError, message: &str) {
-        assert!(
-            matches!(error, XrpError::Invalid(text) if *text == message),
-            "expected {message:?}, got {error:?}"
-        );
     }
 
     #[test]

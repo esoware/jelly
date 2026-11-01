@@ -1,6 +1,6 @@
 use jelly_core::{AssetId, Clock, FeeSelection, SendAmount, TxRequest};
 
-use crate::address::{XrpDestination, xrp_address, xrp_destination};
+use crate::address::{XrpDestination, classic_address};
 use crate::client::{AccountRoot, Ledger, NetworkFee, XrpClient};
 use crate::config::{
     CHAIN, MAX_DELETION_FEE_DROPS, MAX_FEE_DROPS, RIPPLE_EPOCH_UNIX_SECONDS, VALIDITY_LEDGERS,
@@ -85,17 +85,17 @@ pub(crate) async fn resolve(
         .find(|entry| entry.address_id == source_id)
         .map(|entry| entry.address.clone())
         .ok_or(XrpError::Invalid(CHOOSE_SOURCE))?;
-    let XrpDestination { account: destination, tag: embedded_tag } = xrp_destination(&request.to)
-        .map_err(|_| {
-        XrpError::Invalid("Enter a valid XRP mainnet address or payment request.")
-    })?;
+    let XrpDestination { account: destination, tag: embedded_tag } =
+        XrpDestination::parse(&request.to).map_err(|_| {
+            XrpError::Invalid("Enter a valid XRP mainnet address or payment request.")
+        })?;
     if let (Some(embedded), Some(explicit)) = (embedded_tag, request.destination_tag)
         && embedded != explicit
     {
         return Err(XrpError::Invalid("The address and destination tag do not match."));
     }
     let destination_tag = embedded_tag.or(request.destination_tag);
-    let to = xrp_address(&destination);
+    let to = classic_address(&destination);
     if from == to {
         return Err(XrpError::Invalid("Choose a different XRP recipient address."));
     }

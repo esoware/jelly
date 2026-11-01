@@ -55,7 +55,7 @@ pub(crate) async fn run(
             let reached_ledger = page.rows.last().map(ledger_index).transpose()?;
             cursor.mark_read(page.marker, reached_ledger, ledger.seq)?;
             for row in &page.rows {
-                if let Some(record) = record(row, entry.address_id, &entry.address, ledger.seq)? {
+                if let Some(record) = record(row, entry, ledger.seq)? {
                     events.emit(WalletEvent::TxDetected(record)).await;
                 }
             }
