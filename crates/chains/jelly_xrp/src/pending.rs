@@ -24,8 +24,7 @@ pub(crate) async fn follow(
         let hash = &signed.hash;
         match client.tx(hash, pending.payment.first_ledger, last_ledger).await? {
             TxLookup::Validated(result) => {
-                let record = record(&result, entry.address_id, &entry.address, tip)?
-                    .ok_or(XrpError::Protocol)?;
+                let record = record(&result, entry, tip)?.ok_or(XrpError::Protocol)?;
                 events.emit(WalletEvent::TxDetected(record)).await;
                 states.settle(entry.address_id).await?;
             }
@@ -48,7 +47,7 @@ pub(crate) async fn follow(
                 states.settle(entry.address_id).await?;
             }
             TxLookup::NotFound { .. } if tip <= last_ledger => {
-                states.persist(entry.address_id, Some(&pending)).await?;
+                states.persist_sent(entry.address_id, &pending.payment, signed).await?;
                 // Best effort. The send stays tracked until a validated ledger or the expiry
                 // proof settles it.
                 let _ = client.submit(&signed.blob).await;

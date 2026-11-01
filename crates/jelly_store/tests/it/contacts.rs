@@ -154,7 +154,7 @@ async fn one_wallet_can_neither_see_nor_touch_another_wallets_contacts() {
 }
 
 #[tokio::test]
-async fn a_deleted_contact_is_gone_and_a_second_delete_finds_nothing() {
+async fn deleting_a_contact_removes_it_and_reports_a_second_attempt_as_missing() {
     let harness = common::harness().await.unwrap();
     let wallet = common::wallet(&harness.store, "deletes").await.unwrap();
     let gone = harness
@@ -170,7 +170,7 @@ async fn a_deleted_contact_is_gone_and_a_second_delete_finds_nothing() {
 }
 
 #[tokio::test]
-async fn deleting_a_wallet_deletes_its_contacts() {
+async fn deleting_a_wallet_takes_its_contacts_with_it() {
     let harness = common::harness().await.unwrap();
     let wallet = common::wallet(&harness.store, "doomed").await.unwrap();
     harness

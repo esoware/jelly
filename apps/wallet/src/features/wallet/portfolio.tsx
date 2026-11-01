@@ -318,7 +318,7 @@ export function PortfolioView() {
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [board, setBoard] = useState<Board>("allocation")
 
-  function showAsset(asset: AssetId): void {
+  function handleSelect(asset: AssetId): void {
     saveShownAsset.mutate(asset)
   }
 
@@ -330,7 +330,7 @@ export function PortfolioView() {
           allocation={allocation}
           activeKey={activeKey}
           onActiveChange={setActiveKey}
-          onSelect={showAsset}
+          onSelect={handleSelect}
         />
       </div>
       <Panel className="min-w-0 flex-1">
@@ -342,7 +342,7 @@ export function PortfolioView() {
             allocation={allocation}
             activeKey={activeKey}
             onActiveChange={setActiveKey}
-            onSelect={showAsset}
+            onSelect={handleSelect}
             isPriceFeedEnabled={isPriceFeedEnabled}
           />
         ) : (

@@ -1,4 +1,4 @@
-//! Every read the adapter makes, and its one write, over the failover pool.
+//! Every Electrum read the adapter makes, and its one write, over the failover pool.
 //!
 //! The pool tags its logs and errors with its own chain, which `UtxoAdapter::new`
 //! checks against the table's, so operation names here leave the chain out.
@@ -14,48 +14,39 @@ use jelly_electrum::{
 use jelly_net::{NetError, Pool};
 
 use crate::error::{UtxoError, classify};
-use crate::fee_api::FeeApi;
 use crate::original::Original;
 use crate::params::UtxoParams;
-use crate::sync::{PassOutcome, WatchedScript, sync_pass};
+use crate::pass::{self, PassOutcome, WatchedScript};
 
-/// Each Electrum call walks the failover pool once. The fee service is optional.
+/// Each Electrum call walks the failover pool once.
 ///
 /// A read moves to the next server on any failure one server could be blamed for. It
 /// stops on a refusal every server would repeat, or on a method the negotiated
 /// protocol lacks, which was never sent.
 #[derive(Debug)]
-pub(crate) struct UtxoClient {
+pub(super) struct UtxoClient {
     pool: Arc<Pool<ElectrumClient>>,
-    fee_api: Option<Arc<dyn FeeApi>>,
 }
 
 impl UtxoClient {
-    pub(crate) const fn new(
-        pool: Arc<Pool<ElectrumClient>>,
-        fee_api: Option<Arc<dyn FeeApi>>,
-    ) -> Self {
-        Self { pool, fee_api }
+    pub(super) const fn new(pool: Arc<Pool<ElectrumClient>>) -> Self {
+        Self { pool }
     }
 
-    pub(crate) fn fee_api(&self) -> Option<&dyn FeeApi> {
-        self.fee_api.as_deref()
-    }
-
-    pub(crate) async fn tip_height(&self) -> Result<u32, UtxoError> {
+    pub(super) async fn tip_height(&self) -> Result<u32, UtxoError> {
         self.call("tip", async |client| Ok(client.tip_height().await?)).await
     }
 
     /// The relay floors that protocol 1.6 reports. Below 1.6 the call fails before
     /// anything is sent and the walk stops without penalizing any server, so `bid`
     /// takes the floor from the fee service instead.
-    pub(crate) async fn mempool_info(&self) -> Result<MempoolInfo, UtxoError> {
+    pub(super) async fn mempool_info(&self) -> Result<MempoolInfo, UtxoError> {
         self.call("mempool info", async |client| Ok(client.mempool_info().await?)).await
     }
 
     /// The Electrum client drops the mode for servers below protocol 1.6.
     /// `None` when the server has no estimate for `target_blocks`.
-    pub(crate) async fn estimate_fee(
+    pub(super) async fn estimate_fee(
         &self,
         target_blocks: u16,
         mode: EstimationMode,
@@ -68,7 +59,7 @@ impl UtxoClient {
         Ok(reading.rate())
     }
 
-    pub(crate) async fn fee_histogram(&self) -> Result<Vec<HistogramBucket>, UtxoError> {
+    pub(super) async fn fee_histogram(&self) -> Result<Vec<HistogramBucket>, UtxoError> {
         self.call("fee histogram", async |client| Ok(client.fee_histogram().await?)).await
     }
 
@@ -76,7 +67,7 @@ impl UtxoClient {
     ///
     /// Both come from one server in one walk, so a bump is priced from the
     /// transactions themselves rather than a fee the server reports.
-    pub(crate) async fn original(&self, txid: Txid) -> Result<Original, UtxoError> {
+    pub(super) async fn original(&self, txid: Txid) -> Result<Original, UtxoError> {
         self.call("original transaction", async |client| {
             let mut fetched = client.txs(&[txid]).await?;
             let Some(served) = fetched.pop() else {
@@ -102,7 +93,7 @@ impl UtxoClient {
 
     /// One attempt against one endpoint, since a failed send leaves its outcome
     /// unknown.
-    pub(crate) async fn broadcast(&self, tx: &Transaction) -> Result<Txid, UtxoError> {
+    pub(super) async fn broadcast(&self, tx: &Transaction) -> Result<Txid, UtxoError> {
         self.pool
             .broadcast_once("broadcast", classify_broadcast, async |client: Arc<ElectrumClient>| {
                 client.broadcast(tx).await.map_err(NetError::from)
@@ -116,19 +107,19 @@ impl UtxoClient {
     /// Only the connection goes through the pool. The subscription waits outside it,
     /// so waiting for a block isn't cut off by the per-attempt timeout or counted
     /// against the endpoint as slowness.
-    pub(crate) async fn watch_client(&self) -> Result<Arc<ElectrumClient>, UtxoError> {
+    pub(super) async fn watch_client(&self) -> Result<Arc<ElectrumClient>, UtxoError> {
         self.call("watch", async |client| Ok(client)).await
     }
 
     /// One Electrum sync pass against one server.
-    pub(crate) async fn pass(
+    pub(super) async fn pass(
         &self,
         params: &UtxoParams,
         watched: &[WatchedScript<'_>],
         events: &dyn EventSink,
     ) -> Result<PassOutcome, UtxoError> {
         self.call("sync", async |client| {
-            sync_pass(params, &client, watched, events)
+            pass::run(params, &client, watched, events)
                 .await
                 .map_err(|error| UtxoError::from_server(client.endpoint(), error))
         })

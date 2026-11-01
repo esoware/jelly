@@ -85,41 +85,40 @@ pub(crate) async fn resolve(
         return Err(TronError::ForeignFeeSelection);
     }
 
-    let to_body = address::body("recipient", &request.to)?;
+    let to = address::Body::parse("recipient", &request.to)?;
     // java-tron's TransferActuator refuses a TransferContract whose recipient is
     // its owner. A TRC-20 transfer to the same address is an ordinary call.
-    if token.is_none() && to_body == sender.body {
+    if token.is_none() && to == sender.body {
         return Err(TronError::TrxToSelf);
     }
 
-    let tip = inputs.client.now_block().await?;
-    let resources = inputs.client.resources(&sender.address).await?;
-    let account = inputs.client.account(&sender.address).await?;
+    let client = inputs.client;
+    let tip = client.now_block().await?;
+    let resources = client.resources(&sender.address).await?;
+    let account = client.account(&sender.address).await?;
     let header = Header::from_block(&tip, inputs.config.expiration)?;
 
     let common = Common {
         asset: request.asset,
-        from: &sender.address,
-        from_body: sender.body,
-        to_body,
+        from: sender.body,
+        to,
         amount: request.amount,
         params: inputs.params,
         resources,
         trx_balance_sun: account.balance_sun(),
     };
     match token {
-        None => native_transfer(inputs, &common, header).await,
-        Some(token) => token_transfer(inputs, &common, header, token).await,
+        None => native_transfer(client, &common, header).await,
+        Some(token) => token_transfer(client, &common, header, token).await,
     }
 }
 
 /// What TRX and token transfers both read.
 #[derive(Debug)]
-struct Common<'a> {
+struct Common {
     asset: AssetId,
-    from: &'a str,
-    from_body: [u8; address::BODY_BYTES],
-    to_body: [u8; address::BODY_BYTES],
+    from: address::Body,
+    to: address::Body,
     amount: SendAmount,
     params: ChainParams,
     resources: Resources,
@@ -127,11 +126,11 @@ struct Common<'a> {
 }
 
 async fn native_transfer(
-    inputs: &Inputs<'_>,
-    common: &Common<'_>,
+    client: &TronClient,
+    common: &Common,
     header: Header,
 ) -> Result<Plan, TronError> {
-    let recipient = inputs.client.account(&address::display(&common.to_body)).await?;
+    let recipient = client.account(&common.to.to_string()).await?;
     let charge = Charge {
         is_activation: !recipient.is_activated(),
         energy: None,
@@ -144,7 +143,7 @@ async fn native_transfer(
         SendAmount::Exact { value } => {
             let amount = requested_amount(value)?;
             let sun = u64::try_from(amount).map_err(|_| TronError::AmountTooLarge)?;
-            let raw = raw::transfer(&header, &common.from_body, &common.to_body, sun)?;
+            let raw = raw::transfer(&header, &common.from, &common.to, sun)?;
             let cost = charge.of(&raw)?;
             Built { amount, raw, cost }
         }
@@ -165,12 +164,12 @@ async fn native_transfer(
 }
 
 async fn token_transfer(
-    inputs: &Inputs<'_>,
-    common: &Common<'_>,
+    client: &TronClient,
+    common: &Common,
     header: Header,
     token: TokenId,
 ) -> Result<Plan, TronError> {
-    let held = inputs.client.token_balance(common.from, &common.from_body, token).await?;
+    let held = client.token_balance(&common.from, token).await?;
     let amount = match common.amount {
         SendAmount::Max => held,
         SendAmount::Exact { value } => requested_amount(value)?,
@@ -189,11 +188,10 @@ async fn token_transfer(
     // Measure with the real recipient and amount, because a transfer to an
     // address that holds none of the token writes a fresh storage slot and costs
     // roughly twice as much.
-    let energy =
-        inputs.client.measure_transfer(common.from, token, &common.to_body, amount).await?;
+    let energy = client.measure_transfer(&common.from, token, &common.to, amount).await?;
     // The deployer's share only lowers the quoted burn, and the balance check leaves it
     // out, so a share that can't be read is quoted as none.
-    let origin = inputs.client.origin_share(common.from, token).await.unwrap_or_else(|error| {
+    let origin = client.origin_share(&common.from, token).await.unwrap_or_else(|error| {
         tracing::debug!(
             target: TARGET,
             %error,
@@ -213,11 +211,11 @@ async fn token_transfer(
         params: common.params,
         resources: common.resources,
     };
-    let calldata = abi::encode_transfer(&common.to_body, amount);
+    let calldata = abi::encode_transfer(&common.to, amount);
     let raw = raw::trigger(
         &header,
-        &common.from_body,
-        &address::body("token contract", token.contract())?,
+        &common.from,
+        &address::Body::parse("token contract", token.contract())?,
         calldata,
     );
     let cost = charge.of(&raw)?;
@@ -237,7 +235,7 @@ async fn token_transfer(
     Ok(plan(common, Built { amount, raw, cost }))
 }
 
-fn plan(common: &Common<'_>, built: Built) -> Plan {
+fn plan(common: &Common, built: Built) -> Plan {
     Plan { params: common.params, cost: built.cost, payload: TronPayload::new(built.raw) }
 }
 
@@ -269,14 +267,10 @@ struct Built {
 /// whole fee. That's one build per width tried, plus one for the answer if it
 /// isn't the amount its width was priced at. The caller checks
 /// `amount + burn <= balance` either way.
-fn settle_send_max(
-    common: &Common<'_>,
-    header: &Header,
-    charge: &Charge,
-) -> Result<Built, TronError> {
+fn settle_send_max(common: &Common, header: &Header, charge: &Charge) -> Result<Built, TronError> {
     let balance = common.trx_balance_sun;
     let build = |amount: u64| -> Result<Built, TronError> {
-        let raw = raw::transfer(header, &common.from_body, &common.to_body, amount)?;
+        let raw = raw::transfer(header, &common.from, &common.to, amount)?;
         let cost = charge.of(&raw)?;
         Ok(Built { amount: u128::from(amount), raw, cost })
     };
@@ -313,12 +307,11 @@ mod tests {
     use crate::fixtures::{body, header, priced_params, resources};
     use crate::test_util::{OWNER, RECIPIENT};
 
-    fn common(balance: u64, resources: Resources) -> Common<'static> {
+    fn common(balance: u64, resources: Resources) -> Common {
         Common {
             asset: TRX,
-            from: OWNER,
-            from_body: body(OWNER),
-            to_body: body(RECIPIENT),
+            from: body(OWNER),
+            to: body(RECIPIENT),
             amount: SendAmount::Max,
             params: priced_params(),
             resources,
@@ -326,7 +319,7 @@ mod tests {
         }
     }
 
-    fn charge(common: &Common<'_>, is_activation: bool) -> Charge {
+    fn charge(common: &Common, is_activation: bool) -> Charge {
         Charge { is_activation, energy: None, params: common.params, resources: common.resources }
     }
 

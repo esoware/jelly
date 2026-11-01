@@ -6,11 +6,10 @@ use monero_wallet::WalletOutput;
 use parking_lot::Mutex;
 use tokio::sync::Mutex as AsyncMutex;
 
-use crate::byte_count::ByteCount;
 use crate::error::MoneroError;
+use crate::frame::{ByteCount, Reader, write_text};
 use crate::params::{SCAN_STREAM, SENDS_SLOT};
 use crate::pending::{InFlight, TerminalSend};
-use crate::reader::Reader;
 use crate::state::{BlockRef, OwnedOutput, ScanState, Spend};
 use crate::subaddress::Subaddress;
 
@@ -100,7 +99,7 @@ fn encode_scan(state: &ScanState) -> Result<Vec<u8>, MoneroError> {
     let (major, minor) = state.lookahead();
     encoded.extend_from_slice(&major.to_le_bytes());
     encoded.extend_from_slice(&minor.to_le_bytes());
-    encoded.extend_from_slice(&state.settled_through.to_le_bytes());
+    encoded.extend_from_slice(&state.settled_through().to_le_bytes());
 
     let recent_count = persisted_count(state.recent_blocks().count(), "too many block ids")?;
     encoded.extend_from_slice(&recent_count.to_le_bytes());
@@ -149,10 +148,10 @@ fn encode_sends(state: &ScanState) -> Result<Vec<u8>, MoneroError> {
             .saturating_add(send.endpoint.len())
             .saturating_add(send.raw.len())
     });
-    let size = state.terminal_sends.iter().fold(size.saturating_add(4), |size, send| {
+    let size = state.terminal_sends().iter().fold(size.saturating_add(4), |size, send| {
         size.saturating_add(TERMINAL_FIXED_BYTES).saturating_add(send.recipient.len())
     });
-    let size = state.rings.values().fold(size.saturating_add(4), |size, positions| {
+    let size = state.rings().values().fold(size.saturating_add(4), |size, positions| {
         size.saturating_add(RING_FIXED_BYTES).saturating_add(positions.len().saturating_mul(8))
     });
     let mut encoded = Vec::with_capacity(size);
@@ -172,26 +171,39 @@ fn encode_sends(state: &ScanState) -> Result<Vec<u8>, MoneroError> {
         for image in &send.key_images {
             encoded.extend_from_slice(image);
         }
-        write_text(&mut encoded, &send.recipient, "a recipient is too long")?;
-        write_text(&mut encoded, &send.endpoint, "a ring endpoint is too long")?;
+        write_text(
+            &mut encoded,
+            &send.recipient,
+            MoneroError::TooLargeToPersist { what: "a recipient is too long" },
+        )?;
+        write_text(
+            &mut encoded,
+            &send.endpoint,
+            MoneroError::TooLargeToPersist { what: "a ring endpoint is too long" },
+        )?;
         let raw_length = persisted_count(send.raw.len(), "a signed transaction is too large")?;
         encoded.extend_from_slice(&raw_length.to_le_bytes());
         encoded.extend_from_slice(&send.raw);
     }
     encoded.extend_from_slice(
-        &persisted_count(state.terminal_sends.len(), "too many terminal sends")?.to_le_bytes(),
+        &persisted_count(state.terminal_sends().len(), "too many terminal sends")?.to_le_bytes(),
     );
-    for send in &state.terminal_sends {
+    for send in state.terminal_sends() {
         encoded.extend_from_slice(&send.txid);
         encoded.extend_from_slice(&send.checkpoint.to_le_bytes());
         encoded.extend_from_slice(&send.subaddress.major.to_le_bytes());
         encoded.extend_from_slice(&send.subaddress.minor.to_le_bytes());
         encoded.extend_from_slice(&send.amount_piconero.to_le_bytes());
         encoded.push(u8::from(send.is_failed));
-        write_text(&mut encoded, &send.recipient, "a recipient is too long")?;
+        write_text(
+            &mut encoded,
+            &send.recipient,
+            MoneroError::TooLargeToPersist { what: "a recipient is too long" },
+        )?;
     }
-    encoded.extend_from_slice(&persisted_count(state.rings.len(), "too many rings")?.to_le_bytes());
-    for (key_image, positions) in &state.rings {
+    encoded
+        .extend_from_slice(&persisted_count(state.rings().len(), "too many rings")?.to_le_bytes());
+    for (key_image, positions) in state.rings() {
         encoded.extend_from_slice(key_image);
         let count = u8::try_from(positions.len())
             .map_err(|_| MoneroError::TooLargeToPersist { what: "a ring is too large" })?;
@@ -222,7 +234,7 @@ fn decode_scan(blob: &[u8], public_spend: [u8; 32]) -> Result<ScanState, MoneroE
     let settled_through = reader.u64()?;
 
     let mut state = ScanState::new(public_spend, restore_height, lookahead);
-    state.settled_through = settled_through;
+    state.settle_through(settled_through);
     state.advance_to(next_height);
     state.set_tip_height(tip_height);
 
@@ -264,21 +276,12 @@ fn decode_scan(blob: &[u8], public_spend: [u8; 32]) -> Result<ScanState, MoneroE
 }
 
 /// What the sends blob holds.
-#[derive(Debug)]
+///
+/// No `Debug`, because the rings are keyed by key image.
 struct Sends {
     in_flight: Vec<InFlight>,
     terminal: Vec<TerminalSend>,
     rings: BTreeMap<[u8; 32], Vec<u64>>,
-}
-
-impl Sends {
-    fn restore_into(self, state: &mut ScanState) {
-        for send in self.in_flight {
-            state.track(send);
-        }
-        state.terminal_sends = self.terminal;
-        state.rings = self.rings;
-    }
 }
 
 /// Refuses a blob written for another account, whose sends would otherwise be followed
@@ -417,7 +420,9 @@ impl Blobs {
             .await
             .map_err(MoneroError::Cursor)?;
         if let Some(blob) = held {
-            blob.with_bytes(|bytes| decode_sends(bytes, public_spend))?.restore_into(&mut state);
+            let Sends { in_flight, terminal, rings } =
+                blob.with_bytes(|bytes| decode_sends(bytes, public_spend))?;
+            state.restore_sends(in_flight, terminal, rings);
         }
         Ok(state)
     }
@@ -484,19 +489,6 @@ fn persisted_count(value: usize, what: &'static str) -> Result<u32, MoneroError>
     u32::try_from(value).map_err(|_| MoneroError::TooLargeToPersist { what })
 }
 
-/// Writes `text` behind its `u16` length, which is how [`Reader::text`] reads it.
-fn write_text(
-    encoded: &mut Vec<u8>,
-    text: &str,
-    too_long: &'static str,
-) -> Result<(), MoneroError> {
-    let length =
-        u16::try_from(text.len()).map_err(|_| MoneroError::TooLargeToPersist { what: too_long })?;
-    encoded.extend_from_slice(&length.to_le_bytes());
-    encoded.extend_from_slice(text.as_bytes());
-    Ok(())
-}
-
 const fn unserializable() -> MoneroError {
     MoneroError::Internal { context: "an output did not serialize" }
 }
@@ -513,24 +505,26 @@ fn read_length(reader: &mut Reader<'_>) -> Result<usize, MoneroError> {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt;
-
     use super::*;
     use crate::fixtures::{PUBLIC_SPEND, recorded_outputs};
 
+    /// One send in flight, one terminal send at checkpoint 6, and two rings.
     fn state() -> ScanState {
         let mut state = ScanState::new(PUBLIC_SPEND, 2_400_000, (3, 7));
         state.advance_to(2_400_500);
         state.set_tip_height(2_400_499);
-        state.settled_through = 5;
-        state.terminal_sends.push(TerminalSend {
+        state.settle_through(5);
+        state.track(InFlight {
             txid: [0xde; 32],
-            subaddress: Subaddress::new(0, 3),
+            key_images: Vec::new(),
+            raw: Vec::new(),
+            sent_at_height: 2_400_480,
             amount_piconero: 600,
             recipient: "4BBB".to_owned(),
-            checkpoint: 6,
-            is_failed: true,
+            subaddress: Subaddress::new(0, 3),
+            endpoint: "https://node.invalid:18081".to_owned(),
         });
+        state.retire_failed(&[0xde; 32]).expect("a checkpoint");
         state.note_block(BlockRef { height: 2_400_498, hash: [0xa1; 32] });
         state.note_block(BlockRef { height: 2_400_499, hash: [0xa2; 32] });
         state.track(InFlight {
@@ -543,11 +537,13 @@ mod tests {
             subaddress: Subaddress::new(1, 2),
             endpoint: "https://node.invalid:18081".to_owned(),
         });
-        state.rings.insert(
-            [1; 32],
-            (0..16u64).map(|member| member.saturating_mul(1_000).saturating_add(7)).collect(),
-        );
-        state.rings.insert([3; 32], vec![5, 6, 9]);
+        state.remember_rings(BTreeMap::from([
+            (
+                [1; 32],
+                (0..16u64).map(|member| member.saturating_mul(1_000).saturating_add(7)).collect(),
+            ),
+            ([3; 32], vec![5, 6, 9]),
+        ]));
         state
     }
 
@@ -596,10 +592,11 @@ mod tests {
         cases
     }
 
-    fn assert_refused<T: fmt::Debug>(decoded: Result<T, MoneroError>, expected: &str, case: &str) {
+    fn assert_refused<T>(decoded: Result<T, MoneroError>, expected: &str, case: &str) {
         match decoded {
             Err(MoneroError::Blob { what }) => assert_eq!(what, expected, "{case}"),
-            other => panic!("{case}: expected a refusal, got {other:?}"),
+            Err(other) => panic!("{case}: expected a refusal, got {other:?}"),
+            Ok(_) => panic!("{case}: expected a refusal, got a decoded blob"),
         }
     }
 
@@ -611,7 +608,7 @@ mod tests {
         assert_eq!(restored.restore_height(), state.restore_height());
         assert_eq!(restored.next_height(), state.next_height());
         assert_eq!(restored.tip_height(), state.tip_height());
-        assert_eq!(restored.settled_through, state.settled_through);
+        assert_eq!(restored.settled_through(), state.settled_through());
         assert_eq!(restored.lookahead(), (3, 7));
         assert_eq!(restored.recent_blocks().count(), 2);
         assert_eq!(encode_scan(&restored).expect("it serializes"), blob);
@@ -619,9 +616,11 @@ mod tests {
         // The sends are their own blob, so the scan blob restores without them.
         assert_eq!(restored.in_flight_sends().count(), 0);
         let sends = encode_sends(&state).expect("it serializes");
-        decode_sends(&sends, PUBLIC_SPEND).expect("it restores").restore_into(&mut restored);
-        assert_eq!(restored.terminal_sends, state.terminal_sends);
-        assert_eq!(restored.rings, state.rings);
+        let Sends { in_flight, terminal, rings } =
+            decode_sends(&sends, PUBLIC_SPEND).expect("it restores");
+        restored.restore_sends(in_flight, terminal, rings);
+        assert_eq!(restored.terminal_sends(), state.terminal_sends());
+        assert_eq!(restored.rings(), state.rings());
         assert_eq!(restored.in_flight_sends().count(), 1);
         assert_eq!(restored.in_flight_sends().next(), state.in_flight_sends().next());
         assert_eq!(encode_sends(&restored).expect("it serializes"), encode_sends(&state).unwrap());
@@ -715,7 +714,7 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_state_round_trips_too() {
+    fn an_empty_state_round_trips_through_both_blobs() {
         let state = ScanState::new(PUBLIC_SPEND, 0, (1, 1));
         let blob = encode_scan(&state).expect("it serializes");
         let restored = decode_scan(&blob, PUBLIC_SPEND).expect("it restores");
@@ -733,7 +732,7 @@ mod tests {
     #[test]
     fn a_ring_out_of_order_or_named_twice_is_refused() {
         let mut state = ScanState::new(PUBLIC_SPEND, 0, (1, 1));
-        state.rings.insert([1; 32], vec![4, 9]);
+        state.remember_rings(BTreeMap::from([([1; 32], vec![4, 9])]));
         let blob = encode_sends(&state).expect("it serializes");
         let mut swapped = blob;
         let members = swapped.len().saturating_sub(16);
@@ -744,7 +743,7 @@ mod tests {
             "descending members",
         );
 
-        state.rings.insert([2; 32], vec![4, 9]);
+        state.remember_rings(BTreeMap::from([([2; 32], vec![4, 9])]));
         let mut twice = encode_sends(&state).expect("it serializes");
         let second = twice.len().saturating_sub(16 + 1 + 32);
         twice[second..second + 32].copy_from_slice(&[1; 32]);

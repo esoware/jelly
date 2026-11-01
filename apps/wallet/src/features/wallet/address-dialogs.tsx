@@ -1,10 +1,8 @@
 import { useQuery } from "@tanstack/react-query"
-import type { UseMutationResult } from "@tanstack/react-query"
 import { useState } from "react"
 
 import type { AddressRecord, ChainId, KeySource, ScriptKind } from "@/ipc/bindings.gen.ts"
 import { hasCode } from "@/ipc/client.ts"
-import type { IpcError } from "@/ipc/client.ts"
 import {
   SCRIPT_LABELS,
   chainMeta,
@@ -44,27 +42,7 @@ import { DetailList, MonoWithCopy } from "@/widgets/copyable.tsx"
 import type { DetailRow } from "@/widgets/copyable.tsx"
 import { FormDialog, TypedConfirmDialog } from "@/widgets/dialogs.tsx"
 
-interface AddAddressOptions {
-  mutationFn: () => Promise<null>
-  errorTitle: string
-  successToast: string
-  onDone: () => void
-}
-
-function useAddAddress({
-  mutationFn,
-  errorTitle,
-  successToast,
-  onDone,
-}: AddAddressOptions): UseMutationResult<null, IpcError, void> {
-  return useIpcMutation<null>({
-    mutationFn,
-    errorTitle,
-    invalidates: [addressKeys.root, moneyKeys.root, txKeys.root],
-    successToast,
-    onDone,
-  })
-}
+const ADDRESS_CHANGE_KEYS = [addressKeys.root, moneyKeys.root, txKeys.root]
 
 type ScriptChoice = ScriptKind | "default"
 
@@ -149,9 +127,10 @@ export function NewAddressDialog({
   const [script, setScript] = useState<ScriptKind | null>(null)
   const isSubaddress = chainMeta(chain).hasSubaddresses
 
-  const add = useAddAddress({
+  const add = useIpcMutation<null>({
     mutationFn: () => addressCommands.add(chain, script, trimmedOrNull(label)),
     errorTitle: "Could not add the address",
+    invalidates: ADDRESS_CHANGE_KEYS,
     successToast: "Address added",
     onDone: () => {
       onOpenChange(false)
@@ -198,9 +177,10 @@ export function CustomPathDialog({
   const [script, setScript] = useState<ScriptKind | null>(null)
   const trimmedPath = path.trim()
 
-  const add = useAddAddress({
+  const add = useIpcMutation<null>({
     mutationFn: () => addressCommands.addAt(chain, trimmedPath, script, trimmedOrNull(label)),
     errorTitle: "Could not add the address",
+    invalidates: ADDRESS_CHANGE_KEYS,
     successToast: "Address added",
     onDone: () => {
       onOpenChange(false)
@@ -270,9 +250,10 @@ export function GenerateKeyDialog({
   const [label, setLabel] = useState("")
   const [script, setScript] = useState<ScriptKind | null>(null)
 
-  const generate = useAddAddress({
+  const generate = useIpcMutation<null>({
     mutationFn: () => addressCommands.generate(chain, script, trimmedOrNull(label)),
     errorTitle: "Could not generate the key",
+    invalidates: ADDRESS_CHANGE_KEYS,
     successToast: "Key generated",
     onDone: () => {
       onOpenChange(false)
@@ -333,7 +314,7 @@ export function ImportKeyDialog({
   const isTonPhrase = chain === "ton" && trimmedMaterial.split(/\s+/u).length > 1
   const hasPasswordField = isKeystore(trimmedMaterial) || isTonPhrase
 
-  const importKey = useAddAddress({
+  const importKey = useIpcMutation<null>({
     mutationFn: () =>
       addressCommands.importPrivateKey(
         chain,
@@ -343,6 +324,7 @@ export function ImportKeyDialog({
         trimmedOrNull(label),
       ),
     errorTitle: "Could not import the key",
+    invalidates: ADDRESS_CHANGE_KEYS,
     successToast: "Key imported",
     onDone: () => {
       onOpenChange(false)
@@ -410,30 +392,24 @@ const STANDALONE_NOTE =
 const SUBADDRESS_NOTE =
   "Its balance and history leave this wallet, but your seed phrase still holds the key. New subaddress hands out the lowest unused index first, so it brings this one back."
 
-function locationOf(source: KeySource): DetailRow {
-  switch (source.kind) {
-    case "derived": {
-      return { label: "Path", value: source.path, copy: source.path }
-    }
-    case "subaddress": {
-      return { label: "Subaddress", value: `${String(source.major)}/${String(source.minor)}` }
-    }
-    case "imported": {
-      return { label: "Key", value: "Standalone key" }
-    }
-  }
+interface Removal {
+  location: DetailRow
+  note: string
 }
 
-function noteFor(source: KeySource): string {
+function removalOf(source: KeySource): Removal {
   switch (source.kind) {
     case "derived": {
-      return PATH_NOTE
+      return { location: { label: "Path", value: source.path, copy: source.path }, note: PATH_NOTE }
     }
     case "subaddress": {
-      return SUBADDRESS_NOTE
+      return {
+        location: { label: "Subaddress", value: `${String(source.major)}/${String(source.minor)}` },
+        note: SUBADDRESS_NOTE,
+      }
     }
     case "imported": {
-      return STANDALONE_NOTE
+      return { location: { label: "Key", value: "Standalone key" }, note: STANDALONE_NOTE }
     }
   }
 }
@@ -450,11 +426,12 @@ export function RemoveAddressDialog({
 }: RemoveAddressDialogProps) {
   const balances = useQuery(moneyQueries.balances())
   const hasFunds = holdsFunds(balances.data ?? [], [row.id])
+  const removal = removalOf(row.source)
 
   const remove = useIpcMutation<null, number>({
     mutationFn: addressCommands.remove,
     errorTitle: "Could not remove the address",
-    invalidates: [addressKeys.root, moneyKeys.root, txKeys.root],
+    invalidates: ADDRESS_CHANGE_KEYS,
     successToast: "Address removed",
     onDone: () => {
       onOpenChange(false)
@@ -477,8 +454,8 @@ export function RemoveAddressDialog({
         </DialogHeader>
 
         <DialogBody>
-          <DetailList items={[locationOf(row.source)]} />
-          <p className="text-caption text-fg-muted">{noteFor(row.source)}</p>
+          <DetailList items={[removal.location]} />
+          <p className="text-caption text-fg-muted">{removal.note}</p>
           {hasFunds ? (
             <Callout tone="warn" heading="This address still holds funds">
               Jelly stops tracking them until you add the address back.
@@ -529,7 +506,7 @@ export function DeleteKeyDialog({
   const deleteKey = useIpcMutation<null, DeleteKey>({
     mutationFn: (variables) =>
       addressCommands.deleteKey(variables.addressId, variables.password, variables.confirmation),
-    invalidates: [addressKeys.root, moneyKeys.root, txKeys.root],
+    invalidates: ADDRESS_CHANGE_KEYS,
     shouldRefreshOnError: true,
     errorTitle: "Could not delete the key",
     successToast: "Key deleted",

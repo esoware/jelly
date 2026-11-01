@@ -104,8 +104,6 @@ export const notify = {
 
 const startupState = createSignal<StartupStatus | null>(null)
 
-const startupSignal: ReadonlySignal<StartupStatus | null> = startupState
-
 export function recordStartupStatus(status: StartupStatus): void {
   const current = startupState.get()
   if (status.kind === "starting" && current !== null && current.kind !== "starting") {
@@ -115,7 +113,7 @@ export function recordStartupStatus(status: StartupStatus): void {
 }
 
 export function useStartupStatus(): StartupStatus | null {
-  return useSignal(startupSignal)
+  return useSignal(startupState)
 }
 
 const NO_PRICES: Prices = { currency: "usd", quotes: {}, judgedAtUnixSecs: 0 }
@@ -158,10 +156,6 @@ export function setPrices(snapshot: PriceSnapshot): void {
   judge(snapshot.currency, quotes)
 }
 
-export function resetPrices(): void {
-  judge(priceState.get().currency, {})
-}
-
 const PRICE_SCALE = pow10(PRICE_DECIMALS)
 
 type DailyPrices = ReadonlyMap<number, bigint>
@@ -174,8 +168,6 @@ interface PriceHistoryState {
 const NO_HISTORY: PriceHistoryState = { prices: {}, rates: {} }
 
 const historyState = createSignal<PriceHistoryState>(NO_HISTORY)
-
-const priceHistorySignal: ReadonlySignal<PriceHistoryState> = historyState
 
 function dailyPrices(days: readonly DailyPrice[]): DailyPrices {
   return new Map(days.map((day) => [day.dayUnixSecs, BigInt(day.price)]))
@@ -196,7 +188,8 @@ export function setPriceHistory(history: PriceHistory): void {
   historyState.set({ prices, rates })
 }
 
-export function resetPriceHistory(): void {
+export function resetPrices(): void {
+  judge(priceState.get().currency, {})
   historyState.set(NO_HISTORY)
 }
 
@@ -219,24 +212,24 @@ function historicalPrice(
 }
 
 export function usePrices(): Prices {
-  return useSignal(priceSignal)
+  return useSignal(priceState)
 }
 
 export function useFiatCurrency(): FiatCurrency {
-  return useSignalSelector(priceSignal, (prices) => prices.currency)
+  return useSignalSelector(priceState, (prices) => prices.currency)
 }
 
 export function useIsFiatStale(asset: AssetId): boolean {
-  return useSignalSelector(priceSignal, (prices) => isPriceStale(asset, prices))
+  return useSignalSelector(priceState, (prices) => isPriceStale(asset, prices))
 }
 
 export function usePrice(asset: AssetId): bigint | null {
-  return useSignalSelector(priceSignal, (prices) => priceForAsset(asset, prices))
+  return useSignalSelector(priceState, (prices) => priceForAsset(asset, prices))
 }
 
 export function useFiatValue(amount: Amount | bigint | null, asset: AssetId): bigint | null {
   const price = usePrice(asset)
-  return price === null ? null : fiatValue(amount, assetDecimals(asset), price)
+  return fiatValue(amount, assetDecimals(asset), price)
 }
 
 export function useHistoricalPrice(
@@ -244,7 +237,7 @@ export function useHistoricalPrice(
   currency: FiatCurrency,
   unixSeconds: number | null,
 ): bigint | null {
-  return useSignalSelector(priceHistorySignal, (history) =>
+  return useSignalSelector(historyState, (history) =>
     historicalPrice(history, asset, currency, unixSeconds),
   )
 }

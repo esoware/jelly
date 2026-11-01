@@ -5,6 +5,7 @@ import { useState } from "react"
 import type { AssetId, ChainId } from "@/ipc/bindings.gen.ts"
 import { assetLabel, chainName } from "@/lib/chain.ts"
 import { addressQueries } from "@/query/address.ts"
+import { Card } from "@/ui/card.tsx"
 import {
   Dialog,
   DialogBody,
@@ -14,6 +15,7 @@ import {
   DialogTitle,
 } from "@/ui/dialog.tsx"
 import { Field } from "@/ui/field.tsx"
+import { Mono } from "@/ui/mono.tsx"
 import { Select, SelectItem, SelectPopup, SelectTrigger } from "@/ui/select.tsx"
 import { AddressOption } from "@/widgets/address.tsx"
 import { CopyButton } from "@/widgets/copyable.tsx"
@@ -82,12 +84,10 @@ function ReceiveBody({ chain }: ReceiveBodyProps) {
               </Select>
             </Field>
 
-            <div className="flex items-start gap-2 rounded-lg bg-surface p-2">
-              <p className="min-w-0 flex-1 py-1 font-mono text-body break-all select-text">
-                {selected.address}
-              </p>
+            <Card className="flex items-start gap-2 p-2">
+              <Mono value={selected.address} className="min-w-0 flex-1 py-1" />
               <CopyButton value={selected.address} size="icon-sm" />
-            </div>
+            </Card>
           </div>
         </div>
       )}
@@ -105,7 +105,7 @@ interface ReceiveDialogProps {
 export function ReceiveDialog({ chain, asset, open, onOpenChange }: ReceiveDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPopup size="md">
+      <DialogPopup>
         <DialogHeader>
           <DialogTitle>{`Receive ${assetLabel(asset)}`}</DialogTitle>
           <DialogDescription>

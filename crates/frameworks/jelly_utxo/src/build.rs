@@ -1,7 +1,7 @@
 use bitcoin::absolute::LockTime;
 use bitcoin::transaction::Version;
 use bitcoin::{Script, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Witness};
-use jelly_core::{Amount, FeeRate};
+use jelly_core::{FeeRate, SendAmount};
 
 use crate::error::UtxoError;
 use crate::params::UtxoParams;
@@ -45,8 +45,7 @@ pub(crate) struct BuildRequest<'a> {
     pub(crate) sources: Vec<Source<'a>>,
     pub(crate) to: &'a str,
     pub(crate) to_script: &'a Script,
-    /// `None` for a send-max.
-    pub(crate) amount: Option<Amount>,
+    pub(crate) amount: SendAmount,
     pub(crate) fee_rate: FeeRate,
     /// Every source's verified unspent coins, minus claimed ones.
     pub(crate) coins: &'a [Utxo],
@@ -72,20 +71,12 @@ pub(crate) fn build_tx(
     fee::check_relay_floor(params, request.fee_rate, request.relay_floor)?;
     let change = request.sources.first().ok_or(UtxoError::payload("a build names no source"))?;
 
-    let target = match request.amount {
-        None => Amount::ZERO,
-        Some(amount) => {
-            let dust = params.dust_threshold(request.to_script);
-            if amount < dust {
-                return Err(UtxoError::Dust {
-                    value: amount,
-                    threshold: dust,
-                    chain: params.chain,
-                });
-            }
-            amount
+    if let SendAmount::Exact { value } = request.amount {
+        let dust = params.dust_threshold(request.to_script);
+        if value < dust {
+            return Err(UtxoError::Dust { value, threshold: dust, chain: params.chain });
         }
-    };
+    }
 
     // A node refuses the whole transaction if any input is an immature coinbase or
     // peg-out output, and spending an input that carries tokens would burn them.
@@ -98,8 +89,7 @@ pub(crate) fn build_tx(
     let selection = select_coins(
         params,
         &SelectionRequest {
-            target,
-            should_drain: request.amount.is_none(),
+            amount: request.amount,
             fee_rate: request.fee_rate,
             long_term_fee_rate: params.long_term_fee_rate,
             recipient_script_pubkey: request.to_script,
@@ -170,6 +160,8 @@ pub(crate) fn assemble(
 
 #[cfg(test)]
 mod tests {
+    use jelly_core::Amount;
+
     use super::*;
     use crate::fixtures::{
         ONE_PER_VB, TEN_PER_VB, TIP, bitcoin_cash_scene, bitcoin_scene, confirmed, litecoin_scene,

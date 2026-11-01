@@ -9,20 +9,13 @@ use jelly_core::{
 };
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use tonlib_core::cell::Cell;
-use tonlib_core::tlb_types::block::message::Message;
-use tonlib_core::tlb_types::tlb::TLB as _;
-use tonlib_core::wallet::version_helper::VersionHelper;
 
 use crate::config::CHAIN;
 use crate::cursor::Cursor;
 use crate::error::TonError;
-use crate::message;
 use crate::payload::Payment;
-use crate::sign::{normalized_hash, signature_of};
-use crate::wallet::ton_wallet;
+use crate::sign;
 
-const MISMATCH: TonError = TonError::Internal("a TON send does not match its signed message");
 const SENDS_VERSION: u8 = 1;
 
 /// The send one address holds, from its build until it settles.
@@ -47,6 +40,12 @@ pub(crate) struct SignedBoc {
     pub(crate) boc: String,
 }
 
+impl From<&SignedTx> for SignedBoc {
+    fn from(tx: &SignedTx) -> Self {
+        Self { hash: tx.txid.value().to_owned(), boc: STANDARD.encode(tx.raw.as_bytes()) }
+    }
+}
+
 impl Pending {
     const fn signed(&self) -> Option<&SignedBoc> {
         match &self.stage {
@@ -60,45 +59,14 @@ impl Pending {
     }
 }
 
-/// Checks that `signed.boc` is the signed external message of `payment`, which the caller
-/// has already validated, and that `signed.hash` is its normalized hash.
-fn validate_signed(payment: &Payment, signed: &SignedBoc) -> Result<(), TonError> {
-    let cell = Cell::from_boc(&STANDARD.decode(&signed.boc).map_err(|_| MISMATCH)?)?;
-    let wallet = ton_wallet(&payment.pubkey, payment.version)?;
-    let external = Message::from_cell(&cell)?;
-    let body = &external.body.value;
-    let signature = signature_of(payment.version, body).map_err(|_| MISMATCH)?;
-    let expected = VersionHelper::sign_msg(wallet.version, &message::body(payment)?, &signature)?;
-    if *body.as_ref() != expected
-        || signed.hash != normalized_hash(&wallet.address, body)?
-        || wallet.wrap_signed_body(expected, payment.is_deploy)? != cell
-    {
-        return Err(MISMATCH);
-    }
-    Ok(())
-}
-
-/// A [`Pending`] as the `ton.sends` reservation stores it, so its field names are a stored
-/// format. A stored entry is always sent, with both `hash` and `boc` set.
+/// A sent [`Pending`] as the `ton.sends` reservation stores it, so its field names are a
+/// stored format.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StoredSend {
     payment: Payment,
-    hash: Option<String>,
-    boc: Option<String>,
-    is_sent: bool,
-}
-
-impl From<&Pending> for StoredSend {
-    fn from(pending: &Pending) -> Self {
-        let signed = pending.signed();
-        Self {
-            payment: pending.payment.clone(),
-            hash: signed.map(|signed| signed.hash.clone()),
-            boc: signed.map(|signed| signed.boc.clone()),
-            is_sent: pending.is_sent(),
-        }
-    }
+    hash: String,
+    boc: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -221,10 +189,7 @@ impl States {
         if entry.is_sent() {
             return Err(TonError::Busy);
         }
-        entry.stage = Stage::Signed(SignedBoc {
-            hash: signed.txid.value().to_owned(),
-            boc: STANDARD.encode(signed.raw.as_bytes()),
-        });
+        entry.stage = Stage::Signed(SignedBoc::from(signed));
         Ok(())
     }
 
@@ -240,43 +205,50 @@ impl States {
         if tx.chain() != CHAIN {
             return Err(invalid);
         }
+        let presented = SignedBoc::from(tx);
         let (address_id, payment, signed) = self
             .pending
             .read()
             .iter()
             .find_map(|(address_id, entry)| {
-                let signed = entry.signed().filter(|signed| signed.hash == tx.txid.value())?;
+                let signed = entry.signed().filter(|signed| signed.hash == presented.hash)?;
                 Some((*address_id, entry.payment.clone(), signed.clone()))
             })
             .ok_or(TonError::Invalid("Build the TON payment again before sending."))?;
-        let boc = STANDARD.encode(tx.raw.as_bytes());
-        if signed.boc != boc {
+        if signed.boc != presented.boc {
             return Err(invalid);
         }
         payment.ensure_unexpired(clock)?;
         payment.validate()?;
-        validate_signed(&payment, &signed)?;
-        let sent = Pending { payment, stage: Stage::Sent(signed) };
-        self.persist(address_id, Some(&sent)).await?;
-        self.pending.write().insert(address_id, sent);
-        Ok(boc)
+        sign::verify(&payment, &signed)?;
+        self.persist_sent(address_id, &payment, &signed).await?;
+        self.pending.write().insert(address_id, Pending { payment, stage: Stage::Sent(signed) });
+        Ok(presented.boc)
     }
 
     pub(crate) fn release_unsent(&self, payment: &Payment) {
         self.pending.write().retain(|_, entry| entry.is_sent() || entry.payment != *payment);
     }
 
-    pub(crate) async fn persist(
+    /// Stores that `address_id` holds `payment`, sent as `signed`.
+    pub(crate) async fn persist_sent(
         &self,
         address_id: i64,
-        pending: Option<&Pending>,
+        payment: &Payment,
+        signed: &SignedBoc,
     ) -> Result<(), TonError> {
+        let sent = StoredSend {
+            payment: payment.clone(),
+            hash: signed.hash.clone(),
+            boc: signed.boc.clone(),
+        };
+        self.persist(address_id, Some(sent)).await
+    }
+
+    async fn persist(&self, address_id: i64, pending: Option<StoredSend>) -> Result<(), TonError> {
         self.ensure_readable()?;
-        let bytes = serde_json::to_vec(&Sends {
-            version: SENDS_VERSION,
-            pending: pending.map(StoredSend::from),
-        })
-        .map_err(|_| TonError::Internal("a TON send did not serialize"))?;
+        let bytes = serde_json::to_vec(&Sends { version: SENDS_VERSION, pending })
+            .map_err(|_| TonError::Internal("a TON send did not serialize"))?;
         self.cursors
             .reserve(
                 CursorScope::Address(address_id),
@@ -300,7 +272,7 @@ fn scopes(address_ids: &[i64]) -> Vec<CursorScope> {
 }
 
 /// The sends stored in `rows`. Fails unless every cursor in `scans` and every stored send
-/// reads, and each send was broadcast with a BOC that matches its payment and hash.
+/// reads, and each send's BOC is the signed message of its payment under its hash.
 fn restore(
     scans: &[ScanAdvance],
     rows: &[HeldReservation],
@@ -321,19 +293,11 @@ fn restore(
         if wire.version != SENDS_VERSION {
             return Err(TonError::Internal("stored ton sends have an unsupported format"));
         }
-        if let Some(stored) = wire.pending {
-            if !stored.is_sent {
-                return Err(TonError::Internal("a stored TON send was never broadcast"));
-            }
-            stored.payment.validate()?;
-            let boc = stored.boc.ok_or(MISMATCH)?;
-            let hash = stored.hash.ok_or(MISMATCH)?;
+        if let Some(StoredSend { payment, hash, boc }) = wire.pending {
+            payment.validate()?;
             let signed = SignedBoc { hash, boc };
-            validate_signed(&stored.payment, &signed)?;
-            restored.insert(
-                address_id,
-                Pending { payment: stored.payment, stage: Stage::Sent(signed) },
-            );
+            sign::verify(&payment, &signed)?;
+            restored.insert(address_id, Pending { payment, stage: Stage::Sent(signed) });
         }
     }
     Ok(restored)

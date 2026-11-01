@@ -4,12 +4,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use jelly_core::{
-    Amount, ChainAdapter as _, ChainError, ChainId, ChainSyncProgress, Clock as _, CursorBytes,
-    CursorScope, CursorStore as _, ErrorCode, ScanStream, TxDirection, TxOutcome,
-    test_util::{
-        ControlledCursorStore, FakeClock, FakeEventSink, MemoryCursorStore, NullCursorStore,
-        records,
-    },
+    Amount, ChainAdapter as _, ChainError, ChainId, Clock as _, CursorBytes, CursorScope,
+    CursorStore as _, ErrorCode, ScanStream, TxDirection, TxOutcome,
+    test_util::{ControlledCursorStore, FakeClock, FakeEventSink, MemoryCursorStore, records},
 };
 use jelly_monero::{
     MoneroAdapter, MoneroConfig,
@@ -20,8 +17,8 @@ use tokio::task::yield_now;
 use tokio::time::{sleep, timeout};
 
 use crate::common::{
-    CHAIN_BLOCKS, ChainBuilder, FakeNode, Harness, HookedNode, PRIMARY_ID, account,
-    balance_event_count, balances_announced, base_chain, config, fixture_adapter,
+    CHAIN_BLOCKS, ChainBuilder, FakeNode, Harness, HookedNode, NullCursorStore, PRIMARY_ID,
+    account, balance_event_count, balances_announced, base_chain, config, fixture_adapter,
     progress_event_count, recorded, recorded_block, recorded_height, watched,
 };
 
@@ -127,7 +124,7 @@ async fn a_pass_finds_the_recorded_payment_and_persists_its_progress() {
     assert_eq!(progress.chain(), ChainId::Monero);
     assert_eq!(progress.synced_height(), Some(harness.tip));
     assert_eq!(progress.tip_height(), Some(harness.tip));
-    assert_eq!(progress.progress_permille(), ChainSyncProgress::MAX_PERMILLE);
+    assert!(progress.is_complete());
 
     let detected = records(&events);
     assert_eq!(detected.len(), 1, "two outputs of one transaction are one payment");
@@ -243,7 +240,7 @@ async fn a_wallet_born_above_the_tip_reports_a_finished_restore() {
     let events = FakeEventSink::new();
     let progress = adapter.sync(clock.deadline_in(Duration::from_secs(30)), &events).await.unwrap();
     assert_eq!(progress.tip_height(), Some(height.saturating_sub(1)));
-    assert_eq!(progress.progress_permille(), ChainSyncProgress::MAX_PERMILLE);
+    assert!(progress.is_complete());
     assert_eq!(node.block_calls(), 0, "there was nothing to fetch");
 }
 
@@ -256,11 +253,11 @@ async fn a_restore_wider_than_one_pass_returns_partial_progress_and_resumes_on_t
 
     let (first, _) = harness.sync().await.unwrap();
     assert_eq!(first.synced_height(), Some(harness.height.saturating_add(5)));
-    assert!(first.progress_permille() < ChainSyncProgress::MAX_PERMILLE, "a partial pass says so");
+    assert!(!first.is_complete(), "a partial pass says so");
 
     let (second, _) = harness.sync().await.unwrap();
     assert_eq!(second.synced_height(), Some(harness.height.saturating_add(11)));
-    assert!(second.progress_permille() > first.progress_permille());
+    assert!(second.synced_height() > first.synced_height());
 }
 
 #[tokio::test]

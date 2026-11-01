@@ -55,7 +55,7 @@ async fn closing_leaves_no_write_ahead_log_to_replay() {
             .unwrap();
     }
 
-    let log = common::sidecar(&common::db_path(&harness.directory), "-wal");
+    let log = harness.directory.join(format!("{}-wal", common::DB_FILE));
     let filled = fs::metadata(&log).unwrap().len();
     assert!(filled > 0, "the fixture wrote nothing to the log");
 

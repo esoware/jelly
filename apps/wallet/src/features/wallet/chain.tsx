@@ -26,9 +26,9 @@ import type { Holdings } from "@/lib/portfolio.ts"
 import { PRICE_CHART_REFRESH_MS, moneyQueries } from "@/query/money.ts"
 import { settingQueries } from "@/query/setting.ts"
 import { useFiatCurrency } from "@/store.ts"
+import { accentStyle } from "@/ui/accent-style.ts"
 import { Button } from "@/ui/button.tsx"
 import { Icon } from "@/ui/icon.tsx"
-import { useAccentColor } from "@/ui/use-accent-color.ts"
 import { FiatAmount } from "@/widgets/amounts.tsx"
 import { AssetMenu } from "@/widgets/asset-menu.tsx"
 import { AssetLogo, ChainLogo, assetBrand } from "@/widgets/logos.tsx"
@@ -53,13 +53,12 @@ function BalancePanel({
   onSend,
   onReceive,
 }: BalancePanelProps) {
-  const accentRef = useAccentColor<HTMLElement>(assetBrand(asset).color)
   const assets = assetsForChain(holdings.chain)
   const position = positionOf(holdings, asset)
   const text = formatAmount(position.amount, position.decimals)
 
   return (
-    <HeroPanel ref={accentRef} className="transition-colors">
+    <HeroPanel style={accentStyle(assetBrand(asset).color)} className="transition-colors">
       <HeroPanelTop>
         <HeroLogo chain={holdings.chain}>
           <AssetLogo asset={asset} className="size-8" />
@@ -121,7 +120,7 @@ export function ChainView() {
   const [action, setAction] = useState<Action>(null)
   const [range, setRange] = useState<ChartRange>("1d")
   const prefetchQueue = useRef<(() => Promise<unknown>)[]>([])
-  const prefetchWorkers = useRef(0)
+  const prefetchWorkerCount = useRef(0)
 
   useEffect(
     () => () => {
@@ -142,7 +141,7 @@ export function ChainView() {
   async function drainPrefetch(): Promise<void> {
     const next = prefetchQueue.current.shift()
     if (next === undefined) {
-      prefetchWorkers.current -= 1
+      prefetchWorkerCount.current -= 1
       return
     }
     try {
@@ -151,7 +150,7 @@ export function ChainView() {
     await drainPrefetch()
   }
 
-  function prefetchCharts(isMenuOpen: boolean): void {
+  function handleAssetMenuOpenChange(isMenuOpen: boolean): void {
     if (!isMenuOpen || !isChartShown) {
       return
     }
@@ -164,13 +163,13 @@ export function ChainView() {
           retry: false,
         }),
     )
-    while (prefetchWorkers.current < CHART_PREFETCH_CONCURRENCY) {
-      prefetchWorkers.current += 1
+    while (prefetchWorkerCount.current < CHART_PREFETCH_CONCURRENCY) {
+      prefetchWorkerCount.current += 1
       void drainPrefetch()
     }
   }
 
-  function openReceive(): void {
+  function handleReceive(): void {
     setAction("receive")
   }
 
@@ -189,16 +188,16 @@ export function ChainView() {
           onAssetChange={(next) => {
             saveShownAsset.mutate(next)
           }}
-          onAssetMenuOpenChange={prefetchCharts}
+          onAssetMenuOpenChange={handleAssetMenuOpenChange}
           onSend={() => {
             setAction("send")
           }}
-          onReceive={openReceive}
+          onReceive={handleReceive}
         />
         <AddressesPanel chain={chain} asset={asset} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <ActivityPanel chain={chain} onReceive={openReceive} />
+        <ActivityPanel chain={chain} onReceive={handleReceive} />
         {isChartShown ? <PricePanel asset={asset} range={range} onRangeChange={setRange} /> : null}
       </div>
 

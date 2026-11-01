@@ -32,13 +32,15 @@ impl fmt::Debug for PreparedProxy {
     }
 }
 
-/// The network layer: the shared HTTP client, the TLS pin store, the proxy route, and the
-/// runtime every pool is built from.
+/// The network layer: the shared HTTP client, the TLS pin store, the proxy route, the
+/// endpoint registry, and the runtime every pool is built from.
 ///
 /// The shell owns the live route. An adapter build takes its own copy of the route with
-/// [`Network::with_proxy`] and shares the runtime and pins.
+/// [`Network::with_proxy`] and shares the runtime, the registry, and the pins, so it reads
+/// the same endpoint list as the interface.
 pub struct Network {
     runtime: Arc<NetRuntime>,
+    registry: Arc<EndpointRegistry>,
     pins: Arc<dyn PinStore>,
     egress: ArcSwap<PreparedProxy>,
 }
@@ -61,7 +63,8 @@ impl Network {
     ) -> Result<Arc<Self>, NetError> {
         let http = HttpClient::new(proxy.as_ref())?;
         Ok(Arc::new(Self {
-            runtime: NetRuntime::new(clock, chains),
+            runtime: NetRuntime::new(clock),
+            registry: Arc::new(EndpointRegistry::new(chains)),
             pins,
             egress: ArcSwap::from_pointee(PreparedProxy { http, proxy }),
         }))
@@ -71,12 +74,12 @@ impl Network {
         self.runtime.clock()
     }
 
-    pub fn health(&self) -> &Arc<HealthTracker> {
+    pub fn health(&self) -> &HealthTracker {
         self.runtime.health()
     }
 
     pub fn registry(&self) -> &EndpointRegistry {
-        self.runtime.registry()
+        &self.registry
     }
 
     pub fn http(&self) -> HttpClient {
@@ -113,6 +116,7 @@ impl Network {
     pub fn with_proxy(&self, proxy: Option<ProxySetting>) -> Result<Self, NetError> {
         Ok(Self {
             runtime: Arc::clone(&self.runtime),
+            registry: Arc::clone(&self.registry),
             pins: Arc::clone(&self.pins),
             egress: ArcSwap::from_pointee(self.prepare_proxy(proxy)?),
         })

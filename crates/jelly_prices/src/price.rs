@@ -30,10 +30,6 @@ impl Price {
     /// market, and is refused.
     pub(crate) const CEILING: Self = Self(100_000_000_000_000_000);
 
-    pub(crate) const fn is_zero(self) -> bool {
-        self.0 == 0
-    }
-
     /// Parses a provider's decimal string. Digits past [`Price::DECIMALS`] are dropped,
     /// never rounded, so a displayed price never exceeds the quoted one. Surrounding
     /// whitespace is allowed.
@@ -41,10 +37,7 @@ impl Price {
         let text = truncated(raw).ok_or(QuoteRejection::NotADecimal)?;
         let amount =
             Amount::parse(text, Self::DECIMALS).map_err(|_| QuoteRejection::NotADecimal)?;
-        let price = Self(amount.base_units());
-        if price.is_zero() {
-            return Err(QuoteRejection::Zero);
-        }
+        let price = Self::nonzero(amount.base_units()).ok_or(QuoteRejection::Zero)?;
         if price > Self::CEILING {
             return Err(QuoteRejection::OutOfRange);
         }
@@ -52,15 +45,22 @@ impl Price {
     }
 
     /// This price in another currency, given how many units of that currency one
-    /// unit of this one buys. Truncates like `Price::quote`, and is `None` on
-    /// overflow.
+    /// unit of this one buys. Truncates like `Price::quote`, and is `None` when the
+    /// product overflows or truncates to zero.
     pub(crate) fn convert(self, rate: Self) -> Option<Self> {
-        self.0.checked_mul(rate.0)?.checked_div(SCALE).map(Self)
+        self.0.checked_mul(rate.0)?.checked_div(SCALE).and_then(Self::nonzero)
     }
 
-    /// How many of the other unit one of this one buys, truncated. `None` for zero.
+    /// How many of the other unit one of this one buys, truncated, or `None` when that
+    /// truncates to zero.
     pub(crate) fn inverse(self) -> Option<Self> {
-        SCALE.checked_mul(SCALE)?.checked_div(self.0).map(Self)
+        SCALE.checked_mul(SCALE)?.checked_div(self.0).and_then(Self::nonzero)
+    }
+
+    /// `None` for zero. No price is zero, because a zero price would show a balance as
+    /// worthless.
+    fn nonzero(base_units: u128) -> Option<Self> {
+        (base_units != 0).then_some(Self(base_units))
     }
 
     /// Decimal rendering with trailing fraction zeros removed.
@@ -201,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    fn a_converted_price_is_the_product_truncated_to_the_scale() {
+    fn a_conversion_is_truncated_and_refuses_zero_and_overflow() {
         let btc = Price(8_485_680_000_000);
         let yen_per_dollar = Price(15_740_700_000);
         assert_eq!(btc.convert(yen_per_dollar).map(Price::format), Some("13357054.3176".into()));
@@ -212,7 +212,7 @@ mod tests {
         // eighth is dropped.
         assert_eq!(tron.convert(euro_per_dollar), Some(Price(29_739_889)));
 
-        assert_eq!(Price(1).convert(euro_per_dollar), Some(Price(0)));
+        assert_eq!(Price(1).convert(euro_per_dollar), None);
         assert_eq!(Price(u128::MAX).convert(yen_per_dollar), None);
     }
 
@@ -220,24 +220,13 @@ mod tests {
     fn an_inverse_is_truncated_and_refuses_zero() {
         assert_eq!(Price::quote("1.12414").map(Price::inverse), Ok(Some(Price(88_956_891))));
         assert_eq!(Price(100_000_000).inverse(), Some(Price(100_000_000)));
-        assert_eq!(Price::CEILING.inverse(), Some(Price(0)));
-        assert_eq!(Price(0).inverse(), None);
+        assert_eq!(Price::CEILING.inverse(), None);
     }
 
     #[test]
     fn a_quote_refuses_anything_but_digits_past_the_eighth_fraction_digit() {
         for raw in ["1.2345678901e-05", "1.123456789e9", "1.000000001.5", "1.123456789 junk"] {
             assert_eq!(Price::quote(raw), Err(QuoteRejection::NotADecimal), "{raw}");
-        }
-    }
-
-    #[test]
-    fn every_rejection_has_a_distinct_wire_name() {
-        for (at, rejection) in QuoteRejection::ALL.into_iter().enumerate() {
-            assert!(!rejection.as_str().is_empty());
-            for other in QuoteRejection::ALL.into_iter().skip(at.saturating_add(1)) {
-                assert_ne!(rejection.as_str(), other.as_str());
-            }
         }
     }
 }

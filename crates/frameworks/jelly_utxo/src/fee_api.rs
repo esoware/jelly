@@ -165,6 +165,8 @@ fn rate<'de, D: Deserializer<'de>>(raw: &RawValue) -> Result<FeeRate, D::Error> 
 
 #[cfg(test)]
 mod tests {
+    use jelly_core::EndpointLabel;
+
     use super::*;
 
     /// A busy mempool.space answer and a busy litecoinspace.org one.
@@ -250,7 +252,7 @@ mod tests {
 
     #[test]
     fn the_only_statuses_that_stop_the_rotation_are_the_ones_every_host_would_repeat() {
-        let label = jelly_core::EndpointLabel::new("https", "fees.invalid", None);
+        let label = EndpointLabel::new("https", "fees.invalid", None);
         for status in [400, 401, 403, 404] {
             let error = NetError::Status { endpoint: label.clone(), status };
             assert_eq!(classify(&error), Outcome::Fail, "{status}");

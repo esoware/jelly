@@ -16,7 +16,7 @@ macro_rules! statements {
     )*) => {
         $(
             $(#[$meta])*
-            pub(crate) const $name: &str = $sql;
+            const $name: &str = $sql;
         )*
 
         /// Every statement this module prepares, named for the plan tests by its path.
@@ -86,7 +86,7 @@ pub(crate) fn run<P: Params>(
 /// Every statement the data modules prepare, with its name.
 #[cfg(test)]
 pub(crate) fn shipped_statements() -> Vec<(&'static str, &'static str)> {
-    use crate::{address, balance, contact, cursor, endpoint, pin, tx, wallet};
+    use crate::{address, balance, contact, cursor, endpoint, history, pin, tx, wallet};
 
     [
         wallet::STATEMENTS,
@@ -94,6 +94,7 @@ pub(crate) fn shipped_statements() -> Vec<(&'static str, &'static str)> {
         contact::STATEMENTS,
         balance::STATEMENTS,
         tx::STATEMENTS,
+        history::STATEMENTS,
         cursor::STATEMENTS,
         endpoint::STATEMENTS,
         pin::STATEMENTS,
@@ -112,7 +113,7 @@ mod tests {
 
     /// The two tables that grow with history. Every other table is bounded by the number of
     /// wallets, addresses, contacts, chains, or endpoints, so scanning it is fine.
-    const UNBOUNDED: [&str; 2] = ["txs", "balances"];
+    const UNBOUNDED_TABLES: [&str; 2] = ["txs", "balances"];
     const TEMP_SORT: &str = "USE TEMP B-TREE FOR ORDER BY";
 
     /// A file the shipped open and close wrote, so every plan sees the shipped schema. The
@@ -133,7 +134,7 @@ mod tests {
         let target = step.strip_prefix("SCAN ")?.split_whitespace().next()?;
         let words: Vec<&str> =
             sql.split_whitespace().filter(|word| !word.eq_ignore_ascii_case("as")).collect();
-        UNBOUNDED
+        UNBOUNDED_TABLES
             .into_iter()
             .find(|table| target == *table || words.windows(2).any(|pair| pair == [*table, target]))
     }
@@ -192,7 +193,7 @@ mod tests {
         let (_scratch, connection) = shipped_file();
         let (_, sql) = shipped_statements()
             .into_iter()
-            .find(|(name, _)| *name == "jelly_store::tx::LIST")
+            .find(|(name, _)| *name == "jelly_store::history::LIST")
             .expect("the statement is shipped");
         let joined = plan(&connection, sql).join(" | ");
         assert!(joined.contains("idx_txs_wallet_time"), "LIST plan: {joined}");

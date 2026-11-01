@@ -2,7 +2,7 @@ use jelly_core::{Amount, AssetId, Clock, TokenId, TxPayload};
 use serde::{Deserialize, Serialize};
 use tonlib_core::types::TonAddress;
 
-use crate::address::ton_destination;
+use crate::address::TonDestination;
 use crate::config::{CHAIN, MAX_COMMENT_BYTES, MAX_FEE_NANOGRAM};
 use crate::error::TonError;
 use crate::jetton::jetton;
@@ -100,8 +100,8 @@ impl Payment {
 
     pub(crate) fn validate(&self) -> Result<(), TonError> {
         let wallet = ton_wallet(&self.pubkey, self.version)?;
-        let from = ton_destination(&self.from).map_err(|_| INVALID_PAYMENT)?;
-        let to = ton_destination(&self.to).map_err(|_| INVALID_PAYMENT)?;
+        let from = TonDestination::parse(&self.from).map_err(|_| INVALID_PAYMENT)?;
+        let to = TonDestination::parse(&self.to).map_err(|_| INVALID_PAYMENT)?;
         if wallet.address != from.address
             || from.address == to.address
             || to.comment.is_some()

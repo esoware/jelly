@@ -4,10 +4,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use jelly_core::{Clock, FeeRate, Transport, test_util::FakeClock};
-use jelly_net::{Endpoint, HttpClient, HttpConnector, NetRuntime, NoIdentity, PacerPolicy};
+use jelly_net::{
+    Endpoint, HttpClient, HttpConnector, NetRuntime, NoIdentity, PacerPolicy,
+    test_util::LoopbackHttp,
+};
 use jelly_utxo::{Auction, FeeApi as _, MempoolFeeApi, UtxoParams};
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
-use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 
 use crate::common::{BITCOIN, Fallible, auction};
@@ -19,34 +20,19 @@ const RECOMMENDED: &str =
 
 /// Answers like a deployment that predates the precise route: 404 for every route but
 /// the whole-number one.
-async fn answer(mut stream: TcpStream) -> Fallible<String> {
-    let mut bytes = Vec::new();
-    while !bytes.ends_with(b"\r\n\r\n") {
-        bytes.push(stream.read_u8().await?);
-    }
-    let head = String::from_utf8(bytes)?;
-    let path = head.split(' ').nth(1).ok_or("the request has no path")?.to_owned();
-    let (status, body) =
-        if path == WHOLE_NUMBER_ROUTE { ("200 OK", RECOMMENDED) } else { ("404 Not Found", "") };
-    let reply = format!(
-        "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\
-         connection: close\r\n\r\n{body}",
-        body.len()
-    );
-    stream.write_all(reply.as_bytes()).await?;
-    Ok(path)
+async fn fee_host() -> Fallible<LoopbackHttp> {
+    Ok(LoopbackHttp::start(|request| {
+        if request.path() == WHOLE_NUMBER_ROUTE {
+            ("200 OK", RECOMMENDED.to_owned())
+        } else {
+            ("404 Not Found", String::new())
+        }
+    })
+    .await?)
 }
 
-async fn serve(listener: TcpListener, requests: usize) -> Fallible<Vec<String>> {
-    timeout(Duration::from_secs(20), async {
-        let mut paths = Vec::with_capacity(requests);
-        for _ in 0..requests {
-            let (stream, _) = listener.accept().await?;
-            paths.push(timeout(Duration::from_secs(10), answer(stream)).await??);
-        }
-        Ok(paths)
-    })
-    .await?
+fn paths(host: &LoopbackHttp) -> Vec<String> {
+    host.requests().iter().map(|request| request.path().to_owned()).collect()
 }
 
 fn fee_api(params: &UtxoParams, auction: &Auction, url: &str) -> Fallible<MempoolFeeApi> {
@@ -60,26 +46,23 @@ fn fee_api(params: &UtxoParams, auction: &Auction, url: &str) -> Fallible<Mempoo
 
 #[tokio::test]
 async fn a_host_without_the_precise_route_is_read_through_the_whole_number_one() {
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let url = format!("http://{}", listener.local_addr().unwrap());
+    let host = fee_host().await.unwrap();
     let market = auction(&BITCOIN).unwrap();
-    let api = fee_api(&BITCOIN, &market, &url).unwrap();
-    let requesting = async { Ok(api.recommended().await?) };
-    let (fees, paths) = tokio::try_join!(requesting, serve(listener, 2)).unwrap();
+    let api = fee_api(&BITCOIN, &market, host.url()).unwrap();
+    let fees = timeout(Duration::from_secs(20), api.recommended()).await.unwrap().unwrap();
 
     assert_eq!(fees.half_hour, FeeRate::from_sat_per_kwu(2_000));
-    assert_eq!(paths, [market.api_route, WHOLE_NUMBER_ROUTE]);
+    assert_eq!(paths(&host), [market.api_route, WHOLE_NUMBER_ROUTE]);
 }
 
 #[tokio::test]
 async fn without_a_fallback_a_missing_route_fails_after_one_request() {
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let url = format!("http://{}", listener.local_addr().unwrap());
+    let host = fee_host().await.unwrap();
     let market = Auction { api_fallback_route: None, ..auction(&BITCOIN).unwrap() };
-    let api = fee_api(&BITCOIN, &market, &url).unwrap();
-    let requesting = async {
-        Ok(api.recommended().await.expect_err("a host without the route has no rate to give"))
-    };
-    let (_, paths) = tokio::try_join!(requesting, serve(listener, 1)).unwrap();
-    assert_eq!(paths, [market.api_route]);
+    let api = fee_api(&BITCOIN, &market, host.url()).unwrap();
+    timeout(Duration::from_secs(20), api.recommended())
+        .await
+        .unwrap()
+        .expect_err("a host without the route has no rate to give");
+    assert_eq!(paths(&host), [market.api_route]);
 }

@@ -3,9 +3,10 @@ import { useNavigate } from "@tanstack/react-router"
 import { useState } from "react"
 
 import type {
+  CreatedWallet,
   PassphraseInput,
   PassphrasePolicy,
-  PhraseWords,
+  PhraseLength,
   WalletColor,
 } from "@/ipc/bindings.gen.ts"
 import { describeFailure } from "@/lib/failure.ts"
@@ -34,6 +35,21 @@ const PHRASE_LENGTHS: ReadonlySet<number> = new Set([12, 15, 18, 21, 24])
 
 type SetupFlow = "create" | "restore"
 
+const FLOWS: readonly { value: SetupFlow; label: string; hint: string }[] = [
+  { value: "create", label: "Create", hint: "Generate a new seed phrase." },
+  { value: "restore", label: "Restore", hint: "Use an existing seed phrase." },
+]
+
+const SUBMIT_LABELS: Record<SetupFlow, string> = {
+  create: "Create wallet",
+  restore: "Restore wallet",
+}
+
+const FAILURE_TITLES: Record<SetupFlow, string> = {
+  create: "Could not create the wallet",
+  restore: "Could not restore the wallet",
+}
+
 interface WalletFormState {
   name: string
   color: WalletColor
@@ -41,7 +57,7 @@ interface WalletFormState {
   confirm: string
   passphrasePolicy: PassphrasePolicy
   passphrase: string
-  words: PhraseWords
+  words: PhraseLength
   phrase: string
 }
 
@@ -59,6 +75,8 @@ const EMPTY_WALLET_FORM: WalletFormState = {
   words: "twelve",
   phrase: "",
 }
+
+const NO_ERRORS: WalletFormErrors = {}
 
 function toPassphraseInput(form: WalletFormState): PassphraseInput {
   return form.passphrasePolicy === "none"
@@ -95,40 +113,10 @@ function validateWalletForm(form: WalletFormState, flow: SetupFlow): WalletFormE
   return errors
 }
 
-interface PasswordFieldsProps {
-  form: WalletFormState
-  errors: WalletFormErrors
-  onChange: (patch: Partial<WalletFormState>) => void
-}
-
-function PasswordFields({ form, errors, onChange }: PasswordFieldsProps) {
-  return (
-    <div className="grid grid-cols-2 items-start gap-3">
-      <Field
-        label="Password"
-        error={errors.password}
-        hint="Use this password to unlock the wallet on this device."
-      >
-        <PasswordInput
-          autoComplete="new-password"
-          value={form.password}
-          onChange={(e) => {
-            onChange({ password: e.target.value })
-          }}
-        />
-      </Field>
-      <Field label="Confirm password" error={errors.confirm}>
-        <PasswordInput
-          autoComplete="new-password"
-          value={form.confirm}
-          onChange={(e) => {
-            onChange({ confirm: e.target.value })
-          }}
-        />
-      </Field>
-    </div>
-  )
-}
+const PHRASE_LENGTH_ITEMS: readonly { value: PhraseLength; label: string }[] = [
+  { value: "twelve", label: "12 words" },
+  { value: "twenty_four", label: "24 words" },
+]
 
 const PASSPHRASE_POLICIES: readonly PassphrasePolicy[] = ["none", "stored", "prompt"]
 
@@ -143,58 +131,6 @@ const PASSPHRASE_HINTS: Record<PassphrasePolicy, string> = {
   stored: "Save the passphrase in this wallet. Back it up separately for recovery.",
   prompt: "Enter it each time you unlock. Back it up or you will lose access to your funds.",
 }
-
-interface PassphraseFieldsProps {
-  form: WalletFormState
-  errors: WalletFormErrors
-  onChange: (patch: Partial<WalletFormState>) => void
-}
-
-function PassphraseFields({ form, errors, onChange }: PassphraseFieldsProps) {
-  return (
-    <div className="grid grid-cols-2 items-start gap-3">
-      <Field label="Passphrase" hint={PASSPHRASE_HINTS[form.passphrasePolicy]}>
-        <Select
-          value={form.passphrasePolicy}
-          onValueChange={(policy) => {
-            onChange({
-              passphrasePolicy: policy,
-              passphrase: policy === "none" ? "" : form.passphrase,
-            })
-          }}
-        >
-          <SelectTrigger className="w-full">
-            {PASSPHRASE_POLICY_LABELS[form.passphrasePolicy]}
-          </SelectTrigger>
-          <SelectPopup>
-            {PASSPHRASE_POLICIES.map((policy) => (
-              <SelectItem key={policy} value={policy}>
-                {PASSPHRASE_POLICY_LABELS[policy]}
-              </SelectItem>
-            ))}
-          </SelectPopup>
-        </Select>
-      </Field>
-
-      {form.passphrasePolicy === "none" ? null : (
-        <Field label="Enter passphrase" error={errors.passphrase}>
-          <PasswordInput
-            autoComplete="off"
-            value={form.passphrase}
-            onChange={(e) => {
-              onChange({ passphrase: e.target.value })
-            }}
-          />
-        </Field>
-      )}
-    </div>
-  )
-}
-
-const PHRASE_WORD_ITEMS: readonly { value: PhraseWords; label: string }[] = [
-  { value: "twelve", label: "12 words" },
-  { value: "twenty_four", label: "24 words" },
-]
 
 interface WalletFieldsProps {
   flow: SetupFlow
@@ -231,7 +167,7 @@ function WalletFields({ flow, form, errors, onChange }: WalletFieldsProps) {
         <Field label="Phrase length">
           <Segmented
             value={form.words}
-            items={PHRASE_WORD_ITEMS}
+            items={PHRASE_LENGTH_ITEMS}
             onValueChange={(words) => {
               onChange({ words })
             }}
@@ -253,9 +189,67 @@ function WalletFields({ flow, form, errors, onChange }: WalletFieldsProps) {
         </Field>
       ) : null}
 
-      <PasswordFields form={form} errors={errors} onChange={onChange} />
+      <div className="grid grid-cols-2 items-start gap-3">
+        <Field
+          label="Password"
+          error={errors.password}
+          hint="Use this password to unlock the wallet on this device."
+        >
+          <PasswordInput
+            autoComplete="new-password"
+            value={form.password}
+            onChange={(e) => {
+              onChange({ password: e.target.value })
+            }}
+          />
+        </Field>
+        <Field label="Confirm password" error={errors.confirm}>
+          <PasswordInput
+            autoComplete="new-password"
+            value={form.confirm}
+            onChange={(e) => {
+              onChange({ confirm: e.target.value })
+            }}
+          />
+        </Field>
+      </div>
 
-      <PassphraseFields form={form} errors={errors} onChange={onChange} />
+      <div className="grid grid-cols-2 items-start gap-3">
+        <Field label="Passphrase" hint={PASSPHRASE_HINTS[form.passphrasePolicy]}>
+          <Select
+            value={form.passphrasePolicy}
+            onValueChange={(policy) => {
+              onChange({
+                passphrasePolicy: policy,
+                passphrase: policy === "none" ? "" : form.passphrase,
+              })
+            }}
+          >
+            <SelectTrigger className="w-full">
+              {PASSPHRASE_POLICY_LABELS[form.passphrasePolicy]}
+            </SelectTrigger>
+            <SelectPopup>
+              {PASSPHRASE_POLICIES.map((policy) => (
+                <SelectItem key={policy} value={policy}>
+                  {PASSPHRASE_POLICY_LABELS[policy]}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+        </Field>
+
+        {form.passphrasePolicy === "none" ? null : (
+          <Field label="Enter passphrase" error={errors.passphrase}>
+            <PasswordInput
+              autoComplete="off"
+              value={form.passphrase}
+              onChange={(e) => {
+                onChange({ passphrase: e.target.value })
+              }}
+            />
+          </Field>
+        )}
+      </div>
     </>
   )
 }
@@ -302,25 +296,15 @@ function PhraseBackup({ phrase, walletName, onDone }: PhraseBackupProps) {
   )
 }
 
-const NO_ERRORS: WalletFormErrors = {}
+type CreateAttempt = { kind: "idle" } | { kind: "creating" } | { kind: "failed"; message: string }
 
-const RESTORE_FAILURE_TITLE = "Could not restore the wallet"
-const CREATE_FAILURE_TITLE = "Could not create the wallet"
+const IDLE_ATTEMPT: CreateAttempt = { kind: "idle" }
 
-const FLOWS: readonly { value: SetupFlow; label: string; hint: string }[] = [
-  { value: "create", label: "Create", hint: "Generate a new seed phrase." },
-  { value: "restore", label: "Restore", hint: "Use an existing seed phrase." },
-]
+interface SetupFormProps {
+  onCreated: (created: CreatedWallet) => void
+}
 
-type Creation =
-  | { kind: "idle" }
-  | { kind: "creating" }
-  | { kind: "failed"; message: string }
-  | { kind: "created"; phrase: string; walletName: string }
-
-const IDLE_CREATION: Creation = { kind: "idle" }
-
-export function SetupView() {
+function SetupForm({ onCreated }: SetupFormProps) {
   const navigate = useNavigate()
   const wallets = useQuery(walletQueries.all())
   const { isUnlocked } = useActiveWallet()
@@ -328,7 +312,7 @@ export function SetupView() {
   const [flow, setFlow] = useState<SetupFlow>("create")
   const [form, setForm] = useState<WalletFormState>(EMPTY_WALLET_FORM)
   const [hasAttempted, setHasAttempted] = useState(false)
-  const [creation, setCreation] = useState<Creation>(IDLE_CREATION)
+  const [createAttempt, setCreateAttempt] = useState<CreateAttempt>(IDLE_ATTEMPT)
 
   const restoreWallet = useIpcMutation({
     mutationFn: () =>
@@ -339,14 +323,14 @@ export function SetupView() {
         phraseWords(form.phrase).join(" "),
         toPassphraseInput(form),
       ),
-    errorTitle: RESTORE_FAILURE_TITLE,
+    errorTitle: FAILURE_TITLES.restore,
     onDone: () => {
       void navigate({ to: "/wallet", replace: true })
     },
   })
 
-  async function createPhraseWallet(): Promise<void> {
-    setCreation({ kind: "creating" })
+  async function createWallet(): Promise<void> {
+    setCreateAttempt({ kind: "creating" })
     try {
       const created = await walletCommands.createSeed(
         form.name.trim(),
@@ -355,43 +339,20 @@ export function SetupView() {
         form.words,
         toPassphraseInput(form),
       )
-      setCreation({ kind: "created", phrase: created.phrase, walletName: created.wallet.name })
-      setForm(EMPTY_WALLET_FORM)
-      setHasAttempted(false)
+      onCreated(created)
     } catch (error) {
-      setCreation({ kind: "failed", message: describeFailure(error) })
+      setCreateAttempt({ kind: "failed", message: describeFailure(error) })
     }
-  }
-
-  if (creation.kind === "created") {
-    return (
-      <PhraseBackup
-        phrase={creation.phrase}
-        walletName={creation.walletName}
-        onDone={() => {
-          setCreation(IDLE_CREATION)
-          void navigate({ to: "/wallet", replace: true })
-        }}
-      />
-    )
   }
 
   const hasWallets = (wallets.data?.length ?? 0) > 0
   const errors = hasAttempted ? validateWalletForm(form, flow) : NO_ERRORS
-  const isBusy = creation.kind === "creating" || restoreWallet.isPending
-  const failures: Record<SetupFlow, { heading: string; message: string | null }> = {
-    create: {
-      heading: CREATE_FAILURE_TITLE,
-      message: creation.kind === "failed" ? creation.message : null,
-    },
-    restore: {
-      heading: RESTORE_FAILURE_TITLE,
-      message: restoreWallet.error === null ? null : describeFailure(restoreWallet.error),
-    },
-  }
-  const failure = failures[flow]
+  const isBusy = createAttempt.kind === "creating" || restoreWallet.isPending
+  const createFailure = createAttempt.kind === "failed" ? createAttempt.message : null
+  const restoreFailure = restoreWallet.error === null ? null : describeFailure(restoreWallet.error)
+  const failure = flow === "create" ? createFailure : restoreFailure
 
-  function submit(): void {
+  function handleSubmit(): void {
     setHasAttempted(true)
     if (isBusy) {
       return
@@ -402,7 +363,7 @@ export function SetupView() {
 
     switch (flow) {
       case "create": {
-        void createPhraseWallet()
+        void createWallet()
         break
       }
       case "restore": {
@@ -439,6 +400,7 @@ export function SetupView() {
             variant="ghost"
             size="sm"
             className="mt-auto justify-start"
+            disabled={isBusy}
             onClick={() => {
               void navigate({ to: "/unlock" })
             }}
@@ -458,11 +420,11 @@ export function SetupView() {
           className="flex h-full flex-col"
           onSubmit={(e) => {
             e.preventDefault()
-            submit()
+            handleSubmit()
           }}
         >
           <div className="min-h-0 flex-1 scroll-y-4">
-            <div className="mx-auto max-w-[calc(var(--container-xl)-var(--spacing)*8)] space-y-3 py-3">
+            <div className="mx-auto max-w-page space-y-3 py-3">
               <WalletFields
                 flow={flow}
                 form={form}
@@ -472,9 +434,9 @@ export function SetupView() {
                 }}
               />
 
-              {failure.message === null ? null : (
-                <Callout tone="danger" heading={failure.heading}>
-                  {failure.message}
+              {failure === null ? null : (
+                <Callout tone="danger" heading={FAILURE_TITLES[flow]}>
+                  {failure}
                 </Callout>
               )}
             </div>
@@ -482,11 +444,31 @@ export function SetupView() {
 
           <div className="flex shrink-0 justify-end p-3">
             <Button type="submit" isLoading={isBusy}>
-              {flow === "restore" ? "Restore wallet" : "Create wallet"}
+              {SUBMIT_LABELS[flow]}
             </Button>
           </div>
         </form>
       </main>
     </div>
+  )
+}
+
+export function SetupView() {
+  const navigate = useNavigate()
+  const [created, setCreated] = useState<CreatedWallet | null>(null)
+
+  if (created === null) {
+    return <SetupForm onCreated={setCreated} />
+  }
+
+  return (
+    <PhraseBackup
+      phrase={created.phrase}
+      walletName={created.wallet.name}
+      onDone={() => {
+        setCreated(null)
+        void navigate({ to: "/wallet", replace: true })
+      }}
+    />
   )
 }

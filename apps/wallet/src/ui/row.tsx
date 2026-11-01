@@ -13,8 +13,7 @@ type RowProps = Omit<useRender.ComponentProps<"div">, "className"> & {
 
 export function Row({ render, size = "md", isActive, onActivate, className, ...props }: RowProps) {
   return useRender({
-    defaultTagName: "div",
-    ...(render === undefined ? {} : { render }),
+    render,
     props: mergeProps<"div">(
       {
         className: appendClassName(

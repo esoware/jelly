@@ -27,7 +27,7 @@ pub(crate) fn sign(
     let facts = payload.facts()?;
     matches_preview(unsigned, &facts)?;
 
-    let signer = key.with_bytes(Secp256k1Key::from_secret_bytes)?;
+    let signer = Secp256k1Key::from_key_material(key)?;
     if address::from_pubkey(&signer.public_uncompressed())? != facts.owner {
         return Err(TronError::KeyNotOwner);
     }

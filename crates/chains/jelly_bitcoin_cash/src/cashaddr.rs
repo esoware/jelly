@@ -59,20 +59,11 @@ impl CashAddr {
                 .chain(data.iter().map(|value| value.to_u8()))
                 .chain([0u8; CHECKSUM_GROUPS]),
         );
-        let mut text = String::with_capacity(
-            self.prefix
-                .len()
-                .saturating_add(1)
-                .saturating_add(data.len())
-                .saturating_add(CHECKSUM_GROUPS),
-        );
-        text.push_str(&self.prefix);
-        text.push(SEPARATOR);
-        text.extend(data.iter().map(|value| value.to_char()));
-        for group in (0..CHECKSUM_GROUPS).rev() {
-            let shift = group.saturating_mul(5);
-            text.push(Fe32::try_from((checksum >> shift) & 0x1f).map_or('q', Fe32::to_char));
-        }
+        // The checksum is 40 bits, so its low five bytes regroup into exactly eight values.
+        let [_, _, _, checksum_bytes @ ..] = checksum.to_be_bytes();
+        let checksum_values = checksum_bytes.into_iter().bytes_to_fes();
+        let mut text = format!("{}{SEPARATOR}", self.prefix);
+        text.extend(data.into_iter().chain(checksum_values).map(Fe32::to_char));
         text
     }
 

@@ -36,7 +36,7 @@ impl Column {
     }
 
     pub(crate) const fn decode_error(self) -> StoreError {
-        StoreError::decode(self.entity, self.name)
+        StoreError::Decode { entity: self.entity, column: self.name }
     }
 }
 
@@ -112,9 +112,14 @@ fn amount_from_blob(bytes: &[u8]) -> Option<Amount> {
 #[cfg(test)]
 mod tests {
     use jelly_core::Amount;
-    use proptest::prelude::{Strategy as _, any, prop_assert, prop_assert_eq, proptest};
+    use proptest::{
+        prelude::{ProptestConfig, Strategy as _, any, prop_assert, prop_assert_eq, proptest},
+        test_runner::RngSeed,
+    };
 
     use super::{amount_from_blob, amount_to_blob};
+
+    const PROPERTY_SEED: u64 = 20_261_021;
 
     #[test]
     fn the_amount_blob_is_sixteen_big_endian_bytes() {
@@ -135,6 +140,13 @@ mod tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig {
+            cases: 256,
+            rng_seed: RngSeed::Fixed(PROPERTY_SEED),
+            failure_persistence: None,
+            ..ProptestConfig::default()
+        })]
+
         #[test]
         fn the_amount_blob_round_trips(value in any::<u128>()) {
             let amount = Amount::from_base_units(value);

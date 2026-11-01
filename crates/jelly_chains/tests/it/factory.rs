@@ -96,8 +96,8 @@ fn rendered(set: &AdapterSet, chain: ChainId) -> Fallible<String> {
     Ok(format!("{adapter:?}"))
 }
 
-fn adapter(set: &AdapterSet, chain: ChainId) -> Fallible<Arc<dyn ChainAdapter>> {
-    set.adapter(chain).cloned().ok_or_else(|| format!("{chain} has no adapter").into())
+fn adapter(set: &AdapterSet, chain: ChainId) -> Fallible<&Arc<dyn ChainAdapter>> {
+    set.adapter(chain).ok_or_else(|| format!("{chain} has no adapter").into())
 }
 
 /// Every chain the set has a reason for instead of an adapter, in chain order.
@@ -141,7 +141,7 @@ async fn only_the_chains_that_were_asked_for_appear() {
 
 #[tokio::test]
 async fn a_factory_with_nothing_attached_skips_every_chain_as_a_failed_build() {
-    let set = AdapterFactory::new().build(&Harness::new().unwrap().keyless(&ChainId::ALL)).await;
+    let set = AdapterFactory::new().build(&build_request(&ChainId::ALL)).await;
     assert!(set.built().is_empty());
     assert_eq!(skipped(&set), every_chain_skipped_for(SkipReason::BuildFailed));
 }
@@ -303,8 +303,8 @@ async fn every_adapter_holds_the_requests_cursor_store_until_it_is_dropped() {
     }
 }
 
-#[tokio::test]
-async fn the_factory_prints_nothing_but_whether_it_is_attached() {
+#[test]
+fn the_factory_prints_nothing_but_whether_it_is_attached() {
     assert_eq!(format!("{:?}", AdapterFactory::new()), "AdapterFactory { is_attached: false, .. }");
     let harness = Harness::new().unwrap();
     assert_eq!(format!("{:?}", harness.factory), "AdapterFactory { is_attached: true, .. }");
@@ -319,8 +319,7 @@ async fn the_trongrid_key_reaches_no_other_tron_node() {
         r#"{"blockID":"00000000000000001ebf88508a03865c71d452e25f4d51194196a1d22b6653dc"}"#;
     const NOW_BLOCK: &str = r#"{"blockID":"000000000515a651af7c721ebc0c55d84f973b989508d8f40ba10affa980fd3e","block_header":{"raw_data":{"number":85304913,"timestamp":1786585806000}}}"#;
 
-    let (url, server) =
-        serve(vec![("200 OK", MAINNET_BLOCK_ZERO), ("200 OK", NOW_BLOCK)]).await.unwrap();
+    let server = serve(vec![("200 OK", MAINNET_BLOCK_ZERO), ("200 OK", NOW_BLOCK)]).await.unwrap();
 
     let harness = Harness::new().unwrap();
     let registry = harness.network.registry();
@@ -334,7 +333,7 @@ async fn the_trongrid_key_reaches_no_other_tron_node() {
             (ChainId::Tron, row)
         })
         .collect();
-    rows.push((ChainId::Tron, EndpointOverride::new(url)));
+    rows.push((ChainId::Tron, EndpointOverride::new(server.url())));
     registry.load_overrides(rows);
 
     let request = BuildRequest {
@@ -351,10 +350,12 @@ async fn the_trongrid_key_reaches_no_other_tron_node() {
     let pass = timeout(Duration::from_secs(30), tron.sync(deadline, &events)).await;
     assert!(pass.is_ok(), "the sync pass did not finish");
 
-    let requests = timeout(Duration::from_secs(30), server).await.unwrap().unwrap().unwrap();
+    let requests = server.requests();
+    assert_eq!(requests.len(), 2);
     let tip = requests.last().unwrap();
-    assert!(tip.starts_with("POST /wallet/getblock "), "{tip}");
+    assert!(tip.head.starts_with("POST /wallet/getblock "), "{}", tip.head);
     for request in &requests {
-        assert!(!request.contains(TRONGRID_KEY), "{request}");
+        assert!(!request.head.contains(TRONGRID_KEY), "{}", request.head);
+        assert!(!request.body.contains(TRONGRID_KEY), "{}", request.body);
     }
 }

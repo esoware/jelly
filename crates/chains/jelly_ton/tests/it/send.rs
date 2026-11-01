@@ -22,7 +22,7 @@ use super::common::{
 
 const MISMATCH: &str = "The TON payment does not match the approved preview or signing key.";
 /// `MyTonWallet`'s attachment for a USDT transfer.
-const USDT_ATTACHED_NANOTON: u128 = 18_000_000;
+const USDT_ATTACHED_NANOGRAM: u128 = 18_000_000;
 
 /// The one internal message a signed V5R1 external message carries, and its mode.
 fn v5_message(raw: &[u8]) -> Result<(Message, u8), TonError> {
@@ -332,12 +332,12 @@ async fn a_jetton_transfer_follows_tep_74_and_attaches_what_mytonwallet_attaches
     let adapter = node.adapter().await.unwrap();
     let request = jetton_request(TokenId::UsdtJetton, 1_250_000);
     let quote = adapter.quote_fee(&request).await.unwrap();
-    assert_eq!(quote.fee.base_units(), 481_012 + USDT_ATTACHED_NANOTON);
+    assert_eq!(quote.fee.base_units(), 481_012 + USDT_ATTACHED_NANOGRAM);
     let tx = adapter.build_tx(&request).await.unwrap();
     assert_eq!(tx.preview.asset, AssetId::Token(TokenId::UsdtJetton));
     assert_eq!(tx.preview.amount.base_units(), 1_250_000);
     assert_eq!(tx.preview.to, RECIPIENT);
-    assert_eq!(tx.preview.fee.base_units(), 481_012 + USDT_ATTACHED_NANOTON);
+    assert_eq!(tx.preview.fee.base_units(), 481_012 + USDT_ATTACHED_NANOGRAM);
     let signed = adapter.sign_tx(&tx, &[key().unwrap()]).unwrap();
     let (outgoing, mode) = v5_message(signed.raw.as_bytes()).unwrap();
     assert_eq!(mode, 3, "the wallet pays the forwarding fees on top of the attachment");
@@ -346,7 +346,7 @@ async fn a_jetton_transfer_follows_tep_74_and_attaches_what_mytonwallet_attaches
     };
     assert_eq!(TonAddress::from_msg_address(info.dest.clone()).unwrap(), wallet);
     assert!(info.bounce, "a refused transfer returns to the sender");
-    assert_eq!(u128::try_from(&info.value.grams.amount).unwrap(), USDT_ATTACHED_NANOTON);
+    assert_eq!(u128::try_from(&info.value.grams.amount).unwrap(), USDT_ATTACHED_NANOGRAM);
     let transfer = JettonTransferMessage::from_cell(&outgoing.body.value).unwrap();
     assert_eq!(u128::try_from(&transfer.amount).unwrap(), 1_250_000);
     assert_eq!(
@@ -399,7 +399,7 @@ async fn a_jetton_send_needs_the_tokens_and_the_gram_for_its_gas() {
     assert_eq!(asset, AssetId::Native(ChainId::Ton));
     assert_eq!(
         (needed.base_units(), available.base_units()),
-        (481_012 + USDT_ATTACHED_NANOTON, 18_400_000)
+        (481_012 + USDT_ATTACHED_NANOGRAM, 18_400_000)
     );
     node.state.lock().balance_nanogram = 5_000_000_000;
     let mut max = jetton_request(TokenId::UsdtJetton, 0);

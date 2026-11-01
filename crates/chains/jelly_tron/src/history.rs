@@ -15,13 +15,13 @@
 use std::cmp::Ordering;
 
 use jelly_core::{
-    Amount, AssetId, TokenId, TxDetection, TxDirection, TxId, TxOutcome, TxRecord, TxRecordBuilder,
+    Amount, AssetId, TokenId, TxDirection, TxId, TxOutcome, TxRecord, TxRecordBuilder,
 };
 use serde::Deserialize;
 
 use crate::abi;
 use crate::address;
-use crate::config::TRX;
+use crate::config::{CHAIN, TRX};
 use crate::pending::millis_to_secs;
 use crate::raw::Contract;
 use crate::shape::ContractResult;
@@ -73,15 +73,14 @@ pub(crate) fn place(
     timestamp_millis: Option<i64>,
     tip_height: u64,
 ) -> TxRecord {
-    match height {
-        Some(height) => {
-            record.confirmed_at(height, timestamp_millis.map(millis_to_secs), tip_height).build()
+    match (height, timestamp_millis) {
+        (Some(height), _) => {
+            record.confirmed_at(height, timestamp_millis.map(millis_to_secs), tip_height)
         }
-        None => match timestamp_millis {
-            Some(seen) => record.seen_at(millis_to_secs(seen)).build(),
-            None => record.build(),
-        },
+        (None, Some(seen)) => record.seen_at(millis_to_secs(seen)),
+        (None, None) => record,
     }
+    .build()
 }
 
 /// One row from `/v1/accounts/{address}/transactions`, a whole transaction plus
@@ -198,7 +197,7 @@ impl NativeRow {
         // moves what those words say.
         let call = calldata.get(..abi::TRANSFER_CALL_BYTES)?;
         let (recipient, amount) = abi::decode_transfer(call).ok()?;
-        (amount > 0).then(|| (token, address::display(&recipient), amount))
+        (amount > 0).then(|| (token, recipient.to_string(), amount))
     }
 
     /// The TRC-20 stream reports the token movement without a fee, so the TRX the
@@ -214,12 +213,11 @@ impl NativeRow {
         let mut record = TxRecord::builder(
             AssetId::Token(token),
             address_id,
-            TxId::new(TRX.chain(), &self.txid),
+            TxId::new(CHAIN, &self.txid),
             direction,
             Amount::from_base_units(moved),
         )
-        .outcome(outcome)
-        .detection(TxDetection::Full);
+        .outcome(outcome);
         if let Some(other) = counterparty {
             record = record.counterparty(other);
         }
@@ -275,12 +273,11 @@ impl NativeRow {
         let mut record = TxRecord::builder(
             TRX,
             address_id,
-            TxId::new(TRX.chain(), &self.txid),
+            TxId::new(CHAIN, &self.txid),
             direction,
             Amount::from_base_units(amount),
         )
-        .outcome(outcome)
-        .detection(TxDetection::Full);
+        .outcome(outcome);
         if let Some(other) = counterparty {
             record = record.counterparty(other);
         }
@@ -541,11 +538,10 @@ impl TokenRow {
         let mut record = TxRecord::builder(
             AssetId::Token(token),
             address_id,
-            TxId::new(TRX.chain(), &self.transaction_id),
+            TxId::new(CHAIN, &self.transaction_id),
             direction,
             Amount::from_base_units(amount),
-        )
-        .detection(TxDetection::Full);
+        );
         if let Some(other) = counterparty {
             record = record.counterparty(other);
         }
@@ -576,7 +572,7 @@ impl Recorded for TokenRow {
 }
 
 fn canonical(value: &str) -> Option<String> {
-    address::canonical("history row", value).ok()
+    address::Body::parse("history row", value).ok().map(|body| body.to_string())
 }
 
 fn direction(
@@ -594,6 +590,8 @@ fn direction(
 
 #[cfg(test)]
 mod tests {
+    use jelly_core::TxDetection;
+
     use super::*;
     use crate::test_util::{TRX_OWNER, TRX_OWNER_HEX, TRX_RECIPIENT, TRX_RECIPIENT_HEX, USDT};
 

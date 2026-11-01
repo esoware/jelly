@@ -276,7 +276,7 @@ mod tests {
 
     fn pool(chain: ChainId, urls: &[&str]) -> Arc<Pool<HttpEndpoint>> {
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
-        let runtime = NetRuntime::new(clock, &[]);
+        let runtime = NetRuntime::new(clock);
         let endpoints = urls
             .iter()
             .map(|url| Endpoint::parse(chain, Transport::TronHttp, url).expect("a canonical url"))
@@ -285,7 +285,7 @@ mod tests {
     }
 
     #[test]
-    fn every_failure_the_walk_can_see_moves_it_on() {
+    fn every_failure_the_pool_sees_rotates_to_another_endpoint() {
         let failures = [
             NetError::NoEndpoints { chain: ChainId::Tron },
             NetError::Status { endpoint: endpoint(), status: 404 },

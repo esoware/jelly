@@ -10,18 +10,6 @@
   initial-value: 360deg;
 }
 
-@property --carousel-fade-before {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-
-@property --carousel-fade-after {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-
 @theme static {
   --*: initial;
 
@@ -104,8 +92,10 @@
   --container-md: 28rem;
   --container-lg: 32rem;
   --container-xl: 36rem;
+  --container-page: calc(var(--container-xl) - var(--spacing) * 8);
 
   --blur-sm: 8px;
+  --blur-lg: 24px;
 
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-enter: cubic-bezier(0.19, 1, 0.22, 1);

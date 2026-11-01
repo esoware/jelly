@@ -20,7 +20,7 @@ use crate::payload::Payment;
 use crate::preview;
 use crate::send::{self, Inputs, Resolved};
 use crate::sign;
-use crate::state::States;
+use crate::state::{SignedHex, States};
 use crate::sync;
 use crate::watched::{self, Watched};
 
@@ -168,8 +168,8 @@ impl ChainAdapter for ZcashAdapter {
                 ZcashError::Internal("a signed Zcash transaction does not match its txid").into()
             );
         }
-        let raw_hex = hex::encode(tx.raw.as_bytes());
-        let payment = self.states.signed_payment(&raw_hex, tx.txid.value())?;
+        let presented = SignedHex::from(tx);
+        let payment = self.states.signed_payment(&presented)?;
         let checked = async {
             sign::validate_signed(&payment, tx.raw.as_bytes()).map_err(|_| {
                 ZcashError::Internal("a signed Zcash transaction does not match its payment")
@@ -187,7 +187,7 @@ impl ChainAdapter for ZcashAdapter {
             return Err(error.into());
         }
         self.states.mark_sent(&payment).await?;
-        self.client.broadcast(&raw_hex, tx.txid.value()).await?;
+        self.client.broadcast(&presented.raw_hex, &presented.txid).await?;
         Ok(tx.txid.clone())
     }
 

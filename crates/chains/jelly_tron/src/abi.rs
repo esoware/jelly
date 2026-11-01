@@ -35,26 +35,26 @@ const LEGACY_PREFIX_AT: usize =
 /// Refuses trailing bytes and nonzero padding.
 const STRICT: AbiDecoderConfig = AbiDecoderConfig::new().strict(true);
 
-fn transfer_call(to: &[u8; address::BODY_BYTES], amount: u128) -> ITRC20::transferCall {
-    ITRC20::transferCall { to: Address::from(address::tail(to)), value: U256::from(amount) }
+fn transfer_call(to: &address::Body, amount: u128) -> ITRC20::transferCall {
+    ITRC20::transferCall { to: Address::from(to.tail()), value: U256::from(amount) }
 }
 
 /// `transfer(to, amount)` calldata, selector included.
-pub(crate) fn encode_transfer(to: &[u8; address::BODY_BYTES], amount: u128) -> Vec<u8> {
+pub(crate) fn encode_transfer(to: &address::Body, amount: u128) -> Vec<u8> {
     transfer_call(to, amount).abi_encode()
 }
 
 /// `transfer(to, amount)` arguments only, hex, for `triggerconstantcontract`.
-pub(crate) fn transfer_args(to: &[u8; address::BODY_BYTES], amount: u128) -> String {
+pub(crate) fn transfer_args(to: &address::Body, amount: u128) -> String {
     let mut args = Vec::new();
     transfer_call(to, amount).abi_encode_raw(&mut args);
     hex::encode(args)
 }
 
 /// `balanceOf(owner)` arguments only, hex.
-pub(crate) fn balance_of_args(owner: &[u8; address::BODY_BYTES]) -> String {
+pub(crate) fn balance_of_args(owner: &address::Body) -> String {
     let mut args = Vec::new();
-    ITRC20::balanceOfCall { owner: Address::from(address::tail(owner)) }.abi_encode_raw(&mut args);
+    ITRC20::balanceOfCall { owner: Address::from(owner.tail()) }.abi_encode_raw(&mut args);
     hex::encode(args)
 }
 
@@ -66,7 +66,7 @@ pub(crate) fn balance_of_args(owner: &[u8; address::BODY_BYTES]) -> String {
 ///
 /// An amount of 2^128 or more is refused, not truncated, since only a broken
 /// contract would move that much.
-pub(crate) fn decode_transfer(data: &[u8]) -> Result<([u8; address::BODY_BYTES], u128), TronError> {
+pub(crate) fn decode_transfer(data: &[u8]) -> Result<(address::Body, u128), TronError> {
     let mut calldata = data.to_vec();
     if let Some(pad) = calldata.get_mut(LEGACY_PREFIX_AT)
         && *pad == address::PREFIX
@@ -77,7 +77,7 @@ pub(crate) fn decode_transfer(data: &[u8]) -> Result<([u8; address::BODY_BYTES],
         .map_err(|_| TronError::Foreign { detail: "calldata that is not a TRC-20 transfer" })?;
     let amount =
         u128::try_from(call.value).map_err(|_| TronError::Overflow { what: "the token amount" })?;
-    Ok((address::from_tail(&call.to.into_array()), amount))
+    Ok((address::Body::from_tail(&call.to.into_array()), amount))
 }
 
 /// The word a `balanceOf` call returned, in base units.
@@ -99,7 +99,7 @@ mod tests {
     use crate::fixtures::{body, contracts};
     use crate::test_util::RECIPIENT;
 
-    fn recipient() -> [u8; address::BODY_BYTES] {
+    fn recipient() -> address::Body {
         body(RECIPIENT)
     }
 

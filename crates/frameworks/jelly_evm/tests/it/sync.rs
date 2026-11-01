@@ -81,13 +81,7 @@ async fn one_pass_reads_the_tip_the_history_and_the_balances_and_stores_a_cursor
     assert_eq!(outgoing.direction, TxDirection::Outgoing);
     assert_eq!(outgoing.amount.base_units(), 1_000_000);
 
-    let stored = harness
-        .cursors
-        .load_scan(CursorScope::Address(7), ScanStream::EvmLogScan)
-        .await
-        .unwrap()
-        .expect("a stored cursor");
-    let cursor: Value = stored.with_bytes(|bytes| serde_json::from_slice(bytes)).unwrap();
+    let cursor = harness.stored_cursor().await.unwrap();
     assert_eq!(cursor.get("version").and_then(Value::as_u64), Some(1));
     assert_eq!(cursor.get("forwardTo").and_then(Value::as_u64), Some(TIP));
     assert_eq!(
@@ -563,10 +557,10 @@ async fn a_pass_that_moves_nothing_writes_no_cursor() {
 }
 
 #[tokio::test]
-async fn a_pass_over_no_addresses_reports_complete_without_a_round_trip() {
+async fn a_pass_over_no_addresses_reports_no_heights_without_a_round_trip() {
     let harness = Harness::ethereum().unwrap();
     let progress = harness.sync().await.unwrap();
-    assert!(progress.is_complete());
+    assert_eq!(progress.synced_height(), None);
     assert_eq!(progress.tip_height(), None);
     assert!(harness.node.calls().is_empty());
 }
@@ -647,13 +641,7 @@ async fn a_window_no_endpoint_will_serve_leaves_the_cursor_alone_and_the_balance
         .count();
     assert_eq!(balances, SHEET_ENTRIES, "the balance sheet is read whatever the log walk did");
 
-    let stored = harness
-        .cursors
-        .load_scan(CursorScope::Address(7), ScanStream::EvmLogScan)
-        .await
-        .unwrap()
-        .expect("a cursor row");
-    let cursor: Value = stored.with_bytes(|bytes| serde_json::from_slice(bytes)).unwrap();
+    let cursor = harness.stored_cursor().await.unwrap();
     assert_eq!(
         cursor.get("forwardTo").and_then(Value::as_u64),
         None,
@@ -672,13 +660,7 @@ async fn a_pass_whose_budget_has_run_out_walks_no_windows() {
     let progress = harness.sync_expired().await.unwrap();
     assert_eq!(progress.tip_height(), Some(TIP));
     assert!(harness.node.calls_to(Method::GetLogs).is_empty(), "no window was asked for");
-    let stored = harness
-        .cursors
-        .load_scan(CursorScope::Address(7), ScanStream::EvmLogScan)
-        .await
-        .unwrap()
-        .expect("a cursor row");
-    let cursor: Value = stored.with_bytes(|bytes| serde_json::from_slice(bytes)).unwrap();
+    let cursor = harness.stored_cursor().await.unwrap();
     assert_eq!(cursor.get("forwardTo").and_then(Value::as_u64), None, "nothing was scanned");
 }
 
@@ -902,14 +884,27 @@ async fn a_backfill_walks_down_over_successive_passes() {
     let harness = Harness::new(setup).unwrap();
     harness.watch_owner().await.unwrap();
     harness.node.quiet(&sheet(0));
+    let lowest_from_block = || {
+        let windows = harness.node.calls_to(Method::GetLogs);
+        harness.node.forget_calls();
+        windows
+            .iter()
+            .map(|call| {
+                let params: Value = serde_json::from_str(&call.params).unwrap();
+                let from = params[0]["fromBlock"].as_str().unwrap().trim_start_matches("0x");
+                u64::from_str_radix(from, 16).unwrap()
+            })
+            .min()
+    };
 
-    let first = harness.sync().await.unwrap();
-    assert!(first.progress_permille() < 1_000, "the history is not covered yet");
-    let second = harness.sync().await.unwrap();
-    assert!(second.progress_permille() > first.progress_permille(), "the backfill moved");
-    for _ in 0..4u8 {
+    let mut reached = u64::MAX;
+    while reached > SHORT_HISTORY.backfill_floor {
         harness.sync().await.unwrap();
+        let lowest = lowest_from_block().expect("a pass short of the floor sends a window");
+        assert!(lowest < reached, "the backfill moved");
+        reached = lowest;
     }
-    let done = harness.sync().await.unwrap();
-    assert_eq!(done.progress_permille(), 1_000, "the walk reached the floor");
+    assert_eq!(reached, SHORT_HISTORY.backfill_floor, "the walk reached the floor");
+    harness.sync().await.unwrap();
+    assert_eq!(lowest_from_block(), None, "nothing is left to walk");
 }

@@ -7,9 +7,6 @@
 //! - Activating an account can't use free bandwidth and also costs the system-contract
 //!   fee.
 
-use jelly_core::Amount;
-
-use crate::config::CHAIN;
 use crate::error::TronError;
 use crate::params::ChainParams;
 use crate::raw;
@@ -275,10 +272,6 @@ fn with_margin(value: u128) -> Result<u128, TronError> {
         .ok_or(TronError::Overflow { what: "an energy margin" })
 }
 
-pub(crate) fn trx_text(sun: u64) -> String {
-    CHAIN.format_amount(Amount::from(sun))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -439,13 +432,5 @@ mod tests {
 
         let plain = TxCost::new(bandwidth, None, false, &params).expect("a total");
         assert_eq!(plain.padded_burn_sun(&params).expect("a padded burn"), plain.burn_sun);
-    }
-
-    #[test]
-    fn sun_renders_as_trx_through_the_one_decimal_conversion() {
-        assert_eq!(trx_text(0), "0 TRX");
-        assert_eq!(trx_text(1), "0.000001 TRX");
-        assert_eq!(trx_text(13_026_600), "13.0266 TRX");
-        assert_eq!(trx_text(1_000_000), "1 TRX");
     }
 }

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { ComponentProps } from "react"
+import type { ComponentProps, ReactNode } from "react"
 
 import { isSubmitting, preparedOf } from "@/features/wallet/send-state.ts"
 import type { SendState } from "@/features/wallet/send-state.ts"
@@ -93,6 +93,34 @@ function TotalFiat({ preview }: TotalFiatProps) {
       isStale={isAssetStale || isCostStale}
       className="text-caption text-fg-faint"
     />
+  )
+}
+
+interface ReviewRowProps {
+  label: string
+  children: ReactNode
+}
+
+function ReviewRow({ label, children }: ReviewRowProps) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="text-caption text-fg-faint">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+interface ReviewCostProps {
+  label: string
+  children: ReactNode
+}
+
+function ReviewCost({ label, children }: ReviewCostProps) {
+  return (
+    <span className="flex items-baseline gap-1">
+      <span className="text-caption text-fg-faint">{label}</span>
+      {children}
+    </span>
   )
 }
 
@@ -190,55 +218,48 @@ export function ReviewStep({ state, onBack, onConfirm }: ReviewStepProps) {
                   className="text-fg-muted"
                 />
               </p>
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="text-caption text-fg-faint">Chain</span>
+              <ReviewRow label="Chain">
                 <ChainLogo chain={preview.chain} className="size-icon-sm" />
                 <span className="truncate">{chainName(preview.chain)}</span>
-              </div>
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="text-caption text-fg-faint">From</span>
+              </ReviewRow>
+              <ReviewRow label="From">
                 <AddressList addresses={preview.from} className="font-mono select-text" />
-              </div>
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="text-caption text-fg-faint">To</span>
+              </ReviewRow>
+              <ReviewRow label="To">
                 <MonoWithCopy value={preview.to} />
-              </div>
+              </ReviewRow>
               {chainMeta(preview.chain).hasDestinationTags ? (
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-caption text-fg-faint">Destination tag</span>
+                <ReviewRow label="Destination tag">
                   <span>
                     {preview.destinationTag === null ? "None" : String(preview.destinationTag)}
                   </span>
-                </div>
+                </ReviewRow>
               ) : null}
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                <span className="flex items-baseline gap-1">
-                  <span className="text-caption text-fg-faint">Fee</span>
+                <ReviewCost label="Fee">
                   <CryptoAmount amount={preview.fee} asset={nativeAsset(preview.chain)} />
                   <FiatAmount
                     amount={preview.fee}
                     asset={nativeAsset(preview.chain)}
                     className="text-caption text-fg-faint"
                   />
-                </span>
+                </ReviewCost>
                 {preview.rent === null ? null : (
-                  <span className="flex items-baseline gap-1">
-                    <span className="text-caption text-fg-faint">Token account rent</span>
+                  <ReviewCost label="Token account rent">
                     <CryptoAmount amount={preview.rent} asset={nativeAsset(preview.chain)} />
                     <FiatAmount
                       amount={preview.rent}
                       asset={nativeAsset(preview.chain)}
                       className="text-caption text-fg-faint"
                     />
-                  </span>
+                  </ReviewCost>
                 )}
-                <span className="flex items-baseline gap-1">
-                  <span className="text-caption text-fg-faint">Total</span>
+                <ReviewCost label="Total">
                   <span className="flex flex-wrap items-baseline gap-1 font-semibold">
                     <TotalAmount preview={preview} />
                   </span>
                   <TotalFiat preview={preview} />
-                </span>
+                </ReviewCost>
               </div>
             </Card>
           </>
@@ -285,10 +306,7 @@ export function ReviewStep({ state, onBack, onConfirm }: ReviewStepProps) {
         items={
           preview === null
             ? []
-            : [
-                { label: "From", value: <SourceList sources={preview.from} /> },
-                ...preview.details.map((row) => ({ label: row.label, value: row.value })),
-              ]
+            : [{ label: "From", value: <SourceList sources={preview.from} /> }, ...preview.details]
         }
       />
     </DialogForm>

@@ -24,7 +24,7 @@ const TARGET: &str = "jelly::tron::walk";
 ///
 /// A failure is logged and swallowed, since the `/v1` routes have one host,
 /// `TronGrid`, which may be down, out of budget, or turned off. The cursor doesn't
-/// move, so the next read retries.
+/// move past the failure, so the next read retries.
 pub(crate) async fn run(
     inputs: &PassInputs<'_>,
     entry: &Watched,
@@ -95,16 +95,17 @@ impl AddressWalk<'_> {
         let before = cursor.clone();
 
         self.forward(stream, &mut cursor).await?;
-        if !cursor.is_complete {
-            self.backfill(stream, &mut cursor).await?;
-        }
+        // A backfill page that fails leaves the cursor before it, so what the walk
+        // did up to there is still saved.
+        let backfilled =
+            if cursor.is_complete { Ok(()) } else { self.backfill(stream, &mut cursor).await };
 
         // A quiet pass shouldn't cost a database transaction.
         if cursor != before {
             states.set_cursor(address_id, stream, cursor);
             states.persist_scan(address_id).await?;
         }
-        Ok(())
+        backfilled
     }
 
     /// Reads from the newest end down to the last transaction we reported, so a
@@ -284,11 +285,20 @@ impl AddressWalk<'_> {
             );
             return Ok(());
         };
-        let parent = self
+        let Some(parent) = self
             .inputs
             .client
             .parent(txid, timestamp_millis, self.deadline, self.inputs.clock)
-            .await?;
+            .await?
+        else {
+            tracing::warn!(
+                target: TARGET,
+                address_id = self.entry.address_id,
+                %txid,
+                "the sender's history does not list the transaction behind an internal transfer"
+            );
+            return Ok(());
+        };
         self.reported_whole.insert(txid.to_owned());
         let Some(record) = parent.trx_record(self.entry.address_id, &self.entry.address) else {
             tracing::warn!(

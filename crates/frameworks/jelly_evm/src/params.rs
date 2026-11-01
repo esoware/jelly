@@ -5,7 +5,7 @@ use jelly_core::{AssetId, ChainId, TokenId};
 /// What one EIP-155 network varies by, declared as a `const` in its chain crate.
 ///
 /// Keys, addresses and the transaction format are the same on every network.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub struct EvmParams {
     pub chain: ChainId,
     /// Signed into every transaction to prevent cross-chain replay, and checked

@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use parking_lot::Mutex;
 use zeroize::Zeroizing;
 
-use crate::address::Address;
+use crate::address::{Address, DerivationPath, KeySource, WatchedAddress};
 use crate::amount::Amount;
 use crate::asset::AssetId;
 use crate::build::BuildRequest;
@@ -24,10 +24,11 @@ use crate::cursor::{
 };
 use crate::error::{CoreError, KeyError};
 use crate::event::{EventSink, WalletEvent};
+use crate::fee::FeeSelection;
 use crate::pin::{PinStore, SpkiPin};
+use crate::record::TxRecord;
 use crate::secret::{KeyKind, KeyMaterial};
-use crate::tx::{FeeSelection, SendAmount, TxRecord, TxRequest};
-use crate::wallet::{DerivationPath, KeySource, WatchedAddress};
+use crate::send::{SendAmount, TxRequest};
 
 pub const MARKER: &str = "zzzzmarker";
 pub const MARKER_PHRASE: &str = "zzzzmarker qqqqsecret abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
@@ -381,47 +382,6 @@ impl CursorStore for MemoryCursorStore {
     ) -> Result<(), CoreError> {
         self.reserve_count.fetch_add(1, Ordering::SeqCst);
         self.reservations.lock().insert((scope, slot), payload);
-        Ok(())
-    }
-}
-
-/// A cursor store that forgets every write.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct NullCursorStore;
-
-#[async_trait]
-impl CursorStore for NullCursorStore {
-    async fn load_scans(
-        &self,
-        _scopes: &[CursorScope],
-        _streams: &[ScanStream],
-    ) -> Result<Vec<ScanAdvance>, CoreError> {
-        Ok(Vec::new())
-    }
-
-    async fn load_reservations(
-        &self,
-        _scopes: &[CursorScope],
-        _slots: &[ReservationSlot],
-    ) -> Result<Vec<HeldReservation>, CoreError> {
-        Ok(Vec::new())
-    }
-
-    async fn advance(
-        &self,
-        _scope: CursorScope,
-        _stream: ScanStream,
-        _cursor: CursorBytes,
-    ) -> Result<(), CoreError> {
-        Ok(())
-    }
-
-    async fn reserve(
-        &self,
-        _scope: CursorScope,
-        _slot: ReservationSlot,
-        _payload: CursorBytes,
-    ) -> Result<(), CoreError> {
         Ok(())
     }
 }

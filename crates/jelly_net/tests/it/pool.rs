@@ -50,8 +50,11 @@ async fn the_walk_returns_the_first_endpoint_that_answers() {
         *harness.connector.connects.lock(),
         vec![ENDPOINT_A.to_owned(), ENDPOINT_B.to_owned(), ENDPOINT_C.to_owned()]
     );
-    assert_eq!(harness.health.entry(harness.pool.chain(), ENDPOINT_C).class, HealthClass::Healthy);
-    assert_eq!(harness.health.entry(harness.pool.chain(), ENDPOINT_A).health.failures, 1);
+    assert_eq!(
+        harness.health().entry(harness.pool.chain(), ENDPOINT_C).class,
+        HealthClass::Healthy
+    );
+    assert_eq!(harness.health().entry(harness.pool.chain(), ENDPOINT_A).health.failures, 1);
 }
 
 #[tokio::test(start_paused = true)]
@@ -71,7 +74,7 @@ async fn a_deterministic_rejection_stops_at_the_first_endpoint() {
 
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert!(matches!(error, NetError::Protocol { .. }));
-    let state = harness.health.entry(harness.pool.chain(), ENDPOINT_A).health;
+    let state = harness.health().entry(harness.pool.chain(), ENDPOINT_A).health;
     assert_eq!(state.failures, 0, "a deterministic refusal is not the endpoint's fault");
     assert_eq!(state.successes, 0);
 }
@@ -87,7 +90,7 @@ async fn an_accepted_answer_credits_the_endpoint() {
         .expect_err("the answer is an error the caller asked for");
 
     assert!(matches!(error, NetError::Protocol { .. }));
-    assert_eq!(harness.health.entry(harness.pool.chain(), ENDPOINT_A).health.successes, 1);
+    assert_eq!(harness.health().entry(harness.pool.chain(), ENDPOINT_A).health.successes, 1);
     assert_eq!(harness.connector.connects.lock().len(), 1);
 }
 
@@ -110,7 +113,7 @@ async fn a_skipped_endpoint_is_passed_over_without_a_penalty() {
         .await
         .expect("the second endpoint answers");
     assert_eq!(answered, ENDPOINT_B);
-    let state = harness.health.entry(harness.pool.chain(), ENDPOINT_A).health;
+    let state = harness.health().entry(harness.pool.chain(), ENDPOINT_A).health;
     assert_eq!(state.failures, 0, "a skipped endpoint is not blamed");
 
     let answered = harness
@@ -196,7 +199,7 @@ async fn a_hanging_attempt_times_out_and_rotates() {
         .expect("the second endpoint answers");
 
     assert_eq!(answered, ENDPOINT_B);
-    let first = harness.health.entry(harness.pool.chain(), ENDPOINT_A).health;
+    let first = harness.health().entry(harness.pool.chain(), ENDPOINT_A).health;
     assert_eq!(first.failures, 1);
     assert_eq!(first.last_error.as_deref(), Some("https://a.example: timed out after 15000 ms"));
 }
@@ -232,7 +235,7 @@ async fn an_identity_check_that_never_answers_times_out_and_rotates() {
         .expect("the second endpoint answers");
 
     assert_eq!(answered, ENDPOINT_B);
-    let first = harness.health.entry(harness.pool.chain(), ENDPOINT_A).health;
+    let first = harness.health().entry(harness.pool.chain(), ENDPOINT_A).health;
     assert_eq!(first.failures, 1);
     assert_eq!(first.last_error.as_deref(), Some("https://a.example: timed out after 15000 ms"));
 }
@@ -398,7 +401,7 @@ async fn a_walk_comes_back_to_a_paced_endpoint_after_the_others_fail() {
         *harness.connector.connects.lock(),
         vec![ENDPOINT_A.to_owned(), ENDPOINT_B.to_owned()]
     );
-    assert_eq!(harness.health.entry(harness.pool.chain(), ENDPOINT_B).health.failures, 1);
+    assert_eq!(harness.health().entry(harness.pool.chain(), ENDPOINT_B).health.failures, 1);
 }
 
 #[tokio::test(start_paused = true)]
@@ -458,11 +461,11 @@ async fn a_quarantined_pin_falls_behind_an_untried_endpoint() {
 
     for _ in 0..3u8 {
         harness
-            .health
+            .health()
             .record_failure(&first, &NetError::timed_out(first.label(), Duration::from_secs(15)));
     }
-    assert_eq!(harness.health.entry(pool.chain(), ENDPOINT_A).class, HealthClass::Quarantined);
-    assert_eq!(harness.health.entry(pool.chain(), ENDPOINT_B).class, HealthClass::Unknown);
+    assert_eq!(harness.health().entry(pool.chain(), ENDPOINT_A).class, HealthClass::Quarantined);
+    assert_eq!(harness.health().entry(pool.chain(), ENDPOINT_B).class, HealthClass::Unknown);
 
     harness.connector.connects.lock().clear();
     let answered = pool
@@ -536,7 +539,7 @@ async fn a_ranked_broadcast_tries_only_the_preferred_endpoint() {
 async fn an_untried_preferred_endpoint_goes_before_a_fallback_that_has_answered() {
     let harness = harness(&[ENDPOINT_A, ENDPOINT_C]).expect("a pool over two endpoints");
     let proven = endpoint(ENDPOINT_A).expect("a canonical url");
-    harness.health.record_success(&proven, Duration::from_millis(50));
+    harness.health().record_success(&proven, Duration::from_millis(50));
     let echo = async |connection: Arc<FakeConnection>| Ok(connection.url.clone());
 
     let unranked = harness.pool.call("head", rotate, echo).await.expect("a answers");
@@ -550,8 +553,11 @@ async fn an_untried_preferred_endpoint_goes_before_a_fallback_that_has_answered(
 async fn a_failing_preferred_endpoint_falls_behind_a_healthy_fallback() {
     let harness = harness(&[ENDPOINT_A, ENDPOINT_C]).expect("a pool over two endpoints");
     let failing = endpoint(ENDPOINT_C).expect("a canonical url");
-    harness.health.record_failure(&failing, &refused());
-    assert_eq!(harness.health.entry(harness.pool.chain(), ENDPOINT_C).class, HealthClass::Degraded);
+    harness.health().record_failure(&failing, &refused());
+    assert_eq!(
+        harness.health().entry(harness.pool.chain(), ENDPOINT_C).class,
+        HealthClass::Degraded
+    );
 
     let answered = harness
         .pool
@@ -746,7 +752,7 @@ async fn a_call_at_one_endpoint_reaches_that_endpoint_and_no_other() {
         vec![ENDPOINT_B.to_owned(), ENDPOINT_C.to_owned()],
         "a failure there is not rotated to another endpoint"
     );
-    assert_eq!(harness.health.entry(harness.pool.chain(), ENDPOINT_C).health.failures, 1);
+    assert_eq!(harness.health().entry(harness.pool.chain(), ENDPOINT_C).health.failures, 1);
 }
 
 #[tokio::test(start_paused = true)]

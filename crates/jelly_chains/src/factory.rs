@@ -47,14 +47,14 @@ impl AdapterFactory {
 #[async_trait]
 impl AdapterBuilder for AdapterFactory {
     async fn build(&self, request: &BuildRequest) -> AdapterSet {
-        let Some(network) = self.network.get() else {
+        let Some(attached) = self.network.get() else {
             tracing::error!(
                 target: TARGET,
                 "no chain was built because the adapter factory has no network yet"
             );
             return every_chain_failed(request);
         };
-        let network = match network.with_proxy(request.proxy.clone()) {
+        let network = match attached.with_proxy(request.proxy.clone()) {
             Ok(network) => network,
             Err(error) => {
                 tracing::error!(

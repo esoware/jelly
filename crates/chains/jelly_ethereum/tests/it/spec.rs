@@ -1,9 +1,8 @@
 use std::collections::BTreeSet;
 use std::time::Duration;
 
-use jelly_core::{ChainId, KeyKind, Transport};
+use jelly_core::{ChainId, KeyKind, TokenId, Transport};
 use jelly_ethereum::{ENTRY, PARAMS, SPEC};
-use jelly_evm::test_util;
 use jelly_net::DefaultEndpoints;
 
 #[test]
@@ -45,14 +44,39 @@ fn the_params_carry_the_eip_155_chain_id_and_ethereums_figures() {
     assert_eq!(PARAMS.indexer_lag_blocks(), 10);
     assert_eq!(PARAMS.watch_floor, Duration::from_secs(5));
     assert_eq!(PARAMS.request_timeout, Duration::from_secs(10));
-    assert_eq!(PARAMS.tokens.len(), 18);
+    assert_eq!(
+        PARAMS.tokens,
+        [
+            TokenId::LinkErc20,
+            TokenId::WbtcErc20,
+            TokenId::WethErc20,
+            TokenId::UniErc20,
+            TokenId::ShibErc20,
+            TokenId::EnaErc20,
+            TokenId::AaveErc20,
+            TokenId::OndoErc20,
+            TokenId::PepeErc20,
+            TokenId::ArbErc20,
+            TokenId::UsdtErc20,
+            TokenId::UsdcErc20,
+            TokenId::UsdsErc20,
+            TokenId::DaiErc20,
+            TokenId::UsdgErc20,
+            TokenId::PyusdErc20,
+            TokenId::XautErc20,
+            TokenId::PaxgErc20
+        ]
+    );
     for token in PARAMS.tokens {
         assert_eq!(token.chain(), ChainId::Ethereum, "{token:?}");
     }
+    const { assert!(!PARAMS.has_native_transfer_logs, "ether moves without a log") };
+    const { assert!(!PARAMS.has_l1_data_fee, "every cost is gas") };
     const { assert!(PARAMS.has_keyless_history, "Routescan answers without a key") };
 
     assert_eq!(PARAMS.fee_history_blocks, 20);
     assert_eq!(PARAMS.min_priority_fee_wei, 100_000_000);
+    assert_eq!(PARAMS.max_priority_fee_wei, None);
     assert_eq!(PARAMS.backfill_floor, 4_281_611);
     assert_eq!(PARAMS.log_window_blocks, 1_000);
 }
@@ -93,10 +117,4 @@ fn the_publicnode_row_promises_no_log_windows() {
         .find(|endpoint| endpoint.url == "https://ethereum-rpc.publicnode.com")
         .unwrap();
     assert_eq!(row.note.as_deref(), Some("PublicNode, no key, no log windows"));
-}
-
-/// The framework's own unit tests run on a copy of these params.
-#[test]
-fn the_params_match_the_frameworks_test_copy() {
-    assert_eq!(PARAMS, test_util::ETHEREUM);
 }

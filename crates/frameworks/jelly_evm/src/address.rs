@@ -60,9 +60,7 @@ pub(crate) fn evm_address_bytes(chain: ChainId, value: &str) -> Result<[u8; 20],
 }
 
 pub(crate) fn parse(chain: ChainId, text: &str) -> Result<EvmAddress, EvmError> {
-    let bytes = evm_address_bytes(chain, text)
-        .map_err(|error| EvmError::InvalidAddress { detail: error.to_string() })?;
-    Ok(EvmAddress::from(bytes))
+    Ok(EvmAddress::from(evm_address_bytes(chain, text).map_err(EvmError::InvalidAddress)?))
 }
 
 /// Derived by the same code as the address the wallet shows, so signing checks the

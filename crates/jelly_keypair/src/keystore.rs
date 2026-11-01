@@ -119,10 +119,9 @@ pub(crate) fn decrypt_keystore_v3(
     let mut plain = Zeroizing::new(ciphertext);
     Aes128Ctr::new((&*aes_key).into(), (&iv).into()).apply_keystream(&mut plain);
 
-    if plain.len() != 32 {
-        return Err(KeyError::InvalidKeyLength { got: plain.len() });
-    }
-    let key = Secp256k1Key::from_secret_bytes(&plain)?;
+    let secret = <&[u8; 32]>::try_from(plain.as_slice())
+        .map_err(|_| KeyError::InvalidKeyLength { got: plain.len() })?;
+    let key = Secp256k1Key::from_secret_bytes(secret)?;
 
     // The address field is optional, but a well-formed one must match the key.
     if let Some(claimed) = document.address.as_deref().map(hex_body)

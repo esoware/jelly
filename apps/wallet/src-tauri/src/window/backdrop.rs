@@ -1,4 +1,4 @@
-use jelly_engine::{AppSettings, BackdropSetting};
+use jelly_engine::BackdropSetting;
 use jelly_win32::{BackdropLayer, EffectsWatch, Tint};
 use parking_lot::Mutex;
 use tauri::{App, AppHandle, Manager as _, WebviewWindow};
@@ -51,12 +51,8 @@ pub(super) fn attach(app: &App, window: &WebviewWindow) -> WindowBackdrop {
             return WindowBackdrop::Solid;
         }
     };
-    let backdrop = Backdrop {
-        layer,
-        setting: AppSettings::default().backdrop,
-        has_effects,
-        _effects: effects,
-    };
+    let backdrop =
+        Backdrop { layer, setting: BackdropSetting::default(), has_effects, _effects: effects };
     backdrop.paint();
     app.manage(Mutex::new(backdrop));
 

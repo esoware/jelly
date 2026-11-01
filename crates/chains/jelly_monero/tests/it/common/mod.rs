@@ -16,14 +16,15 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use jelly_core::{
-    Amount, AssetId, ChainAdapter as _, ChainId, ChainSyncProgress, Clock, CursorStore,
-    EndpointLabel, FailureKind, FeeSelection, KeyKind, KeyMaterial, Rejection, SignedTx, TxDetail,
+    Amount, AssetId, ChainAdapter as _, ChainId, ChainSyncProgress, Clock, CoreError, CursorBytes,
+    CursorScope, CursorStore, EndpointLabel, FailureKind, FeeSelection, HeldReservation, KeyKind,
+    KeyMaterial, Rejection, ReservationSlot, ScanAdvance, ScanStream, SignedTx, TxDetail,
     TxRequest, UnsignedTx, WalletEvent, WatchedAddress,
     test_util::{
         FakeClock, FakeEventSink, MemoryCursorStore, TxRequestBuilder, WatchedAddressBuilder,
     },
 };
-use jelly_keypair::{PathTemplate, test_util::test_keychain};
+use jelly_keypair::{PathTemplate, test_util::test_seed};
 use jelly_monero::{
     BroadcastReply, Distribution, FeeLadder, MoneroAccount, MoneroAdapter, MoneroConfig,
     MoneroError, MoneroKeys, MoneroNode, SPEC,
@@ -92,7 +93,7 @@ pub(crate) fn recorded() -> serde_json::Result<Recorded> {
 /// default path.
 pub(crate) fn hd_account(index: u32) -> Fallible<KeyMaterial> {
     let path = PathTemplate::parse(SPEC.default_path)?.path_at(index)?;
-    Ok(test_keychain().key_material_at(SPEC.key_kind, &path)?)
+    Ok(test_seed().key_material_at(SPEC.key_kind, &path)?)
 }
 
 pub(crate) fn bytes32(value: &str) -> Fallible<[u8; 32]> {
@@ -816,27 +817,53 @@ pub(crate) async fn fixture_adapter(
     Ok(adapter)
 }
 
+/// A cursor store that forgets every write.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct NullCursorStore;
+
+#[async_trait]
+impl CursorStore for NullCursorStore {
+    async fn load_scans(
+        &self,
+        _scopes: &[CursorScope],
+        _streams: &[ScanStream],
+    ) -> Result<Vec<ScanAdvance>, CoreError> {
+        Ok(Vec::new())
+    }
+
+    async fn load_reservations(
+        &self,
+        _scopes: &[CursorScope],
+        _slots: &[ReservationSlot],
+    ) -> Result<Vec<HeldReservation>, CoreError> {
+        Ok(Vec::new())
+    }
+
+    async fn advance(
+        &self,
+        _scope: CursorScope,
+        _stream: ScanStream,
+        _cursor: CursorBytes,
+    ) -> Result<(), CoreError> {
+        Ok(())
+    }
+
+    async fn reserve(
+        &self,
+        _scope: CursorScope,
+        _slot: ReservationSlot,
+        _payload: CursorBytes,
+    ) -> Result<(), CoreError> {
+        Ok(())
+    }
+}
+
 pub(crate) fn progress_event_count(events: &[WalletEvent]) -> usize {
     events.iter().filter(|event| matches!(event, WalletEvent::SyncProgress(_))).count()
 }
 
 pub(crate) fn balance_event_count(events: &[WalletEvent]) -> usize {
     events.iter().filter(|event| matches!(event, WalletEvent::BalanceChanged(_))).count()
-}
-
-/// The key images a signed transaction consumes, read back from its bytes.
-pub(crate) fn images_in(signed: &SignedTx) -> io::Result<Vec<[u8; 32]>> {
-    let mut bytes = signed.raw.as_bytes();
-    let transaction = Transaction::<NotPruned>::read(&mut bytes)?;
-    Ok(transaction
-        .prefix()
-        .inputs
-        .iter()
-        .filter_map(|input| match input {
-            Input::ToKey { key_image, .. } => Some(key_image.to_bytes()),
-            Input::Gen(_) => None,
-        })
-        .collect())
 }
 
 /// The positions on the blockchain of every ring member each input of `signed` names,

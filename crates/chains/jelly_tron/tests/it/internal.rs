@@ -304,6 +304,37 @@ async fn the_search_for_a_parent_stops_at_its_page_budget() {
 }
 
 #[tokio::test]
+async fn a_transfer_whose_parent_is_never_listed_does_not_hold_up_the_rest_of_its_stream() {
+    let (unlisted, unlisted_row) = payout(&"b1".repeat(32), 85_304_900, 1_786_585_700_000);
+    let (listed, listed_row) = payout(&"b0".repeat(32), 85_304_800, 1_786_585_400_000);
+    let fake = listed.findable(
+        &paid_by(&unlisted, &unlisted_row)
+            .always(
+                Route::InternalHistory,
+                history_page(&[unlisted_row.as_str(), listed_row.as_str()], None),
+            )
+            .on_matching(
+                Route::NativeHistory,
+                &format!("min_timestamp={}", unlisted.timestamp_millis.saturating_sub(1)),
+                history_page(&[], None),
+            ),
+    );
+    let harness = watching_owner(&fake, TronConfig::default()).await.unwrap();
+    let sink = FakeEventSink::new();
+    pass(&harness, &sink).await.unwrap();
+    let reported: Vec<String> =
+        records(&sink.drain()).into_iter().map(|record| record.txid.value().to_owned()).collect();
+    assert_eq!(reported, vec![listed.txid.clone()], "the older transfer is still reported");
+
+    harness.fake.forget_calls();
+    harness.clock.advance(HISTORY_SWEEP.saturating_add(Duration::from_secs(1)));
+    pass(&harness, &sink).await.unwrap();
+    assert_eq!(harness.fake.count(Route::InternalHistory), 1, "the sweep reads the stream");
+    assert_eq!(lookups(&harness.fake, &unlisted.txid), 0, "and stops at the frontier");
+    assert!(records(&sink.drain()).is_empty());
+}
+
+#[tokio::test]
 async fn trx_sent_through_a_contract_call_is_recorded_as_outgoing_with_its_fee() {
     let mut sent = ContractCall::new(SWAP, TRX_OWNER_HEX);
     sent.value_sun = 2_500_000;

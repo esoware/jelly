@@ -1,3 +1,7 @@
+//! The little-endian framing shared by the two persisted blobs and the signing payload.
+
+use std::io;
+
 use crate::error::MoneroError;
 
 /// Little-endian fields read off the front of a byte slice. Running out of bytes
@@ -46,8 +50,8 @@ impl<'a> Reader<'a> {
         self.fixed()
     }
 
-    /// A `u16` length and that many bytes of utf-8, refused with `not_text` when
-    /// they aren't.
+    /// A `u16` length and that many bytes of utf-8, as [`write_text`] writes them,
+    /// refused with `not_text` when they aren't utf-8.
     pub(crate) fn text(&mut self, not_text: MoneroError) -> Result<String, MoneroError> {
         let length = usize::from(self.u16()?);
         String::from_utf8(self.take(length)?.to_vec()).map_err(|_| not_text)
@@ -57,5 +61,47 @@ impl<'a> Reader<'a> {
         let (head, rest) = self.bytes.split_first_chunk::<N>().ok_or_else(self.truncated)?;
         self.bytes = rest;
         Ok(*head)
+    }
+}
+
+/// Writes `text` behind its `u16` length, refused with `too_long` when the length
+/// doesn't fit.
+pub(crate) fn write_text(
+    encoded: &mut Vec<u8>,
+    text: &str,
+    too_long: MoneroError,
+) -> Result<(), MoneroError> {
+    let length = u16::try_from(text.len()).map_err(|_| too_long)?;
+    encoded.extend_from_slice(&length.to_le_bytes());
+    encoded.extend_from_slice(text.as_bytes());
+    Ok(())
+}
+
+/// An `io::Write` that keeps nothing and only counts.
+///
+/// A buffer that will hold secret bytes is measured with this first and
+/// allocated at its final size, because a buffer that grows leaves a copy of
+/// what it held in the allocation it moved out of.
+#[derive(Debug, Default)]
+pub(crate) struct ByteCount(usize);
+
+impl ByteCount {
+    pub(crate) const fn total(&self) -> usize {
+        self.0
+    }
+}
+
+impl io::Write for ByteCount {
+    #[expect(
+        clippy::renamed_function_params,
+        reason = "the trait calls it `buf`, a name this workspace bans"
+    )]
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.0 = self.0.saturating_add(bytes.len());
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }

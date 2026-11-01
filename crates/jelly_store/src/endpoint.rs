@@ -1,3 +1,6 @@
+//! Every row keys on the exact URL string it's given, and `jelly_net` owns the canonical
+//! form.
+
 use jelly_core::{ChainId, EndpointHealth, EndpointHealthRecord, EndpointLabel, EndpointOverride};
 use rusqlite::{Row, params};
 
@@ -134,10 +137,13 @@ impl Writer<'_> {
         Ok(())
     }
 
+    /// A user-added endpoint can carry a credential in userinfo, the path, or the query, so
+    /// a missing one is named only by its [`EndpointLabel`].
     pub(crate) fn delete_endpoint(&self, chain: ChainId, url: &str) -> Result<(), StoreError> {
         let removed = sql::run(self.connection(), DELETE, params![chain.as_str(), url])?;
         if removed == 0 {
-            return Err(StoreError::NotFound { entity: ENDPOINT, id: redacted(url) });
+            let id = EndpointLabel::from_url(url).to_string();
+            return Err(StoreError::NotFound { entity: ENDPOINT, id });
         }
         Ok(())
     }
@@ -173,13 +179,4 @@ impl Writer<'_> {
         .constrained(HEALTH, UNIQUE_COLUMNS)?;
         Ok(())
     }
-}
-
-/// A user-added endpoint can carry a credential in userinfo, the path, or the query, so
-/// an error names only the [`EndpointLabel`] form.
-///
-/// The store itself keys on the exact string it's given, and `jelly_net` owns the
-/// canonical form.
-fn redacted(url: &str) -> String {
-    EndpointLabel::from_url(url).to_string()
 }

@@ -1,4 +1,4 @@
-use alloy::primitives::Address;
+use alloy::primitives::{Address, Bytes};
 use jelly_core::{Amount, AssetId, FeeQuote, LevelFee, RetryPolicy, SignedTx, TxId, UnsignedTx};
 
 use crate::client::EvmClient;
@@ -31,7 +31,7 @@ pub(crate) struct Plan {
     pub(crate) fee: FeePair,
     pub(crate) gas: GasLimit,
     /// Calldata that replaces the generated transfer verbatim.
-    pub(crate) calldata: Option<Vec<u8>>,
+    pub(crate) calldata: Option<Bytes>,
     pub(crate) native_balance_wei: u128,
     pub(crate) token_balance: Option<u128>,
     /// The fee floor to clear when this build reuses a nonce slot, which makes it a
@@ -152,7 +152,7 @@ pub(crate) fn build(plan: &Plan, tokens: &TokenTable) -> Result<UnsignedTx, EvmE
     let worst_case_fee_wei = plan.worst_case_fee_wei()?;
     check_funding(plan, worst_case_fee_wei)?;
 
-    let shape = Shape::of(plan.token, plan.to, plan.amount.base_units(), plan.calldata.as_deref());
+    let shape = Shape::of(plan.token, plan.to, plan.amount.base_units(), plan.calldata.as_ref());
     let tx = payload::transaction(plan.params, plan.nonce, plan.gas.limit(), plan.fee, &shape);
     let built = EvmPayload::new(tx, plan.intent());
     let preview = preview::of(plan, &built, tokens, worst_case_fee_wei)?;
@@ -233,9 +233,8 @@ mod tests {
 
     use super::*;
     use crate::fee::GasSource;
-    use crate::fixtures::address;
+    use crate::fixtures::{ETHEREUM, address};
     use crate::rpc::FeeHistory;
-    use crate::test_util::ETHEREUM;
 
     const GWEI: u128 = 1_000_000_000;
     const ETH: u128 = 1_000_000_000_000_000_000;

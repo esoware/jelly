@@ -1,7 +1,8 @@
 use std::fmt;
+use std::iter;
 
 use bip39::Language;
-use jelly_core::{KeyError, PhraseWords, phrase_words, random_fill};
+use jelly_core::{KeyError, PhraseLength, phrase_words, random_fill};
 use jelly_keypair::Seed;
 use sha2::Sha512;
 use unicode_normalization::UnicodeNormalization as _;
@@ -20,10 +21,10 @@ const SEED_SALT_PREFIX: &str = "mnemonic";
 pub struct Mnemonic(bip39::Mnemonic);
 
 impl Mnemonic {
-    pub fn generate(words: PhraseWords) -> Result<Self, KeyError> {
-        let entropy_bytes = match words {
-            PhraseWords::Twelve => 16,
-            PhraseWords::TwentyFour => 32,
+    pub fn generate(length: PhraseLength) -> Result<Self, KeyError> {
+        let entropy_bytes = match length {
+            PhraseLength::Twelve => 16,
+            PhraseLength::TwentyFour => 32,
         };
         let mut entropy = Zeroizing::new(vec![0u8; entropy_bytes]);
         random_fill(&mut entropy)?;
@@ -63,12 +64,7 @@ impl Mnemonic {
     /// a wrong one produces a different wallet rather than an error.
     pub fn to_seed(&self, passphrase: &str) -> Seed {
         let phrase = self.phrase();
-        let passphrase_bytes: usize = passphrase.nfkd().map(char::len_utf8).sum();
-        let mut salt = Zeroizing::new(String::with_capacity(
-            SEED_SALT_PREFIX.len().saturating_add(passphrase_bytes),
-        ));
-        salt.push_str(SEED_SALT_PREFIX);
-        salt.extend(passphrase.nfkd());
+        let salt = collect_exact(|| SEED_SALT_PREFIX.chars().chain(passphrase.nfkd()));
         let mut seed = Box::new([0u8; Seed::LEN]);
         pbkdf2::pbkdf2_hmac::<Sha512>(
             phrase.as_bytes(),
@@ -108,22 +104,22 @@ fn normalize_phrase(phrase: &str) -> Zeroizing<String> {
     join_words(|| phrase_words(phrase).map(|word| word.chars().flat_map(char::to_lowercase).nfkd()))
 }
 
-/// Joins the words with single spaces into a buffer sized up front, so it never
-/// reallocates and leaves an unwiped copy behind.
 fn join_words<W>(words: impl Fn() -> W) -> Zeroizing<String>
 where
     W: Iterator<Item: Iterator<Item = char>>,
 {
-    let separators = words().count().saturating_sub(1);
-    let word_bytes: usize = words().flatten().map(char::len_utf8).sum();
-    let mut joined = Zeroizing::new(String::with_capacity(word_bytes.saturating_add(separators)));
-    for (i, word) in words().enumerate() {
-        if i > 0 {
-            joined.push(' ');
-        }
-        joined.extend(word);
-    }
-    joined
+    collect_exact(|| words().flat_map(|word| iter::once(' ').chain(word)).skip(1))
+}
+
+/// Collects `chars`, which must yield the same text on every call, into a buffer sized up
+/// front, so it never reallocates and leaves an unwiped copy behind.
+fn collect_exact<C>(chars: impl Fn() -> C) -> Zeroizing<String>
+where
+    C: Iterator<Item = char>,
+{
+    let mut collected = Zeroizing::new(String::with_capacity(chars().map(char::len_utf8).sum()));
+    collected.extend(chars());
+    collected
 }
 
 #[cfg(test)]
@@ -146,6 +142,21 @@ mod tests {
                 .collect();
             let whole: String = lowered.join(" ").nfkd().collect();
             assert_eq!(normalize_phrase(phrase).as_str(), whole, "{phrase:?}");
+        }
+    }
+
+    #[test]
+    fn a_joined_phrase_is_built_in_a_buffer_of_its_exact_size() {
+        for joined in [
+            Mnemonic::parse(TEST_PHRASE).expect("the phrase parses").phrase(),
+            normalize_phrase("  \u{0130}stanbul\tCAF\u{00c9}\u{3000}\u{fb01}le \u{fdfa}"),
+        ] {
+            assert_eq!(
+                joined.capacity(),
+                String::with_capacity(joined.len()).capacity(),
+                "{:?}",
+                joined.as_str()
+            );
         }
     }
 

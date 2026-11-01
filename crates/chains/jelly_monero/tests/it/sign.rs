@@ -4,10 +4,10 @@ use jelly_core::{
     Amount, ChainAdapter as _, ChainError, ErrorCode, KeyKind, TxPayload, UnsignedTx,
     test_util::{key_material, key_material_of},
 };
-use jelly_monero::{MoneroConfig, MoneroKeys};
+use jelly_monero::{MoneroConfig, MoneroKeys, test_util::key_images};
 use monero_wallet::transaction::{Input, Transaction};
 
-use crate::common::{Harness, PRIMARY_ID, bytes32, config, images_in, watched};
+use crate::common::{Harness, PRIMARY_ID, bytes32, config, watched};
 
 #[tokio::test]
 async fn a_signed_transaction_is_the_transaction_that_was_previewed() {
@@ -45,7 +45,7 @@ async fn this_builds_key_image_derivation_agrees_with_upstreams_signing_path() {
     let unsigned = harness.adapter.build_tx(&harness.request(None)).await.unwrap();
     let signed = harness.adapter.sign_tx(&unsigned, &[harness.spend_key()]).unwrap();
 
-    let mut from_transaction = images_in(&signed).unwrap();
+    let mut from_transaction = key_images(&signed).unwrap();
     from_transaction.sort_unstable();
     assert_eq!(from_transaction.len(), 2, "a sweep spends every unlocked output");
 

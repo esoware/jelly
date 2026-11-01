@@ -6,11 +6,11 @@ import type {
   CreatedWallet,
   LockState,
   PassphraseInput,
-  PhraseWords,
+  PhraseLength,
   WalletColor,
   WalletRecord,
 } from "@/ipc/bindings.gen.ts"
-import { fireAndForget, unwrap } from "@/ipc/client.ts"
+import { attempt, unwrap } from "@/ipc/client.ts"
 
 export const walletKeys = {
   root: ["wallets"] as const,
@@ -53,7 +53,7 @@ export const walletCommands = {
     name: string,
     color: WalletColor,
     password: string,
-    words: PhraseWords,
+    words: PhraseLength,
     passphrase: PassphraseInput,
   ): Promise<CreatedWallet> =>
     unwrap(commands.createSeedWallet(name, color, password, words, passphrase)),
@@ -81,7 +81,7 @@ export const walletCommands = {
     unwrap(commands.deleteWallet(walletId, password, confirmation)),
 
   touch: (): void => {
-    fireAndForget(commands.touchSession())
+    attempt("Session touch", () => unwrap(commands.touchSession()))
   },
 }
 

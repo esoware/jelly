@@ -5,10 +5,11 @@ use jelly_core::{
     TxRecord,
 };
 use jelly_store::{
-    ChainStatePatch, Store, StoreError, SyncBatch, TxFilter, TxGroup, TxGroupFilter, TxRow, TxWrite,
+    ChainStatePatch, Store, StoreError, SyncBatch, TX_PAGE_SIZE, TxFilter, TxGroup, TxGroupFilter,
+    TxRow, TxWrite,
 };
 
-use crate::common::{self, record};
+use crate::common::{self, Fallible, record};
 
 async fn write(store: &Store, txs: Vec<TxRecord>) -> Result<Vec<TxWrite>, StoreError> {
     store.apply_sync_batch(SyncBatch { txs, ..SyncBatch::default() }).await
@@ -16,6 +17,10 @@ async fn write(store: &Store, txs: Vec<TxRecord>) -> Result<Vec<TxWrite>, StoreE
 
 fn txids(rows: &[TxRow]) -> Vec<String> {
     rows.iter().map(|row| row.txid.clone()).collect()
+}
+
+fn page_size() -> Fallible<usize> {
+    Ok(usize::try_from(TX_PAGE_SIZE)?)
 }
 
 #[tokio::test]
@@ -539,28 +544,29 @@ async fn pages_walk_newest_first() {
     let address =
         common::address(&harness.store, wallet.id, ChainId::Bitcoin, "bc1qpages").await.unwrap();
 
+    let total = i64::from(TX_PAGE_SIZE) + 2;
     let mut rows = Vec::new();
-    for n in 0..6i64 {
+    for n in 0..total {
         rows.push(record(address.id, &format!("mined-{n}"), Some(1_700_000_000 + n)));
     }
     write(&harness.store, rows).await.unwrap();
+    let newest_first: Vec<String> = (0..total).rev().map(|n| format!("mined-{n}")).collect();
 
-    let page =
-        harness.store.list_txs(TxFilter { limit: 2, ..TxFilter::new(wallet.id) }).await.unwrap();
-    assert_eq!(txids(&page.rows), vec!["mined-5", "mined-4"]);
+    let page = harness.store.list_txs(TxFilter::new(wallet.id)).await.unwrap();
+    assert_eq!(txids(&page.rows), newest_first[..page_size().unwrap()]);
 
     let mut seen = txids(&page.rows);
     let mut next = page.next_cursor;
     while let Some(position) = next {
         let page = harness
             .store
-            .list_txs(TxFilter { limit: 2, cursor: Some(position), ..TxFilter::new(wallet.id) })
+            .list_txs(TxFilter { cursor: Some(position), ..TxFilter::new(wallet.id) })
             .await
             .unwrap();
         seen.extend(txids(&page.rows));
         next = page.next_cursor;
     }
-    assert_eq!(seen, vec!["mined-5", "mined-4", "mined-3", "mined-2", "mined-1", "mined-0"]);
+    assert_eq!(seen, newest_first);
 }
 
 #[tokio::test]
@@ -569,19 +575,14 @@ async fn the_last_page_reports_no_next_position() {
     let wallet = common::wallet(&harness.store, "exact").await.unwrap();
     let address =
         common::address(&harness.store, wallet.id, ChainId::Bitcoin, "bc1qexact").await.unwrap();
-    write(
-        &harness.store,
-        vec![
-            record(address.id, "one", Some(1_700_000_000)),
-            record(address.id, "two", Some(1_700_000_001)),
-        ],
-    )
-    .await
-    .unwrap();
+    let mut rows = Vec::new();
+    for n in 0..i64::from(TX_PAGE_SIZE) {
+        rows.push(record(address.id, &format!("row-{n}"), Some(1_700_000_000 + n)));
+    }
+    write(&harness.store, rows).await.unwrap();
 
-    let page =
-        harness.store.list_txs(TxFilter { limit: 2, ..TxFilter::new(wallet.id) }).await.unwrap();
-    assert_eq!(page.rows.len(), 2);
+    let page = harness.store.list_txs(TxFilter::new(wallet.id)).await.unwrap();
+    assert_eq!(page.rows.len(), page_size().unwrap());
     assert_eq!(page.next_cursor, None, "a full page that ends the set has no next position");
 }
 
@@ -592,22 +593,23 @@ async fn a_row_inserted_between_pages_is_neither_skipped_nor_repeated() {
     let address =
         common::address(&harness.store, wallet.id, ChainId::Bitcoin, "bc1qstable").await.unwrap();
 
+    let total = i64::from(TX_PAGE_SIZE) + 2;
     let mut rows = Vec::new();
-    for n in 0..4i64 {
+    for n in 0..total {
         rows.push(record(address.id, &format!("old-{n}"), Some(1_700_000_000 + n)));
     }
     write(&harness.store, rows).await.unwrap();
+    let newest_first: Vec<String> = (0..total).rev().map(|n| format!("old-{n}")).collect();
 
-    let first =
-        harness.store.list_txs(TxFilter { limit: 2, ..TxFilter::new(wallet.id) }).await.unwrap();
-    assert_eq!(txids(&first.rows), vec!["old-3", "old-2"]);
+    let first = harness.store.list_txs(TxFilter::new(wallet.id)).await.unwrap();
+    assert_eq!(txids(&first.rows), newest_first[..page_size().unwrap()]);
     let cursor = first.next_cursor.expect("there is more");
 
     write(&harness.store, vec![record(address.id, "fresh", Some(1_700_000_900))]).await.unwrap();
 
     let second = harness
         .store
-        .list_txs(TxFilter { limit: 10, cursor: Some(cursor), ..TxFilter::new(wallet.id) })
+        .list_txs(TxFilter { cursor: Some(cursor), ..TxFilter::new(wallet.id) })
         .await
         .unwrap();
     assert_eq!(txids(&second.rows), vec!["old-1", "old-0"]);
@@ -621,10 +623,8 @@ async fn rows_that_share_a_timestamp_still_page_apart() {
     let address =
         common::address(&harness.store, wallet.id, ChainId::Bitcoin, "bc1qties").await.unwrap();
 
-    let mut rows = Vec::new();
-    for n in 0..4i64 {
-        rows.push(record(address.id, &format!("tied-{n}"), Some(1_700_000_000)));
-    }
+    let mut tied: Vec<String> = (0..TX_PAGE_SIZE + 2).map(|n| format!("tied-{n}")).collect();
+    let rows = tied.iter().map(|txid| record(address.id, txid, Some(1_700_000_000))).collect();
     write(&harness.store, rows).await.unwrap();
 
     let mut seen = Vec::new();
@@ -632,7 +632,7 @@ async fn rows_that_share_a_timestamp_still_page_apart() {
     loop {
         let page = harness
             .store
-            .list_txs(TxFilter { limit: 1, cursor: next, ..TxFilter::new(wallet.id) })
+            .list_txs(TxFilter { cursor: next, ..TxFilter::new(wallet.id) })
             .await
             .unwrap();
         seen.extend(txids(&page.rows));
@@ -642,32 +642,8 @@ async fn rows_that_share_a_timestamp_still_page_apart() {
         }
     }
     seen.sort_unstable();
-    assert_eq!(seen, vec!["tied-0", "tied-1", "tied-2", "tied-3"]);
-}
-
-#[tokio::test]
-async fn a_limit_outside_the_allowed_range_is_clamped() {
-    let harness = common::harness().await.unwrap();
-    let wallet = common::wallet(&harness.store, "limits").await.unwrap();
-    let address =
-        common::address(&harness.store, wallet.id, ChainId::Bitcoin, "bc1qlimits").await.unwrap();
-    let mut rows = Vec::new();
-    for n in 0..=i64::from(TxFilter::MAX_LIMIT) {
-        rows.push(record(address.id, &format!("row-{n}"), Some(1_700_000_000 + n)));
-    }
-    write(&harness.store, rows).await.unwrap();
-
-    let zero_limit =
-        harness.store.list_txs(TxFilter { limit: 0, ..TxFilter::new(wallet.id) }).await.unwrap();
-    assert_eq!(zero_limit.rows.len(), 1, "a zero limit still returns a page");
-
-    let huge = harness
-        .store
-        .list_txs(TxFilter { limit: u32::MAX, ..TxFilter::new(wallet.id) })
-        .await
-        .unwrap();
-    assert_eq!(huge.rows.len(), usize::try_from(TxFilter::MAX_LIMIT).unwrap());
-    assert!(huge.next_cursor.is_some(), "the row past the cap is left for the next page");
+    tied.sort_unstable();
+    assert_eq!(seen, tied);
 }
 
 /// One of the wallet's Bitcoin rows of `txid` for `address_id`, mined when `timestamp`
@@ -697,17 +673,9 @@ fn share(
     }
 }
 
-/// Every transaction of the wallet, a page of the default size from the newest.
+/// Every transaction of the wallet, a page from the newest.
 const fn group_filter(wallet_id: i64) -> TxGroupFilter {
-    TxGroupFilter {
-        wallet_id,
-        chain: None,
-        asset: None,
-        txid: None,
-        direction: None,
-        cursor: None,
-        limit: TxFilter::DEFAULT_LIMIT,
-    }
+    TxGroupFilter { wallet_id, chain: None, asset: None, txid: None, direction: None, cursor: None }
 }
 
 fn summary(group: &TxGroup) -> (String, TxDirection, Vec<i64>) {
@@ -800,9 +768,12 @@ async fn a_group_pages_by_its_first_row_and_keeps_its_mined_position() {
     .await
     .unwrap();
     harness.clock.advance(Duration::from_secs(60));
-    write(&harness.store, vec![share(first.id, "late", TxDirection::Incoming, 1, Some("x"), None)])
-        .await
-        .unwrap();
+    let mut newer = vec![share(first.id, "late", TxDirection::Incoming, 1, Some("x"), None)];
+    for n in 1..TX_PAGE_SIZE {
+        let txid = format!("newer-{n}");
+        newer.push(share(first.id, &txid, TxDirection::Incoming, 1, Some("x"), None));
+    }
+    write(&harness.store, newer).await.unwrap();
     harness.clock.advance(Duration::from_secs(60));
     write(
         &harness.store,
@@ -812,15 +783,14 @@ async fn a_group_pages_by_its_first_row_and_keeps_its_mined_position() {
     .unwrap();
 
     let filter = group_filter(wallet.id);
-    let page = harness.store.list_tx_groups(filter.clone()).await.unwrap();
-    let order: Vec<String> = page.groups.iter().map(|group| summary(group).0).collect();
-    assert_eq!(order, ["late", "early"], "the early transaction keeps its place");
-
-    let one = TxGroupFilter { limit: 1, ..filter.clone() };
-    let first_page = harness.store.list_tx_groups(one.clone()).await.unwrap();
+    let first_page = harness.store.list_tx_groups(filter.clone()).await.unwrap();
+    let order: Vec<String> = first_page.groups.iter().map(|group| summary(group).0).collect();
+    assert_eq!(order.len(), page_size().unwrap());
+    assert!(order.iter().any(|txid| txid == "late"));
+    assert!(!order.iter().any(|txid| txid == "early"), "the early transaction keeps its place");
     let rest = harness
         .store
-        .list_tx_groups(TxGroupFilter { cursor: first_page.next_cursor, ..one })
+        .list_tx_groups(TxGroupFilter { cursor: first_page.next_cursor, ..filter.clone() })
         .await
         .unwrap();
     assert_eq!(rest.groups.iter().map(|group| summary(group).0).collect::<Vec<_>>(), ["early"]);
@@ -832,9 +802,10 @@ async fn a_group_pages_by_its_first_row_and_keeps_its_mined_position() {
     )
     .await
     .unwrap();
-    let page = harness.store.list_tx_groups(filter).await.unwrap();
-    assert_eq!(page.groups.len(), 2);
-    let early = page.groups.iter().find(|group| summary(group).0 == "early").unwrap();
+    let only_early = TxGroupFilter { txid: Some(String::from("early")), ..filter };
+    let page = harness.store.list_tx_groups(only_early).await.unwrap();
+    assert_eq!(page.groups.len(), 1);
+    let early = page.groups.first().unwrap();
     assert!(early.members.iter().any(|member| member.row.height == Some(800_000)));
 }
 
@@ -848,7 +819,7 @@ async fn a_list_naming_no_chain_pages_past_a_chain_the_wallet_switched_off() {
     let off =
         common::address(&harness.store, wallet.id, ChainId::Litecoin, "ltc1qoff").await.unwrap();
     let mut txs = vec![record(kept.id, "kept", Some(1_700_000_000))];
-    for n in 1..=3 {
+    for n in 1..=i64::from(TX_PAGE_SIZE) + 1 {
         let txid = format!("off-{n}");
         txs.push(
             TxRecord::builder(
@@ -866,20 +837,19 @@ async fn a_list_naming_no_chain_pages_past_a_chain_the_wallet_switched_off() {
     let switched_off = ChainStatePatch { enabled: Some(false), ..ChainStatePatch::default() };
     harness.store.set_chain_state(wallet.id, ChainId::Litecoin, switched_off).await.unwrap();
 
-    let limit = 2;
-    let groups = harness
-        .store
-        .list_tx_groups(TxGroupFilter { limit, ..group_filter(wallet.id) })
-        .await
-        .unwrap();
+    let groups = harness.store.list_tx_groups(group_filter(wallet.id)).await.unwrap();
     assert_eq!(groups.groups.iter().map(|group| summary(group).0).collect::<Vec<_>>(), ["kept"]);
     assert_eq!(groups.next_cursor, None);
-    let rows =
-        harness.store.list_txs(TxFilter { limit, ..TxFilter::new(wallet.id) }).await.unwrap();
+    let rows = harness.store.list_txs(TxFilter::new(wallet.id)).await.unwrap();
     assert_eq!(txids(&rows.rows), ["kept"]);
     assert_eq!(rows.next_cursor, None);
 
     let named = TxGroupFilter { chain: Some(ChainId::Litecoin), ..group_filter(wallet.id) };
     let named = harness.store.list_tx_groups(named).await.unwrap();
-    assert_eq!(named.groups.len(), 3, "a list that names the chain still reads it");
+    assert_eq!(
+        named.groups.len(),
+        page_size().unwrap(),
+        "a list that names the chain still reads it"
+    );
+    assert!(named.next_cursor.is_some());
 }

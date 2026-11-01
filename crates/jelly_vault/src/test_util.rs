@@ -252,7 +252,7 @@ impl Forge {
     /// Fails if the mutation left the header unparsable.
     pub fn restamp(&mut self, master: &MasterKey) -> Result<(), VaultError> {
         let mut file = VaultFile::deserialize(&self.json).map_err(VaultError::Malformed)?;
-        let key = header_mac_key(master, &file.hkdf.salt, &file.wallet_id)?;
+        let key = header_mac_key(master, &file.derivation().hkdf_salt, &file.wallet_id)?;
         file.stamp(key.expose_secret())?;
         self.json =
             serde_json::to_value(&file).map_err(|_| VaultError::internal("forge encoding"))?;

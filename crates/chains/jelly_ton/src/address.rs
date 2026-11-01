@@ -17,13 +17,13 @@ impl AddressCodec for TonCodec {
     /// A raw address keeps its raw spelling, because it carries no bounce flag and the
     /// recipient's state decides one at send time.
     fn validate(&self, value: &str) -> Result<Address, AddressError> {
-        let destination = ton_destination(value)?;
+        let destination = TonDestination::parse(value)?;
         Ok(Address::assume_canonical(CHAIN, destination.spelling()))
     }
 }
 
 /// Where a TON address or `ton://transfer/` request pays.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct TonDestination {
     pub(crate) address: TonAddress,
     /// The flag a user-friendly address carries, or `None` for a raw `0:...` address.
@@ -32,24 +32,17 @@ pub(crate) struct TonDestination {
 }
 
 impl TonDestination {
-    pub(crate) fn spelling(&self) -> String {
-        match self.is_bounceable {
-            Some(is_bounceable) => self.address.to_base64_url_flags(!is_bounceable, false),
-            None => self.address.to_hex(),
+    pub(crate) fn parse(value: &str) -> Result<Self, AddressError> {
+        let invalid = AddressError::Invalid { chain: CHAIN };
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return Err(AddressError::Empty { chain: CHAIN });
         }
-    }
-}
-
-pub(crate) fn ton_destination(value: &str) -> Result<TonDestination, AddressError> {
-    let invalid = AddressError::Invalid { chain: CHAIN };
-    let unsupported = AddressError::UnsupportedRequest { chain: CHAIN };
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return Err(AddressError::Empty { chain: CHAIN });
-    }
-    let mut comment = None;
-    let target = if let Some(rest) = trimmed.strip_prefix("ton://transfer/") {
-        let (target, query) = rest.split_once('?').unwrap_or((rest, ""));
+        let (target, query) = match trimmed.strip_prefix("ton://transfer/") {
+            Some(rest) => rest.split_once('?').unwrap_or((rest, "")),
+            None => (trimmed, ""),
+        };
+        let mut comment = None;
         for (key, value) in form_urlencoded::parse(query.as_bytes()) {
             match key.as_ref() {
                 "text" if comment.is_none() && value.len() <= MAX_COMMENT_BYTES => {
@@ -57,31 +50,36 @@ pub(crate) fn ton_destination(value: &str) -> Result<TonDestination, AddressErro
                 }
                 "amount"
                     if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) => {}
-                _ => return Err(unsupported),
+                _ => return Err(AddressError::UnsupportedRequest { chain: CHAIN }),
             }
         }
-        target
-    } else {
-        trimmed
-    };
-    let (address, is_bounceable) = if let Some((workchain, _)) = target.split_once(':') {
-        if !matches!(workchain, "0" | "-1") {
+        let (address, is_bounceable) = if let Some((workchain, _)) = target.split_once(':') {
+            if !matches!(workchain, "0" | "-1") {
+                return Err(AddressError::WrongNetwork { chain: CHAIN });
+            }
+            (TonAddress::from_hex_str(target).map_err(|_| invalid)?, None)
+        } else {
+            let (address, is_non_bounceable, is_testnet) =
+                TonAddress::from_base64_url_flags(target)
+                    .or_else(|_| TonAddress::from_base64_std_flags(target))
+                    .map_err(|_| invalid)?;
+            if is_testnet {
+                return Err(AddressError::WrongNetwork { chain: CHAIN });
+            }
+            (address, Some(!is_non_bounceable))
+        };
+        if !matches!(address.workchain, 0 | -1) {
             return Err(AddressError::WrongNetwork { chain: CHAIN });
         }
-        (TonAddress::from_hex_str(target).map_err(|_| invalid)?, None)
-    } else {
-        let (address, is_non_bounceable, is_testnet) = TonAddress::from_base64_url_flags(target)
-            .or_else(|_| TonAddress::from_base64_std_flags(target))
-            .map_err(|_| invalid)?;
-        if is_testnet {
-            return Err(AddressError::WrongNetwork { chain: CHAIN });
-        }
-        (address, Some(!is_non_bounceable))
-    };
-    if !matches!(address.workchain, 0 | -1) {
-        return Err(AddressError::WrongNetwork { chain: CHAIN });
+        Ok(Self { address, is_bounceable, comment })
     }
-    Ok(TonDestination { address, is_bounceable, comment })
+
+    pub(crate) fn spelling(&self) -> String {
+        match self.is_bounceable {
+            Some(is_bounceable) => self.address.to_base64_url_flags(!is_bounceable, false),
+            None => self.address.to_hex(),
+        }
+    }
 }
 
 /// The user-friendly mainnet spelling of `address`, flagged non-bounceable.
@@ -100,7 +98,7 @@ mod tests {
         for is_non_bounceable in [false, true] {
             let friendly = address.to_base64_url_flags(is_non_bounceable, false);
             assert_eq!(
-                ton_destination(&friendly).unwrap(),
+                TonDestination::parse(&friendly).unwrap(),
                 TonDestination {
                     address: address.clone(),
                     is_bounceable: Some(!is_non_bounceable),
@@ -108,11 +106,11 @@ mod tests {
                 }
             );
             assert_eq!(
-                ton_destination(&address.to_base64_url_flags(is_non_bounceable, true)),
+                TonDestination::parse(&address.to_base64_url_flags(is_non_bounceable, true)),
                 Err(AddressError::WrongNetwork { chain: CHAIN })
             );
         }
-        let raw = ton_destination(&address.to_hex()).unwrap();
+        let raw = TonDestination::parse(&address.to_hex()).unwrap();
         assert_eq!((raw.address.clone(), raw.is_bounceable), (address.clone(), None));
         assert_eq!(raw.spelling(), address.to_hex());
         assert_eq!(CODEC.validate(&address.to_hex()).unwrap().value(), address.to_hex());
@@ -122,10 +120,10 @@ mod tests {
     fn a_payment_request_keeps_its_comment_and_refuses_fields_it_cannot_honor() {
         let address = wallet_address(&[1; 32], Version::V5r1).unwrap();
         let request = format!("ton://transfer/{address}?amount=123&text=order%207");
-        assert_eq!(ton_destination(&request).unwrap().comment.as_deref(), Some("order 7"));
+        assert_eq!(TonDestination::parse(&request).unwrap().comment.as_deref(), Some("order 7"));
         for query in ["bin=AAAA", "init=AAAA", "text=one&text=two", "amount=-1"] {
             assert_eq!(
-                ton_destination(&format!("ton://transfer/{address}?{query}")),
+                TonDestination::parse(&format!("ton://transfer/{address}?{query}")),
                 Err(AddressError::UnsupportedRequest { chain: CHAIN }),
                 "{query}"
             );

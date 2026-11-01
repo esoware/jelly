@@ -1,4 +1,4 @@
-use jelly_core::{ChainId, CoreError, PhraseWords, ScriptKind, WalletColor};
+use jelly_core::{ChainId, CoreError, PhraseLength, ScriptKind, WalletColor};
 use jelly_engine::PassphraseInput;
 
 use crate::common::{OTHER_PASSWORD, PASSWORD, harness, prompt, secret, stored};
@@ -59,7 +59,7 @@ async fn a_stored_passphrase_exports_unchanged_after_reopening_and_password_rota
             "stored",
             WalletColor::default(),
             secret(PASSWORD),
-            PhraseWords::Twelve,
+            PhraseLength::Twelve,
             stored(PASSPHRASE),
         )
         .await
@@ -89,7 +89,7 @@ async fn a_passphrase_that_is_not_stored_cannot_be_exported() {
                 name,
                 WalletColor::default(),
                 secret(PASSWORD),
-                PhraseWords::Twelve,
+                PhraseLength::Twelve,
                 passphrase,
             )
             .await

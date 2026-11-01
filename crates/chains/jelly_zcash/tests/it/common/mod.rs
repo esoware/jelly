@@ -4,8 +4,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use jelly_core::{
     Amount, AssetId, ChainAdapter as _, ChainError, ChainId, Clock as _, CursorScope, CursorStore,
-    FeeSelection, KeyMaterial, ReservationSlot, SendAmount, TxRequest, WatchedAddress,
-    test_util::{FakeClock, MemoryCursorStore, WatchedAddressBuilder},
+    KeyMaterial, ReservationSlot, TxRequest, WatchedAddress,
+    test_util::{FakeClock, MemoryCursorStore, TxRequestBuilder, WatchedAddressBuilder},
 };
 use jelly_keypair::Secp256k1Key;
 use jelly_zcash::{ENTRY, Route, ZcashAdapter, ZcashError, ZcashNode};
@@ -261,16 +261,6 @@ pub(crate) fn watched() -> WatchedAddress {
 }
 
 pub(crate) fn request() -> TxRequest {
-    TxRequest {
-        from_address_ids: vec![1],
-        to: RECIPIENT.to_owned(),
-        destination_tag: None,
-        comment: None,
-        should_delete_account: false,
-        asset: AssetId::Native(CHAIN),
-        amount: SendAmount::Exact { value: Amount::from_base_units(500_000) },
-        fee: FeeSelection::NORMAL,
-        nonce: None,
-        data: None,
-    }
+    TxRequestBuilder::new(1, RECIPIENT, AssetId::Native(CHAIN), Amount::from_base_units(500_000))
+        .build()
 }

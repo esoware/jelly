@@ -8,14 +8,14 @@ use jelly_core::{
     ChainId, Clock, FailureKind, PinStore, ProxySetting, Transport,
     test_util::{FakeClock, MemoryPinStore},
 };
-use jelly_net::{Dialer, Endpoint, HttpClient, HttpRequest, NetError};
+use jelly_net::{Dialer, Endpoint, HttpClient, HttpRequest, NetError, test_util::read_head};
 use parking_lot::Mutex;
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, timeout};
 
-use crate::common::{endpoint, loopback_server, read_head};
+use crate::common::{endpoint, loopback_server};
 
 const TARGET_HOST: &str = "node.example";
 const TARGET_PORT: u16 = 50002;

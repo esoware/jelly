@@ -26,11 +26,9 @@ impl Ed25519Key {
             return Err(KeyError::InvalidSecretKey);
         }
         material.with_bytes(|bytes| {
-            let seed = Zeroizing::new(
-                <[u8; 32]>::try_from(bytes)
-                    .map_err(|_| KeyError::InvalidKeyLength { got: bytes.len() })?,
-            );
-            Ok(Self::from_seed_bytes(&seed))
+            let seed = <&[u8; 32]>::try_from(bytes)
+                .map_err(|_| KeyError::InvalidKeyLength { got: bytes.len() })?;
+            Ok(Self::from_seed_bytes(seed))
         })
     }
 

@@ -8,7 +8,7 @@ use jelly_core::SystemClock;
 use jelly_engine::test_util;
 use jelly_lib::{ShellConfig, ShellDeps};
 use jelly_prices::PriceFeedConfig;
-use jelly_vault::test_util::{FailingKeyStore, MemoryKeyStore};
+use jelly_vault::test_util::MemoryKeyStore;
 use secrecy::SecretString;
 use serde_json::Value;
 
@@ -44,13 +44,5 @@ pub(crate) fn deps(data_dir: &Path) -> ShellDeps {
         data_dir: data_dir.to_path_buf(),
         clock: Arc::new(SystemClock),
         keystore: Arc::new(MemoryKeyStore::new()),
-    }
-}
-
-pub(crate) fn deps_without_keychain(data_dir: &Path) -> ShellDeps {
-    ShellDeps {
-        data_dir: data_dir.to_path_buf(),
-        clock: Arc::new(SystemClock),
-        keystore: Arc::new(FailingKeyStore),
     }
 }

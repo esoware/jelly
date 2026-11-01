@@ -41,7 +41,7 @@ impl Bip32Node {
 
     pub(crate) fn to_secp256k1_key(&self) -> Result<Secp256k1Key, KeyError> {
         let secret = Zeroizing::new(self.inner.private_key.secret_bytes());
-        Secp256k1Key::from_secret_bytes(secret.as_ref())
+        Secp256k1Key::from_secret_bytes(&secret)
     }
 
     /// Base58 `xpub`, for watch-only export.

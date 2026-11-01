@@ -63,15 +63,16 @@ fn secret_session(inner: &Inner, wallet_id: i64) -> Result<Arc<Session>, CoreErr
     if session.wallet_id() == wallet_id { Ok(session) } else { Err(CoreError::Locked) }
 }
 
-/// Every stored entry inside `scopes` whose label is one of `wanted`.
+/// Every stored entry inside `scopes` whose label is the `label` of one of `wanted`.
 ///
-/// `wanted` pairs each label with the caller's own value, so a match returns that value
-/// and nothing has to parse a label back into the enum it came from.
+/// A match returns the caller's own value, so nothing has to parse a label back into the
+/// enum it came from.
 pub(crate) fn read_secrets<T: Copy>(
     inner: &Inner,
     wallet_id: i64,
     scopes: &[CursorScope],
-    wanted: &[(&'static str, T)],
+    wanted: &[T],
+    label: fn(T) -> &'static str,
 ) -> Result<Vec<(CursorScope, T, CursorBytes)>, CoreError> {
     let session = secret_session(inner, wallet_id)?;
     session.vault_read(|vault| {
@@ -83,7 +84,7 @@ pub(crate) fn read_secrets<T: Copy>(
                 if !scopes.contains(&frame.scope) {
                     return None;
                 }
-                let &(_, value) = wanted.iter().find(|&&(label, _)| label == frame.label)?;
+                let &value = wanted.iter().find(|&&value| label(value) == frame.label)?;
                 Some((frame.scope, value, CursorBytes::copied(frame.payload)))
             }) {
                 found.push(entry);
@@ -121,9 +122,9 @@ pub(crate) async fn write_secret(
 /// Every frame must decode and route to its own `(scope, label)` before any secret state
 /// is read or replaced.
 fn check_frames(vault: &UnlockedVault) -> Result<(), VaultError> {
-    let mut scopes = BTreeSet::new();
+    let mut routes = BTreeSet::new();
     for (_, blob) in vault.entries_of_kind(BlobKind::MoneroScanState) {
-        let scope = blob.with_bytes(|bytes| {
+        let route = blob.with_bytes(|bytes| {
             let frame = decode(bytes)
                 .ok_or(VaultError::Corrupt { reason: "a secret state frame is unreadable" })?;
             let is_routed = ScanStream::parse(frame.label).is_some_and(is_secret_scan)
@@ -135,7 +136,7 @@ fn check_frames(vault: &UnlockedVault) -> Result<(), VaultError> {
             }
             Ok((frame.scope, frame.label.to_owned()))
         })?;
-        if !scopes.insert(scope) {
+        if !routes.insert(route) {
             return Err(VaultError::Corrupt { reason: "secret state frames share a route" });
         }
     }

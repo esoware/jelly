@@ -6,29 +6,26 @@ use std::sync::Arc;
 use jelly_core::{
     Amount, AssetId, ChainError, ChainId, CoreError, DerivationPath, EndpointAttempt,
     EndpointHealth, EndpointHealthRecord, EndpointLabel, ErrorCode, FailureKind, FeeSelection,
-    PendingTxId, PhraseWords, Rejection, RejectionKind, RetryPolicy, SkipReason, SystemClock, TxId,
-    WalletColor,
+    PendingTxId, PhraseLength, Rejection, RejectionKind, RetryPolicy, SkipReason, SystemClock,
+    TxId, WalletColor,
 };
-use jelly_engine::{
-    EngineDeps, PassphraseInput, StartupError, TxQuery, WalletEngine, test_util::NullAdapterBuilder,
-};
+use jelly_engine::{EngineDeps, PassphraseInput, StartupError, TxQuery, WalletEngine, test_util};
 use jelly_lib::{IpcError, IpcErrorCode, IpcErrorDetail, ShellErrorCode};
 use jelly_vault::test_util::MemoryKeyStore;
 use tokio::task::spawn_blocking;
 
-use crate::common::{Fallible, PASSWORD, offline_config, secret};
+use crate::common::{Fallible, PASSWORD, secret};
 
 async fn engine_on(directory: &Path) -> Fallible<WalletEngine> {
     let deps = EngineDeps {
         data_dir: directory.to_path_buf(),
         clock: Arc::new(SystemClock),
         keystore: Arc::new(MemoryKeyStore::new()),
-        builder: Arc::new(NullAdapterBuilder),
+        builder: Arc::new(test_util::NullAdapterBuilder),
         table: jelly_chains::chains(),
     };
-    let started = WalletEngine::start(offline_config().engine, deps)
-        .await
-        .map_err(|failure| failure.error)?;
+    let started =
+        WalletEngine::start(test_util::config(), deps).await.map_err(|failure| failure.error)?;
     Ok(started.engine)
 }
 
@@ -71,7 +68,7 @@ async fn every_error_code_has_a_producer() {
             "first",
             WalletColor::default(),
             secret(PASSWORD),
-            PhraseWords::Twelve,
+            PhraseLength::Twelve,
             PassphraseInput::None,
         )
         .await

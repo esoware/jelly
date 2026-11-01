@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use jelly_core::{
     ChainId, Coin, CustomFee, ErrorCode, FailureKind, FeeLevel, FiatCurrency, KeyKind, KeyService,
-    PassphrasePolicy, PhraseWords, RejectionKind, ReservationSlot, RetryPolicy, ScanStream,
+    PassphrasePolicy, PhraseLength, RejectionKind, ReservationSlot, RetryPolicy, ScanStream,
     ScriptKind, SkipReason, TokenId, Transport, TxDetection, TxDirection, TxOutcome, TxWarningKind,
 };
 use serde::{Serialize, de::DeserializeOwned};
@@ -61,7 +61,7 @@ wire_enums![
     ErrorCode,
     KeyKind,
     PassphrasePolicy,
-    PhraseWords,
+    PhraseLength,
     ScanStream,
     ReservationSlot,
     FiatCurrency,
@@ -139,7 +139,7 @@ mod declaration {
 }
 
 mod chains {
-    use super::{ChainId, ScriptKind};
+    use super::ChainId;
 
     /// The table lists every chain in declaration order, so a new chain fails to compile
     /// here until it has a row.
@@ -169,6 +169,10 @@ mod chains {
             assert_eq!(chain.native_decimals(), decimals, "{}", chain.as_str());
         }
     }
+}
+
+mod scripts {
+    use super::ScriptKind;
 
     #[test]
     fn script_kinds_carry_their_bip44_purpose() {

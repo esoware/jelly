@@ -14,6 +14,7 @@ mod cursor;
 mod db;
 mod endpoint;
 mod error;
+mod history;
 mod patch;
 mod pin;
 mod schema;
@@ -28,10 +29,12 @@ pub use crate::batch::SyncBatch;
 pub use crate::contact::{ContactEdit, ContactRow, NewContact};
 pub use crate::db::Recovered;
 pub use crate::error::StoreError;
+pub use crate::history::{
+    PageCursor, TX_PAGE_SIZE, TxFilter, TxGroup, TxGroupFilter, TxGroupPage, TxMember, TxPage,
+    TxRow,
+};
 pub use crate::patch::Patch;
 pub use crate::pin::PinRow;
 pub use crate::store::{Store, Writer};
-pub use crate::tx::{
-    PageCursor, TxFilter, TxGroup, TxGroupFilter, TxGroupPage, TxMember, TxPage, TxRow, TxWrite,
-};
+pub use crate::tx::TxWrite;
 pub use crate::wallet::{ChainStatePatch, ChainStateRow, NewWallet, WalletRow, WalletSettingsRow};

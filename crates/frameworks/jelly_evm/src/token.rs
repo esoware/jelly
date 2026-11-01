@@ -94,8 +94,7 @@ impl TryFrom<TokenId> for TokenMeta {
 mod tests {
     use super::*;
     use crate::abi::MULTICALL3;
-    use crate::fixtures::NETWORKS;
-    use crate::test_util::ETHEREUM;
+    use crate::fixtures::{ETHEREUM, NETWORKS};
 
     #[test]
     fn the_table_resolves_every_network_and_answers_by_address_and_by_id() {
@@ -116,6 +115,17 @@ mod tests {
             }
             assert_eq!(table.contracts().len(), params.tokens.len());
             assert!(table.at(MULTICALL3).is_none());
+        }
+    }
+
+    #[test]
+    fn each_network_carries_every_token_declared_on_its_chain() {
+        for params in NETWORKS {
+            let mut carried = params.tokens.to_vec();
+            carried.sort_unstable();
+            let declared: Vec<TokenId> =
+                TokenId::ALL.into_iter().filter(|token| token.chain() == params.chain).collect();
+            assert_eq!(carried, declared, "{:?}", params.chain);
         }
     }
 

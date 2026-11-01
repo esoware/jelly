@@ -14,9 +14,9 @@ pub(crate) fn expected_address(session: &Session, row: &AddressRow) -> Result<St
     let spec = entry.spec();
     match row.source {
         KeySource::Derived { ref path } => {
-            let path = parse_path(path.as_str())?;
-            let script = spec.resolve_script(purpose_of(&path), row.script_kind)?;
-            let key = session.keychain().key_material_at(spec.key_kind, &path)?;
+            let bip32_path = parse_path(path.as_str())?;
+            let script = spec.resolve_script(purpose_of(&bip32_path), row.script_kind)?;
+            let key = session.seed().key_material_at(spec.key_kind, &bip32_path)?;
             Ok(entry.address(&key, script)?)
         }
         KeySource::Imported { ref vault_entry } => {
@@ -60,9 +60,9 @@ pub(crate) async fn verify_rows(
 pub(crate) fn resolve_key(session: &Session, row: &AddressRow) -> Result<KeyMaterial, CoreError> {
     match row.source {
         KeySource::Derived { ref path } => {
-            let path = parse_path(path.as_str())?;
+            let bip32_path = parse_path(path.as_str())?;
             let kind = session.entry(row.chain).spec().key_kind;
-            Ok(session.keychain().key_material_at(kind, &path)?)
+            Ok(session.seed().key_material_at(kind, &bip32_path)?)
         }
         KeySource::Imported { ref vault_entry } => imported_key(session, vault_entry),
         KeySource::Subaddress { major, minor } => {

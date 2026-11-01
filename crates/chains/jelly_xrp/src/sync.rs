@@ -11,7 +11,6 @@ use crate::state::States;
 use crate::watched::Watched;
 
 const PAGES_PER_PASS: usize = 3;
-const PARTIAL_PROGRESS_PERMILLE: u16 = 500;
 
 pub(crate) async fn run(
     client: &XrpClient,
@@ -55,7 +54,7 @@ pub(crate) async fn run(
             let reached_ledger = page.rows.last().map(ledger_index).transpose()?;
             cursor.mark_read(page.marker, reached_ledger, ledger.seq)?;
             for row in &page.rows {
-                if let Some(record) = record(row, entry.address_id, &entry.address, ledger.seq)? {
+                if let Some(record) = record(row, entry, ledger.seq)? {
                     events.emit(WalletEvent::TxDetected(record)).await;
                 }
             }
@@ -68,9 +67,6 @@ pub(crate) async fn run(
             is_complete = false;
         }
     }
-    let progress_permille =
-        if is_complete { ChainSyncProgress::MAX_PERMILLE } else { PARTIAL_PROGRESS_PERMILLE };
     Ok(ChainSyncProgress::new(CHAIN)
-        .with_progress(progress_permille)
         .with_heights(is_complete.then_some(u64::from(ledger.seq)), Some(u64::from(ledger.seq))))
 }

@@ -1,7 +1,9 @@
 use jelly_core::test_util::{MARKER, assert_rejected_without_leak};
-use jelly_keypair::{Secp256k1Key, Seed, parse_path, test_util::test_keychain, wif_decode};
-
-use crate::common::BIP84_WIF;
+use jelly_keypair::{
+    Secp256k1Key, Seed, parse_path,
+    test_util::{BIP84_WIF, test_seed},
+    wif_decode,
+};
 
 #[test]
 fn a_rejected_private_key_or_seed_never_appears_in_its_error() {
@@ -29,17 +31,8 @@ fn a_seed_redacts_its_debug() {
 }
 
 #[test]
-fn a_keychain_redacts_its_debug() {
-    let keychain = test_keychain();
-    let debug = format!("{keychain:?}");
-    assert!(debug.contains("redacted"));
-    keychain.seed().with_bytes(|bytes| assert!(!debug.contains(&hex::encode(bytes))));
-}
-
-#[test]
 fn a_secp256k1_key_redacts_its_debug() {
-    let key =
-        test_keychain().secp256k1_at(&parse_path("m/44'/60'/0'/0/0").unwrap()).expect("a key");
+    let key = test_seed().secp256k1_at(&parse_path("m/44'/60'/0'/0/0").unwrap()).expect("a key");
     let debug = format!("{key:?}");
     assert!(debug.contains("redacted"));
     key.with_secret_bytes(|bytes| assert!(!debug.contains(&hex::encode(bytes))));
@@ -47,7 +40,7 @@ fn a_secp256k1_key_redacts_its_debug() {
 
 #[test]
 fn an_ed25519_key_redacts_its_debug() {
-    let key = test_keychain().ed25519_at(&parse_path("m/44'/501'/0'/0'").unwrap()).expect("a key");
+    let key = test_seed().ed25519_at(&parse_path("m/44'/501'/0'/0'").unwrap()).expect("a key");
     let debug = format!("{key:?}");
     assert!(debug.contains("redacted"));
     key.with_secret_bytes(|seed| assert!(!debug.contains(&hex::encode(seed))));

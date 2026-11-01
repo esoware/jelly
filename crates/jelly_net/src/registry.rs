@@ -80,7 +80,7 @@ impl EndpointRegistry {
         let spec = self.spec(chain)?;
         let transport = spec.transport_for(input);
         if !spec.transports.contains(&transport) {
-            return Err(NetError::InvalidUrl { reason: UrlRejection::UnusedTransport });
+            return Err(UrlRejection::UnusedTransport.into());
         }
         Endpoint::parse_with(chain, transport, input, plaintext)
     }

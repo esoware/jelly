@@ -15,6 +15,7 @@ use zcash_transparent::{
 use crate::address::script;
 use crate::error::ZcashError;
 use crate::payload::{INVALID_PAYMENT, Utxo};
+use crate::zat::zatoshis;
 
 /// A coin as ZIP 317 sizes it, from the script of the address that holds it.
 #[derive(Debug)]
@@ -74,10 +75,7 @@ pub(crate) fn conventional_fee(
     for coin in inputs {
         spent.push(Spent {
             outpoint: coin.outpoint()?,
-            coin: TxOut::new(
-                Zatoshis::from_u64(coin.value_zat).map_err(|_| ZcashError::Protocol)?,
-                script(&coin.address)?,
-            ),
+            coin: TxOut::new(zatoshis(coin.value_zat)?, script(&coin.address)?),
         });
     }
     let sized: Vec<TxOut> =

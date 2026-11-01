@@ -1,9 +1,13 @@
 import { Toast } from "@base-ui/react/toast"
+import type { ToastManager } from "@base-ui/react/toast"
+import type { ReactNode } from "react"
 
 import { Icon } from "@/ui/icon.tsx"
 import type { IconName } from "@/ui/icon.tsx"
 
-import "@/ui/toaster.css"
+import "@/ui/toast.css"
+
+const TOAST_LIMIT = 3
 
 const GLYPHS = new Map<string | undefined, IconName>([
   ["success", "success"],
@@ -11,7 +15,7 @@ const GLYPHS = new Map<string | undefined, IconName>([
   ["error", "failure"],
 ])
 
-export function Toaster() {
+function ToastViewport() {
   const { toasts, close } = Toast.useToastManager()
   const frontmost = toasts.find(
     (toast) => toast.transitionStatus !== "ending" && toast.limited !== true,
@@ -23,7 +27,7 @@ export function Toaster() {
           <Toast.Root
             key={toast.id}
             toast={toast}
-            className="toaster-toast absolute bottom-0 left-0 z-[calc(1000-var(--toast-index))] h-(--stack-height) w-full origin-bottom rounded-lg overlay-sm bg-clip-padding transition-[transform,opacity,height] duration-base ease-enter after:absolute after:inset-x-0 after:top-full after:h-[calc(var(--stack-gap)+1px)] data-ending-style:opacity-0 data-expanded:h-(--toast-height) data-limited:opacity-0 data-starting-style:opacity-0"
+            className="toast-root absolute bottom-0 left-0 z-[calc(1000-var(--toast-index))] h-(--stack-height) w-full origin-bottom rounded-lg overlay-sm bg-clip-padding transition-[transform,opacity,height] duration-base ease-enter after:absolute after:inset-x-0 after:top-full after:h-[calc(var(--stack-gap)+1px)] data-ending-style:opacity-0 data-expanded:h-(--toast-height) data-limited:opacity-0 data-starting-style:opacity-0"
             onClick={(event) => {
               if (frontmost !== undefined && toast.transitionStatus !== "ending") {
                 close(
@@ -45,5 +49,19 @@ export function Toaster() {
         ))}
       </Toast.Viewport>
     </Toast.Portal>
+  )
+}
+
+interface ToastProviderProps {
+  toastManager: ToastManager
+  children: ReactNode
+}
+
+export function ToastProvider({ toastManager, children }: ToastProviderProps) {
+  return (
+    <Toast.Provider toastManager={toastManager} limit={TOAST_LIMIT}>
+      {children}
+      <ToastViewport />
+    </Toast.Provider>
   )
 }

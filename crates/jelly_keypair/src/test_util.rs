@@ -1,13 +1,15 @@
 use jelly_core::{KeyError, KeyKind, KeyMaterial};
 use zeroize::Zeroizing;
 
-use crate::keychain::HdKeychain;
 use crate::path::parse_path;
 use crate::seed::Seed;
 use crate::wif;
 
 pub const TEST_PHRASE: &str =
     "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+/// BIP-84 publishes the WIF for `m/84'/0'/0'/0/0` of the all-abandon phrase.
+pub const BIP84_WIF: &str = "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d";
 
 /// The BIP-39 seed of the all-abandon phrase with no passphrase, the wallet BIP-84 and
 /// BIP-86 publish keys and addresses for.
@@ -18,26 +20,14 @@ const TEST_SEED: [u8; Seed::LEN] = [
     0x3d, 0xae, 0xa6, 0x69, 0x0f, 0x20, 0xad, 0x3d, 0x8d, 0x48, 0xb2, 0xd2, 0xce, 0x9e, 0x38, 0xe4,
 ];
 
-/// The keychain of the all-abandon phrase with no passphrase.
-pub fn test_keychain() -> HdKeychain {
-    HdKeychain::from_seed(Seed::from_boxed(Box::new(TEST_SEED)))
+/// The seed of the all-abandon phrase with no passphrase.
+pub fn test_seed() -> Seed {
+    Seed::from_boxed(Box::new(TEST_SEED))
 }
 
 /// The secp256k1 key of the all-abandon phrase at `path`.
 pub fn key_at(path: &str) -> Result<KeyMaterial, KeyError> {
-    test_keychain().key_material_at(KeyKind::Secp256k1, &parse_path(path)?)
-}
-
-impl Seed {
-    /// Copies a seed a test vector names, to build a keychain without a phrase.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, KeyError> {
-        if bytes.len() != Self::LEN {
-            return Err(KeyError::InvalidSeedLength { got: bytes.len() });
-        }
-        let mut boxed: Box<[u8; Self::LEN]> = Box::new([0u8; Self::LEN]);
-        boxed.copy_from_slice(bytes);
-        Ok(Self::from_boxed(boxed))
-    }
+    test_seed().key_material_at(KeyKind::Secp256k1, &parse_path(path)?)
 }
 
 /// Base58check over `version || key` without the compression suffix, which a wallet

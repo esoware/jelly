@@ -16,10 +16,10 @@ impl AddressCodec for XrpCodec {
     }
 
     fn validate(&self, value: &str) -> Result<Address, AddressError> {
-        let XrpDestination { account, tag } = xrp_destination(value)?;
+        let XrpDestination { account, tag } = XrpDestination::parse(value)?;
         let canonical = match tag {
             Some(tag) => x_address(&account, tag),
-            None => xrp_address(&account),
+            None => classic_address(&account),
         };
         Ok(Address::assume_canonical(CHAIN, canonical))
     }
@@ -32,11 +32,40 @@ pub(crate) struct XrpDestination {
     pub(crate) tag: Option<u32>,
 }
 
-pub(crate) fn xrp_address(account: &[u8; 20]) -> String {
+impl XrpDestination {
+    /// Parses a classic address, X-address, or payment URI, keeping any tag it carries. A
+    /// URI's tag must agree with the X-address it names.
+    pub(crate) fn parse(value: &str) -> Result<Self, AddressError> {
+        let value = value.trim();
+        if value.is_empty() {
+            return Err(AddressError::Empty { chain: CHAIN });
+        }
+        let (target, uri_tag) = match value.split_once(':') {
+            Some((scheme, rest)) => payment_request(scheme, rest)?,
+            None => (value, None),
+        };
+        let Self { account, tag: embedded_tag } = decode_address(target)?;
+        if let (Some(embedded), Some(explicit)) = (embedded_tag, uri_tag)
+            && embedded != explicit
+        {
+            return Err(INVALID);
+        }
+        Ok(Self { account, tag: embedded_tag.or(uri_tag) })
+    }
+}
+
+pub(crate) fn classic_address(account: &[u8; 20]) -> String {
     let mut bytes = [0; 21];
     let [_, body @ ..] = &mut bytes;
     *body = *account;
     bs58::encode(bytes).with_alphabet(Alphabet::RIPPLE).with_check().into_string()
+}
+
+/// The account `text` names, if `text` is spelled exactly as that account's classic
+/// address.
+pub(crate) fn classic_account(text: &str) -> Option<[u8; 20]> {
+    let account = XrpDestination::parse(text).ok()?.account;
+    (classic_address(&account) == text).then_some(account)
 }
 
 /// The mainnet X-address of `account` with `tag`, whose flag byte marks the tag present
@@ -53,27 +82,7 @@ fn x_address(account: &[u8; 20], tag: u32) -> String {
 
 /// The classic address of a SEC1 compressed public key.
 pub(crate) fn pubkey_address(pubkey: &[u8; 33]) -> String {
-    xrp_address(&hash160::Hash::hash(pubkey).to_byte_array())
-}
-
-/// Parses a classic address, X-address, or payment URI, keeping any tag it carries. A
-/// URI's tag must agree with the X-address it names.
-pub(crate) fn xrp_destination(value: &str) -> Result<XrpDestination, AddressError> {
-    let value = value.trim();
-    if value.is_empty() {
-        return Err(AddressError::Empty { chain: CHAIN });
-    }
-    let (target, uri_tag) = match value.split_once(':') {
-        Some((scheme, rest)) => payment_request(scheme, rest)?,
-        None => (value, None),
-    };
-    let XrpDestination { account, tag: embedded_tag } = decode_address(target)?;
-    if let (Some(embedded), Some(explicit)) = (embedded_tag, uri_tag)
-        && embedded != explicit
-    {
-        return Err(INVALID);
-    }
-    Ok(XrpDestination { account, tag: embedded_tag.or(uri_tag) })
+    classic_address(&hash160::Hash::hash(pubkey).to_byte_array())
 }
 
 /// The address an `xrpl:` or `ripple:` request pays, and the destination tag it names.
@@ -144,17 +153,27 @@ mod tests {
 
     #[test]
     fn classic_and_tagged_requests_round_trip_without_losing_zero() {
-        let destination = xrp_destination(CLASSIC).unwrap();
+        let destination = XrpDestination::parse(CLASSIC).unwrap();
         assert_eq!(destination.tag, None);
-        assert_eq!(xrp_address(&destination.account), CLASSIC);
+        assert_eq!(classic_address(&destination.account), CLASSIC);
         for tag in [0, 1, u32::MAX] {
             let request = format!("xrpl:{CLASSIC}?dt={tag}");
             let canonical = CODEC.validate(&request).unwrap();
             assert!(canonical.value().starts_with('X'));
             assert_eq!(
-                xrp_destination(canonical.value()).unwrap(),
+                XrpDestination::parse(canonical.value()).unwrap(),
                 XrpDestination { account: destination.account, tag: Some(tag) }
             );
+        }
+    }
+
+    #[test]
+    fn only_the_exact_classic_spelling_names_a_classic_account() {
+        let account = XrpDestination::parse(CLASSIC).unwrap().account;
+        assert_eq!(classic_account(CLASSIC), Some(account));
+        let tagged = CODEC.validate(&format!("xrpl:{CLASSIC}?dt=0")).unwrap().into_value();
+        for spelling in [&format!(" {CLASSIC} "), &format!("xrpl:{CLASSIC}"), &tagged] {
+            assert_eq!(classic_account(spelling), None, "{spelling}");
         }
     }
 
@@ -172,7 +191,7 @@ mod tests {
             ("dt=1&destination_tag=2", invalid),
         ] {
             assert_eq!(
-                xrp_destination(&format!("xrpl:{CLASSIC}?{query}")),
+                XrpDestination::parse(&format!("xrpl:{CLASSIC}?{query}")),
                 Err(refusal),
                 "{query}"
             );
@@ -182,14 +201,14 @@ mod tests {
     #[test]
     fn a_mistyped_classic_address_fails_its_checksum() {
         assert_eq!(
-            xrp_destination("rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDX"),
+            XrpDestination::parse("rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDX"),
             Err(AddressError::Checksum { chain: CHAIN })
         );
     }
 
     #[test]
     fn reserved_x_address_bytes_and_hidden_tags_are_refused() {
-        let account = xrp_destination(CLASSIC).unwrap().account;
+        let account = XrpDestination::parse(CLASSIC).unwrap().account;
         for (flag, tag, reserved) in [(0, 1u32, 0), (1, 0, 1), (2, 0, 0)] {
             let mut bytes = vec![0x05, 0x44];
             bytes.extend_from_slice(&account);
@@ -199,7 +218,7 @@ mod tests {
             let encoded =
                 bs58::encode(bytes).with_alphabet(Alphabet::RIPPLE).with_check().into_string();
             assert_eq!(
-                xrp_destination(&encoded),
+                XrpDestination::parse(&encoded),
                 Err(AddressError::Invalid { chain: CHAIN }),
                 "({flag}, {tag}, {reserved})"
             );
@@ -209,12 +228,12 @@ mod tests {
     #[test]
     fn a_testnet_x_address_and_another_scheme_are_on_the_wrong_network() {
         let mut bytes = vec![0x04, 0x93];
-        bytes.extend_from_slice(&xrp_destination(CLASSIC).unwrap().account);
+        bytes.extend_from_slice(&XrpDestination::parse(CLASSIC).unwrap().account);
         bytes.extend_from_slice(&[0; 9]);
         let testnet =
             bs58::encode(bytes).with_alphabet(Alphabet::RIPPLE).with_check().into_string();
         let wrong_network = AddressError::WrongNetwork { chain: CHAIN };
-        assert_eq!(xrp_destination(&testnet), Err(wrong_network));
-        assert_eq!(xrp_destination(&format!("bitcoin:{CLASSIC}")), Err(wrong_network));
+        assert_eq!(XrpDestination::parse(&testnet), Err(wrong_network));
+        assert_eq!(XrpDestination::parse(&format!("bitcoin:{CLASSIC}")), Err(wrong_network));
     }
 }

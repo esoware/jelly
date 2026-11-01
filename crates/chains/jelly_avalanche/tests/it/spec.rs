@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use jelly_avalanche::{ENTRY, PARAMS, SPEC};
 use jelly_core::{ChainId, KeyKind, TokenId, Transport};
-use jelly_evm::test_util;
 use jelly_net::DefaultEndpoints;
 
 #[test]
@@ -119,10 +118,4 @@ fn every_shipped_history_service_answers_without_a_key() {
             "https://api.snowtrace.io/api"
         ]
     );
-}
-
-/// The framework's own unit tests run on a copy of these params.
-#[test]
-fn the_params_match_the_frameworks_test_copy() {
-    assert_eq!(PARAMS, test_util::AVALANCHE);
 }

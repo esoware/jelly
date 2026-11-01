@@ -3,7 +3,7 @@ use jelly_core::{Amount, AssetId, TxDetail, TxPreview, TxWarning, TxWarningKind}
 use crate::config::CHAIN;
 use crate::payload::{Payment, SendKind};
 
-pub(crate) fn xrp(drops: u64) -> String {
+pub(crate) fn xrp_text(drops: u64) -> String {
     CHAIN.format_amount(Amount::from(drops))
 }
 
@@ -14,7 +14,7 @@ pub(crate) fn of(payment: &Payment) -> TxPreview {
         SendKind::Payment => {
             details.push(TxDetail::new("Sequence", payment.sequence.to_string()));
             details.push(TxDetail::new("Valid through ledger", payment.last_ledger.to_string()));
-            details.push(TxDetail::new("Account reserve", xrp(payment.reserve_drops)));
+            details.push(TxDetail::new("Account reserve", xrp_text(payment.reserve_drops)));
             warnings.push(TxWarning::new(
                 TxWarningKind::Other,
                 "The account reserve stays in your wallet and cannot be sent in a payment.",
@@ -24,7 +24,7 @@ pub(crate) fn of(payment: &Payment) -> TxPreview {
                     TxWarningKind::AccountActivation,
                     format!(
                         "This payment activates the recipient's account. {} of it becomes the account's reserve.",
-                        xrp(payment.base_reserve_drops)
+                        xrp_text(payment.base_reserve_drops)
                     ),
                 ));
             }
@@ -33,13 +33,15 @@ pub(crate) fn of(payment: &Payment) -> TxPreview {
             details.push(TxDetail::new("Transaction", "Account deletion"));
             details.push(TxDetail::new("Sequence", payment.sequence.to_string()));
             details.push(TxDetail::new("Valid through ledger", payment.last_ledger.to_string()));
-            details
-                .push(TxDetail::new("Reserve to receive again", xrp(payment.base_reserve_drops)));
+            details.push(TxDetail::new(
+                "Reserve to receive again",
+                xrp_text(payment.base_reserve_drops),
+            ));
             warnings.push(TxWarning::new(
                 TxWarningKind::AccountDeletion,
                 format!(
                     "This removes your XRP account from the ledger and sends everything it holds, less the deletion fee, to the recipient. To receive XRP at this address again, it must first be sent at least {} to recreate the account.",
-                    xrp(payment.base_reserve_drops)
+                    xrp_text(payment.base_reserve_drops)
                 ),
             ));
         }

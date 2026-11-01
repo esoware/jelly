@@ -21,7 +21,7 @@ const PREFIX: &[u8] = b"jelly";
 /// A source's field is keyed by its position as a big-endian `u32`, so the fields
 /// sort in position order. Every other field has an empty key.
 const FIELD_SOURCE: u8 = 0;
-pub(crate) const FIELD_TO: u8 = 1;
+const FIELD_TO: u8 = 1;
 const FIELD_STRATEGY: u8 = 2;
 const FIELD_DONATED: u8 = 3;
 const FIELD_REPLACES: u8 = 4;
@@ -208,7 +208,7 @@ fn key(subtype: u8) -> ProprietaryKey {
     ProprietaryKey { prefix: PREFIX.to_vec(), subtype, key: Vec::new() }
 }
 
-pub(crate) fn source_key(position: u32) -> ProprietaryKey {
+fn source_key(position: u32) -> ProprietaryKey {
     ProprietaryKey {
         prefix: PREFIX.to_vec(),
         subtype: FIELD_SOURCE,

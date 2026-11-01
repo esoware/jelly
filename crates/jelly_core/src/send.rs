@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use crate::amount::Amount;
 use crate::asset::AssetId;
 use crate::chain::ChainId;
-use crate::tx::fee::FeeSelection;
-use crate::tx::id::TxId;
+use crate::fee::FeeSelection;
+use crate::txid::TxId;
 use crate::wire_enum;
 
 /// Decoded preview or fee detail. Labels are sentence case, not wire enum names.

@@ -6,16 +6,6 @@ use url::Url;
 
 use crate::error::NetError;
 
-const fn scheme_of(transport: Transport, is_plaintext: bool) -> &'static str {
-    match (transport, is_plaintext) {
-        (Transport::ElectrumSsl, _) => "ssl",
-        (Transport::WsJsonrpc, false) => "wss",
-        (Transport::WsJsonrpc, true) => "ws",
-        (_, false) => "https",
-        (_, true) => "http",
-    }
-}
-
 wire_enum! {
     #[cfg_attr(feature = "ipc", derive(specta::Type))]
     /// Where a resolved endpoint came from. Declaration order is preference
@@ -52,6 +42,7 @@ pub enum UrlRejection {
 }
 
 impl UrlRejection {
+    #[cfg(any(test, feature = "test-util"))]
     pub const ALL: [Self; 7] = [
         Self::Empty,
         Self::Unparsable,
@@ -116,8 +107,7 @@ impl Endpoint {
         input: &str,
         plaintext: PlaintextPolicy,
     ) -> Result<Self, NetError> {
-        let parts = canonical_parts(input, transport, plaintext)
-            .map_err(|reason| NetError::InvalidUrl { reason })?;
+        let parts = canonical_parts(input, transport, plaintext)?;
         Ok(Self {
             chain,
             transport,
@@ -328,6 +318,16 @@ fn canonical_parts(
     }
 
     Ok(CanonicalParts { url, scheme, host, named_port, port, is_plaintext })
+}
+
+const fn scheme_of(transport: Transport, is_plaintext: bool) -> &'static str {
+    match (transport, is_plaintext) {
+        (Transport::ElectrumSsl, _) => "ssl",
+        (Transport::WsJsonrpc, false) => "wss",
+        (Transport::WsJsonrpc, true) => "ws",
+        (_, false) => "https",
+        (_, true) => "http",
+    }
 }
 
 /// The port an address means when it names none. Electrum's `ssl` has no default, so an

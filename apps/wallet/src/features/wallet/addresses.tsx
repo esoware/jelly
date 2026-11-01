@@ -58,7 +58,6 @@ import { CryptoAmount } from "@/widgets/amounts.tsx"
 import { CopyButton, DetailList, MonoWithCopy } from "@/widgets/copyable.tsx"
 import type { DetailRow } from "@/widgets/copyable.tsx"
 import { ListStatus } from "@/widgets/list-status.tsx"
-import type { ListState } from "@/widgets/list-status.tsx"
 import { SecretRevealDialog } from "@/widgets/secret-reveal.tsx"
 
 type AddressDialog =
@@ -70,49 +69,6 @@ type AddressDialog =
   | { kind: "export"; addressId: number }
   | { kind: "remove"; addressId: number }
   | { kind: "delete-key"; addressId: number }
-
-interface LabelChange {
-  addressId: number
-  label: string | null
-}
-
-interface AddressList {
-  state: ListState
-  rows: readonly AddressRecord[]
-  balanceOf: (addressId: number, asset: AssetId) => BalanceRecord | undefined
-  rename: (row: AddressRecord, draft: string) => void
-}
-
-function useAddressList(chain: ChainId): AddressList {
-  const addresses = useQuery(addressQueries.list(chain))
-  const balances = useQuery(moneyQueries.balances())
-
-  const setLabel = useIpcMutation<null, LabelChange>({
-    mutationFn: (variables) => addressCommands.setLabel(variables.addressId, variables.label),
-    errorTitle: "Could not save the label",
-    invalidates: [addressKeys.root],
-    optimistic: (client, variables) => {
-      client.setQueryData(addressQueries.list(chain).queryKey, (current) =>
-        current?.map((row) =>
-          row.id === variables.addressId ? { ...row, label: variables.label } : row,
-        ),
-      )
-    },
-  })
-
-  return {
-    state: addresses,
-    rows: addresses.data ?? [],
-    balanceOf: (addressId, asset) => addressBalance(balances.data ?? [], addressId, asset),
-    rename: (row, draft) => {
-      const label = trimmedOrNull(draft)
-      if (label === row.label) {
-        return
-      }
-      setLabel.mutate({ addressId: row.id, label })
-    },
-  }
-}
 
 interface LabelFieldProps {
   label: string | null
@@ -231,15 +187,14 @@ function AddressMenu({ row, isKeyShared, onOpen }: AddressMenuProps) {
 }
 
 interface AddressRowProps {
-  list: AddressList
   row: AddressRecord
-  asset: AssetId
+  balance: BalanceRecord | undefined
+  isKeyShared: boolean
+  onRename: (draft: string) => void
   onOpen: (dialog: AddressDialog) => void
 }
 
-function AddressRow({ list, row, asset, onOpen }: AddressRowProps) {
-  const balance = list.balanceOf(row.id, asset)
-
+function AddressRow({ row, balance, isKeyShared, onRename, onOpen }: AddressRowProps) {
   return (
     <Row
       onActivate={() => {
@@ -248,20 +203,11 @@ function AddressRow({ list, row, asset, onOpen }: AddressRowProps) {
     >
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="flex min-w-0 items-center gap-2 text-body">
-          <LabelField
-            label={row.label}
-            onCommit={(draft) => {
-              list.rename(row, draft)
-            }}
-          />
+          <LabelField label={row.label} onCommit={onRename} />
           {isStandaloneKey(row.source) ? <Badge>Standalone</Badge> : null}
           <RowActions>
             <CopyButton value={row.address} />
-            <AddressMenu
-              row={row}
-              isKeyShared={keyHolders(list.rows, row).length > 1}
-              onOpen={onOpen}
-            />
+            <AddressMenu row={row} isKeyShared={isKeyShared} onOpen={onOpen} />
           </RowActions>
         </span>
         <MiddleTruncate value={row.address} className="font-mono text-caption text-fg-muted" />
@@ -576,20 +522,47 @@ function AddressDialogs({ chain, rows, dialog }: AddressDialogsProps) {
 
 const SKELETON_ROWS = 4
 
+interface LabelChange {
+  addressId: number
+  label: string | null
+}
+
 interface AddressesPanelProps {
   chain: ChainId
   asset: AssetId
 }
 
 export function AddressesPanel({ chain, asset }: AddressesPanelProps) {
-  const list = useAddressList(chain)
+  const addresses = useQuery(addressQueries.list(chain))
+  const balances = useQuery(moneyQueries.balances())
+  const setLabel = useIpcMutation<null, LabelChange>({
+    mutationFn: (variables) => addressCommands.setLabel(variables.addressId, variables.label),
+    errorTitle: "Could not save the label",
+    invalidates: [addressKeys.root],
+    optimistic: (client, variables) => {
+      client.setQueryData(addressQueries.list(chain).queryKey, (current) =>
+        current?.map((row) =>
+          row.id === variables.addressId ? { ...row, label: variables.label } : row,
+        ),
+      )
+    },
+  })
   const dialog = useDialogPayload<AddressDialog>()
+  const rows = addresses.data ?? []
+
+  function handleRename(row: AddressRecord, draft: string): void {
+    const label = trimmedOrNull(draft)
+    if (label === row.label) {
+      return
+    }
+    setLabel.mutate({ addressId: row.id, label })
+  }
 
   return (
     <Panel className="flex-1">
       <PanelHeader
         title="Addresses"
-        count={list.rows.length}
+        count={rows.length}
         actions={
           <AddAddressMenu
             chain={chain}
@@ -602,8 +575,8 @@ export function AddressesPanel({ chain, asset }: AddressesPanelProps) {
 
       <PanelBody>
         <ListStatus
-          state={list.state}
-          isEmpty={list.rows.length === 0}
+          state={addresses}
+          isEmpty={rows.length === 0}
           errorTitle="Could not load the addresses"
           emptyTitle="No addresses yet"
           emptyDescription={
@@ -614,12 +587,15 @@ export function AddressesPanel({ chain, asset }: AddressesPanelProps) {
           skeletonRowCount={SKELETON_ROWS}
           isCompact
         >
-          {list.rows.map((row) => (
+          {rows.map((row) => (
             <AddressRow
               key={row.id}
-              list={list}
               row={row}
-              asset={asset}
+              balance={addressBalance(balances.data ?? [], row.id, asset)}
+              isKeyShared={keyHolders(rows, row).length > 1}
+              onRename={(draft) => {
+                handleRename(row, draft)
+              }}
               onOpen={(next) => {
                 dialog.show(next)
               }}
@@ -628,7 +604,7 @@ export function AddressesPanel({ chain, asset }: AddressesPanelProps) {
         </ListStatus>
       </PanelBody>
 
-      <AddressDialogs key={dialog.key} chain={chain} rows={list.rows} dialog={dialog} />
+      <AddressDialogs key={dialog.key} chain={chain} rows={rows} dialog={dialog} />
     </Panel>
   )
 }

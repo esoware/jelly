@@ -2,8 +2,8 @@ use std::fmt::Debug;
 
 use jelly_core::{
     Amount, AssetId, ChainId, DerivationPath, EndpointAttempt, EndpointLabel, FailureKind,
-    FeeLevel, FeeSelection, KeySource, PendingTxId, SendAmount, TokenId, TxDetail, TxId, TxRequest,
-    TxWarning, TxWarningKind, WalletColor,
+    FeeLevel, FeeSelection, KeySource, PendingTxId, SendAmount, TokenId, TxDetail, TxId, TxWarning,
+    TxWarningKind, WalletColor,
 };
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -20,40 +20,28 @@ where
 }
 
 mod field_names {
-    use super::{
-        AssetId, ChainId, EndpointAttempt, EndpointLabel, FailureKind, FeeSelection, SendAmount,
-        TokenId, TxRequest, json, round_trip,
-    };
+    use jelly_core::test_util::TxRequestBuilder;
 
-    fn request_from(from_address_ids: Vec<i64>) -> TxRequest {
-        TxRequest {
-            from_address_ids,
-            to: String::from("bc1qrecipient"),
-            destination_tag: None,
-            comment: None,
-            should_delete_account: false,
-            asset: AssetId::Native(ChainId::Bitcoin),
-            amount: SendAmount::Max,
-            fee: FeeSelection::NORMAL,
-            nonce: None,
-            data: None,
-        }
-    }
+    use super::{
+        Amount, AssetId, ChainId, EndpointAttempt, EndpointLabel, FailureKind, TokenId, json,
+        round_trip,
+    };
 
     #[test]
     fn a_transfer_request_names_its_sources_in_order() {
-        let request = request_from(vec![7, 3]);
+        let request = TxRequestBuilder::new(
+            7,
+            "bc1qrecipient",
+            AssetId::Native(ChainId::Bitcoin),
+            Amount::ZERO,
+        )
+        .sources(&[7, 3])
+        .send_max()
+        .build();
         let text = json(&request);
         assert!(text.contains("\"fromAddressIds\":[7,3]"), "{text}");
         assert!(!text.contains("fromAddressId\""), "no single-source field rides along: {text}");
         round_trip(&request);
-    }
-
-    #[test]
-    fn only_a_request_from_exactly_one_address_has_a_sole_source() {
-        assert_eq!(request_from(vec![7]).sole_source(), Some(7));
-        assert_eq!(request_from(vec![7, 3]).sole_source(), None);
-        assert_eq!(request_from(Vec::new()).sole_source(), None);
     }
 
     #[test]

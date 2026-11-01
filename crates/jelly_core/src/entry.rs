@@ -3,8 +3,8 @@ use std::fmt;
 use zeroize::Zeroizing;
 
 use crate::address::{Address, AddressCodec, AddressError};
-use crate::chain::ScriptKind;
 use crate::error::KeyError;
+use crate::script::ScriptKind;
 use crate::secret::{KeyMaterial, SecretText};
 use crate::spec::ChainSpec;
 use crate::uri::payment_uri;

@@ -35,7 +35,7 @@ fn every_default_is_canonical_and_never_plaintext() {
 }
 
 #[test]
-fn no_url_repeats_inside_one_chain() {
+fn no_chain_ships_a_default_url_twice() {
     let registry = registry();
     for chain in ChainId::ALL {
         let mut seen: HashSet<&str> = HashSet::new();
@@ -46,7 +46,7 @@ fn no_url_repeats_inside_one_chain() {
 }
 
 #[test]
-fn each_chain_ships_defaults_on_exactly_its_declared_transports() {
+fn every_chain_ships_defaults_on_exactly_its_declared_transports() {
     let registry = registry();
     for chain in ChainId::ALL {
         let spec = chains().spec(chain);

@@ -9,10 +9,10 @@ use crate::client::Recheck;
 use crate::cursor::ScanCursor;
 use crate::error::EvmError;
 use crate::ledger::{InFlight, Ledger, Observation, Tracked};
-use crate::pending::store_pending;
-use crate::record;
+use crate::params::EvmParams;
 use crate::rpc::{Execution, Landing, Receipt};
 use crate::watched::{Watched, address_of};
+use crate::{record, sent_set};
 
 /// What a landed send took out of its sender's native balance.
 ///
@@ -99,8 +99,15 @@ pub(super) async fn poll_sends(
     let receipts = inputs.client.receipts(&txids).await?;
     let recheck = recheck(inputs, &in_flight, &receipts, tip).await;
 
-    let Verdicts { spends, touched, records, depths, landings, replaced, retired, resends } =
-        judge(inputs, &inputs.ledger.lock(), watched, &in_flight, &receipts, recheck.as_ref(), tip);
+    let Verdicts { spends, touched, records, depths, landings, replaced, retired, resends } = judge(
+        inputs.params,
+        &inputs.ledger.lock(),
+        watched,
+        &in_flight,
+        &receipts,
+        recheck.as_ref(),
+        tip,
+    );
     for record in records {
         inputs.events.emit(WalletEvent::TxDetected(record)).await;
     }
@@ -132,7 +139,7 @@ pub(super) async fn poll_sends(
     }
     changed.extend(touched);
     for owner in changed {
-        store_pending(inputs.cursors, inputs.ledger, inputs.writing, watched, owner).await?;
+        sent_set::store(inputs.cursors, inputs.ledger, inputs.writing, watched, owner).await?;
     }
     recovered_spends.extend(spends);
     Ok(recovered_spends)
@@ -226,7 +233,7 @@ struct Verdicts {
 /// the rechecking node counts in the account's nonce at depth while it has no receipt for
 /// this one.
 fn judge(
-    inputs: &PassInputs<'_>,
+    params: &EvmParams,
     ledger: &Ledger,
     watched: &[Watched],
     in_flight: &[InFlight],
@@ -234,8 +241,8 @@ fn judge(
     recheck: Option<&Recheck>,
     tip: u64,
 ) -> Verdicts {
-    let chain = inputs.params.chain;
-    let target = inputs.params.confirmations_target;
+    let chain = params.chain;
+    let target = params.confirmations_target;
     let landed_deep: BTreeSet<(Address, u64)> = in_flight
         .iter()
         .zip(receipts)

@@ -1,3 +1,4 @@
+use alloy::primitives::Bytes;
 use jelly_core::{FeeLevel, FeeSelection, TxRequest};
 
 use crate::config::EvmConfig;
@@ -202,15 +203,6 @@ pub(crate) enum GasSource {
     UserOverride,
 }
 
-impl GasSource {
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::Estimated => "Estimated by the node",
-            Self::UserOverride => "Set by hand",
-        }
-    }
-}
-
 /// The intrinsic gas of a transaction that carries no calldata and runs no code.
 const TRANSFER_GAS: u64 = 21_000;
 
@@ -274,15 +266,18 @@ pub(crate) struct Overrides {
     pub(crate) max_fee_per_gas: Option<u128>,
     pub(crate) max_priority_fee_per_gas: Option<u128>,
     pub(crate) nonce: Option<u64>,
-    pub(crate) calldata: Option<Vec<u8>>,
+    pub(crate) calldata: Option<Bytes>,
 }
 
 impl Overrides {
     /// The price of `request` with its nonce and calldata. Another chain's fee
     /// selection is refused, not ignored.
     pub(crate) fn of(request: &TxRequest) -> Result<Self, EvmError> {
-        let calldata =
-            request.data.as_deref().map(|text| units::parse_hex("calldata", text)).transpose()?;
+        let calldata = request
+            .data
+            .as_deref()
+            .map(|text| units::parse_hex("calldata", text).map(Bytes::from))
+            .transpose()?;
         Ok(Self { nonce: request.nonce, calldata, ..Self::price_of(&request.fee)? })
     }
 
@@ -354,8 +349,7 @@ mod tests {
     use jelly_core::{Amount, AssetId, ChainId, test_util::TxRequestBuilder};
 
     use super::*;
-    use crate::fixtures::NETWORKS;
-    use crate::test_util::{AVALANCHE, BSC, ETHEREUM};
+    use crate::fixtures::{AVALANCHE, BSC, ETHEREUM, NETWORKS};
 
     const GWEI: u128 = 1_000_000_000;
 
@@ -637,7 +631,7 @@ mod tests {
                 max_fee_per_gas: Some(1),
                 max_priority_fee_per_gas: Some(1),
                 nonce: Some(7),
-                calldata: Some(vec![0xde, 0xad, 0xbe, 0xef]),
+                calldata: Some(Bytes::from_static(&[0xde, 0xad, 0xbe, 0xef])),
             }
         );
     }

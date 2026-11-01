@@ -36,10 +36,10 @@ const LICENSE_TOKEN_PATTERN = /[()]|[^\s()]+/gu
 const SEVERAL_LICENSES_PATTERN = /\s(?:AND|OR)\s/u
 const LICENSE_FILE_PATTERN = /^(?:licen[cs]e|copying)/iu
 const LEADING_BLANK_LINES_PATTERN = /^\s*\n/u
-const RULE_WIDTH = 80
-const PART_RULE = "#".repeat(RULE_WIDTH)
-const SECTION_RULE = "=".repeat(RULE_WIDTH)
-const TEXT_RULE = "-".repeat(RULE_WIDTH)
+const RULE_CHARS = 80
+const PART_RULE = "#".repeat(RULE_CHARS)
+const SECTION_RULE = "=".repeat(RULE_CHARS)
+const TEXT_RULE = "-".repeat(RULE_CHARS)
 const USED_BY = "Used by:"
 const STANDARD_TEXT_INTRO =
   "These packages ship no copy of this license, so its standard text follows."

@@ -1,12 +1,12 @@
 use jelly_core::WatchedAddress;
 use tonlib_core::types::TonAddress;
 
-use crate::address::{TonDestination, ton_destination};
+use crate::address::TonDestination;
 use crate::config::CHAIN;
 use crate::error::TonError;
 use crate::wallet::{Version, version_at};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct Watched {
     pub(crate) address_id: i64,
     pub(crate) address: TonAddress,
@@ -26,7 +26,7 @@ pub(crate) fn resolve(addresses: &[WatchedAddress]) -> Result<Vec<Watched>, TonE
         }
         let pubkey =
             entry.pubkey.ok_or(TonError::Invalid("The TON wallet public key is missing."))?;
-        let TonDestination { address, comment, .. } = ton_destination(entry.address.value())
+        let TonDestination { address, comment, .. } = TonDestination::parse(entry.address.value())
             .map_err(|_| TonError::Invalid("The TON source address is not valid."))?;
         let (None, Some(version)) = (comment, version_at(&pubkey, &address)?) else {
             return Err(mismatch);

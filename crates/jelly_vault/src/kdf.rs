@@ -40,9 +40,9 @@ impl fmt::Debug for VaultPassword {
 /// set can be built but never used.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Argon2Params {
-    m_cost_kib: u32,
-    t_cost: u32,
-    p_cost: u32,
+    pub(crate) m_cost_kib: u32,
+    pub(crate) t_cost: u32,
+    pub(crate) p_cost: u32,
 }
 
 impl Argon2Params {
@@ -54,18 +54,22 @@ impl Argon2Params {
     /// OWASP Password Storage minimum, m=19456 KiB, t=2, p=1.
     pub const MINIMUM: Self = Self { m_cost_kib: 19_456, t_cost: 2, p_cost: 1 };
 
+    #[cfg(any(test, feature = "test-util"))]
     pub const fn new(m_cost_kib: u32, t_cost: u32, p_cost: u32) -> Self {
         Self { m_cost_kib, t_cost, p_cost }
     }
 
+    #[cfg(any(test, feature = "test-util"))]
     pub const fn m_cost_kib(self) -> u32 {
         self.m_cost_kib
     }
 
+    #[cfg(any(test, feature = "test-util"))]
     pub const fn t_cost(self) -> u32 {
         self.t_cost
     }
 
+    #[cfg(any(test, feature = "test-util"))]
     pub const fn p_cost(self) -> u32 {
         self.p_cost
     }

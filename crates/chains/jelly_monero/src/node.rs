@@ -94,14 +94,13 @@ impl PooledNode {
 #[async_trait]
 impl MoneroNode for PooledNode {
     async fn tip_height(&self) -> Result<u64, MoneroError> {
-        let height = self
+        let index = self
             .pool
             .call("monero.tip_height", classify, async |node: Arc<DaemonEndpoint>| {
                 node.latest_block_number().await
             })
             .await?;
-        u64::try_from(height)
-            .map_err(|_| MoneroError::Internal { context: "a block height does not fit in u64" })
+        height_of_index(index)
     }
 
     async fn blocks(&self, range: RangeInclusive<u64>) -> Result<Vec<ScannableBlock>, MoneroError> {
@@ -211,8 +210,15 @@ fn answered(result: Result<BroadcastReply, NetError>) -> Result<BroadcastReply, 
     })
 }
 
-fn height_index(height: u64) -> Result<usize, MoneroError> {
+/// A height as the library counts it, in `usize`.
+pub(crate) fn height_index(height: u64) -> Result<usize, MoneroError> {
     usize::try_from(height).map_err(|_| MoneroError::HeightOutOfRange { height })
+}
+
+/// A height the library counted in `usize`.
+pub(crate) fn height_of_index(index: usize) -> Result<u64, MoneroError> {
+    u64::try_from(index)
+        .map_err(|_| MoneroError::Internal { context: "a block height does not fit in u64" })
 }
 
 /// The pool classifier for every Monero read.
@@ -269,7 +275,7 @@ mod tests {
 
     fn pool(chain: ChainId, urls: &[&str]) -> Arc<Pool<DaemonEndpoint>> {
         let clock: Arc<dyn Clock> = Arc::new(FakeClock::default());
-        let runtime = NetRuntime::new(clock, &[]);
+        let runtime = NetRuntime::new(clock);
         let endpoints = urls
             .iter()
             .filter_map(|url| Endpoint::parse(chain, Transport::MoneroRpc, url).ok())

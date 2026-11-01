@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use jelly_core::{KeyMaterial, RawTx, SignedTx, TxId, TxPreview};
 use jelly_keypair::Ed25519Key;
 use tonlib_core::cell::{ArcCell, Cell, CellBuilder};
+use tonlib_core::tlb_types::block::message::Message;
 use tonlib_core::tlb_types::tlb::TLB as _;
 use tonlib_core::types::TonAddress;
 use tonlib_core::wallet::version_helper::VersionHelper;
@@ -12,7 +14,10 @@ use crate::error::TonError;
 use crate::message;
 use crate::payload::Payment;
 use crate::preview;
+use crate::state::SignedBoc;
 use crate::wallet::{Version, ton_wallet};
+
+const MISMATCH: TonError = TonError::Internal("a TON send does not match its signed message");
 
 pub(crate) fn normalized_hash(address: &TonAddress, body: &ArcCell) -> Result<String, TonError> {
     // TEP-467 hashes `ext_in_msg_info$10` with src `addr_none$00`, the destination, an
@@ -27,20 +32,6 @@ pub(crate) fn normalized_hash(address: &TonAddress, body: &ArcCell) -> Result<St
         .store_bit(true)?
         .store_reference(&Arc::clone(body))?;
     Ok(hex::encode(builder.build()?.cell_hash().as_slice()))
-}
-
-/// The signature a signed body carries. V5R1 appends its 512 bits after the signed
-/// fields, and V3R2 and V4R2 put them first.
-pub(crate) fn signature_of(version: Version, signed: &Cell) -> Result<Vec<u8>, TonError> {
-    let mut parser = signed.parser();
-    match version {
-        Version::V5r1 => {
-            let body_bits = signed.bit_len().checked_sub(512).ok_or(TonError::Encoding)?;
-            parser.load_bits(body_bits)?;
-        }
-        Version::V4r2 | Version::V3r2 => {}
-    }
-    Ok(parser.load_bytes(64)?)
 }
 
 /// Signs `payment`, refusing unless `approved` is its preview and `key` holds its wallet.
@@ -67,12 +58,41 @@ pub(crate) fn sign(
     Ok(SignedTx { txid: TxId::new(CHAIN, txid), raw: RawTx::from_bytes(external.to_boc(true)?) })
 }
 
+/// Checks that `signed.boc` is the signed external message of `payment`, which the caller
+/// has already validated, and that `signed.hash` is its normalized hash.
+pub(crate) fn verify(payment: &Payment, signed: &SignedBoc) -> Result<(), TonError> {
+    let cell = Cell::from_boc(&STANDARD.decode(&signed.boc).map_err(|_| MISMATCH)?)?;
+    let wallet = ton_wallet(&payment.pubkey, payment.version)?;
+    let external = Message::from_cell(&cell)?;
+    let body = &external.body.value;
+    let signature = signature_of(payment.version, body).ok_or(MISMATCH)?;
+    let expected = VersionHelper::sign_msg(wallet.version, &message::body(payment)?, &signature)?;
+    if *body.as_ref() != expected
+        || signed.hash != normalized_hash(&wallet.address, body)?
+        || wallet.wrap_signed_body(expected, payment.is_deploy)? != cell
+    {
+        return Err(MISMATCH);
+    }
+    Ok(())
+}
+
+/// The signature a signed body carries. V5R1 appends its 512 bits after the signed
+/// fields, and V3R2 and V4R2 put them first.
+fn signature_of(version: Version, signed: &Cell) -> Option<Vec<u8>> {
+    let mut parser = signed.parser();
+    match version {
+        Version::V5r1 => {
+            parser.load_bits(signed.bit_len().checked_sub(512)?).ok()?;
+        }
+        Version::V4r2 | Version::V3r2 => {}
+    }
+    parser.load_bytes(64).ok()
+}
+
 #[cfg(test)]
 mod tests {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
     use jelly_core::{Amount, ScriptKind, TokenId};
     use serde::Deserialize;
-    use tonlib_core::tlb_types::block::message::Message;
 
     use super::*;
     use crate::entry::ENTRY;
@@ -209,6 +229,28 @@ mod tests {
             signed_count += 1;
         }
         assert!(signed_count >= 15, "only {signed_count} vectors are payments Jelly builds");
+    }
+
+    #[test]
+    fn a_signed_message_verifies_only_against_its_own_payment_and_hash() {
+        for vector in vectors() {
+            let key = ENTRY.import_key(&vector.seed, None).unwrap().material;
+            let Some(payment) = own(&key, &vector) else {
+                continue;
+            };
+            let signed =
+                SignedBoc::from(&sign(&payment, &preview::of(&payment).unwrap(), &key).unwrap());
+            verify(&payment, &signed).unwrap();
+            let next = Payment { seqno: payment.seqno.checked_add(1).unwrap(), ..payment.clone() };
+            let rehashed = SignedBoc { hash: String::from("00"), boc: signed.boc.clone() };
+            for (payment, signed) in [(&next, &signed), (&payment, &rehashed)] {
+                assert!(
+                    matches!(verify(payment, signed), Err(TonError::Internal(_))),
+                    "{}",
+                    vector.name
+                );
+            }
+        }
     }
 
     #[test]

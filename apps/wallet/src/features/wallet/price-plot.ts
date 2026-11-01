@@ -2,17 +2,18 @@ import { priceTicks, seriesDomain, seriesExtent, timeTicks } from "@/features/wa
 import type { ChartSeries } from "@/features/wallet/price-scale.ts"
 import { lerp } from "@/ui/use-morph.ts"
 
-export const AXIS_GAP = 6
-const INSET_TOP = 8
-const INSET_RIGHT = 4
-const TIME_AXIS_HEIGHT = 20
-const EDGE_ROOM = 16
-const MIN_PRICE_TICK_GAP = 28
-const MIN_TIME_TICK_GAP = 72
+export const AXIS_GAP_PX = 6
+const INSET_TOP_PX = 8
+const INSET_RIGHT_PX = 4
+const TIME_AXIS_HEIGHT_PX = 20
+const EDGE_ROOM_PX = 16
+const MIN_PRICE_TICK_GAP_PX = 28
+const MIN_TIME_TICK_GAP_PX = 72
 const BODY_SHARE = 0.6
-const MAX_BODY_WIDTH = 12
+const MAX_BODY_WIDTH_PX = 12
 const MAX_PACED_ZOOM_RATIO = 4
 const MAX_PACED_ZOOM = Math.log(MAX_PACED_ZOOM_RATIO)
+const COORDINATE_DIGITS = 1
 
 interface Bounds {
   left: number
@@ -99,6 +100,11 @@ export interface CandleMark {
   opacity: number
 }
 
+export interface Spot {
+  x: number
+  y: number
+}
+
 export interface Plot {
   assetKey: string | null
   bounds: Bounds
@@ -122,6 +128,22 @@ interface PlotSize {
   labelWidth: number
 }
 
+export function coordinate(value: number): string {
+  return value.toFixed(COORDINATE_DIGITS)
+}
+
+export function nearestIndex(spots: readonly Spot[], x: number): number {
+  let nearest = 0
+  let distance = Number.POSITIVE_INFINITY
+  spots.forEach((spot, i) => {
+    if (Math.abs(spot.x - x) < distance) {
+      nearest = i
+      distance = Math.abs(spot.x - x)
+    }
+  })
+  return nearest
+}
+
 export function placeTime(scale: Scale<number>, unixSecs: number): number {
   return scale.at + scale.perUnit * (unixSecs - scale.origin)
 }
@@ -131,15 +153,15 @@ function placePrice(scale: Scale<bigint>, price: bigint): number {
 }
 
 function bodyWidth(spanSecs: number, time: Scale<number>): number {
-  return Math.min(MAX_BODY_WIDTH, Math.max(1, spanSecs * time.perUnit * BODY_SHARE))
+  return Math.min(MAX_BODY_WIDTH_PX, Math.max(1, spanSecs * time.perUnit * BODY_SHARE))
 }
 
 export function drawPlot(assetKey: string, series: ChartSeries, size: PlotSize): Plot {
   const bounds: Bounds = {
-    left: size.labelWidth + AXIS_GAP,
-    right: size.width - INSET_RIGHT,
-    top: INSET_TOP,
-    bottom: size.height - TIME_AXIS_HEIGHT,
+    left: size.labelWidth + AXIS_GAP_PX,
+    right: size.width - INSET_RIGHT_PX,
+    top: INSET_TOP_PX,
+    bottom: size.height - TIME_AXIS_HEIGHT_PX,
   }
   const plotWidth = Math.max(1, bounds.right - bounds.left)
   const plotHeight = Math.max(1, bounds.bottom - bounds.top)
@@ -167,7 +189,7 @@ export function drawPlot(assetKey: string, series: ChartSeries, size: PlotSize):
     priceTicks: priceTicks(
       extent.low,
       extent.high,
-      Math.floor(plotHeight / MIN_PRICE_TICK_GAP),
+      Math.floor(plotHeight / MIN_PRICE_TICK_GAP_PX),
       series.currency,
     ).map((tick) => ({
       key: `${tick.price.toString()} ${tick.label}`,
@@ -178,7 +200,7 @@ export function drawPlot(assetKey: string, series: ChartSeries, size: PlotSize):
     timeTicks: timeTicks(
       domain.startUnixSecs,
       domain.endUnixSecs,
-      Math.floor(plotWidth / MIN_TIME_TICK_GAP),
+      Math.floor(plotWidth / MIN_TIME_TICK_GAP_PX),
     )
       .map((tick) => ({
         key: `${String(tick.unixSecs)} ${tick.label}`,
@@ -186,7 +208,9 @@ export function drawPlot(assetKey: string, series: ChartSeries, size: PlotSize):
         at: placeTime(time, tick.unixSecs),
         opacity: 1,
       }))
-      .filter((mark) => mark.at >= bounds.left + EDGE_ROOM && mark.at <= bounds.right - EDGE_ROOM),
+      .filter(
+        (mark) => mark.at >= bounds.left + EDGE_ROOM_PX && mark.at <= bounds.right - EDGE_ROOM_PX,
+      ),
     line:
       series.mode === "line"
         ? {

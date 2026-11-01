@@ -20,7 +20,7 @@ use spl_token_2022_interface::instruction::TokenInstruction as Token2022Instruct
 use spl_token_interface::ID as TOKEN_PROGRAM;
 use spl_token_interface::instruction::TokenInstruction;
 
-use crate::fee::lamports_text;
+use crate::preview::lamports_text;
 
 /// One line of a decoded preview.
 #[derive(Debug, Clone, PartialEq, Eq)]

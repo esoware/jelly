@@ -101,8 +101,9 @@ mod tests {
         assert_eq!(fs::read(&path).unwrap(), b"second-and-longer");
     }
 
+    /// A crash before the rename leaves the state checked before the drop.
     #[test]
-    fn an_abandoned_stage_leaves_the_destination_and_the_directory_clean() {
+    fn a_stage_never_touches_the_destination_and_an_abandoned_one_is_removed() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("wallet.vault");
         write(&path, b"original").unwrap();
@@ -116,19 +117,6 @@ mod tests {
 
         assert_eq!(fs::read(&path).unwrap(), b"original");
         assert!(!staged_path.exists(), "an abandoned temp file must be cleaned up");
-    }
-
-    #[test]
-    fn a_crash_before_the_rename_preserves_the_previous_contents() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("wallet.vault");
-        write(&path, b"original").unwrap();
-
-        let staged = stage(directory.path(), b"replacement").unwrap();
-        let (_file, leaked) = staged.keep().unwrap();
-        assert!(leaked.exists());
-        assert_ne!(leaked, path);
-        assert_eq!(fs::read(&path).unwrap(), b"original");
     }
 
     #[cfg(unix)]

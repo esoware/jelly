@@ -79,7 +79,7 @@ impl ChainEntry for XrpEntry {
         _password: Option<&SecretText>,
     ) -> Result<ImportedKey, KeyError> {
         let secret = decode_secret_hex(input).ok_or(KeyError::UnknownFormat)?;
-        let material = Secp256k1Key::from_secret_bytes(secret.as_slice())?.key_material();
+        let material = Secp256k1Key::from_secret_bytes(&secret)?.key_material();
         Ok(ImportedKey { material, named_script: None })
     }
 

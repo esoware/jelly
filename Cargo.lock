@@ -1053,7 +1053,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb0ce8bd5baaa0d303a19915a6d93afed161f528654e42da2a7a97d05c59499a"
 dependencies = [
  "base58ck",
- "base64 0.21.7",
  "bech32",
  "bitcoin-io",
  "bitcoin-units",
@@ -1720,12 +1719,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "core_detect"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f8f80099a98041a3d1622845c271458a2d73e688351bf3cb999266764b81d48"
-
-[[package]]
 name = "corez"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2379,20 +2372,6 @@ name = "embed_plist"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ef6b89e5b37196644d8796de5268852ff179b44e96276cf4290264843743bb7"
-
-[[package]]
-name = "encoding_rs"
-version = "0.8.42"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e985e0451871ad22fb8d2b6b076e2028a502a0d3950998c2c5c0a4f9b5d9679"
-dependencies = [
- "cfg-if",
- "core_detect",
- "multiversion_no_op",
- "rustversion",
- "scopeguard",
- "simdutf8",
-]
 
 [[package]]
 name = "endi"
@@ -3884,6 +3863,7 @@ dependencies = [
  "jelly_net",
  "jelly_utxo",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -3898,6 +3878,7 @@ dependencies = [
  "jelly_utxo",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -3972,6 +3953,7 @@ dependencies = [
  "jelly_net",
  "jelly_utxo",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -4099,6 +4081,7 @@ dependencies = [
  "jelly_net",
  "jelly_utxo",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -5243,12 +5226,6 @@ name = "multimap"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d87ecb2933e8aeadb3e3a02b828fed80a7528047e68b4f424523a0981a3a084"
-
-[[package]]
-name = "multiversion_no_op"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
 name = "nacl"
@@ -6651,7 +6628,6 @@ checksum = "16a1cfa75cc186dd73d5818e510e042e40927bccc9c236b061cea97e1eb08029"
 dependencies = [
  "base64 0.23.1",
  "bytes",
- "encoding_rs",
  "futures-core",
  "futures-util",
  "h2",
@@ -6663,7 +6639,6 @@ dependencies = [
  "hyper-util",
  "js-sys",
  "log",
- "mime",
  "percent-encoding",
  "pin-project-lite",
  "rustls",
@@ -6846,7 +6821,6 @@ version = "0.23.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
 dependencies = [
- "log",
  "once_cell",
  "ring",
  "rustls-pki-types",

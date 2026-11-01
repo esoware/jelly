@@ -52,14 +52,12 @@ pub fn wif_decode(input: &str) -> Result<Wif, KeyError> {
 }
 
 /// The version byte, the key, and whether the compression suffix follows it.
-fn split(raw: &[u8]) -> Option<(u8, &[u8], bool)> {
+fn split(raw: &[u8]) -> Option<(u8, &[u8; 32], bool)> {
     let (&version, rest) = raw.split_first()?;
-    match rest.len() {
-        33 => match rest.split_last() {
-            Some((&COMPRESSED_SUFFIX, key)) => Some((version, key, true)),
-            _ => None,
-        },
-        32 => Some((version, rest, false)),
+    let (key, suffix) = rest.split_first_chunk::<32>()?;
+    match suffix {
+        [] => Some((version, key, false)),
+        [COMPRESSED_SUFFIX] => Some((version, key, true)),
         _ => None,
     }
 }

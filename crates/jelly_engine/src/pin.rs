@@ -99,9 +99,6 @@ pub(crate) async fn persist(
 #[cfg(test)]
 mod tests {
     use std::path::Path;
-    use std::time::Duration;
-
-    use tokio::time::sleep;
 
     use super::*;
     use crate::WalletEngine;
@@ -160,14 +157,13 @@ mod tests {
 
         let engine = engine_on(directory.path()).await;
         engine.pin_store().put(ChainId::Bitcoin, "node.example", pin).expect("the map accepts it");
-        // The writer stores the pin in the background and signals nothing, so the test
-        // reads until the row lands, however long the write takes.
+        // The writer stores the pin in the background and signals nothing. Each read
+        // yields to it, so the loop ends once the row lands, however long the write takes.
         let stored = loop {
             let stored = engine.inner.store.list_pins().await.expect("a read");
             if !stored.is_empty() {
                 break stored;
             }
-            sleep(Duration::from_millis(5)).await;
         };
         assert_eq!(
             stored,
@@ -184,7 +180,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_pin_still_queued_when_the_engine_is_cancelled_is_stored() {
+    async fn a_pin_still_queued_when_the_engine_is_canceled_is_stored() {
         let directory = tempfile::tempdir().expect("a scratch directory");
         let engine = engine_on(directory.path()).await;
         let (writes, incoming) = mpsc::channel(QUEUE_DEPTH);

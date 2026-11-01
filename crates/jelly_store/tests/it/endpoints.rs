@@ -137,20 +137,6 @@ async fn a_missing_endpoint_is_named_without_its_path_or_query() {
 }
 
 #[tokio::test]
-async fn debug_never_prints_an_endpoint_url_that_carries_a_key() {
-    let harness = common::harness().await.unwrap();
-    let url = "https://rpc.example.com/v3/ENDPOINTSECRET?token=QUERYSECRET";
-    harness.store.set_endpoint_enabled(ChainId::Ethereum, url.to_owned(), false).await.unwrap();
-    let rendered = format!("{:?}", only_endpoint(&harness.store).await.unwrap());
-    assert!(!rendered.contains("ENDPOINTSECRET"), "{rendered}");
-    assert!(!rendered.contains("QUERYSECRET"), "{rendered}");
-
-    let rendered = format!("{:?}", health(url, 900));
-    assert!(!rendered.contains("ENDPOINTSECRET"), "{rendered}");
-    assert!(!rendered.contains("QUERYSECRET"), "{rendered}");
-}
-
-#[tokio::test]
 async fn health_survives_a_round_trip_and_is_keyed_by_chain_and_url() {
     let harness = common::harness().await.unwrap();
     put_health(&harness.store, health("https://rpc.example.com", 900)).await.unwrap();

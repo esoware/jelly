@@ -6,6 +6,8 @@ import { appendClassName } from "@/lib/class-name.ts"
 import { Button } from "@/ui/button.tsx"
 import { Icon } from "@/ui/icon.tsx"
 
+import "@/ui/carousel.css"
+
 const DRAG_THRESHOLD_PX = 4
 
 const EDGE_SLACK_PX = 1
@@ -45,7 +47,7 @@ function fitSpacer(spacer: HTMLElement, viewport: HTMLElement): void {
 interface CarouselProps {
   activeKey: string
   className?: string | undefined
-  frame?: useRender.RenderProp | undefined
+  frame: useRender.RenderProp
   children: ReactNode
 }
 
@@ -176,8 +178,7 @@ export function Carousel({ activeKey, className, frame, children }: CarouselProp
   }
 
   const strip = useRender({
-    defaultTagName: "div",
-    ...(frame === undefined ? {} : { render: frame }),
+    render: frame,
     props: {
       className: "relative min-w-0 overflow-clip rounded-full",
       children: (

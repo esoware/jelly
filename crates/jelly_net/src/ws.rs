@@ -31,8 +31,13 @@ use crate::dialer::{Dialer, Socket};
 use crate::endpoint::{Endpoint, UrlRejection};
 use crate::error::NetError;
 use crate::jsonrpc::{JsonRpcRequest, JsonRpcResponse, decode_result, envelope_result};
+use crate::pool::{Outcome, Pool};
 
 const TARGET: &str = "jelly::net::ws";
+
+/// How long [`Pool::wait_push`] pauses after a failure. Short enough to re-register a
+/// recovered endpoint within one poll interval, long enough not to hammer a dead one.
+const WATCH_RETRY: Duration = Duration::from_secs(5);
 
 /// How many outgoing frames may queue before a caller waits.
 const QUEUE_DEPTH: usize = 32;
@@ -257,6 +262,45 @@ impl WsClient {
     }
 }
 
+impl Pool<WsClient> {
+    /// Resolves the next time one endpoint wakes on `subscriptions`, as
+    /// [`WsClient::wait_notice`] defines a wake, and never otherwise.
+    ///
+    /// Only the registration goes through failover, and the wait runs outside the pool.
+    /// A failed registration or wait tries again after a pause, asking `subscriptions`
+    /// afresh so the retry registers the current set.
+    pub async fn wait_push(
+        &self,
+        operation: &'static str,
+        floor: Duration,
+        subscriptions: impl Fn() -> Vec<WsSubscription> + Send,
+    ) {
+        loop {
+            let current = subscriptions();
+            let registered = self
+                .call(operation, rotate_on_any_failure, |client| {
+                    let current = current.clone();
+                    async move {
+                        client.register(&current).await?;
+                        Ok(client)
+                    }
+                })
+                .await;
+            if let Ok(client) = registered
+                && client.wait_notice(floor).await.is_ok()
+            {
+                return;
+            }
+            sleep(WATCH_RETRY).await;
+        }
+    }
+}
+
+/// One endpoint's subscription failure says nothing about the next.
+const fn rotate_on_any_failure(_: &NetError) -> Outcome {
+    Outcome::Rotate
+}
+
 /// The socket closed with nothing answered, or before the wait was over.
 fn closed(endpoint: &EndpointLabel) -> NetError {
     NetError::protocol(endpoint, "the websocket closed")
@@ -268,8 +312,7 @@ fn closed(endpoint: &EndpointLabel) -> NetError {
 /// and the URL parser puts it back. The userinfo goes out as basic credentials, because
 /// tungstenite would otherwise send it nowhere.
 fn handshake_request(endpoint: &EndpointLabel, url: &str) -> Result<Request, NetError> {
-    let mut parsed =
-        Url::parse(url).map_err(|_| NetError::InvalidUrl { reason: UrlRejection::Unparsable })?;
+    let mut parsed = Url::parse(url).map_err(|_| UrlRejection::Unparsable)?;
     let credentials = Credentials::of(&parsed);
     // Clearing the userinfo fails only for a URL with no host, and every endpoint has one.
     let _ = parsed.set_username("");
@@ -556,8 +599,3 @@ impl Connect<WsClient> for WsConnector {
         self.check.identify(endpoint, connection).await
     }
 }
-
-/// The pool keeps one client per endpoint and hands `Arc`s of it to concurrent
-/// tasks.
-const fn assert_send_sync<T: Send + Sync>() {}
-const _: () = assert_send_sync::<WsClient>();

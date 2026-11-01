@@ -84,16 +84,16 @@ impl SolanaPayload {
     pub(crate) fn decode(bytes: &[u8]) -> Result<Self, SolanaError> {
         let mut reader = Reader::new(bytes);
         if reader.array()? != MAGIC {
-            return Err(SolanaError::payload("the framing is not this adapter's"));
+            return Err(SolanaError::Payload { detail: "the framing is not this adapter's" });
         }
         let expiry_height = u64::from_le_bytes(reader.array()?);
         let amount = u64::from_le_bytes(reader.array()?);
-        let asset_key = reader.text("asset")?;
-        let recipient = reader.text("recipient")?;
+        let asset_key = reader.text("the asset is not text")?;
+        let recipient = reader.text("the recipient is not text")?;
         let message_bytes = reader.rest().to_vec();
 
         let asset = AssetId::parse_key(&asset_key)
-            .ok_or_else(|| SolanaError::payload("the asset is not one this build knows"))?;
+            .ok_or(SolanaError::Payload { detail: "the asset is not one this build knows" })?;
         // A payload naming another chain's asset wasn't written here and mustn't be
         // signed here.
         token::asset_token(asset)?;
@@ -102,10 +102,10 @@ impl SolanaPayload {
         let message =
             wincode::deserialize_exact::<VersionedMessage>(&message_bytes).map_err(|source| {
                 tracing::debug!(target: TARGET, %source, "the payload's message does not decode");
-                SolanaError::payload("the message does not decode")
+                SolanaError::Payload { detail: "the message does not decode" }
             })?;
         let Some(&payer) = message.static_account_keys().first() else {
-            return Err(SolanaError::payload("the message has no account keys"));
+            return Err(SolanaError::Payload { detail: "the message has no account keys" });
         };
         Ok(Self { expiry_height, amount, asset, recipient, payer, message, message_bytes })
     }
@@ -165,23 +165,24 @@ impl<'a> Reader<'a> {
     }
 
     fn take(&mut self, length: usize) -> Result<&'a [u8], SolanaError> {
-        let (taken, rest) = self.rest.split_at_checked(length).ok_or_else(too_short)?;
+        let (taken, rest) = self.rest.split_at_checked(length).ok_or(TOO_SHORT)?;
         self.rest = rest;
         Ok(taken)
     }
 
     fn array<const N: usize>(&mut self) -> Result<[u8; N], SolanaError> {
-        let (taken, rest) = self.rest.split_first_chunk().ok_or_else(too_short)?;
+        let (taken, rest) = self.rest.split_first_chunk().ok_or(TOO_SHORT)?;
         self.rest = rest;
         Ok(*taken)
     }
 
-    fn text(&mut self, what: &'static str) -> Result<String, SolanaError> {
+    /// `unreadable` is the refusal for bytes that aren't UTF-8.
+    fn text(&mut self, unreadable: &'static str) -> Result<String, SolanaError> {
         let [length] = self.array()?;
         let bytes = self.take(usize::from(length))?;
         str::from_utf8(bytes)
             .map(str::to_owned)
-            .map_err(|_| SolanaError::payload(format!("the {what} is not text")))
+            .map_err(|_| SolanaError::Payload { detail: unreadable })
     }
 
     const fn rest(self) -> &'a [u8] {
@@ -189,9 +190,8 @@ impl<'a> Reader<'a> {
     }
 }
 
-fn too_short() -> SolanaError {
-    SolanaError::payload("the payload ends before its framing does")
-}
+const TOO_SHORT: SolanaError =
+    SolanaError::Payload { detail: "the payload ends before its framing does" };
 
 #[cfg(test)]
 mod tests {
@@ -315,7 +315,7 @@ mod tests {
         bytes.extend_from_slice(&keyless.serialize());
         let error = SolanaPayload::decode(&bytes).expect_err("a message with no payer");
         assert!(
-            matches!(error, SolanaError::Payload { ref detail } if detail.contains("account keys")),
+            matches!(error, SolanaError::Payload { detail } if detail.contains("account keys")),
             "{error:?}"
         );
     }

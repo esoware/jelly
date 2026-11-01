@@ -119,16 +119,35 @@ impl IpcError {
 /// gets a fixed fallback, so node text, contexts, and base units stay in Rust.
 impl From<CoreError> for IpcError {
     fn from(error: CoreError) -> Self {
-        let domain = error.code();
-        let copy = "Jelly could not complete the request.";
-        let (message, detail) = match error {
-            CoreError::Chain(ChainError::InvalidInput(text, _)) => (text, None),
-            CoreError::Chain(chain) => (copy.to_owned(), chain_detail(chain)),
-            CoreError::NoAdapter { chain, reason } => {
-                (copy.to_owned(), Some(IpcErrorDetail::NoAdapter { chain, reason }))
+        let code = IpcErrorCode::from(error.code());
+        let detail = match error {
+            CoreError::Chain(ChainError::InvalidInput(message, _))
+            | CoreError::InvalidInput { detail: message, .. } => {
+                return Self { code, message, detail: None };
             }
-            CoreError::InvalidInput { detail, .. } => (detail, None),
-            CoreError::ConfirmationRequired { .. }
+            CoreError::Chain(ChainError::EndpointsDown { chain, attempts, .. }) => {
+                Some(IpcErrorDetail::EndpointsDown { chain, attempts })
+            }
+            CoreError::Chain(ChainError::Rejected(Rejection { kind, retry, .. })) => {
+                Some(IpcErrorDetail::Rejected { rejection: kind, retry })
+            }
+            CoreError::Chain(ChainError::InsufficientFunds { asset, needed, available }) => {
+                Some(IpcErrorDetail::InsufficientFunds { asset, needed, available })
+            }
+            CoreError::Chain(ChainError::ProtocolTooNew { chain, version }) => {
+                Some(IpcErrorDetail::ProtocolTooNew { chain, version })
+            }
+            CoreError::NoAdapter { chain, reason } => {
+                Some(IpcErrorDetail::NoAdapter { chain, reason })
+            }
+            CoreError::Chain(
+                ChainError::Rpc(_)
+                | ChainError::InvalidAddress(_)
+                | ChainError::Signing(_)
+                | ChainError::Unsupported(_)
+                | ChainError::Internal { .. },
+            )
+            | CoreError::ConfirmationRequired { .. }
             | CoreError::Locked
             | CoreError::WrongPassword
             | CoreError::WrongPassphrase
@@ -141,9 +160,9 @@ impl From<CoreError> for IpcError {
             | CoreError::AddressMismatch { .. }
             | CoreError::Storage { .. }
             | CoreError::Keychain { .. }
-            | CoreError::Internal { .. } => (copy.to_owned(), None),
+            | CoreError::Internal { .. } => None,
         };
-        Self { code: IpcErrorCode::from(domain), message, detail }
+        Self { code, message: String::from("Jelly could not complete the request."), detail }
     }
 }
 
@@ -182,28 +201,5 @@ impl From<JoinError> for IpcError {
             );
         }
         Self::internal("The operation was canceled.")
-    }
-}
-
-fn chain_detail(error: ChainError) -> Option<IpcErrorDetail> {
-    match error {
-        ChainError::EndpointsDown { chain, attempts, .. } => {
-            Some(IpcErrorDetail::EndpointsDown { chain, attempts })
-        }
-        ChainError::Rejected(Rejection { kind, retry, .. }) => {
-            Some(IpcErrorDetail::Rejected { rejection: kind, retry })
-        }
-        ChainError::InsufficientFunds { asset, needed, available } => {
-            Some(IpcErrorDetail::InsufficientFunds { asset, needed, available })
-        }
-        ChainError::ProtocolTooNew { chain, version } => {
-            Some(IpcErrorDetail::ProtocolTooNew { chain, version })
-        }
-        ChainError::Rpc(_)
-        | ChainError::InvalidAddress(_)
-        | ChainError::Signing(_)
-        | ChainError::Unsupported(_)
-        | ChainError::InvalidInput(..)
-        | ChainError::Internal { .. } => None,
     }
 }

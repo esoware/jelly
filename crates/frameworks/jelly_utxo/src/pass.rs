@@ -141,9 +141,7 @@ impl PassOutcome {
     /// publish. Adapters emit only intermediate progress.
     pub(crate) fn progress(&self, params: &UtxoParams) -> ChainSyncProgress {
         let tip = u64::from(self.tip_height);
-        ChainSyncProgress::new(params.chain)
-            .with_progress(ChainSyncProgress::MAX_PERMILLE)
-            .with_heights(Some(tip), Some(tip))
+        ChainSyncProgress::new(params.chain).with_heights(Some(tip), Some(tip))
     }
 
     /// Every outpoint the pass saw unspent, for reconciling outpoint claims.
@@ -157,7 +155,7 @@ impl PassOutcome {
 /// The outcome is a pure function of what this pass fetched and what `watched`
 /// carried in, so a pass that fails midway leaves every stored cursor intact,
 /// and a reorg needs no special handling.
-pub(crate) async fn sync_pass(
+pub(crate) async fn run(
     params: &UtxoParams,
     client: &ElectrumClient,
     watched: &[WatchedScript<'_>],
@@ -272,8 +270,12 @@ fn reconcile(
         own_scripts: watched.iter().map(|entry| entry.script.script_pubkey()).collect(),
     };
     let read = Read { view: &view, funding: &funding, replaced: &replaced, heights: &heights };
+    if !watched.is_empty() {
+        let progress = ChainSyncProgress::new(params.chain)
+            .with_heights(None, Some(u64::from(view.tip_height)));
+        events.try_emit(WalletEvent::SyncProgress(progress));
+    }
     for (index, entry) in watched.iter().enumerate() {
-        emit_progress(params, events, index, total, view.tip_height);
         let history = histories.next().unwrap_or_default();
         // An address without a cursor always counts as changed, so only one with a
         // cursor is ever restored.
@@ -540,24 +542,6 @@ fn history_at(histories: &[Vec<HistoryEntry>], index: usize) -> &[HistoryEntry] 
     histories.get(index).map_or(&[], Vec::as_slice)
 }
 
-/// `done < total` keeps this below terminal progress, which only the engine
-/// publishes.
-fn emit_progress(
-    params: &UtxoParams,
-    events: &dyn EventSink,
-    done: usize,
-    total: usize,
-    tip_height: u32,
-) {
-    let progress = ChainSyncProgress::new(params.chain)
-        .with_fraction(
-            u64::try_from(done).unwrap_or(u64::MAX),
-            u64::try_from(total).unwrap_or(u64::MAX),
-        )
-        .with_heights(None, Some(u64::from(tip_height)));
-    events.try_emit(WalletEvent::SyncProgress(progress));
-}
-
 #[cfg(test)]
 mod tests {
     use std::slice::from_ref;
@@ -619,7 +603,7 @@ mod tests {
         chain.serve_two_rounds();
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
-        let outcome = sync_pass(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
 
         assert_eq!(outcome.tip_height, TIP);
         assert_eq!(outcome.addresses.len(), 1);
@@ -653,7 +637,6 @@ mod tests {
     #[tokio::test]
     async fn a_pass_emits_progress_and_never_the_terminal_state() {
         let chain = chain().unwrap();
-        // Three addresses, so there is progress to emit between them.
         let others = [
             test_key(&BITCOIN, ScriptKind::P2wpkh, 3).unwrap(),
             test_key(&BITCOIN, ScriptKind::P2wpkh, 4).unwrap(),
@@ -671,33 +654,16 @@ mod tests {
                 pending: &[],
             });
         }
-        let outcome = sync_pass(&BITCOIN, &client, &watched, &events).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &watched, &events).await.unwrap();
 
-        let emitted = events.drain();
-        assert_eq!(emitted.len(), watched.len(), "one before each address");
-        let mut last: Option<u16> = None;
-        for event in &emitted {
-            let WalletEvent::SyncProgress(progress) = event else { panic!("{event:?}") };
-            assert!(progress.progress_permille() < ChainSyncProgress::MAX_PERMILLE);
-            assert!(
-                last.is_none_or(|previous| progress.progress_permille() > previous),
-                "progress only ever advances"
-            );
-            assert_eq!(progress.tip_height(), Some(u64::from(TIP)));
-            last = Some(progress.progress_permille());
-        }
+        let in_flight =
+            ChainSyncProgress::new(BITCOIN.chain).with_heights(None, Some(u64::from(TIP)));
         assert_eq!(
-            emitted.first().and_then(|event| match event {
-                WalletEvent::SyncProgress(progress) => Some(progress.progress_permille()),
-                WalletEvent::BalanceChanged(_)
-                | WalletEvent::TxDetected(_)
-                | WalletEvent::TxUpdated(_)
-                | WalletEvent::TxConfirmed(_) => None,
-            }),
-            Some(0),
-            "nothing is done before the first address"
+            events.drain(),
+            vec![WalletEvent::SyncProgress(in_flight)],
+            "one report for every address, with the tip and nothing yet synced"
         );
-        assert_eq!(outcome.progress(&BITCOIN).progress_permille(), ChainSyncProgress::MAX_PERMILLE);
+        assert!(outcome.progress(&BITCOIN).is_complete());
         assert_eq!(outcome.progress(&BITCOIN).synced_height(), Some(u64::from(TIP)));
     }
 
@@ -708,17 +674,15 @@ mod tests {
         let cursor = {
             let client = chain.client().await.unwrap();
             let events = FakeEventSink::new();
-            let outcome =
-                sync_pass(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
+            let outcome = run(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
             outcome.addresses.first().expect("one address").cursor.clone()
         };
 
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
         let before = chain.fake.server.calls().len();
-        let outcome = sync_pass(&BITCOIN, &client, &chain.watched(Some(cursor.clone())), &events)
-            .await
-            .unwrap();
+        let outcome =
+            run(&BITCOIN, &client, &chain.watched(Some(cursor.clone())), &events).await.unwrap();
 
         let address = outcome.addresses.first().expect("one address");
         assert!(address.is_unchanged);
@@ -748,7 +712,7 @@ mod tests {
         chain.serve_two_rounds();
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
-        let first = sync_pass(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
+        let first = run(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
         let decoded = first.addresses.first().expect("one address").clone();
         assert_eq!(decoded.pending.iter().map(|tx| tx.txid).collect::<Vec<Txid>>(), vec![txid]);
 
@@ -757,14 +721,14 @@ mod tests {
             .into_iter()
             .map(|entry| WatchedScript { pending: &decoded.pending, ..entry })
             .collect();
-        let quiet = sync_pass(&BITCOIN, &client, &known, &events).await.unwrap();
+        let quiet = run(&BITCOIN, &client, &known, &events).await.unwrap();
         let address = quiet.addresses.first().expect("one address");
         assert!(address.is_unchanged);
         assert_eq!(address.pending, decoded.pending, "the pending set carries over");
 
         chain.serve_two_rounds();
         let later = chain.watched(Some(decoded.cursor));
-        let refetched = sync_pass(&BITCOIN, &client, &later, &events).await.unwrap();
+        let refetched = run(&BITCOIN, &client, &later, &events).await.unwrap();
         let address = refetched.addresses.first().expect("one address");
         assert!(!address.is_unchanged);
         assert_eq!(address.pending, decoded.pending);
@@ -844,8 +808,7 @@ mod tests {
         chain.serve_two_rounds();
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
-        let outcome =
-            sync_pass(&BITCOIN, &client, &chain.watched(Some(stale)), &events).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &chain.watched(Some(stale)), &events).await.unwrap();
         let address = outcome.addresses.first().expect("one address");
         assert!(!address.is_unchanged);
         assert_eq!(address.records.len(), 1);
@@ -894,7 +857,7 @@ mod tests {
             cursor: None,
             pending: &[],
         }];
-        let outcome = sync_pass(&BITCOIN, &client, &watched, &events).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &watched, &events).await.unwrap();
 
         let address = outcome.addresses.first().expect("one address");
         assert_eq!(Utxo::total(&address.coins).unwrap(), units(RETURNED_SAT));
@@ -959,7 +922,7 @@ mod tests {
             cursor: None,
             pending: &[],
         }];
-        let outcome = sync_pass(&BITCOIN, &client, &watched, &FakeEventSink::new()).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &watched, &FakeEventSink::new()).await.unwrap();
         let address = outcome.addresses.first().expect("one address");
         let wanted = child.compute_txid().to_string();
         let record = address.records.iter().find(|record| record.txid.value() == wanted).unwrap();
@@ -993,7 +956,7 @@ mod tests {
         );
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
-        let outcome = sync_pass(&BITCOIN, &client, &chain.watched(None), &events).await;
+        let outcome = run(&BITCOIN, &client, &chain.watched(None), &events).await;
         assert!(
             matches!(
                 outcome,
@@ -1014,7 +977,7 @@ mod tests {
         chain.fake.unspent(&[]);
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
-        let outcome = sync_pass(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &chain.watched(None), &events).await.unwrap();
 
         let address = outcome.addresses.first().expect("one address");
         assert!(address.coins.is_empty());
@@ -1028,7 +991,7 @@ mod tests {
         let chain = chain().unwrap();
         let client = chain.client().await.unwrap();
         let events = FakeEventSink::new();
-        let outcome = sync_pass(&BITCOIN, &client, &[], &events).await.unwrap();
+        let outcome = run(&BITCOIN, &client, &[], &events).await.unwrap();
         assert_eq!(outcome.tip_height, TIP);
         assert!(outcome.addresses.is_empty());
         assert!(outcome.live_outpoints().is_empty());

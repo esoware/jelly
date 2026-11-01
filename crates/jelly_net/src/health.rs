@@ -183,6 +183,7 @@ impl HealthTracker {
     }
 
     /// One endpoint's health as of now.
+    #[cfg(any(test, feature = "test-util"))]
     pub fn entry(&self, chain: ChainId, url: &str) -> HealthEntry {
         let records = self.records.lock();
         self.entry_of(url, records.get(&chain).and_then(|urls| urls.get(url)))

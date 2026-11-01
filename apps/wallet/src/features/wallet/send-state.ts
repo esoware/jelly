@@ -14,17 +14,15 @@ import type {
 } from "@/ipc/bindings.gen.ts"
 import { hasCode } from "@/ipc/client.ts"
 import { isZeroAmount } from "@/lib/amount.ts"
-import type { Parsed } from "@/lib/amount.ts"
 import { chainMeta } from "@/lib/chain.ts"
 import { describeFailure } from "@/lib/failure.ts"
+import { MAX_U32, WHOLE_NUMBER } from "@/lib/format.ts"
+import type { Parsed } from "@/lib/format.ts"
 import { moneyKeys } from "@/query/money.ts"
 import { useIpcMutation } from "@/query/mutation.ts"
 import { txCommands, txKeys } from "@/query/tx.ts"
 import { notify } from "@/store.ts"
 
-const MAX_DESTINATION_TAG = 4_294_967_295
-
-const DIGITS = /^[0-9]+$/u
 const HEX_BODY = /^[0-9a-fA-F]*$/u
 
 interface SendFormValues {
@@ -53,7 +51,7 @@ function parseNonce(raw: string): Parsed<number | null> {
   if (text === "") {
     return { isOk: true, value: null }
   }
-  if (!DIGITS.test(text)) {
+  if (!WHOLE_NUMBER.test(text)) {
     return { isOk: false, error: "Enter the nonce as a whole number." }
   }
   const value = Number(text)
@@ -102,8 +100,8 @@ export function buildTxRequest(values: SendFormValues, fee: FeeSelection): SendR
   let destinationTag: number | null = null
   const tag = values.destinationTag.trim()
   if (tag !== "") {
-    if (!DIGITS.test(tag) || Number(tag) > MAX_DESTINATION_TAG) {
-      errors.destinationTag = `Enter a whole number from 0 to ${String(MAX_DESTINATION_TAG)}.`
+    if (!WHOLE_NUMBER.test(tag) || Number(tag) > MAX_U32) {
+      errors.destinationTag = `Enter a whole number from 0 to ${String(MAX_U32)}.`
     } else {
       destinationTag = Number(tag)
     }

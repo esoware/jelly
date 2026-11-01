@@ -125,34 +125,15 @@ mod events {
     use super::{ChainId, ChainSyncProgress};
 
     #[test]
-    fn sync_progress_is_permille_and_clamps() {
-        let progress = ChainSyncProgress::new(ChainId::Monero)
-            .with_progress(1500)
-            .with_heights(Some(10), Some(20));
-        assert_eq!(progress.progress_permille(), ChainSyncProgress::MAX_PERMILLE);
+    fn sync_progress_is_complete_only_once_synced_to_the_tip() {
+        let progress = ChainSyncProgress::new(ChainId::Monero).with_heights(Some(10), Some(20));
+        assert_eq!(progress.chain(), ChainId::Monero);
         assert_eq!(progress.synced_height(), Some(10));
         assert_eq!(progress.tip_height(), Some(20));
-        assert!(progress.is_complete());
+        assert!(!progress.is_complete());
+        assert!(progress.with_heights(Some(20), Some(20)).is_complete());
+        assert!(!progress.with_heights(None, Some(20)).is_complete());
         assert!(!ChainSyncProgress::new(ChainId::Monero).is_complete());
-    }
-
-    #[test]
-    fn a_fraction_rounds_down_and_never_passes_full() {
-        let progress = |done, total| {
-            ChainSyncProgress::new(ChainId::Bitcoin).with_fraction(done, total).progress_permille()
-        };
-        assert_eq!(progress(0, 3), 0);
-        assert_eq!(progress(1, 3), 333, "rounded down");
-        assert_eq!(progress(2, 3), 666);
-        assert_eq!(progress(3, 3), ChainSyncProgress::MAX_PERMILLE);
-        assert_eq!(progress(7, 3), ChainSyncProgress::MAX_PERMILLE, "more than all is all");
-        assert_eq!(progress(u64::MAX - 1, u64::MAX), 999, "a huge total does not overflow");
-    }
-
-    #[test]
-    fn nothing_to_do_is_done() {
-        assert_eq!(ChainSyncProgress::permille_of(0, 0), ChainSyncProgress::MAX_PERMILLE);
-        assert_eq!(ChainSyncProgress::permille_of(5, 0), ChainSyncProgress::MAX_PERMILLE);
     }
 }
 
@@ -223,6 +204,55 @@ mod cursors {
     fn only_an_address_scope_names_an_address() {
         assert_eq!(CursorScope::Address(7).address_id(), Some(7));
         assert_eq!(CursorScope::Wallet.address_id(), None);
+    }
+}
+
+mod builds {
+    use std::collections::BTreeMap;
+
+    use jelly_core::{
+        AdapterSet, BuildRequest, ChainOutcome, KeyService, SkipReason, test_util::build_request,
+    };
+
+    use super::{ChainId, SecretText};
+
+    #[test]
+    fn a_collected_set_keeps_each_chains_reason() {
+        let set: AdapterSet = [
+            (ChainId::Tron, ChainOutcome::Skipped(SkipReason::NoEndpoints)),
+            (ChainId::Bitcoin, ChainOutcome::Skipped(SkipReason::BuildFailed)),
+        ]
+        .into_iter()
+        .collect();
+        assert!(set.built().is_empty());
+        assert!(matches!(
+            set.outcome(ChainId::Bitcoin),
+            Some(ChainOutcome::Skipped(SkipReason::BuildFailed))
+        ));
+        assert!(matches!(
+            set.outcome(ChainId::Tron),
+            Some(ChainOutcome::Skipped(SkipReason::NoEndpoints))
+        ));
+        assert!(set.adapter(ChainId::Bitcoin).is_none());
+    }
+
+    #[test]
+    fn a_blank_api_key_is_no_key_and_a_key_is_trimmed() {
+        let request = BuildRequest {
+            api_keys: BTreeMap::from([
+                (KeyService::TronGrid, SecretText::new("   ".to_owned())),
+                (KeyService::Etherscan, SecretText::new("  abc  ".to_owned())),
+            ]),
+            ..build_request(&[ChainId::Ethereum])
+        };
+        request.with_api_key(KeyService::TronGrid, |key| assert_eq!(key, None));
+        request.with_api_key(KeyService::Etherscan, |key| assert_eq!(key, Some("abc")));
+    }
+
+    #[test]
+    fn a_chain_without_a_recorded_birthday_scans_from_height_zero() {
+        let request = build_request(&[ChainId::Ethereum]);
+        assert_eq!(request.restore_height(ChainId::Monero), 0);
     }
 }
 

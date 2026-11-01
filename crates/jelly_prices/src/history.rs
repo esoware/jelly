@@ -13,10 +13,11 @@ use crate::config::PriceFeedConfig;
 use crate::error::PriceError;
 use crate::fetch::Fetch;
 use crate::kraken::RatePair;
-use crate::poll::TARGET;
 use crate::price::Price;
 use crate::switch::{wait_until_disabled, wait_until_enabled};
 use crate::ticker::Ticker;
+
+const TARGET: &str = "jelly::prices::history";
 
 const DAY_SECS: i64 = CandleInterval::Day.secs();
 /// Kraken's OHLC endpoint returns at most 720 candles.
@@ -31,29 +32,29 @@ const RETRY_DELAY: Duration = Duration::from_mins(5);
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct DailyPrice {
+struct DailyPrice {
     /// Unix seconds at the start of the UTC day.
-    pub(crate) day_unix_secs: i64,
+    day_unix_secs: i64,
     /// The daily close.
-    pub(crate) price: Price,
+    price: Price,
 }
 
 /// One USD price series, shared by every asset in `assets` because they trade as one
 /// ticker. Each price is US dollars per whole unit of the asset.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub(crate) struct AssetHistory {
-    pub(crate) assets: Vec<AssetId>,
-    pub(crate) prices: Vec<DailyPrice>,
+struct AssetHistory {
+    assets: Vec<AssetId>,
+    prices: Vec<DailyPrice>,
 }
 
 /// One exchange rate series. Each price is units of `currency` per US dollar, so a USD
 /// price times the rate is the price in `currency`.
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub(crate) struct RateHistory {
-    pub(crate) currency: FiatCurrency,
-    pub(crate) prices: Vec<DailyPrice>,
+struct RateHistory {
+    currency: FiatCurrency,
+    prices: Vec<DailyPrice>,
 }
 
 #[cfg_attr(feature = "ipc", derive(specta::Type))]
@@ -109,16 +110,11 @@ impl PriceHistoryLoader {
             if !wait_until_enabled(&mut enabled).await {
                 return;
             }
-            let is_loaded = tokio::select! {
-                () = self.load_all() => true,
-                is_running = wait_until_disabled(&mut enabled) => {
-                    if !is_running {
-                        return;
-                    }
-                    false
-                }
+            let is_running = tokio::select! {
+                () = self.load_all() => wait_until_disabled(&mut enabled).await,
+                is_running = wait_until_disabled(&mut enabled) => is_running,
             };
-            if is_loaded && !wait_until_disabled(&mut enabled).await {
+            if !is_running {
                 return;
             }
             self.feed.history.send_if_modified(|history| {
@@ -131,10 +127,9 @@ impl PriceHistoryLoader {
 
     /// Asks again for each series that failed until every one has loaded.
     async fn load_all(&self) {
-        let mut history = PriceHistory::default();
         let mut missing = self.requests.clone();
         loop {
-            let retry_after = self.load(&mut missing, &mut history).await;
+            let retry_after = self.load(&mut missing).await;
             if missing.is_empty() {
                 return;
             }
@@ -142,14 +137,10 @@ impl PriceHistoryLoader {
         }
     }
 
-    /// Asks for every series in `missing` at once and publishes `history` with each one
-    /// that loaded, leaving the rest in `missing`. Returns how long the provider asked
-    /// to be left alone, if it did.
-    async fn load(
-        &self,
-        missing: &mut Vec<CandleRequest>,
-        history: &mut PriceHistory,
-    ) -> Option<Duration> {
+    /// Asks for every series in `missing` at once and adds each one that loaded to the
+    /// published history in one change, leaving the rest in `missing`. Returns how long
+    /// the provider asked to be left alone, if it did.
+    async fn load(&self, missing: &mut Vec<CandleRequest>) -> Option<Duration> {
         let mut requests = JoinSet::new();
         for request in &*missing {
             let request = request.clone();
@@ -167,19 +158,7 @@ impl PriceHistoryLoader {
         let mut retry_after = None;
         while let Some(answered) = requests.join_next().await {
             match answered {
-                Ok(Ok((market, prices))) => {
-                    match market {
-                        Market::Asset(ticker) => {
-                            history
-                                .prices
-                                .push(AssetHistory { assets: ticker.assets().collect(), prices });
-                        }
-                        Market::Rate(currency) => {
-                            history.rates.push(RateHistory { currency, prices });
-                        }
-                    }
-                    loaded.push(market);
-                }
+                Ok(Ok(series)) => loaded.push(series),
                 Ok(Err(error)) => {
                     tracing::warn!(target: TARGET, %error, "a price history request failed");
                     let asked = self
@@ -194,9 +173,21 @@ impl PriceHistoryLoader {
                 }
             }
         }
-        missing.retain(|request| !loaded.contains(&request.market()));
+        missing.retain(|request| loaded.iter().all(|&(market, _)| market != request.market()));
         if !loaded.is_empty() {
-            self.feed.history.send_replace(history.clone());
+            self.feed.history.send_modify(|history| {
+                for (market, prices) in loaded {
+                    match market {
+                        Market::Asset(ticker) => {
+                            let assets = ticker.assets().collect();
+                            history.prices.push(AssetHistory { assets, prices });
+                        }
+                        Market::Rate(currency) => {
+                            history.rates.push(RateHistory { currency, prices });
+                        }
+                    }
+                }
+            });
         }
         retry_after
     }
@@ -412,7 +403,7 @@ mod tests {
             Arc::new(HistoryFetch { btc_refusals: AtomicUsize::new(1), ..HistoryFetch::default() });
         let (feed, loader) = loader_on(&fetch);
         let mut missing = loader.requests.clone();
-        loader.load(&mut missing, &mut PriceHistory::default()).await;
+        loader.load(&mut missing).await;
         let history = feed.snapshot();
         assert_eq!(history.prices.len(), Ticker::all().count() - 1);
         assert_eq!(history.rates.len(), FiatCurrency::COUNT - 1);
@@ -506,11 +497,7 @@ mod tests {
             barrier: Some(Barrier::new(count + 1)),
             ..HistoryFetch::default()
         });
-        let (feed, loader) = PriceHistoryFeed::new(
-            &PriceFeedConfig::default(),
-            Arc::<HistoryFetch>::clone(&fetch),
-            Arc::new(FakeClock::default()),
-        );
+        let (feed, loader) = loader_on(&fetch);
         let (enabled, receiver) = watch::channel(true);
         let task = tokio::spawn(loader.run(receiver));
         timeout(Duration::from_secs(2), async {

@@ -10,7 +10,7 @@ use serde::Serialize;
 use serde_json::value::RawValue;
 use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, split};
 use tokio::sync::{mpsc, oneshot, watch};
-use tokio::task::JoinHandle;
+use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 use crate::error::ElectrumError;
@@ -37,16 +37,7 @@ pub(crate) struct RpcSocket {
     inner: Arc<Inner>,
     outgoing: mpsc::Sender<Vec<u8>>,
     next_id: AtomicU64,
-    tasks: [JoinHandle<()>; 2],
-}
-
-impl Drop for RpcSocket {
-    fn drop(&mut self) {
-        self.inner.retire(RetireReason::Gone);
-        for task in &self.tasks {
-            task.abort();
-        }
-    }
+    _tasks: JoinSet<()>,
 }
 
 impl RpcSocket {
@@ -61,11 +52,10 @@ impl RpcSocket {
             notices,
         });
         let (reader, writer) = split(socket);
-        let tasks = [
-            tokio::spawn(read_loop(reader, Arc::clone(&inner))),
-            tokio::spawn(write_loop(writer, queue, Arc::clone(&inner))),
-        ];
-        Self { inner, outgoing, next_id: AtomicU64::new(1), tasks }
+        let mut tasks = JoinSet::new();
+        tasks.spawn(read_loop(reader, Arc::clone(&inner)));
+        tasks.spawn(write_loop(writer, queue, Arc::clone(&inner)));
+        Self { inner, outgoing, next_id: AtomicU64::new(1), _tasks: tasks }
     }
 
     pub(crate) fn endpoint(&self) -> &EndpointLabel {

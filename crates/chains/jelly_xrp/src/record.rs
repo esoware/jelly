@@ -4,6 +4,7 @@ use serde_json::Value;
 use crate::client::parse_drops;
 use crate::config::{CHAIN, RIPPLE_EPOCH_UNIX_SECONDS};
 use crate::error::XrpError;
+use crate::watched::Watched;
 
 enum Change {
     Created,
@@ -66,12 +67,8 @@ fn balance_delta(metadata: &Value, owner: &str) -> Result<Option<i128>, XrpError
     Ok(delta_drops)
 }
 
-pub(crate) fn record(
-    row: &Value,
-    address_id: i64,
-    owner: &str,
-    tip: u32,
-) -> Result<Option<TxRecord>, XrpError> {
+pub(crate) fn record(row: &Value, entry: &Watched, tip: u32) -> Result<Option<TxRecord>, XrpError> {
+    let owner = entry.address.as_str();
     if row.get("validated").and_then(Value::as_bool) != Some(true) {
         return Err(XrpError::Protocol);
     }
@@ -120,7 +117,7 @@ pub(crate) fn record(
     };
     let mut record = TxRecord::builder(
         AssetId::Native(CHAIN),
-        address_id,
+        entry.address_id,
         TxId::new(CHAIN, hash.to_ascii_uppercase()),
         direction,
         amount,
@@ -172,6 +169,10 @@ mod tests {
 
     const OWNER: &str = "rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY";
 
+    fn owner() -> Watched {
+        Watched { address_id: 1, address: OWNER.to_owned() }
+    }
+
     #[test]
     fn partial_payments_credit_the_ledger_change_not_the_requested_amount() {
         let metadata = json!({"TransactionResult":"tesSUCCESS","delivered_amount":"1","AffectedNodes":[{
@@ -182,7 +183,7 @@ mod tests {
         let row = json!({"validated":true,"hash":"AB".repeat(32),"ledger_index":50000,
             "Account":"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh","Destination":OWNER,"Fee":"10",
             "Flags":131_072,"Amount":"99999999999999999","meta":metadata});
-        let record = record(&row, 1, OWNER, 50000).unwrap().unwrap();
+        let record = record(&row, &owner(), 50000).unwrap().unwrap();
         assert_eq!(record.amount.base_units(), 1);
         assert_eq!(record.direction, TxDirection::Incoming);
         assert_eq!(record.fee, None);
@@ -231,7 +232,7 @@ mod tests {
             {"ModifiedNode":{"LedgerEntryType":"AccountRoot","LedgerIndex":"BF".repeat(32),
                 "PreviousTxnID":"AB".repeat(32),"PreviousTxnLgrSeq":40_000_000}},
         ]}});
-        let record = record(&row, 1, OWNER, 40_010_838).unwrap().unwrap();
+        let record = record(&row, &owner(), 40_010_838).unwrap().unwrap();
         assert_eq!(record.amount, Amount::ZERO);
         assert_eq!(record.fee, Some(Amount::from(12u64)));
     }

@@ -272,7 +272,7 @@ impl MoneroAdapter {
                 Candidate {
                     output: owned.output().clone(),
                     key_image,
-                    ring: guard.rings.get(&key_image).cloned(),
+                    ring: guard.rings().get(&key_image).cloned(),
                 }
             })
             .collect();

@@ -7,11 +7,13 @@ use std::net::TcpListener;
 use std::path::Path;
 use std::sync::Arc;
 
-use jelly_core::{ChainId, ErrorCode, PhraseWords, ProxySetting, WalletColor};
-use jelly_engine::{PassphraseInput, StartupError};
-use jelly_lib::{AppState, IpcError, Services, ShellConfig, StartupStatus};
+use jelly_core::{ChainId, ErrorCode, PhraseLength, ProxySetting, WalletColor};
+use jelly_engine::{AppSettings, PassphraseInput, StartupError};
+use jelly_lib::{AppState, IpcError, Services, ShellConfig, ShellDeps, StartupStatus};
+use jelly_vault::test_util::FailingKeyStore;
+use serde_json::Value;
 
-use crate::common::{PASSWORD, deps, deps_without_keychain, offline_config, secret};
+use crate::common::{PASSWORD, deps, offline_config, secret};
 
 #[tokio::test]
 async fn a_command_refuses_with_the_startup_failure_rather_than_a_reason_of_its_own() {
@@ -19,7 +21,9 @@ async fn a_command_refuses_with_the_startup_failure_rather_than_a_reason_of_its_
     let state = AppState::new(deps(directory.path()));
     assert_eq!(state.status(), StartupStatus::Starting);
 
-    let outcome = Services::start(offline_config(), deps_without_keychain(directory.path())).await;
+    let without_keychain =
+        ShellDeps { keystore: Arc::new(FailingKeyStore), ..deps(directory.path()) };
+    let outcome = Services::start(offline_config(), without_keychain).await;
     assert!(outcome.is_err(), "a missing credential store is a startup failure");
     state.finish(outcome);
 
@@ -36,7 +40,9 @@ async fn a_command_refuses_with_the_startup_failure_rather_than_a_reason_of_its_
     assert_eq!(refused.code, ErrorCode::Keychain.into(), "a command answers the startup failure");
 }
 
-#[tokio::test]
+/// The paused clock can't run the command's wait out while startup works on the blocking
+/// pool, however slow the machine.
+#[tokio::test(start_paused = true)]
 async fn a_command_waits_for_startup_instead_of_refusing() {
     let directory = tempfile::tempdir().unwrap();
     let state = Arc::new(AppState::new(deps(directory.path())));
@@ -221,7 +227,7 @@ async fn shutting_down_takes_the_engine_and_checkpoints_the_database() {
             "first",
             WalletColor::default(),
             secret(PASSWORD),
-            PhraseWords::Twelve,
+            PhraseLength::Twelve,
             PassphraseInput::None,
         )
         .await
@@ -342,11 +348,15 @@ async fn proxy_repair_saves_offline_and_preserves_unrelated_settings() {
         "commands still answer the startup failure"
     );
     assert_eq!(listener.accept().unwrap_err().kind(), ErrorKind::WouldBlock);
-    let stored: jelly_engine::AppSettings =
-        serde_json::from_slice(&fs::read(&saved_path).unwrap()).unwrap();
-    assert_eq!(stored, jelly_engine::AppSettings { proxy: Some(proxy), ..before });
+    let mut expected: Value = serde_json::from_slice(&saved).unwrap();
+    expected["proxy"] = serde_json::to_value(&proxy).unwrap();
+    let stored: Value = serde_json::from_slice(&fs::read(&saved_path).unwrap()).unwrap();
+    assert_eq!(stored, expected);
     let restarted = Services::start(offline_config(), deps(directory.path())).await.unwrap();
-    assert_eq!(restarted.engine().unwrap().app_settings().await, stored);
+    assert_eq!(
+        restarted.engine().unwrap().app_settings().await,
+        AppSettings { proxy: Some(proxy), ..before }
+    );
     restarted.shutdown().await;
 }
 

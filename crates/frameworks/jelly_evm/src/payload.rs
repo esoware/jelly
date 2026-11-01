@@ -134,16 +134,16 @@ impl Shape {
         token: Option<TokenMeta>,
         to: Address,
         amount: u128,
-        calldata: Option<&[u8]>,
+        calldata: Option<&Bytes>,
     ) -> Self {
         match (token, calldata) {
             (Some(metadata), Some(data)) => {
-                Self { to: metadata.address(), value: 0, input: Bytes::copy_from_slice(data) }
+                Self { to: metadata.address(), value: 0, input: data.clone() }
             }
             (Some(metadata), None) => {
                 Self { to: metadata.address(), value: 0, input: transfer_input(to, amount) }
             }
-            (None, Some(data)) => Self { to, value: 0, input: Bytes::copy_from_slice(data) },
+            (None, Some(data)) => Self { to, value: 0, input: data.clone() },
             (None, None) => Self { to, value: amount, input: Bytes::new() },
         }
     }
@@ -178,8 +178,7 @@ mod tests {
     use jelly_core::{ChainId, TokenId};
 
     use super::*;
-    use crate::fixtures::{address, token_table};
-    use crate::test_util::ETHEREUM;
+    use crate::fixtures::{ETHEREUM, address, token_table};
 
     const COIN: u128 = 1_000_000_000_000_000_000;
 
@@ -252,18 +251,18 @@ mod tests {
 
     #[test]
     fn calldata_replaces_the_transfer_and_never_rides_beside_it() {
-        let data = [0xde, 0xad, 0xbe, 0xef];
+        let data = Bytes::from_static(&[0xde, 0xad, 0xbe, 0xef]);
         let raw = Shape::of(None, address(2), COIN, Some(&data));
         assert_eq!(raw.to, address(2));
         assert_eq!(raw.value, 0, "calldata replaces the transfer, so it carries no coin");
-        assert_eq!(&raw.input[..], data);
+        assert_eq!(raw.input, data);
 
         let table = token_table();
         let token =
             table.of_asset(AssetId::Token(TokenId::UsdtErc20)).ok().flatten().expect("a token");
         let over_token = Shape::of(Some(token), address(2), 5, Some(&data));
         assert_eq!(over_token.to, token.address(), "a token call still goes to the contract");
-        assert_eq!(&over_token.input[..], data);
+        assert_eq!(over_token.input, data);
     }
 
     #[test]
@@ -274,7 +273,7 @@ mod tests {
         let native = AssetId::Native(ChainId::Ethereum);
         let usdt = AssetId::Token(TokenId::UsdtErc20);
         let data = Bytes::from_static(&[0xd0, 0xe3, 0x0d, 0xb0]);
-        let built = |token: Option<TokenMeta>, asset: AssetId, calldata: Option<&[u8]>| {
+        let built = |token: Option<TokenMeta>, asset: AssetId, calldata: Option<&Bytes>| {
             let shape = Shape::of(token, address(2), 5, calldata);
             let intent = Intent {
                 from: address(1),

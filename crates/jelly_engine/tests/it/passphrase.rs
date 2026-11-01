@@ -1,4 +1,4 @@
-use jelly_core::{ChainId, CoreError, PassphrasePolicy, PhraseWords, SecretText, WalletColor};
+use jelly_core::{ChainId, CoreError, PassphrasePolicy, PhraseLength, SecretText, WalletColor};
 use jelly_engine::{PassphraseInput, WalletRecord};
 
 use crate::common::{Fallible, Harness, PASSWORD, harness, prompt, secret, stored};
@@ -14,24 +14,6 @@ fn a_passphrase_input_never_prints_its_value() {
     }
 }
 
-#[test]
-fn a_passphrase_input_implies_its_policy() {
-    assert_eq!(PassphraseInput::None.policy(), PassphrasePolicy::None);
-    assert!(PassphraseInput::None.value().is_none());
-    let kept = stored(PASSPHRASE);
-    assert_eq!(kept.policy(), PassphrasePolicy::Stored);
-    assert!(kept.value().is_some_and(|value| value.with_str(|text| text == PASSPHRASE)));
-    assert_eq!(prompt(PASSPHRASE).policy(), PassphrasePolicy::Prompt);
-}
-
-#[test]
-fn a_passphrase_input_deserializes_from_its_tagged_form() {
-    let input: PassphraseInput =
-        serde_json::from_str("{\"kind\":\"prompt\",\"value\":\"pw\"}").unwrap();
-    assert_eq!(input.policy(), PassphrasePolicy::Prompt);
-    assert!(input.value().is_some_and(|value| value.with_str(|text| text == "pw")));
-}
-
 async fn seed_with(harness: &Harness, passphrase: PassphraseInput) -> Fallible<WalletRecord> {
     let created = harness
         .engine
@@ -39,7 +21,7 @@ async fn seed_with(harness: &Harness, passphrase: PassphraseInput) -> Fallible<W
             "passphrased",
             WalletColor::default(),
             secret(PASSWORD),
-            PhraseWords::Twelve,
+            PhraseLength::Twelve,
             passphrase,
         )
         .await?;

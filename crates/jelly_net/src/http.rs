@@ -189,13 +189,7 @@ impl<'a> HttpRequest<'a> {
     }
 
     pub const fn post_json(body: &'a str, timeout: Duration) -> Self {
-        Self {
-            method: HttpMethod::Post,
-            body: Some(HttpBody { content_type: "application/json", bytes: body.as_bytes() }),
-            headers: &[],
-            timeout,
-            max_bytes: DEFAULT_MAX_BYTES,
-        }
+        Self::post_bytes("application/json", body.as_bytes(), timeout)
     }
 
     /// A body with its own content type, such as the Monero daemon's epee routes or the raw

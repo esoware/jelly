@@ -3,10 +3,9 @@
 //! The priority fee is a price times the compute-unit limit requested, not the units
 //! consumed, so the limit is measured rather than guessed generously.
 
-use jelly_core::{Amount, AssetId, FeeLevel};
+use jelly_core::FeeLevel;
 use parking_lot::Mutex;
 
-use crate::config::NATIVE;
 use crate::error::SolanaError;
 use crate::route::{Shape, TransferKind};
 use crate::rpc::PrioritizationFee;
@@ -32,7 +31,7 @@ pub(crate) fn priority_fee(micro_lamports_per_unit: u64, compute_unit_limit: u32
 }
 
 /// The base fee of a single-signer transaction plus its priority fee.
-pub(crate) fn total_fee(micro_lamports_per_unit: u64, compute_unit_limit: u32) -> Option<u64> {
+fn total_fee(micro_lamports_per_unit: u64, compute_unit_limit: u32) -> Option<u64> {
     LAMPORTS_PER_SIGNATURE.checked_add(priority_fee(micro_lamports_per_unit, compute_unit_limit)?)
 }
 
@@ -117,6 +116,12 @@ impl Pricing {
         let highest = price_within(ceiling_lamports, compute_unit_limit).unwrap_or(wanted);
         Self { micro_lamports_per_unit: wanted.min(highest), is_capped: wanted > highest }
     }
+
+    /// The whole fee over `units`, excluding any rent deposit.
+    pub(crate) fn fee(self, units: ComputeUnits) -> Result<u64, SolanaError> {
+        total_fee(self.micro_lamports_per_unit, units.limit())
+            .ok_or(SolanaError::Overflow { what: "the fee" })
+    }
 }
 
 /// Shown in the preview, because a limit that wasn't measured is the one number in a
@@ -129,16 +134,6 @@ pub(crate) enum UnitSource {
     Cached,
     /// The compiled ceiling for the shape, because no simulation measured it.
     Compiled,
-}
-
-impl UnitSource {
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::Simulated => "Measured by simulation",
-            Self::Cached => "Measured earlier this session",
-            Self::Compiled => "Fallback estimate",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -229,24 +224,8 @@ impl UnitCache {
     }
 }
 
-/// `base_units` of `asset` at the asset's own scale, followed by its symbol.
-pub(crate) fn amount_text(asset: AssetId, base_units: u64) -> String {
-    format!("{} {}", Amount::from(base_units).format(asset.decimals()), asset.coin().symbol())
-}
-
-pub(crate) fn sol_text(lamports: u64) -> String {
-    amount_text(NATIVE, lamports)
-}
-
-/// SOL and lamports both, as every fee row in a preview shows them.
-pub(crate) fn lamports_text(lamports: u64) -> String {
-    format!("{} ({lamports} lamports)", sol_text(lamports))
-}
-
 #[cfg(test)]
 mod tests {
-    use jelly_core::TokenId;
-
     use super::*;
 
     fn samples(values: &[u64]) -> Vec<PrioritizationFee> {
@@ -384,12 +363,5 @@ mod tests {
         assert!(limit(UnitSource::Compiled).is_fallback());
         assert!(!limit(UnitSource::Simulated).is_fallback());
         assert!(!limit(UnitSource::Cached).is_fallback());
-    }
-
-    #[test]
-    fn a_figure_names_its_asset_at_the_assets_own_scale() {
-        assert_eq!(sol_text(1_000_000), "0.001 SOL");
-        assert_eq!(lamports_text(5_000), "0.000005 SOL (5000 lamports)");
-        assert_eq!(amount_text(AssetId::Token(TokenId::UsdcSpl), 1_500_000), "1.5 USDC");
     }
 }

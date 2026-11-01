@@ -38,6 +38,11 @@ pub(crate) struct Tracked {
 }
 
 impl Tracked {
+    /// The signed bytes, or `None` when the stored text isn't base64.
+    pub(crate) fn raw_bytes(&self) -> Option<Vec<u8>> {
+        BASE64.decode(&self.raw).ok()
+    }
+
     fn amount(&self) -> Amount {
         Amount::from(self.amount)
     }
@@ -50,9 +55,8 @@ impl Tracked {
     /// one shortvec length byte, a 64-byte signature, then exactly the message, so
     /// the comparison is exact.
     pub(crate) fn is_signed_message(&self, message: &[u8]) -> bool {
-        BASE64
-            .decode(&self.raw)
-            .is_ok_and(|bytes| bytes.get(sign::SIGNATURE_OVERHEAD_BYTES..) == Some(message))
+        self.raw_bytes()
+            .is_some_and(|bytes| bytes.get(sign::SIGNATURE_OVERHEAD_BYTES..) == Some(message))
     }
 
     /// Carries no fee, so the store keeps the one it already holds until the signature

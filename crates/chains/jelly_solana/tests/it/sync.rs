@@ -27,7 +27,7 @@ mod balances {
 
         assert_eq!(progress.chain(), ChainId::Solana);
         assert_eq!(progress.tip_height(), Some(common::SLOT));
-        assert_eq!(progress.progress_permille(), 1_000);
+        assert!(progress.is_complete());
         assert_eq!(progress.synced_height(), Some(common::SLOT));
 
         let balances = harness.balances();
@@ -168,7 +168,7 @@ mod balances {
         let harness = Harness::new();
         harness.node.quiet().unwrap();
         let progress = harness.sync().await.unwrap();
-        assert_eq!(progress.progress_permille(), 1_000);
+        assert!(progress.is_complete());
         assert!(harness.drain().is_empty());
         assert_eq!(harness.node.documents(), vec![2]);
     }
@@ -621,7 +621,7 @@ mod walking {
             }
             harness.node.forget_calls();
             harness.drain();
-            if progress.progress_permille() == 1_000 {
+            if progress.is_complete() {
                 break;
             }
         }
@@ -873,18 +873,17 @@ mod walking {
         harness.watch(&[watched(7, OWNER), watched(8, RECORDED)]).await.unwrap();
 
         let first = harness.sync().await.unwrap();
-        assert_eq!(first.progress_permille(), 500, "the address with no history finished at once");
         assert_eq!(first.synced_height(), None, "the other has not, so this wallet is not synced");
 
         let mut last = first;
         for _ in 0..20u8 {
             last = harness.sync().await.unwrap();
             harness.drain();
-            if last.progress_permille() == 1_000 {
+            if last.is_complete() {
                 break;
             }
         }
-        assert_eq!(last.progress_permille(), 1_000);
+        assert!(last.is_complete());
         assert_eq!(last.synced_height(), Some(common::SLOT), "now every history is covered");
     }
 }

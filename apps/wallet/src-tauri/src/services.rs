@@ -3,9 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use jelly_chains::AdapterFactory;
-use jelly_core::{
-    AdapterBuilder, AssetId, Clock, CoreError, FiatCurrency, ProxySetting, SystemClock,
-};
+use jelly_core::{AdapterBuilder, AssetId, Clock, CoreError, FiatCurrency, ProxySetting};
 use jelly_engine::{
     DatabaseRebuilt, EngineConfig, EngineDeps, StartFailure, Started, StartupError, WalletEngine,
 };
@@ -13,7 +11,7 @@ use jelly_net::{NetError, Network};
 use jelly_prices::{
     CandleInterval, Fetch, PriceChart, PriceCharts, PriceFeed, PriceFeedConfig, PriceHistoryFeed,
 };
-use jelly_vault::{KeyringStore, MasterKeyStore};
+use jelly_vault::MasterKeyStore;
 use parking_lot::Mutex;
 use tokio::sync::{Mutex as AsyncMutex, watch};
 use tokio::task::spawn_blocking;
@@ -41,10 +39,6 @@ pub struct ShellDeps {
 }
 
 impl ShellDeps {
-    pub(crate) fn platform(data_dir: PathBuf) -> Self {
-        Self { data_dir, clock: Arc::new(SystemClock), keystore: Arc::new(KeyringStore) }
-    }
-
     pub(crate) fn engine_deps(self, builder: Arc<dyn AdapterBuilder>) -> EngineDeps {
         let Self { data_dir, clock, keystore } = self;
         EngineDeps { data_dir, clock, keystore, builder, table: jelly_chains::chains() }

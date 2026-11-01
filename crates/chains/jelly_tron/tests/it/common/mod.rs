@@ -464,17 +464,7 @@ pub(crate) fn funded(balance: u64) -> Arc<FakeNode> {
 /// A wallet that can send, with every history stream quiet so a pass is only
 /// about the follow-up.
 pub(crate) fn sender() -> Arc<FakeNode> {
-    let fake = FakeNode::new();
-    let fake = base(&fake)
-        .on_matching(Route::Account, OWNER, account(OWNER, 100_000_000))
-        .on_matching(Route::Account, RECIPIENT, account(RECIPIENT, 5_000_000))
-        .on_matching(
-            Route::ConstantContract,
-            "balanceOf(address)",
-            Answer::body(fixture!("constant_balance_of")),
-        )
-        .on(Route::BroadcastHex, Answer::body(r#"{"result":true}"#));
-    quiet_history(&fake)
+    quiet_history(&funded(100_000_000)).on(Route::BroadcastHex, Answer::body(r#"{"result":true}"#))
 }
 
 /// An empty page on every history stream, as for a wallet with no history.

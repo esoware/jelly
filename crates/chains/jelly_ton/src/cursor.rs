@@ -13,7 +13,7 @@ const SCAN_VERSION: u8 = 2;
 /// `latest_lt` is the head of the last completed walk, `head_lt` the head of the walk in
 /// progress, `stop_lt` the floor that walk stops at, and `next` the page it fetches next,
 /// or `None` once it is complete.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Walk {
     latest_lt: u64,
@@ -62,7 +62,7 @@ impl Walk {
 
 /// The owner's wallet under one registry master, its balance as last read, and how far
 /// its history has been read.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct JettonCursor {
     pub(crate) token: TokenId,
@@ -93,6 +93,10 @@ impl JettonCursor {
     pub(crate) fn address(&self) -> Result<TonAddress, TonError> {
         TonAddress::from_hex_str(&self.wallet)
             .map_err(|_| TonError::Internal("a stored jetton wallet does not parse"))
+    }
+
+    pub(crate) fn held(&self) -> Result<Held, TonError> {
+        Ok(Held { token: self.token, wallet: self.address()? })
     }
 
     pub(crate) const fn balance(&self) -> Amount {
@@ -127,7 +131,7 @@ pub(crate) enum Stream {
 }
 
 /// Sync's stored state for one address, so its field names are a stored format.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Cursor {
     version: u8,
@@ -164,10 +168,7 @@ impl Cursor {
     }
 
     pub(crate) fn held(&self) -> Result<Vec<Held>, TonError> {
-        self.jettons
-            .iter()
-            .map(|jetton| Ok(Held { token: jetton.token, wallet: jetton.address()? }))
-            .collect()
+        self.jettons.iter().map(JettonCursor::held).collect()
     }
 
     pub(crate) fn walk_mut(&mut self, stream: Stream) -> Result<&mut Walk, TonError> {

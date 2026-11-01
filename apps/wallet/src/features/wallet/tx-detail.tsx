@@ -33,6 +33,7 @@ import {
   canBumpFee,
   canCancel,
   directionSign,
+  hasNotRun,
   isAmountUnknown,
   outcomeLabel,
   shownAmount,
@@ -75,23 +76,22 @@ export function useTxFiat(row: TxEntry): TxFiatValues {
   const prices = usePrices()
   const isPreviousDay =
     row.confirmations > 0 &&
-    row.timestamp !== null &&
-    row.timestamp < prices.judgedAtUnixSecs &&
-    dayKey(row.timestamp) !== dayKey(prices.judgedAtUnixSecs)
+    row.timestampUnixSecs !== null &&
+    row.timestampUnixSecs < prices.judgedAtUnixSecs &&
+    dayKey(row.timestampUnixSecs) !== dayKey(prices.judgedAtUnixSecs)
   const historicalPrice = useHistoricalPrice(
     row.asset,
     prices.currency,
-    isPreviousDay ? row.timestamp : null,
+    isPreviousDay ? row.timestampUnixSecs : null,
   )
   const raw = isAmountUnknown(row) ? null : amountToBigInt(shownAmount(row))
   const signed = raw === null ? null : raw * directionSign(shownDirection(row))
   const decimals = assetDecimals(row.asset)
-  const livePrice = priceForAsset(row.asset, prices)
 
   return {
     currency: prices.currency,
-    currentValue: livePrice === null ? null : fiatValue(signed, decimals, livePrice),
-    historicalValue: historicalPrice === null ? null : fiatValue(signed, decimals, historicalPrice),
+    currentValue: fiatValue(signed, decimals, priceForAsset(row.asset, prices)),
+    historicalValue: fiatValue(signed, decimals, historicalPrice),
     isCurrentStale: isPriceStale(row.asset, prices),
   }
 }
@@ -259,11 +259,10 @@ function TxFacts({ row, onBumpFee, onCancel }: TxFactsProps) {
   const explorer = explorerTxUrl(chain, row.txid)
   const canBump = canBumpFee(row)
   const isCancellable = canCancel(row)
-  const hasNotRun = outcomeLabel(row) !== null
   const time =
-    row.timestamp === null
+    row.timestampUnixSecs === null
       ? "Time unavailable"
-      : `${formatDay(row.timestamp)} at ${formatClock(row.timestamp)}`
+      : `${formatDay(row.timestampUnixSecs)} at ${formatClock(row.timestampUnixSecs)}`
 
   return (
     <div className="space-y-1 text-caption">
@@ -281,7 +280,9 @@ function TxFacts({ row, onBumpFee, onCancel }: TxFactsProps) {
       <TxFact label="Time">{time}</TxFact>
       <TxFact label="Status">
         <span className="flex items-baseline gap-1.5">
-          {hasNotRun ? null : <ConfirmationMark chain={chain} confirmations={row.confirmations} />}
+          {hasNotRun(row) ? null : (
+            <ConfirmationMark chain={chain} confirmations={row.confirmations} />
+          )}
           {statusText(row, chain)}
         </span>
       </TxFact>
@@ -359,7 +360,7 @@ function TxFacts({ row, onBumpFee, onCancel }: TxFactsProps) {
 
 type Replacement = "bump" | "cancel"
 
-const COPY = {
+const REPLACEMENT_COPY = {
   bump: {
     title: "Bump fee",
     description:
@@ -396,7 +397,7 @@ function ReplacementStep({
   onSubmit,
   children,
 }: ReplacementStepProps) {
-  const copy = COPY[replacement]
+  const copy = REPLACEMENT_COPY[replacement]
   return (
     <DialogForm
       onSubmit={() => {

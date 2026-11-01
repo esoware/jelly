@@ -6,8 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use jelly_core::{ChainEntry, ChainId, ChainTable, Clock, CoreError, KeyMaterial, wire_enum};
-use jelly_keypair::HdKeychain;
-use jelly_store::WalletRow;
+use jelly_keypair::Seed;
 use jelly_vault::{UnlockedVault, VaultError, VaultPassword};
 use parking_lot::{RwLock, RwLockReadGuard};
 use secrecy::SecretString;
@@ -16,9 +15,11 @@ use tokio::sync::{Mutex, watch};
 use tokio::time::sleep;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
-use crate::WalletEngine;
 use crate::error::blocking;
 use crate::seed::SeedKeys;
+use crate::{WalletEngine, WalletRecord};
+
+const TARGET: &str = "jelly::engine::session";
 
 wire_enum! {
     #[cfg_attr(feature = "ipc", derive(specta::Type))]
@@ -50,23 +51,8 @@ pub enum LockState {
 }
 
 impl LockState {
-    pub const fn locked(reason: LockReason) -> Self {
-        Self::Locked { reason }
-    }
-
-    pub(crate) fn unlocked(wallet: &WalletRow) -> Self {
-        Self::Unlocked { wallet_id: wallet.id, wallet_name: wallet.name.clone() }
-    }
-
     pub const fn is_unlocked(&self) -> bool {
         matches!(*self, Self::Unlocked { .. })
-    }
-
-    pub const fn wallet_id(&self) -> Option<i64> {
-        match *self {
-            Self::Unlocked { wallet_id, .. } => Some(wallet_id),
-            Self::Locked { .. } => None,
-        }
     }
 }
 
@@ -134,8 +120,8 @@ impl Session {
         self.table.entry(chain)
     }
 
-    pub(crate) const fn keychain(&self) -> &HdKeychain {
-        &self.keys.keychain
+    pub(crate) const fn seed(&self) -> &Seed {
+        &self.keys.seed
     }
 
     /// The account index the keys were opened for, which the wallet's subaddress chains
@@ -164,7 +150,7 @@ impl Session {
         &self,
         access: impl FnOnce(&UnlockedVault) -> Result<T, VaultError>,
     ) -> Result<T, CoreError> {
-        access(&self.vault.read()).map_err(CoreError::from)
+        Ok(access(&self.vault.read())?)
     }
 
     /// Every write rewrites the whole encrypted file, so it runs on the blocking pool.
@@ -211,7 +197,7 @@ pub(crate) struct SessionSlot {
 
 impl SessionSlot {
     pub(crate) fn new(timeout: Duration) -> Self {
-        let (state, _) = watch::channel(LockState::locked(LockReason::Requested));
+        let (state, _) = watch::channel(LockState::Locked { reason: LockReason::Requested });
         let (timeout, _) = watch::channel(timeout);
         Self { current: RwLock::new(None), transition: Mutex::new(()), state, timeout }
     }
@@ -332,12 +318,15 @@ impl WalletEngine {
             .ok_or(CoreError::Locked)
     }
 
-    pub(crate) fn install_session(&self, session: Session, wallet: &WalletRow) {
+    pub(crate) fn install_session(&self, session: Session, wallet: &WalletRecord) {
         let cancel = session.cancel.clone();
         self.inner.session.install(Arc::new(session));
-        self.inner.session.publish(LockState::unlocked(wallet));
+        self.inner.session.publish(LockState::Unlocked {
+            wallet_id: wallet.id,
+            wallet_name: wallet.name.clone(),
+        });
         self.spawn_idle_watch(cancel);
-        tracing::info!(target: "jelly::engine::session", wallet_id = wallet.id, "wallet unlocked");
+        tracing::info!(target: TARGET, wallet_id = wallet.id, "wallet unlocked");
     }
 
     /// The caller holds the transition lock. The retiring task keeps the send guard even
@@ -351,7 +340,7 @@ impl WalletEngine {
         let Some(session) = self.inner.session.take() else {
             return;
         };
-        self.inner.session.publish(LockState::locked(reason));
+        self.inner.session.publish(LockState::Locked { reason });
         session.tasks.close();
         let inner = Arc::clone(&self.inner);
         let retiring = self.inner.tasks.spawn(async move {
@@ -362,14 +351,14 @@ impl WalletEngine {
             let wallet_id = session.wallet_id();
             drop(session);
             tracing::info!(
-                target: "jelly::engine::session",
+                target: TARGET,
                 wallet_id,
                 reason = reason.as_str(),
                 "wallet locked"
             );
         });
         if let Err(error) = retiring.await {
-            tracing::error!(target: "jelly::engine::session", %error, "session retirement failed");
+            tracing::error!(target: TARGET, %error, "session retirement failed");
         }
     }
 

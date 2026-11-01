@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use jelly_core::{Amount, Clock, FeeLevel, FeeQuote, FeeRate, FeeSelection, LevelFee};
 use jelly_electrum::EstimationMode;
 use tokio::sync::Mutex;
@@ -6,6 +8,7 @@ use crate::adapter::client::UtxoClient;
 use crate::adapter::send::{self, Plan};
 use crate::error::UtxoError;
 use crate::fee::{fee_for, rate_from_histogram};
+use crate::fee_api::FeeApi;
 use crate::params::{Auction, BumpMethod, FeeMarket, UtxoParams};
 use crate::weight::predict_weight;
 
@@ -15,20 +18,20 @@ const TARGET: &str = "jelly::utxo::fee";
 const FEE_CACHE_TTL_MILLIS: u64 = 30_000;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct FeeContext {
+pub(super) struct FeeContext {
     /// The rate each fee level pays, in [`FeeLevel::ALL`] order, never below the relay
     /// floor or the table's wallet floor, and never below a slower level's.
     levels: [FeeRate; 3],
     /// The slow reading floored only at the relay floor, so a custom rate is judged
     /// slow against what the network takes, not what this wallet pays.
-    pub(crate) slow_market: FeeRate,
+    pub(super) slow_market: FeeRate,
     /// The compiled minimum relay fee, or the network's reported floor when it's
     /// higher.
-    pub(crate) relay_floor: FeeRate,
+    pub(super) relay_floor: FeeRate,
     /// The table the reading was taken for, with any higher incremental relay fee a
     /// node reported folded in, since a replacement has to clear what the node
     /// charges.
-    pub(crate) params: UtxoParams,
+    pub(super) params: UtxoParams,
 }
 
 impl FeeContext {
@@ -42,7 +45,7 @@ impl FeeContext {
         Self { levels: [slow, normal, fast], slow_market, relay_floor, params: *params }
     }
 
-    pub(crate) const fn level(&self, level: FeeLevel) -> FeeRate {
+    pub(super) const fn level(&self, level: FeeLevel) -> FeeRate {
         let [slow, normal, fast] = self.levels;
         match level {
             FeeLevel::Slow => slow,
@@ -65,7 +68,12 @@ fn flat(params: &UtxoParams) -> FeeContext {
 /// Protocol 1.6 servers report the relay and incremental fees through
 /// `mempool.get_info`. For older servers the relay floor comes from the fee
 /// service.
-async fn bid(params: &UtxoParams, auction: &Auction, client: &UtxoClient) -> FeeContext {
+async fn bid(
+    params: &UtxoParams,
+    auction: &Auction,
+    client: &UtxoClient,
+    fee_api: Option<&dyn FeeApi>,
+) -> FeeContext {
     let chain = params.chain.as_str();
     let observed = match client.mempool_info().await {
         Ok(info) => Some(info),
@@ -74,7 +82,7 @@ async fn bid(params: &UtxoParams, auction: &Auction, client: &UtxoClient) -> Fee
             None
         }
     };
-    let recommended = match client.fee_api() {
+    let recommended = match fee_api {
         None => None,
         Some(api) => match api.recommended().await {
             Ok(fees) => Some(fees),
@@ -144,8 +152,10 @@ async fn bid(params: &UtxoParams, auction: &Auction, client: &UtxoClient) -> Fee
     settle([relay_floor; 3])
 }
 
-#[derive(Debug, Default)]
-pub(crate) struct FeeCache {
+/// The last reading, and the fee service a fresh one on an auctioned chain asks first.
+#[derive(Debug)]
+pub(super) struct FeeCache {
+    fee_api: Option<Arc<dyn FeeApi>>,
     held: Mutex<Option<Reading>>,
 }
 
@@ -156,8 +166,12 @@ struct Reading {
 }
 
 impl FeeCache {
+    pub(super) fn new(fee_api: Option<Arc<dyn FeeApi>>) -> Self {
+        Self { fee_api, held: Mutex::new(None) }
+    }
+
     /// Holds the lock across the fetch so a burst of quotes makes one round trip.
-    pub(crate) async fn get(
+    pub(super) async fn get(
         &self,
         params: &UtxoParams,
         client: &UtxoClient,
@@ -171,7 +185,9 @@ impl FeeCache {
             return reading.context;
         }
         let fresh = match params.fee_market {
-            FeeMarket::Auction(auction) => bid(params, &auction, client).await,
+            FeeMarket::Auction(auction) => {
+                bid(params, &auction, client, self.fee_api.as_deref()).await
+            }
             FeeMarket::Flat => flat(params),
         };
         *held = Some(Reading { at_elapsed_millis: now_millis, context: fresh });
@@ -206,7 +222,7 @@ fn price(
 }
 
 /// The fee at `rate` and at each of the table's levels.
-pub(crate) fn quote(
+pub(super) fn quote(
     plan: &Plan,
     fee_context: &FeeContext,
     rate: FeeRate,
@@ -222,7 +238,7 @@ pub(crate) fn quote(
 ///
 /// A level that can't be built, such as one a send-max can't cover, is left out
 /// instead of failing the whole quote.
-pub(crate) fn level_fees(
+pub(super) fn level_fees(
     fee_context: &FeeContext,
     fee_at: impl Fn(FeeRate) -> Result<Amount, UtxoError>,
 ) -> Vec<LevelFee> {
@@ -236,12 +252,12 @@ pub(crate) fn level_fees(
         .collect()
 }
 
-pub(crate) fn custom(rate: FeeRate) -> FeeSelection {
+pub(super) fn custom(rate: FeeRate) -> FeeSelection {
     FeeSelection::Rate { rate: rate.format_sat_per_vb() }
 }
 
 /// The rate a level pays, or the user's own rate.
-pub(crate) fn rate_of(
+pub(super) fn rate_of(
     selection: &FeeSelection,
     fee_context: &FeeContext,
 ) -> Result<FeeRate, UtxoError> {
@@ -260,7 +276,7 @@ pub(crate) fn rate_of(
 ///
 /// A level pays its rate or the bump's floor, whichever is higher, as Bitcoin Core
 /// prices a bump. A custom rate is never raised.
-pub(crate) fn bump_rate_of(
+pub(super) fn bump_rate_of(
     selection: &FeeSelection,
     fee_context: &FeeContext,
     floor: FeeRate,

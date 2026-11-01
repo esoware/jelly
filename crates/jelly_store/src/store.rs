@@ -15,8 +15,9 @@ use crate::batch::SyncBatch;
 use crate::contact::{ContactEdit, ContactRow, NewContact};
 use crate::db::{self, ReadPool, Recovered};
 use crate::error::StoreError;
+use crate::history::{TxFilter, TxGroupFilter, TxGroupPage, TxPage};
 use crate::pin::PinRow;
-use crate::tx::{TxFilter, TxGroupFilter, TxGroupPage, TxPage, TxWrite};
+use crate::tx::TxWrite;
 use crate::wallet::{ChainStatePatch, ChainStateRow, NewWallet, WalletRow, WalletSettingsRow};
 
 /// The wallet database. Every query runs on the blocking pool, off the runtime's workers.
@@ -168,8 +169,8 @@ impl Store {
     /// Checkpoints the write-ahead log, so the next open has nothing to replay.
     pub async fn close(self) -> Result<(), StoreError> {
         let Self { writer, readers, .. } = self;
-        let writer = writer.lock_owned().await;
-        blocking(move || db::close(&writer, &readers)).await
+        let connection = writer.lock_owned().await;
+        blocking(move || db::close(&connection, &readers)).await
     }
 
     /// Runs `work` in one transaction. Every row it writes carries the same timestamp, read
@@ -221,6 +222,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use std::time::Duration;
 
     use jelly_core::{
         ChainId, Clock as _, DerivationPath, KeySource, PassphrasePolicy, WalletColor,
@@ -256,14 +258,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn one_unit_of_work_can_create_a_wallet_with_its_first_address() {
+    async fn one_scope_creates_a_wallet_and_its_first_address_under_one_timestamp() {
         let clock = Arc::new(FakeClock::default());
         let (_scratch, store) = opened(&clock).await;
         let now = clock.now_secs().unwrap();
 
+        let ticking = Arc::clone(&clock);
         let (wallet, address) = store
-            .transact(|writer| {
+            .transact(move |writer| {
                 let wallet = writer.create_wallet(&new_wallet("first run"))?;
+                ticking.advance(Duration::from_secs(60));
                 let address = writer.insert_address(&NewAddress {
                     wallet_id: wallet.id,
                     chain: ChainId::Bitcoin,
@@ -278,7 +282,15 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(wallet.created_at_unix_secs, now);
-        assert_eq!(address.created_at_unix_secs, now);
+        let address_id = address.id;
+        let address_created_at: i64 = store
+            .read(move |reader| {
+                let sql = "SELECT created_at FROM addresses WHERE id = ?1";
+                Ok(reader.connection().query_row(sql, [address_id], |row| row.get(0))?)
+            })
+            .await
+            .unwrap();
+        assert_eq!(address_created_at, now);
         assert_eq!(address.derivation_index, Some(0));
         assert_eq!(store.get_wallet_settings(wallet.id).await.unwrap().account_index, 0);
 
@@ -288,7 +300,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_unit_of_work_that_fails_leaves_nothing_behind() {
+    async fn a_failed_scope_leaves_nothing_behind() {
         let (_scratch, store) = opened(&Arc::new(FakeClock::default())).await;
 
         let outcome: Result<(), StoreError> = store
@@ -297,7 +309,7 @@ mod tests {
                 writer
                     .set_chain_state(wallet.id, ChainId::Bsc, ChainStatePatch::default())
                     .unwrap();
-                Err(StoreError::Internal { context: "the unit of work failed" })
+                Err(StoreError::Internal { context: "the scope failed" })
             })
             .await;
         assert!(matches!(outcome, Err(StoreError::Internal { .. })), "{outcome:?}");

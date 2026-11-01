@@ -300,10 +300,7 @@ interface DialogDescriptionProps {
 
 export function DialogDescription({ render, children }: DialogDescriptionProps) {
   return (
-    <BaseDialog.Description
-      className="text-body text-fg-muted"
-      {...(render === undefined ? {} : { render })}
-    >
+    <BaseDialog.Description className="text-body text-fg-muted" render={render}>
       {children}
     </BaseDialog.Description>
   )

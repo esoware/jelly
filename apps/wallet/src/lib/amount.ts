@@ -1,13 +1,12 @@
 import type { Amount } from "@/ipc/bindings.gen.ts"
 import { ELLIPSIS, NONE } from "@/lib/format.ts"
-
-export type Parsed<T> = { isOk: true; value: T } | { isOk: false; error: string }
+import type { Parsed } from "@/lib/format.ts"
 
 export const ZERO_AMOUNT = 0n
 
 export const U128_MAX = (1n << 128n) - 1n
 
-const DECIMAL_SHAPE = /^(?<whole>[0-9_,]*)(?:\.(?<fraction>[0-9]*))?$/u
+const DECIMAL_SHAPE = /^(?<whole>[0-9_]*|[1-9][0-9]{0,2}(?:,[0-9]{3})+)(?:\.(?<fraction>[0-9]*))?$/u
 
 const INTEGER_SHAPE = /^[+-]?[0-9]+$/u
 

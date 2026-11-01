@@ -64,10 +64,10 @@ pub(crate) async fn read(
     timeout: Duration,
 ) -> Result<Value, NetError> {
     let (path, query) = route.path_and_query();
-    request(endpoint, &path, &query, HttpRequest::get(timeout)).await
+    fetch(endpoint, &path, &query, HttpRequest::get(timeout)).await
 }
 
-async fn request(
+async fn fetch(
     endpoint: &HttpEndpoint,
     path: &str,
     query: &str,
@@ -103,9 +103,9 @@ impl ZcashNode for PooledNode {
         let response = self
             .pool
             .broadcast_once(BROADCAST, classify, async |endpoint: Arc<HttpEndpoint>| {
-                let body =
+                let request =
                     HttpRequest::post_bytes("text/plain", raw_hex.as_bytes(), REQUEST_TIMEOUT);
-                request(&endpoint, "api/v2/sendtx/", "", body).await
+                fetch(&endpoint, "api/v2/sendtx/", "", request).await
             })
             .await?;
         response
@@ -119,7 +119,7 @@ impl ZcashNode for PooledNode {
 #[cfg(test)]
 mod tests {
     use jelly_core::{
-        Amount, AssetId, ChainAdapter as _, Clock as _, SendAmount, SystemClock,
+        Amount, AssetId, ChainAdapter as _, Clock as _, SystemClock,
         test_util::{
             FakeEventSink, MemoryCursorStore, MemoryPinStore, TxRequestBuilder,
             WatchedAddressBuilder,
@@ -168,9 +168,9 @@ mod tests {
         }
         assert!(is_complete);
         assert!(sink.len() > 1);
-        let mut request =
-            TxRequestBuilder::new(1, RECIPIENT, AssetId::Native(CHAIN), Amount::ZERO).build();
-        request.amount = SendAmount::Max;
+        let request = TxRequestBuilder::new(1, RECIPIENT, AssetId::Native(CHAIN), Amount::ZERO)
+            .send_max()
+            .build();
         let quote = adapter.quote_fee(&request).await.unwrap();
         assert!(quote.fee.base_units() >= 10_000);
         assert!(quote.max_amount.is_some());

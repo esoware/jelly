@@ -18,4 +18,3 @@ mod sources;
 mod sync;
 mod vectors;
 mod watch;
-mod wiring;

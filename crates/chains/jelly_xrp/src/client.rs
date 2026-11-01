@@ -15,15 +15,6 @@ const LSF_DISABLE_MASTER: u32 = 0x0010_0000;
 const LSF_DEPOSIT_AUTH: u32 = 0x0100_0000;
 // The network's reference transaction cost, which no fee goes below.
 const REFERENCE_FEE_DROPS: u64 = 10;
-
-/// What a payment costs on the network right now, as rippled's `fee` reports it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct NetworkFee {
-    /// The cost of the current open ledger, which the normal level pays.
-    pub(crate) normal_drops: u64,
-    /// The least a payment may pay and still be queued for a later ledger.
-    pub(crate) minimum_drops: u64,
-}
 // rippled refuses to delete an account whose Sequence is within this many ledgers of the
 // current one, so a recreated account can't replay its old transactions.
 const DELETION_SEQUENCE_GAP: u32 = 256;
@@ -36,6 +27,15 @@ const HISTORY_PAGE_LIMIT: u32 = 200;
 #[derive(Debug)]
 pub(crate) struct XrpClient {
     node: Arc<dyn XrpNode>,
+}
+
+/// What a payment costs on the network right now, as rippled's `fee` reports it.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct NetworkFee {
+    /// The cost of the current open ledger, which the normal level pays.
+    pub(crate) normal_drops: u64,
+    /// The least a payment may pay and still be queued for a later ledger.
+    pub(crate) minimum_drops: u64,
 }
 
 #[derive(Debug, Deserialize)]

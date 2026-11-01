@@ -1,7 +1,7 @@
 //! One writer and a separate read pool, so reads don't queue behind batch writes.
 //!
-//! Each read runs in a deferred transaction, so a history count and its page rows see the
-//! same snapshot.
+//! Each read runs in a deferred transaction, so a history page and the members of its
+//! groups see the same snapshot.
 
 use std::fs;
 use std::io::ErrorKind;
@@ -100,7 +100,7 @@ pub(crate) fn open(
     clock: &dyn Clock,
 ) -> Result<(Connection, ReadPool, Recovered), StoreError> {
     fs::create_dir_all(directory)
-        .map_err(|error| StoreError::io("creating the data directory", error))?;
+        .map_err(|source| StoreError::Io { context: "creating the data directory", source })?;
     let path = directory.join(DB_FILE);
     // Read now so a broken clock fails the open, not the first write.
     let now_unix_secs = clock.now_secs()?;
@@ -153,7 +153,7 @@ fn move_aside(from: &Path, to: &Path) -> Result<(), StoreError> {
     match fs::rename(from, to) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(StoreError::io("moving an unusable database aside", error)),
+        Err(source) => Err(StoreError::Io { context: "moving an unusable database aside", source }),
     }
 }
 

@@ -62,7 +62,7 @@ async fn every_detected_transaction_survives_its_window() {
     }
     assert_eq!(seen, vec!["tx-0", "tx-1", "tx-2", "tx-3", "tx-4"]);
 
-    let page = harness.engine.list_txs(TxQuery { limit: 50, ..Default::default() }).await.unwrap();
+    let page = harness.engine.list_txs(TxQuery::default()).await.unwrap();
     assert_eq!(page.rows.len(), 5);
 }
 
@@ -177,7 +177,7 @@ async fn an_evm_reorg_confirmation_clears_the_mined_position_from_history() {
         let page = harness.engine.list_txs(query.clone()).await.unwrap();
         let before = page.rows.first().unwrap();
         assert_eq!(
-            (before.height, before.timestamp, before.confirmations),
+            (before.height, before.timestamp_unix_secs, before.confirmations),
             (Some(100), Some(1_700_000_000), 11)
         );
 
@@ -200,7 +200,7 @@ async fn an_evm_reorg_confirmation_clears_the_mined_position_from_history() {
         assert_eq!(page.rows.len(), 1);
         let after = page.rows.first().unwrap();
         assert_eq!(
-            (after.height, after.timestamp, after.confirmations),
+            (after.height, after.timestamp_unix_secs, after.confirmations),
             (None, Some(first_stored), 0),
             "a disappeared receipt must remove its obsolete inclusion from {chain} history and \
              leave its first sighting"

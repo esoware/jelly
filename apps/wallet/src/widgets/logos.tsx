@@ -39,7 +39,7 @@ import zcashLogo from "@/assets/brands/zcash.svg"
 import type { AssetId, ChainId, Coin, FiatCurrency, WalletRecord } from "@/ipc/bindings.gen.ts"
 import { assetChain, assetMeta } from "@/lib/chain.ts"
 import { appendClassName } from "@/lib/class-name.ts"
-import { useAccentColor } from "@/ui/use-accent-color.ts"
+import { accentStyle } from "@/ui/accent-style.ts"
 
 interface Brand {
   readonly color: string
@@ -180,11 +180,9 @@ interface WalletAvatarProps {
 }
 
 export function WalletAvatar({ color = DEFAULT_WALLET_COLOR }: WalletAvatarProps) {
-  const root = useAccentColor<HTMLSpanElement>(color)
-
   return (
     <span
-      ref={root}
+      style={accentStyle(color)}
       className="inline-flex size-icon-lg shrink-0 overflow-hidden rounded-full bg-[oklch(from_var(--color-accent)_clamp(0.5,l,0.72)_min(c,0.16)_h)] bg-linear-to-t from-avatar-shade to-transparent"
     >
       <svg viewBox="0 0 32 32" className="size-full fill-avatar-glyph">

@@ -20,7 +20,7 @@ const SUBADDRESS: &str = "subaddress";
 macro_rules! columns {
     () => {
         "id, wallet_id, chain, address, key_source, derivation_path, vault_entry, \
-         subaddress_major, subaddress_minor, script_kind, derivation_index, label, created_at"
+         subaddress_major, subaddress_minor, script_kind, derivation_index, label"
     };
 }
 
@@ -68,7 +68,6 @@ pub struct AddressRow {
     pub script_kind: Option<ScriptKind>,
     pub derivation_index: Option<u32>,
     pub label: Option<String>,
-    pub created_at_unix_secs: i64,
 }
 
 /// `derivation_index` is the caller's own numbering. The engine takes it from the
@@ -109,7 +108,6 @@ fn map(row: &Row<'_>) -> Result<AddressRow, StoreError> {
         script_kind: codec::optional_wire(row, SCRIPT_KIND, ScriptKind::parse)?,
         derivation_index: codec::optional_int(row, DERIVATION_INDEX)?,
         label: row.get("label")?,
-        created_at_unix_secs: row.get("created_at")?,
     })
 }
 

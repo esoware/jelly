@@ -31,7 +31,7 @@ pub fn import_web3_key(
         decrypt_keystore_v3(trimmed, password.ok_or(KeyError::PasswordRequired)?)?
     } else {
         let secret = decode_secret_hex(trimmed).ok_or(KeyError::UnknownFormat)?;
-        Secp256k1Key::from_secret_bytes(secret.as_slice())?
+        Secp256k1Key::from_secret_bytes(&secret)?
     };
     Ok(ImportedKey { material: key.key_material(), named_script: None })
 }

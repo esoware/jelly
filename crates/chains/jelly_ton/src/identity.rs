@@ -6,7 +6,7 @@ use crate::config::is_mainnet;
 use crate::method::Method;
 use crate::node::request;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub(crate) struct TonIdentity;
 
 #[async_trait]

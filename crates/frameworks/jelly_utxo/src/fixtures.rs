@@ -4,7 +4,7 @@ use std::slice::from_ref;
 use bitcoin::consensus::deserialize;
 use bitcoin::hashes::Hash as _;
 use bitcoin::{OutPoint, Transaction, Txid};
-use jelly_core::{Amount, FeeRate, ScriptKind};
+use jelly_core::{Amount, FeeRate, ScriptKind, SendAmount};
 
 use crate::build::{BuildRequest, BuiltTx, Source, build_tx};
 use crate::error::UtxoError;
@@ -142,7 +142,8 @@ impl Scene {
             sources: self.own_source().to_vec(),
             to: self.theirs.address(),
             to_script: self.theirs.script().script_pubkey(),
-            amount: amount.map(units),
+            amount: amount
+                .map_or(SendAmount::Max, |value| SendAmount::Exact { value: units(value) }),
             fee_rate: rate,
             coins,
             tip_height: TIP,
@@ -182,13 +183,17 @@ impl Scene {
     /// A selection paying the stranger, with change back to our own address.
     pub(crate) fn selection(&self, target: u64, rate: FeeRate) -> SelectionRequest<'_> {
         SelectionRequest {
-            target: units(target),
-            should_drain: false,
+            amount: SendAmount::Exact { value: units(target) },
             fee_rate: rate,
             long_term_fee_rate: ONE_PER_VB,
             recipient_script_pubkey: self.theirs.script().script_pubkey(),
             change_script: self.ours.script(),
         }
+    }
+
+    /// A send-max to the stranger.
+    pub(crate) fn send_max(&self, rate: FeeRate) -> SelectionRequest<'_> {
+        SelectionRequest { amount: SendAmount::Max, ..self.selection(0, rate) }
     }
 
     pub(crate) fn select(

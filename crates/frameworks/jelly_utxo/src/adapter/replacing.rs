@@ -20,7 +20,7 @@ use crate::utxo::Utxo;
 /// output that pays the wallet. Getting the change wrong can only shift which output
 /// pays the higher fee, never redirect funds.
 #[derive(Debug, Clone)]
-pub(crate) struct Replacing {
+pub(super) struct Replacing {
     original: Original,
     /// The change address first when the original has change, then every address
     /// it spends from in input order. Coins a replacement adds come only from these.
@@ -35,7 +35,7 @@ pub(crate) struct Replacing {
 }
 
 impl Replacing {
-    pub(crate) fn resolve(
+    pub(super) fn resolve(
         params: &UtxoParams,
         watched: &[Watched],
         original: Original,
@@ -64,17 +64,17 @@ impl Replacing {
     }
 
     /// The cheapest rate the network will take for the replacement.
-    pub(crate) fn min_rate(&self, params: &UtxoParams) -> Result<FeeRate, UtxoError> {
+    pub(super) fn min_rate(&self, params: &UtxoParams) -> Result<FeeRate, UtxoError> {
         min_replacement_rate(params, &self.original, self.descendants.fee)
     }
 
-    pub(crate) fn sources(&self) -> &[Watched] {
+    pub(super) fn sources(&self) -> &[Watched] {
         &self.sources
     }
 
     /// The original as a pass leaves a send pending, in the direction the engine
     /// recorded it, which is a self-transfer only when it paid one of its own sources.
-    pub(crate) fn pending(&self) -> CursorPending {
+    pub(super) fn pending(&self) -> CursorPending {
         let direction =
             if self.sources.iter().any(|source| source.address == self.recipient_address) {
                 TxDirection::SelfTransfer
@@ -85,13 +85,13 @@ impl Replacing {
     }
 
     /// How many later transactions the replacement cancels.
-    pub(crate) const fn evicted(&self) -> usize {
+    pub(super) const fn evicted(&self) -> usize {
         self.descendants.count
     }
 
     /// `extras` are coins the planner may add when the change can't cover the higher
     /// fee. It drops unconfirmed ones, since BIP-125 rule 2 forbids adding them.
-    pub(crate) fn build(
+    pub(super) fn build(
         &self,
         fee_context: &FeeContext,
         extras: &[Utxo],

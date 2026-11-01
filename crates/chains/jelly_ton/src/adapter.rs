@@ -10,11 +10,11 @@ use parking_lot::RwLock;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
 
-use crate::address::ton_destination;
+use crate::address::TonDestination;
 use crate::client::TonClient;
 use crate::config::CHAIN;
 use crate::error::TonError;
-use crate::jetton::{JETTONS, master};
+use crate::jetton::JETTONS;
 use crate::node::TonNode;
 use crate::payload::Payment;
 use crate::preview;
@@ -176,14 +176,14 @@ impl ScriptProbe for TonAdapter {
             if address.chain() != CHAIN {
                 return Err(invalid.into());
             }
-            let owner = ton_destination(address.value()).map_err(|_| invalid)?.address;
+            let owner = TonDestination::parse(address.value()).map_err(|_| invalid)?.address;
             let mut is_used = self.client.is_used(&owner).await?;
             let mut failed_lookup = None;
             for jetton in JETTONS {
                 if is_used {
                     break;
                 }
-                match self.client.jetton_wallet(&master(jetton.token)?, &owner, None).await {
+                match self.client.jetton_wallet(jetton.token, &owner, None).await {
                     Ok(wallet) => is_used = self.client.is_used(&wallet).await?,
                     Err(error) => failed_lookup = Some(error),
                 }

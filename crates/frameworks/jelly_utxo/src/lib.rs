@@ -21,6 +21,7 @@ mod fixtures;
 mod legacy;
 mod original;
 mod params;
+mod pass;
 mod payload;
 mod preview;
 mod prevout;
@@ -30,7 +31,6 @@ mod script;
 mod select;
 mod sign;
 mod slp;
-mod sync;
 #[cfg(feature = "test-util")]
 pub mod test_util;
 mod token;

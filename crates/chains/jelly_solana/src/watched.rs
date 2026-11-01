@@ -8,7 +8,7 @@ use crate::config::CHAIN;
 use crate::error::SolanaError;
 use crate::token::SolanaToken;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Watched {
     pub(crate) address_id: i64,
     pub(crate) owner: Pubkey,

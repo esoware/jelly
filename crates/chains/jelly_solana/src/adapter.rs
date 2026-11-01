@@ -11,10 +11,10 @@ use jelly_core::{
     FeeQuote, KeyMaterial, PendingTracker, SignedTx, TxId, TxRequest, UnsignedTx, WatchedAddress,
     sole_key,
 };
-use jelly_net::{NetError, Outcome, Pool, WsClient, WsSubscription};
+use jelly_net::{Pool, WsClient};
 use parking_lot::RwLock;
 use tokio::sync::Mutex as AsyncMutex;
-use tokio::time::{sleep, timeout};
+use tokio::time::timeout;
 
 use crate::broadcast::{self, Attempt, Delivery};
 use crate::client::{self, SolanaClient};
@@ -33,17 +33,8 @@ use crate::watched::{self, Watched};
 
 const TARGET: &str = "jelly::solana::adapter";
 
-/// Short enough to re-register a recovered endpoint within one poll interval, long
-/// enough not to hammer a dead one.
-const WATCH_RETRY: Duration = Duration::from_secs(5);
-
 /// The least time between push-driven wakes, so a burst of pushes becomes one pass.
 const WATCH_FLOOR: Duration = Duration::from_secs(2);
-
-/// One endpoint's subscription failure says nothing about the next.
-const fn classify_watch(_: &NetError) -> Outcome {
-    Outcome::Rotate
-}
 
 /// Solana mainnet-beta over one rotating pool of JSON-RPC endpoints.
 pub struct SolanaAdapter {
@@ -155,11 +146,7 @@ impl ChainAdapter for SolanaAdapter {
         let current = self.watch_set();
         let admitted: Vec<i64> = resolved
             .iter()
-            .filter(|entry| {
-                !current.iter().any(|known| {
-                    known.address_id == entry.address_id && known.address == entry.address
-                })
-            })
+            .filter(|entry| !current.contains(entry))
             .map(|entry| entry.address_id)
             .collect();
         if !admitted.is_empty() {
@@ -213,29 +200,15 @@ impl ChainAdapter for SolanaAdapter {
             future::pending::<()>().await;
             return;
         };
-        loop {
-            let subscriptions: Vec<WsSubscription> = self
-                .watch_set()
-                .iter()
-                .flat_map(Watched::accounts)
-                .map(|(_, account)| client::account_subscription(&account))
-                .collect();
-            let registered = pushes
-                .call("solana watch", classify_watch, |client| {
-                    let subscriptions = subscriptions.clone();
-                    async move {
-                        client.register(&subscriptions).await?;
-                        Ok(client)
-                    }
-                })
-                .await;
-            if let Ok(client) = registered
-                && client.wait_notice(WATCH_FLOOR).await.is_ok()
-            {
-                return;
-            }
-            sleep(WATCH_RETRY).await;
-        }
+        pushes
+            .wait_push("solana watch", WATCH_FLOOR, || {
+                self.watch_set()
+                    .iter()
+                    .flat_map(Watched::accounts)
+                    .map(|(_, account)| client::account_subscription(&account))
+                    .collect()
+            })
+            .await;
     }
 
     async fn quote_fee(&self, request: &TxRequest) -> Result<FeeQuote, ChainError> {

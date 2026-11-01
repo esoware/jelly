@@ -143,13 +143,11 @@ CREATE TABLE contacts (
 ) STRICT;
 ";
 
-fn current_version(connection: &Connection) -> Result<u32, StoreError> {
-    let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    u32::try_from(version).map_err(|_| StoreError::decode("pragma", "user_version"))
-}
-
 pub(crate) fn create_or_check(connection: &mut Connection) -> Result<(), StoreError> {
-    match current_version(connection)? {
+    let stamp: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    let version = u32::try_from(stamp)
+        .map_err(|_| StoreError::Decode { entity: "pragma", column: "user_version" })?;
+    match version {
         0 => create(connection),
         SCHEMA_VERSION => Ok(()),
         found => Err(StoreError::SchemaTooNew { found, supported: SCHEMA_VERSION }),

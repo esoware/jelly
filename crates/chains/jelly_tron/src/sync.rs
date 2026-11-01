@@ -71,21 +71,11 @@ pub(crate) async fn run(
     Ok(progress(inputs, watched, tip))
 }
 
-/// The share of addresses that have walked every stream all the way back once,
-/// because a TRON history has no floor height to measure against.
-///
-/// `synced_height` stays absent until every address has finished, since a wallet
-/// still filling in history isn't synced to the tip.
+/// `synced_height` stays absent until every address has walked every stream all the
+/// way back once, since a wallet still filling in history isn't synced to the tip.
 fn progress(inputs: &PassInputs<'_>, watched: &[Watched], tip: BlockRef) -> ChainSyncProgress {
-    let total = watched.len();
-    let done = watched.iter().filter(|entry| inputs.states.is_complete(entry.address_id)).count();
-    let synced = (done == total).then_some(tip.number);
-    ChainSyncProgress::new(CHAIN)
-        .with_fraction(
-            u64::try_from(done).unwrap_or(u64::MAX),
-            u64::try_from(total).unwrap_or(u64::MAX),
-        )
-        .with_heights(synced, Some(tip.number))
+    let is_synced = watched.iter().all(|entry| inputs.states.is_complete(entry.address_id));
+    ChainSyncProgress::new(CHAIN).with_heights(is_synced.then_some(tip.number), Some(tip.number))
 }
 
 /// A missing account reads as a zero balance, and a failed token read is logged
@@ -113,7 +103,7 @@ async fn balances(
     emit_balance(events, entry.address_id, TRX, balance_sun);
     let mut balances = vec![(TRX, balance_sun)];
     for token in TOKENS {
-        match inputs.client.token_balance(&entry.address, &entry.body, token).await {
+        match inputs.client.token_balance(&entry.body, token).await {
             Ok(balance) => {
                 emit_balance(events, entry.address_id, AssetId::Token(token), balance);
                 balances.push((AssetId::Token(token), balance));

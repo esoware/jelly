@@ -2,27 +2,26 @@ import { useQuery } from "@tanstack/react-query"
 import { Fragment, useId, useLayoutEffect, useRef, useState } from "react"
 import type { PointerEvent, ReactNode } from "react"
 
-import { AXIS_GAP, blendPlots, drawPlot, placeTime } from "@/features/wallet/price-plot.ts"
-import type { CandleMark, LineMark, Plot } from "@/features/wallet/price-plot.ts"
+import {
+  AXIS_GAP_PX,
+  blendPlots,
+  coordinate,
+  drawPlot,
+  nearestIndex,
+  placeTime,
+} from "@/features/wallet/price-plot.ts"
+import type { CandleMark, LineMark, Plot, Spot } from "@/features/wallet/price-plot.ts"
 import {
   CHART_RANGES,
   chartCandles,
   chartPoints,
-  coordinate,
   formatChange,
   formatChartTime,
   isRisingChange,
-  nearestIndex,
   readChart,
   seriesChange,
 } from "@/features/wallet/price-scale.ts"
-import type {
-  Candle,
-  ChartMode,
-  ChartRange,
-  ChartSeries,
-  Spot,
-} from "@/features/wallet/price-scale.ts"
+import type { Candle, ChartMode, ChartRange, ChartSeries } from "@/features/wallet/price-scale.ts"
 import type { AssetId, CandleInterval } from "@/ipc/bindings.gen.ts"
 import { assetKey } from "@/lib/chain.ts"
 import { formatFiat } from "@/lib/fiat.ts"
@@ -98,9 +97,9 @@ function ChartAxes({ plot, clipPath }: ChartAxesProps) {
           return (
             <text
               key={key}
-              x={bounds.left - AXIS_GAP}
+              x={bounds.left - AXIS_GAP_PX}
               y={at}
-              opacity={opacity * Math.max(0, 1 - overshoot / AXIS_GAP)}
+              opacity={opacity * Math.max(0, 1 - overshoot / AXIS_GAP_PX)}
               dominantBaseline="central"
             >
               {label}
@@ -113,7 +112,7 @@ function ChartAxes({ plot, clipPath }: ChartAxesProps) {
           <text
             key={key}
             x={at}
-            y={bounds.bottom + AXIS_GAP}
+            y={bounds.bottom + AXIS_GAP_PX}
             opacity={opacity}
             dominantBaseline="hanging"
           >
@@ -125,7 +124,7 @@ function ChartAxes({ plot, clipPath }: ChartAxesProps) {
   )
 }
 
-const BODY_RADIUS = 1
+const BODY_RADIUS_PX = 1
 
 interface CandleMarksProps {
   candles: readonly CandleMark[]
@@ -153,7 +152,7 @@ function CandleMarks({ candles, hoveredKey }: CandleMarksProps) {
           y={Math.min(candle.openY, candle.closeY)}
           width={candle.width}
           height={Math.max(1, Math.abs(candle.openY - candle.closeY))}
-          rx={BODY_RADIUS}
+          rx={BODY_RADIUS_PX}
           className="fill-current"
         />
       </g>
@@ -161,10 +160,10 @@ function CandleMarks({ candles, hoveredKey }: CandleMarksProps) {
   ))
 }
 
-const LINE_WIDTH = 1.5
+const LINE_WIDTH_PX = 1.5
 const AREA_OPACITY = 0.24
-const DOT_RADIUS = 3
-const HALO_RADIUS = 7
+const DOT_RADIUS_PX = 3
+const HALO_RADIUS_PX = 7
 
 interface LineMarksProps {
   line: LineMark
@@ -194,7 +193,7 @@ function LineMarks({ line, plot, clipPath, hoveredSpot }: LineMarksProps) {
       <path d={area} fill={`url(#${fillId})`} />
       <path
         d={path}
-        strokeWidth={LINE_WIDTH}
+        strokeWidth={LINE_WIDTH_PX}
         strokeLinejoin="round"
         strokeLinecap="round"
         className="fill-none stroke-current"
@@ -238,10 +237,15 @@ function LineMarks({ line, plot, clipPath, hoveredSpot }: LineMarksProps) {
           <circle
             cx={hoveredSpot.x}
             cy={hoveredSpot.y}
-            r={HALO_RADIUS}
+            r={HALO_RADIUS_PX}
             className="fill-current opacity-25"
           />
-          <circle cx={hoveredSpot.x} cy={hoveredSpot.y} r={DOT_RADIUS} className="fill-current" />
+          <circle
+            cx={hoveredSpot.x}
+            cy={hoveredSpot.y}
+            r={DOT_RADIUS_PX}
+            className="fill-current"
+          />
         </>
       )}
     </g>
@@ -254,11 +258,6 @@ const OHLC_ROWS = [
   { label: "Low", pick: (candle: Candle) => candle.low },
   { label: "Close", pick: (candle: Candle) => candle.close },
 ] as const
-
-interface Size {
-  width: number
-  height: number
-}
 
 function pointerX(event: PointerEvent<SVGSVGElement>): number {
   return event.clientX - event.currentTarget.getBoundingClientRect().left
@@ -361,7 +360,7 @@ function ChartPlot({ asset, series, interval, width, height, isInteractive }: Ch
               x={plot.bounds.left}
               y={0}
               width={Math.max(0, width - plot.bounds.left)}
-              height={plot.bounds.bottom + LINE_WIDTH}
+              height={plot.bounds.bottom + LINE_WIDTH_PX}
             />
           </clipPath>
         </defs>
@@ -397,6 +396,11 @@ function ChartPlot({ asset, series, interval, width, height, isInteractive }: Ch
         : readout(hoveredSpot, hoveredIndex)}
     </>
   )
+}
+
+interface Size {
+  width: number
+  height: number
 }
 
 type PriceChartProps = Omit<ChartPlotProps, "width" | "height">

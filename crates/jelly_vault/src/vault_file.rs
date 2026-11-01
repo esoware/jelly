@@ -35,12 +35,16 @@
 //! verifies. Rollback protection would need state outside the file, and the design
 //! deliberately keeps none.
 
+use jelly_core::random_bytes;
+use secrecy::ExposeSecret as _;
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 use crate::error::VaultError;
 use crate::kdf::{ARGON2_VERSION, Argon2Params, KDF_SALT_LEN};
 use crate::keys::{
-    COMMITMENT_LEN, HKDF_SALT_LEN, HeaderMac, KEY_LEN, MAC_LEN, NONCE_LEN, TAG_LEN, length_prefix,
+    COMMITMENT_LEN, Derivation, HKDF_SALT_LEN, HeaderMac, KEY_LEN, MAC_LEN, NONCE_LEN,
+    SessionCipher, SessionKeys, TAG_LEN, length_prefix,
 };
 
 /// Older versions aren't read. The field lets a file from another build be refused by
@@ -60,59 +64,36 @@ const MAC_DOMAIN: &[u8] = b"jelly-vault/v3/header";
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct KdfBlock {
+struct KdfBlock {
     algorithm: String,
     version: u32,
     m_cost_kib: u32,
     t_cost: u32,
     p_cost: u32,
     #[serde(with = "hex")]
-    pub(crate) salt: [u8; KDF_SALT_LEN],
+    salt: [u8; KDF_SALT_LEN],
 }
 
 impl KdfBlock {
-    pub(crate) fn new(params: Argon2Params, salt: [u8; KDF_SALT_LEN]) -> Self {
-        Self {
-            algorithm: KDF_ALGORITHM.to_owned(),
-            version: u32::from(ARGON2_VERSION),
-            m_cost_kib: params.m_cost_kib(),
-            t_cost: params.t_cost(),
-            p_cost: params.p_cost(),
-            salt,
-        }
-    }
-
-    pub(crate) const fn params(&self) -> Argon2Params {
-        Argon2Params::new(self.m_cost_kib, self.t_cost, self.p_cost)
+    const fn params(&self) -> Argon2Params {
+        Argon2Params { m_cost_kib: self.m_cost_kib, t_cost: self.t_cost, p_cost: self.p_cost }
     }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct HkdfBlock {
+struct HkdfBlock {
     hash: String,
     #[serde(with = "hex")]
-    pub(crate) salt: [u8; HKDF_SALT_LEN],
-}
-
-impl HkdfBlock {
-    pub(crate) fn new(salt: [u8; HKDF_SALT_LEN]) -> Self {
-        Self { hash: HKDF_HASH.to_owned(), salt }
-    }
+    salt: [u8; HKDF_SALT_LEN],
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct AeadBlock {
+struct AeadBlock {
     algorithm: String,
     #[serde(with = "hex")]
-    pub(crate) nonce: [u8; NONCE_LEN],
-}
-
-impl AeadBlock {
-    pub(crate) fn new(nonce: [u8; NONCE_LEN]) -> Self {
-        Self { algorithm: AEAD_ALGORITHM.to_owned(), nonce }
-    }
+    nonce: [u8; NONCE_LEN],
 }
 
 /// Holds no secrets. `ciphertext` is encrypted and everything else is metadata.
@@ -122,41 +103,80 @@ pub(crate) struct VaultFile {
     magic: String,
     format_version: u32,
     pub(crate) wallet_id: String,
-    pub(crate) kdf: KdfBlock,
-    pub(crate) hkdf: HkdfBlock,
-    pub(crate) aead: AeadBlock,
+    kdf: KdfBlock,
+    hkdf: HkdfBlock,
+    aead: AeadBlock,
     #[serde(with = "hex")]
     pub(crate) commitment: [u8; COMMITMENT_LEN],
     #[serde(with = "hex")]
-    pub(crate) ciphertext: Vec<u8>,
+    ciphertext: Vec<u8>,
     #[serde(with = "hex")]
     header_tag: [u8; MAC_LEN],
 }
 
 impl VaultFile {
-    /// Builds the file and stamps its header tag.
-    pub(crate) fn build(
+    /// Seals `plaintext` under a fresh nonce and stamps the header tag.
+    pub(crate) fn seal(
         wallet_id: &str,
-        kdf: KdfBlock,
-        hkdf: HkdfBlock,
-        aead: AeadBlock,
+        keys: &SessionKeys,
+        plaintext: Zeroizing<Vec<u8>>,
+    ) -> Result<Self, VaultError> {
+        let nonce = *random_bytes::<NONCE_LEN>()?;
+        let ciphertext = keys.cipher.seal(&nonce, &associated_data(wallet_id)?, plaintext)?;
+        Self::build(
+            wallet_id,
+            &keys.derivation,
+            nonce,
+            keys.commitment,
+            ciphertext,
+            keys.mac_key.expose_secret(),
+        )
+    }
+
+    fn build(
+        wallet_id: &str,
+        derivation: &Derivation,
+        nonce: [u8; NONCE_LEN],
         commitment: [u8; COMMITMENT_LEN],
         ciphertext: Vec<u8>,
         mac_key: &[u8; KEY_LEN],
     ) -> Result<Self, VaultError> {
+        let Derivation { kdf_params, kdf_salt, hkdf_salt } = *derivation;
         let mut file = Self {
             magic: MAGIC.to_owned(),
             format_version: FORMAT_VERSION,
             wallet_id: wallet_id.to_owned(),
-            kdf,
-            hkdf,
-            aead,
+            kdf: KdfBlock {
+                algorithm: KDF_ALGORITHM.to_owned(),
+                version: u32::from(ARGON2_VERSION),
+                m_cost_kib: kdf_params.m_cost_kib,
+                t_cost: kdf_params.t_cost,
+                p_cost: kdf_params.p_cost,
+                salt: kdf_salt,
+            },
+            hkdf: HkdfBlock { hash: HKDF_HASH.to_owned(), salt: hkdf_salt },
+            aead: AeadBlock { algorithm: AEAD_ALGORITHM.to_owned(), nonce },
             commitment,
             ciphertext,
             header_tag: [0u8; MAC_LEN],
         };
         file.stamp(mac_key)?;
         Ok(file)
+    }
+
+    pub(crate) const fn derivation(&self) -> Derivation {
+        Derivation {
+            kdf_params: self.kdf.params(),
+            kdf_salt: self.kdf.salt,
+            hkdf_salt: self.hkdf.salt,
+        }
+    }
+
+    /// Only after the commitment check, so a failure here means corruption.
+    pub(crate) fn open(&self, cipher: &SessionCipher) -> Result<Zeroizing<Vec<u8>>, VaultError> {
+        cipher
+            .open(&self.aead.nonce, &associated_data(&self.wallet_id)?, &self.ciphertext)
+            .ok_or_else(|| VaultError::corrupt("the ciphertext doesn't open under a proven key"))
     }
 
     pub(crate) fn stamp(&mut self, mac_key: &[u8; KEY_LEN]) -> Result<(), VaultError> {
@@ -233,7 +253,7 @@ impl VaultFile {
 
 /// Binds the format version and the length-prefixed wallet id into the AEAD, so a
 /// ciphertext transplanted from another wallet's file is refused.
-pub(crate) fn associated_data(wallet_id: &str) -> Result<Vec<u8>, VaultError> {
+fn associated_data(wallet_id: &str) -> Result<Vec<u8>, VaultError> {
     let length = length_prefix(wallet_id.len())?;
     Ok(<[&[u8]]>::concat(&[
         AAD_DOMAIN,
@@ -253,11 +273,15 @@ mod tests {
     type Mutation = (&'static str, fn(&mut VaultFile));
 
     fn sample() -> VaultFile {
+        let derivation = Derivation {
+            kdf_params: Argon2Params::MINIMUM,
+            kdf_salt: [7u8; KDF_SALT_LEN],
+            hkdf_salt: [9u8; HKDF_SALT_LEN],
+        };
         VaultFile::build(
             WALLET_ID,
-            KdfBlock::new(Argon2Params::MINIMUM, [7u8; KDF_SALT_LEN]),
-            HkdfBlock::new([9u8; HKDF_SALT_LEN]),
-            AeadBlock::new([3u8; NONCE_LEN]),
+            &derivation,
+            [3u8; NONCE_LEN],
             [4u8; COMMITMENT_LEN],
             vec![0x5e; 64],
             &MAC_KEY,

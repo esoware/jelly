@@ -6,7 +6,6 @@ use jelly_core::{Clock, Deadline, random_bytes};
 use tokio::sync::watch;
 use tokio::time::sleep;
 
-use crate::error::PriceError;
 use crate::feed::PriceFeed;
 use crate::fetch::Fetch;
 use crate::quote::{QuoteRequest, Quotes};
@@ -14,7 +13,7 @@ use crate::schedule::Schedule;
 use crate::switch::{wait_until_disabled, wait_until_enabled};
 use crate::ticker::Ticker;
 
-pub(crate) const TARGET: &str = "jelly::prices";
+const TARGET: &str = "jelly::prices::poll";
 
 /// What became of the one request a pass may send.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -92,9 +91,16 @@ impl PricePoller {
         Self { feed, request, fetch, clock, schedule, resting_until: Deadline::EXPIRED }
     }
 
-    /// One pass over every configured ticker and every rate.
-    pub(crate) async fn poll_once(&mut self) -> Result<PassReport, PriceError> {
-        let now_unix_secs = self.clock.now_secs()?;
+    /// One pass over every configured ticker and every rate. A pass that can't read the
+    /// clock fails before its request, so the schedule backs off.
+    pub(crate) async fn poll_once(&mut self) -> PassReport {
+        let now_unix_secs = match self.clock.now_secs() {
+            Ok(now_unix_secs) => now_unix_secs,
+            Err(error) => {
+                tracing::warn!(target: TARGET, %error, "the price pass didn't run");
+                return PassReport { outcome: PassOutcome::Failed, ..PassReport::default() };
+            }
+        };
         let (outcome, quotes, retry_after) = match &self.request {
             None => (PassOutcome::NotSent, Quotes::default(), None),
             Some(_) if !self.resting_until.is_expired(self.clock.as_ref()) => {
@@ -136,7 +142,7 @@ impl PricePoller {
             retry_after,
         };
         log_pass(&report);
-        Ok(report)
+        report
     }
 
     /// Polls until `enabled`'s sender is dropped.
@@ -152,15 +158,7 @@ impl PricePoller {
                     return;
                 }
             }
-            let report = match self.poll_once().await {
-                Ok(report) => report,
-                Err(error) => {
-                    tracing::warn!(target: TARGET, %error, "the price pass didn't run");
-                    // A pass that never reached its request still counts as failed, so
-                    // the schedule backs off.
-                    PassReport { outcome: PassOutcome::Failed, ..PassReport::default() }
-                }
-            };
+            let report = self.poll_once().await;
             let delay = self.schedule.next_delay(report);
             if !self.expire_while(wait_out(delay, &mut enabled)).await {
                 return;
@@ -259,7 +257,8 @@ mod tests {
 
     use async_trait::async_trait;
     use jelly_core::{
-        AssetId, ChainId, Coin, FailureKind, FiatCurrency, TokenId, test_util::FakeClock,
+        AssetId, ChainId, Coin, FailureKind, FiatCurrency, TokenId,
+        test_util::{FailingClock, FakeClock},
     };
     use jelly_net::{NetError, RetryAfter};
     use parking_lot::Mutex;
@@ -270,6 +269,7 @@ mod tests {
     use crate::book::DISCARD_AFTER;
     use crate::candle::CandleRequest;
     use crate::config::PriceFeedConfig;
+    use crate::error::PriceError;
     use crate::fixtures::{kraken_key, kraken_rate_key, rated_currencies};
     use crate::kraken;
 
@@ -298,7 +298,7 @@ mod tests {
     #[tokio::test]
     async fn one_pass_prices_every_asset() {
         let mut harness = answering_everything();
-        let report = harness.poller.poll_once().await.expect("the clock is sane");
+        let report = harness.poller.poll_once().await;
 
         assert_eq!(report.outcome, PassOutcome::Answered);
         assert_eq!(report.quoted, Ticker::all().count(), "every ticker was priced");
@@ -322,7 +322,7 @@ mod tests {
     #[tokio::test]
     async fn a_pass_sends_one_request_for_every_ticker_and_rate() {
         let mut harness = answering_everything();
-        harness.poller.poll_once().await.expect("the clock is sane");
+        harness.poller.poll_once().await;
 
         assert_eq!(
             harness.fetch.calls(),
@@ -333,7 +333,7 @@ mod tests {
     #[tokio::test]
     async fn a_price_in_another_currency_is_the_dollar_price_times_the_rate() {
         let mut harness = answering_everything();
-        harness.poller.poll_once().await.expect("the clock is sane");
+        harness.poller.poll_once().await;
 
         // Bitcoin is a hundred dollars, and one dollar buys half a euro and two yen.
         let cases = [
@@ -357,7 +357,7 @@ mod tests {
     #[tokio::test]
     async fn switching_currency_reprices_at_once_without_a_request() {
         let mut harness = answering_everything();
-        harness.poller.poll_once().await.expect("the clock is sane");
+        harness.poller.poll_once().await;
         let mut watcher = harness.feed.subscribe();
         watcher.borrow_and_update();
 
@@ -378,7 +378,7 @@ mod tests {
         let mut harness = harness(ScriptedFetch::new(|_| {
             Reply::Body(kraken_body(&[(Ticker::of(Coin::Btc), "100.0")]))
         }));
-        let report = harness.poller.poll_once().await.expect("the clock is sane");
+        let report = harness.poller.poll_once().await;
         assert_eq!(report.rated, 0);
         assert_eq!(report.unrated, RATED_CURRENCIES);
         assert!(!report.is_failure(), "a pass that priced a coin is not an outage");
@@ -405,11 +405,11 @@ mod tests {
             }
         }));
         harness.feed.set_currency(FiatCurrency::Aud);
-        harness.poller.poll_once().await.expect("the clock is sane");
+        harness.poller.poll_once().await;
 
         is_rating.store(false, Ordering::SeqCst);
         harness.clock.advance(Duration::from_secs(60));
-        harness.poller.poll_once().await.expect("the clock is sane");
+        harness.poller.poll_once().await;
 
         let btc =
             harness.feed.snapshot().get(BTC).expect("bitcoin is priced in australian dollars");
@@ -427,20 +427,20 @@ mod tests {
         let mut harness =
             harness(ScriptedFetch::new(|_| Reply::RateLimited(Duration::from_secs(600))));
 
-        let first = harness.poller.poll_once().await.expect("the clock is sane");
+        let first = harness.poller.poll_once().await;
         assert_eq!(first.outcome, PassOutcome::Failed);
         assert_eq!(first.retry_after, Some(Duration::from_secs(600)));
         assert!(first.is_failure());
 
         harness.fetch.clear_calls();
         harness.clock.advance(Duration::from_secs(120));
-        let second = harness.poller.poll_once().await.expect("the clock is sane");
+        let second = harness.poller.poll_once().await;
         assert_eq!(second.outcome, PassOutcome::Resting);
         assert!(!second.is_failure(), "waiting is not failing");
         assert_eq!(harness.fetch.count(), 0, "the wait was not honored");
 
         harness.clock.advance(Duration::from_secs(600));
-        let third = harness.poller.poll_once().await.expect("the clock is sane");
+        let third = harness.poller.poll_once().await;
         assert_eq!(third.outcome, PassOutcome::Failed);
         assert_eq!(third.retry_after, Some(Duration::from_secs(600)));
         assert_eq!(harness.fetch.count(), 1, "the wait expired");
@@ -452,7 +452,7 @@ mod tests {
             Reply::Body(kraken_body(&[(Ticker::of(Coin::Eth), "4218.07")]))
         }));
 
-        let report = harness.poller.poll_once().await.expect("the clock is sane");
+        let report = harness.poller.poll_once().await;
         assert_eq!(report.outcome, PassOutcome::Answered);
         assert_eq!(report.quoted, 1);
         assert_eq!(report.rejected, Ticker::all().count() - 1);
@@ -478,17 +478,17 @@ mod tests {
         let mut harness = harness(ScriptedFetch::new(dial.script()));
         let mut watcher = harness.feed.subscribe();
 
-        harness.poller.poll_once().await.expect("the clock is sane");
+        harness.poller.poll_once().await;
         assert!(watcher.has_changed().expect("the feed is alive"));
         watcher.borrow_and_update();
 
-        let again = harness.poller.poll_once().await.expect("the clock is sane");
+        let again = harness.poller.poll_once().await;
         assert_eq!(again.moved, 0);
         assert_eq!(again.refreshed, 0, "the same quote at the same second is not news");
         assert!(!watcher.has_changed().expect("the feed is alive"));
 
         harness.clock.advance(Duration::from_secs(60));
-        let later = harness.poller.poll_once().await.expect("the clock is sane");
+        let later = harness.poller.poll_once().await;
         assert_eq!(later.moved, 0);
         assert_eq!(later.refreshed, PRICED_ASSETS + RATED_CURRENCIES);
         assert!(watcher.has_changed().expect("the feed is alive"), "the age of a price is news");
@@ -498,7 +498,7 @@ mod tests {
 
         dial.set("2.0");
         harness.clock.advance(Duration::from_secs(60));
-        let moved = harness.poller.poll_once().await.expect("the clock is sane");
+        let moved = harness.poller.poll_once().await;
         assert_eq!(moved.moved, PRICED_ASSETS);
         assert_eq!(moved.refreshed, RATED_CURRENCIES, "the rates held still");
         assert_eq!(
@@ -510,12 +510,12 @@ mod tests {
     #[tokio::test]
     async fn a_record_too_old_to_show_is_dropped() {
         let mut harness = answering_everything();
-        harness.poller.poll_once().await.expect("the clock is sane");
+        harness.poller.poll_once().await;
         assert_eq!(harness.feed.snapshot().len(), PRICED_ASSETS);
 
         harness.fetch.mute();
         harness.clock.advance(Duration::from_hours(25));
-        let report = harness.poller.poll_once().await.expect("the clock is sane");
+        let report = harness.poller.poll_once().await;
 
         assert!(report.is_failure());
         assert_eq!(report.discarded, PRICED_ASSETS + RATED_CURRENCIES);
@@ -526,12 +526,12 @@ mod tests {
     #[tokio::test]
     async fn a_pass_that_answered_nothing_leaves_what_is_known_alone() {
         let mut harness = answering_everything();
-        harness.poller.poll_once().await.expect("the clock is sane");
+        harness.poller.poll_once().await;
         let held = harness.feed.snapshot();
 
         harness.fetch.mute();
         harness.clock.advance(Duration::from_secs(60));
-        let report = harness.poller.poll_once().await.expect("the clock is sane");
+        let report = harness.poller.poll_once().await;
 
         assert_eq!(report.outcome, PassOutcome::Failed);
         assert_eq!(report.quoted, 0);
@@ -564,10 +564,27 @@ mod tests {
         let config = PriceFeedConfig { tickers: BTreeSet::new() };
         let mut harness = harness_with(&config, ScriptedFetch::new(everything_at("100.0")));
 
-        let report = harness.poller.poll_once().await.expect("the clock is sane");
+        let report = harness.poller.poll_once().await;
         assert_eq!(report.outcome, PassOutcome::NotSent);
         assert!(!report.is_failure());
         assert_eq!(harness.fetch.count(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_pass_that_cannot_read_the_clock_fails_without_a_request() {
+        let fetch = ScriptedFetch::new(everything_at("100.0"));
+        let (feed, mut poller) = PriceFeed::new(
+            &PriceFeedConfig::default(),
+            FiatCurrency::Usd,
+            Arc::<ScriptedFetch>::clone(&fetch),
+            Arc::new(FailingClock),
+        );
+
+        let report = poller.poll_once().await;
+        assert_eq!(report.outcome, PassOutcome::Failed);
+        assert!(report.is_failure(), "the schedule did not back off");
+        assert_eq!(fetch.count(), 0);
+        assert!(feed.snapshot().is_empty());
     }
 
     #[tokio::test]
@@ -578,7 +595,7 @@ mod tests {
             ScriptedFetch::new(|_| Reply::Body(kraken_body(&[(Ticker::of(Coin::Ltc), "96.31")])));
         let mut harness = harness_with(&config, fetch);
 
-        let report = harness.poller.poll_once().await.expect("the clock is sane");
+        let report = harness.poller.poll_once().await;
         assert_eq!(report.outcome, PassOutcome::Answered);
         assert_eq!(report.quoted, 0, "litecoin was not what the batch asked about");
         assert_eq!(report.rejected, 1);
@@ -591,12 +608,12 @@ mod tests {
     async fn the_newest_quote_wins_after_the_wall_clock_steps_back() {
         let dial = Dial::new("1.0");
         let mut harness = harness(ScriptedFetch::new(dial.script()));
-        harness.poller.poll_once().await.expect("the clock is sane");
+        harness.poller.poll_once().await;
 
         let corrected_millis = FakeClock::DEFAULT_UNIX_MILLIS.saturating_sub(3_600_000);
         harness.clock.set_unix_millis(corrected_millis);
         dial.set("2.0");
-        let report = harness.poller.poll_once().await.expect("the clock is sane");
+        let report = harness.poller.poll_once().await;
         assert_eq!(report.quoted, Ticker::all().count());
 
         let btc = harness.feed.snapshot().get(BTC).expect("bitcoin is priced");

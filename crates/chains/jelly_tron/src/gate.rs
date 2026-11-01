@@ -163,7 +163,7 @@ fn to_i128_saturating(units: u128) -> i128 {
 
 #[cfg(test)]
 mod tests {
-    use jelly_core::{Amount, TokenId, test_util::FakeClock};
+    use jelly_core::{Amount, TokenId, TxId, test_util::FakeClock};
 
     use super::*;
 
@@ -185,7 +185,7 @@ mod tests {
         TxRecord::builder(
             TRX,
             1,
-            jelly_core::TxId::new(TRX.chain(), "aa"),
+            TxId::new(TRX.chain(), "aa"),
             TxDirection::Incoming,
             Amount::from_base_units(sun),
         )
@@ -258,7 +258,7 @@ mod tests {
         let record = TxRecord::builder(
             usdt,
             1,
-            jelly_core::TxId::new(usdt.chain(), "aa"),
+            TxId::new(usdt.chain(), "aa"),
             TxDirection::Outgoing,
             Amount::from_base_units(3),
         )

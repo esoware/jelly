@@ -192,21 +192,19 @@ pub(crate) fn json_rpc_decode_batch<'a>(
         );
         return Err(NetError::protocol(label, "the batch answer has a different count"));
     }
-    let slots: HashMap<u64, usize> =
-        request_ids.iter().enumerate().map(|(index, id)| (*id, index)).collect();
     let mut answers: Vec<Option<&'a RawValue>> = vec![None; request_ids.len()];
+    let mut slots: HashMap<u64, &mut Option<&'a RawValue>> =
+        request_ids.iter().copied().zip(answers.iter_mut()).collect();
     for envelope in envelopes {
         let id = envelope.id.ok_or_else(|| NetError::protocol(label, "batch element has no id"))?;
         let slot = slots
-            .get(&id)
-            .copied()
+            .get_mut(&id)
             .ok_or_else(|| NetError::protocol(label, "batch element has an unrequested id"))?;
         let value = envelope_result(label, envelope)?;
-        match answers.get_mut(slot) {
-            Some(entry) if entry.is_none() => *entry = Some(value),
-            Some(_) => return Err(NetError::protocol(label, "batch element id repeats")),
-            None => return Err(NetError::protocol(label, "batch element id is out of range")),
+        if slot.is_some() {
+            return Err(NetError::protocol(label, "batch element id repeats"));
         }
+        **slot = Some(value);
     }
     answers
         .into_iter()

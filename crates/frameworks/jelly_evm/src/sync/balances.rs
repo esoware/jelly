@@ -81,15 +81,15 @@ pub(super) async fn read_sheets(
     watched: &[Watched],
 ) -> Result<Vec<Sheet>, EvmError> {
     let table = inputs.tokens.all();
-    let mut plan = Vec::with_capacity(watched.len().saturating_mul(table.len().saturating_add(2)));
+    let mut reads = Vec::with_capacity(watched.len().saturating_mul(table.len().saturating_add(2)));
     for entry in watched {
-        plan.push(BalanceRead::Native { owner: entry.owner });
+        reads.push(BalanceRead::Native { owner: entry.owner });
         for token in table {
-            plan.push(BalanceRead::Token { owner: entry.owner, token: *token });
+            reads.push(BalanceRead::Token { owner: entry.owner, token: *token });
         }
-        plan.push(BalanceRead::Nonce { owner: entry.owner });
+        reads.push(BalanceRead::Nonce { owner: entry.owner });
     }
-    let mut answers = inputs.client.balances(&plan).await?.into_iter();
+    let mut answers = inputs.client.balances(&reads).await?.into_iter();
     let mut next = || answers.next().flatten();
     Ok(watched
         .iter()
@@ -132,7 +132,7 @@ pub(super) struct Unexplained {
 /// Receipts and balances are read apart and may come from different nodes, so a
 /// send counts against the first balance whose nonce shows it was mined, not
 /// against the pass that first saw its receipt.
-pub(super) fn balances(
+pub(super) fn judge_balances(
     inputs: &PassInputs<'_>,
     watched: &[Watched],
     sheets: &[Sheet],

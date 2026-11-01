@@ -2,7 +2,7 @@ use jelly_core::{
     Amount, ChainAdapter as _, ChainError, FeeLevel, FeeSelection, TokenId, TxWarningKind,
 };
 use jelly_solana::{Method, SolanaConfig};
-use serde_json::json;
+use serde_json::{Value, json};
 
 use crate::common::{
     self, Answer, Harness, PEER, detail, native, request, send_max, stock_usdc,
@@ -195,6 +195,26 @@ async fn a_token_quote_leaves_the_rent_deposit_out_of_the_fee() {
     let unsigned = harness.adapter.build_tx(&request(PEER, usdc(), 1_000_000)).await.unwrap();
     let rent = detail(&unsigned.preview.details, "Token account rent").unwrap();
     assert!(rent.contains("2039280"), "{rent}");
+}
+
+/// The transfer writes to a recipient that is itself a token account, never to the
+/// associated address the recipient would own.
+#[tokio::test]
+async fn a_token_account_named_as_the_recipient_is_the_one_the_fee_is_sampled_over() {
+    let harness = Harness::priced().await.unwrap();
+    stock_usdc(&harness.node, 50_000_000, true).unwrap();
+    harness.node.at(
+        Method::GetAccountInfo,
+        PEER,
+        Answer::ok(&common::token_account(common::RECORDED, common::USDC_MINT, 7).unwrap()),
+    );
+    harness.node.forget_calls();
+    harness.adapter.quote_fee(&request(PEER, usdc(), 1_000_000)).await.unwrap();
+
+    let samples = harness.node.calls_to(Method::GetRecentPrioritizationFees);
+    let last: Value = serde_json::from_str(&samples.last().unwrap().params).unwrap();
+    let source = token_account_address(common::OWNER, TokenId::UsdcSpl).unwrap();
+    assert_eq!(last, json!([[common::OWNER, source, PEER]]));
 }
 
 #[tokio::test]

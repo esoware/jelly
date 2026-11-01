@@ -6,8 +6,8 @@ use crate::client::{AccountState, Position, TonClient};
 use crate::config::CHAIN;
 use crate::cursor::{Cursor, JettonCursor, Stream};
 use crate::error::TonError;
-use crate::history::{Held, Reader};
-use crate::jetton::{JETTONS, master};
+use crate::history::Reader;
+use crate::jetton::JETTONS;
 use crate::pending;
 use crate::state::States;
 use crate::watched::Watched;
@@ -15,7 +15,6 @@ use crate::watched::Watched;
 const TARGET: &str = "jelly::ton::sync";
 /// How many pages of transactions one walk reads in a pass.
 const PAGES_PER_PASS: usize = 3;
-const PARTIAL_PROGRESS_PERMILLE: u16 = 500;
 
 /// The context every walk of one address shares in a pass.
 struct Pass<'a> {
@@ -48,11 +47,7 @@ pub(crate) async fn run(
             is_complete = false;
         }
     }
-    let progress_permille =
-        if is_complete { ChainSyncProgress::MAX_PERMILLE } else { PARTIAL_PROGRESS_PERMILLE };
-    Ok(ChainSyncProgress::new(CHAIN)
-        .with_progress(progress_permille)
-        .with_heights(is_complete.then_some(tip), Some(tip)))
+    Ok(ChainSyncProgress::new(CHAIN).with_heights(is_complete.then_some(tip), Some(tip)))
 }
 
 impl Pass<'_> {
@@ -71,9 +66,7 @@ impl Pass<'_> {
             if cursor.jettons.iter().any(|known| known.token == jetton.token) {
                 continue;
             }
-            let lookup =
-                self.client.jetton_wallet(&master(jetton.token)?, &entry.address, Some(tip)).await;
-            match lookup {
+            match self.client.jetton_wallet(jetton.token, &entry.address, Some(tip)).await {
                 Ok(wallet) => {
                     cursor.jettons.push(JettonCursor::named(jetton.token, &wallet));
                     self.states.advance(entry.address_id, &cursor).await?;
@@ -147,7 +140,7 @@ impl Pass<'_> {
             AccountState::Active => {
                 let balance = self
                     .client
-                    .jetton_balance(&wallet, &self.entry.address, &master(jetton.token)?, tip)
+                    .jetton_balance(&wallet, &self.entry.address, jetton.token, tip)
                     .await?;
                 jetton.confirm(balance, head_lt);
             }
@@ -175,13 +168,13 @@ impl Pass<'_> {
     ) -> Result<bool, TonError> {
         let held = match stream {
             Stream::Wallet => None,
-            Stream::Jetton(index) => {
-                let jetton = cursor
+            Stream::Jetton(index) => Some(
+                cursor
                     .jettons
                     .get(index)
-                    .ok_or(TonError::Internal("a jetton cursor went missing"))?;
-                Some(Held { token: jetton.token, wallet: jetton.address()? })
-            }
+                    .ok_or(TonError::Internal("a jetton cursor went missing"))?
+                    .held()?,
+            ),
         };
         let address = held.as_ref().map_or(&self.entry.address, |held| &held.wallet);
         cursor.walk_mut(stream)?.begin(head, floor);

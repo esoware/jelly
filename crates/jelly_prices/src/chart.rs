@@ -61,13 +61,13 @@ impl PriceCharts {
         if !self.tickers.contains(&ticker) {
             return Err(PriceError::Absent);
         }
-        let prices = self.candles(CandleRequest::asset(ticker, interval));
+        let dollar_candles = self.candles(CandleRequest::asset(ticker, interval));
         if currency == FiatCurrency::Usd {
-            return Ok(PriceChart { currency, candles: prices.await?.to_vec() });
+            return Ok(PriceChart { currency, candles: dollar_candles.await?.to_vec() });
         }
         let rate = RatePair::of(currency).ok_or(PriceError::Absent)?;
         let (prices, rates) =
-            tokio::try_join!(prices, self.candles(CandleRequest::rate(rate, interval)))?;
+            tokio::try_join!(dollar_candles, self.candles(CandleRequest::rate(rate, interval)))?;
         Ok(PriceChart { currency, candles: convert(&prices, &rates) })
     }
 
@@ -105,13 +105,13 @@ const fn freshness(interval: CandleInterval) -> Duration {
 }
 
 fn convert(prices: &[Candle], rates: &[Candle]) -> Vec<Candle> {
-    let mut rates = rates.iter().peekable();
+    let mut upcoming_rates = rates.iter().peekable();
     let mut rate = None;
     prices
         .iter()
         .filter_map(|candle| {
             while let Some(opened) =
-                rates.next_if(|next| next.open_unix_secs <= candle.open_unix_secs)
+                upcoming_rates.next_if(|next| next.open_unix_secs <= candle.open_unix_secs)
             {
                 rate = Some(opened.close);
             }

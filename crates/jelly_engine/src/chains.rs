@@ -18,9 +18,11 @@ use tokio_util::sync::CancellationToken;
 
 use crate::WalletEngine;
 use crate::session::Session;
-use crate::settings::AppSettings;
+use crate::settings::StoredSettings;
 use crate::status::StatusBoard;
 use crate::sync::{self, ChainLoop};
+
+const TARGET: &str = "jelly::engine::chains";
 
 /// Quiet period before an endpoint change triggers an adapter rebuild.
 const REBUILD_DEBOUNCE: Duration = Duration::from_millis(500);
@@ -57,7 +59,7 @@ impl ChainSlot {
     }
 
     /// Sets the tip the first refresh counts from, unless a pass has already set one.
-    fn seed_announced_tip(&self, tip: u64) {
+    fn preload_announced_tip(&self, tip: u64) {
         self.announced_tip.lock().get_or_insert(tip);
     }
 
@@ -166,7 +168,7 @@ pub(crate) fn restore_heights(states: &[ChainStateRow]) -> BTreeMap<ChainId, u64
     states.iter().filter_map(|row| row.restore_height.map(|height| (row.chain, height))).collect()
 }
 
-fn api_keys(settings: &AppSettings) -> BTreeMap<KeyService, SecretText> {
+fn api_keys(settings: &StoredSettings) -> BTreeMap<KeyService, SecretText> {
     KeyService::ALL
         .into_iter()
         .filter_map(|service| {
@@ -314,7 +316,7 @@ impl WalletEngine {
         // reacting to their state finds the adapter.
         let set = Arc::new(set);
         self.inner.chains.adapters.store(Arc::clone(&set));
-        self.seed_states(&plan, &set);
+        self.preload_heights(&plan, &set);
         self.start_sync_tasks(&set, &plan.poll_secs, session);
         Ok(())
     }
@@ -343,7 +345,7 @@ impl WalletEngine {
             }
             if let Err(error) = engine.rebuild_adapters().await {
                 tracing::warn!(
-                    target: "jelly::engine::chains",
+                    target: TARGET,
                     %error,
                     "could not rebuild the adapter set"
                 );
@@ -351,21 +353,21 @@ impl WalletEngine {
         });
     }
 
-    /// Seeds each chain's stored height, and logs any requested chain the builder neither
-    /// built nor skipped, since that's a builder bug.
-    fn seed_states(&self, plan: &BuildPlan, set: &AdapterSet) {
+    /// Preloads each chain's stored height, and logs any requested chain the builder
+    /// neither built nor skipped, since that's a builder bug.
+    fn preload_heights(&self, plan: &BuildPlan, set: &AdapterSet) {
         for chain in &plan.request.chains {
             if set.outcome(*chain).is_none() {
                 tracing::warn!(
-                    target: "jelly::engine::chains",
+                    target: TARGET,
                     chain = chain.as_str(),
                     "the builder answered with neither an adapter nor a reason"
                 );
             }
         }
         for (&chain, &height) in &plan.synced_heights {
-            self.inner.chains.status.seed_height(chain, height);
-            self.inner.chains.slot(chain).seed_announced_tip(height);
+            self.inner.chains.status.preload_height(chain, height);
+            self.inner.chains.slot(chain).preload_announced_tip(height);
         }
     }
 
@@ -427,7 +429,6 @@ mod tests {
 
     fn row(chain: ChainId, is_enabled: bool) -> ChainStateRow {
         ChainStateRow {
-            wallet_id: 1,
             chain,
             enabled: is_enabled,
             poll_secs: None,

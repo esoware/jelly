@@ -4,13 +4,14 @@ use std::time::Duration;
 use jelly_core::{
     Amount, AssetId, ChainAdapter as _, ChainError, ChainId, Clock as _, ErrorCode, FeeLevel,
     FeeSelection, SendAmount, TokenId, TxWarningKind,
-    test_util::{FakeClock, FakeEventSink, NullCursorStore, TxRequestBuilder},
+    test_util::{FakeClock, FakeEventSink, TxRequestBuilder},
 };
 use jelly_monero::{MoneroConfig, test_util::account_balance};
+use monero_address::{MoneroAddress, Network};
 
 use crate::common::{
-    ChainBuilder, ENDPOINT, FakeNode, Harness, PRIMARY_ID, account, config, fixture_adapter,
-    owned_in, payment, recorded, recorded_block, recorded_height, row,
+    ChainBuilder, ENDPOINT, FakeNode, Harness, NullCursorStore, PRIMARY_ID, account, config,
+    fixture_adapter, owned_in, payment, recorded, recorded_block, recorded_height, row,
 };
 
 #[tokio::test]
@@ -30,6 +31,25 @@ async fn a_build_previews_the_transaction_it_will_sign() {
     for label in ["Ring size", "Inputs", "Outputs", "Change", "Priority", "Fee rate"] {
         assert!(row(&unsigned.preview.details, label).is_some(), "the preview is missing {label}");
     }
+}
+
+#[tokio::test]
+async fn the_preview_tells_a_primary_address_a_subaddress_and_an_integrated_address_apart() {
+    let harness = Harness::new().await.unwrap();
+    let primary = harness.adapter.build_tx(&harness.request(Some(1_000))).await.unwrap();
+    assert_eq!(row(&primary.preview.details, "Address type"), Some("Standard address"));
+
+    let subaddress = payment(&harness.account.address(1, 4).unwrap(), 1_000);
+    let paid = harness.adapter.build_tx(&subaddress).await.unwrap();
+    assert_eq!(row(&paid.preview.details, "Address type"), Some("Subaddress"));
+
+    let integrated = MoneroAddress::from_str(Network::Mainnet, &harness.primary)
+        .unwrap()
+        .with_payment_id([7; 8])
+        .unwrap()
+        .to_string();
+    let paid = harness.adapter.build_tx(&payment(&integrated, 1_000)).await.unwrap();
+    assert_eq!(row(&paid.preview.details, "Address type"), Some("Integrated address"));
 }
 
 #[tokio::test]

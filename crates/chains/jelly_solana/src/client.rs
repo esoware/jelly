@@ -112,13 +112,19 @@ impl SolanaClient {
         Self { node, batch_size: config.batch_size() }
     }
 
+    /// `method` names the batch in a length failure.
+    async fn batch(&self, method: Method, calls: &[RpcCall]) -> Result<Answered, SolanaError> {
+        let answered = self.node.batch(calls).await?;
+        answered.check_count(method, calls.len())?;
+        Ok(answered)
+    }
+
     /// The slot and the block height, at the reading commitment.
     pub(crate) async fn tip(&self) -> Result<Tip, SolanaError> {
         let query = (CommitmentQuery { commitment: READ_COMMITMENT },);
         let calls =
             [RpcCall::new(Method::GetSlot, &query)?, RpcCall::new(Method::GetBlockHeight, &query)?];
-        let answered = self.node.batch(&calls).await?;
-        answered.check_count(Method::GetSlot, calls.len())?;
+        let answered = self.batch(Method::GetSlot, &calls).await?;
         Ok(Tip {
             slot: answered.decode_at(0, Method::GetSlot)?,
             block_height: answered.decode_at(1, Method::GetBlockHeight)?,
@@ -146,8 +152,7 @@ impl SolanaClient {
                     calls.push(account_call(&token.account_of(owner))?);
                 }
             }
-            let answered = self.node.batch(&calls).await?;
-            answered.check_count(Method::GetBalance, calls.len())?;
+            let answered = self.batch(Method::GetBalance, &calls).await?;
             for (owner, base) in group.iter().zip((0..calls.len()).step_by(stride)) {
                 holdings.push(holdings_at(&answered, owner, base)?);
             }
@@ -175,8 +180,7 @@ impl SolanaClient {
                 calls.push(account_call(&token.mint())?);
             }
         }
-        let answered = self.node.batch(&calls).await?;
-        answered.check_count(Method::GetLatestBlockhash, calls.len())?;
+        let answered = self.batch(Method::GetLatestBlockhash, &calls).await?;
 
         let blockhash: Contextual<BlockhashInfo> =
             answered.decode_at(0, Method::GetLatestBlockhash)?;
@@ -304,8 +308,7 @@ impl SolanaClient {
                     ),
                 )?);
             }
-            let answered = self.node.batch(&calls).await?;
-            answered.check_count(Method::GetSignaturesForAddress, calls.len())?;
+            let answered = self.batch(Method::GetSignaturesForAddress, &calls).await?;
             for (index, (_, page)) in group.iter().enumerate() {
                 let mut rows: Vec<SignatureRow> =
                     answered.decode_at(index, Method::GetSignaturesForAddress)?;
@@ -344,8 +347,7 @@ impl SolanaClient {
                     &(group, StatusQuery { search_transaction_history: true }),
                 )?,
             ];
-            let answered = self.node.batch(&calls).await?;
-            answered.check_count(Method::GetSignatureStatuses, calls.len())?;
+            let answered = self.batch(Method::GetSignatureStatuses, &calls).await?;
             let block_height: u64 = answered.decode_at(0, Method::GetBlockHeight)?;
             let statuses: Contextual<Vec<Option<SignatureStatus>>> =
                 answered.decode_at(1, Method::GetSignatureStatuses)?;

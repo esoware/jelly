@@ -13,9 +13,9 @@ use jelly_core::{
     AdapterBuilder, AdapterSet, Address, Amount, AssetId, BalanceUpdate, BuildRequest,
     ChainAdapter, ChainError, ChainId, ChainOutcome, ChainSyncProgress, CursorStore, Deadline,
     EventSink, FeeBump, FeeQuote, FeeRate, FeeSelection, KeyKind, KeyMaterial, PendingTracker,
-    PhraseWords, RawTx, Rejection, RejectionKind, RetryPolicy, ScriptProbe, SecretText, SendAmount,
-    SignedTx, SkipReason, Subaddresses, TxCancel, TxDirection, TxId, TxPayload, TxPreview,
-    TxRecord, TxRequest, UnsignedTx, WalletColor, WalletEvent, WatchedAddress,
+    PhraseLength, RawTx, Rejection, RejectionKind, RetryPolicy, ScriptProbe, SecretText,
+    SendAmount, SignedTx, SkipReason, Subaddresses, TxCancel, TxDirection, TxId, TxPayload,
+    TxPreview, TxRecord, TxRequest, UnsignedTx, WalletColor, WalletEvent, WatchedAddress,
 };
 use jelly_engine::{
     CreatedWallet, EngineConfig, EngineDeps, PassphraseInput, WalletEngine,
@@ -102,7 +102,7 @@ impl<K: MasterKeyStore> Harness<K> {
                 name,
                 WalletColor::default(),
                 secret(PASSWORD),
-                PhraseWords::Twelve,
+                PhraseLength::Twelve,
                 PassphraseInput::None,
             )
             .await?)
@@ -345,9 +345,7 @@ impl ChainAdapter for FakeAdapter {
             events.emit(WalletEvent::TxDetected(record)).await;
         }
         self.state.syncs.fetch_add(1, Ordering::SeqCst);
-        Ok(ChainSyncProgress::new(self.chain)
-            .with_heights(Some(tip), Some(tip))
-            .with_progress(1000))
+        Ok(ChainSyncProgress::new(self.chain).with_heights(Some(tip), Some(tip)))
     }
 
     async fn quote_fee(&self, _request: &TxRequest) -> Result<FeeQuote, ChainError> {
@@ -704,8 +702,8 @@ pub(crate) fn detected_so_far(events: &mut broadcast::Receiver<WalletEvent>) -> 
 pub(crate) async fn settled(engine: &WalletEngine) -> Fallible<()> {
     let sink = test_util::event_sink(engine);
     let mut events = engine.subscribe();
-    for permille in [1, 2] {
-        let marker = ChainSyncProgress::new(MARKER_CHAIN).with_progress(permille);
+    for tip in [1, 2] {
+        let marker = ChainSyncProgress::new(MARKER_CHAIN).with_heights(None, Some(tip));
         sink.emit(WalletEvent::SyncProgress(marker)).await;
         while events.recv().await? != WalletEvent::SyncProgress(marker) {}
     }

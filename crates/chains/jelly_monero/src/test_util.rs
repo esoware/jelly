@@ -4,14 +4,16 @@
 //! A test reaches the scan blob and the sends in flight through these instead of the
 //! scope, stream, and slot they're stored under.
 
-use jelly_core::{Amount, CoreError, CursorBytes, CursorScope, CursorStore, Rejection};
+use jelly_core::{Amount, CoreError, CursorBytes, CursorScope, CursorStore, Rejection, SignedTx};
 use monero_interface::FeeRate;
 
 use crate::adapter::MoneroAdapter;
 use crate::balance::MoneroBalance;
 use crate::broadcast::BroadcastRefusal;
+use crate::error::MoneroError;
 use crate::fee;
 use crate::params::{SCAN_STREAM, SENDS_SLOT};
+use crate::sign::{key_images_of, parse_signed};
 use crate::state::timelock_now_secs;
 
 pub fn account_balance(adapter: &MoneroAdapter, major: u32) -> MoneroBalance {
@@ -37,6 +39,16 @@ pub async fn replace_scan(cursors: &dyn CursorStore, blob: CursorBytes) -> Resul
 /// The sends in flight the adapter last reserved in `cursors`.
 pub async fn stored_sends(cursors: &dyn CursorStore) -> Result<Option<CursorBytes>, CoreError> {
     cursors.load_reservation(CursorScope::Wallet, SENDS_SLOT).await
+}
+
+/// Overwrites the sends blob in `cursors`, as a damaged or tampered store would.
+pub async fn replace_sends(cursors: &dyn CursorStore, blob: CursorBytes) -> Result<(), CoreError> {
+    cursors.reserve(CursorScope::Wallet, SENDS_SLOT, blob).await
+}
+
+/// The key images `signed` consumes, read back from its bytes.
+pub fn key_images(signed: &SignedTx) -> Result<Vec<[u8; 32]>, MoneroError> {
+    parse_signed(signed.raw.as_bytes()).map(|transaction| key_images_of(&transaction))
 }
 
 /// The rejection the shipped node reports when monerod refuses with `reason`

@@ -2,16 +2,16 @@ use std::collections::BTreeSet;
 
 use jelly_core::TxPayload;
 use serde::{Deserialize, Serialize};
-use zcash_primitives::transaction::{TxVersion, builder::DEFAULT_TX_EXPIRY_DELTA};
-use zcash_protocol::consensus::{BranchId, MAIN_NETWORK};
-use zcash_transparent::bundle::OutPoint;
+use zcash_primitives::transaction::TxVersion;
+use zcash_protocol::consensus::BranchId;
+use zcash_transparent::bundle::{OutPoint, TxOut};
 
 use crate::address::{is_key_address, script};
-use crate::config::{DUST_ZAT, MAX_INPUTS, branch_at};
+use crate::config::{DUST_ZAT, MAX_INPUTS, branch_at, expiry_at};
 use crate::entry::ENTRY;
 use crate::error::ZcashError;
 use crate::fee::{MAX_FEE_MULTIPLE, conventional_fee};
-use crate::zat::add;
+use crate::zat::{add, zatoshis};
 
 pub(crate) const INVALID_PAYMENT: ZcashError =
     ZcashError::Invalid("The Zcash payment is not valid. Build it again.");
@@ -58,9 +58,7 @@ pub(crate) struct Payment {
     pub(crate) amount_zat: u64,
     pub(crate) change_zat: u64,
     pub(crate) fee_zat: u64,
-    /// Change too small to keep, which `fee_zat` includes. Absent from a payment stored
-    /// before this field existed.
-    #[serde(default)]
+    /// Change too small to keep, which `fee_zat` includes.
     pub(crate) dropped_change_zat: u64,
 }
 
@@ -69,18 +67,18 @@ impl Payment {
         branch_at(self.target_height)
     }
 
-    pub(crate) fn expiry_height(target_height: u32) -> Result<u32, ZcashError> {
-        let end = branch_at(target_height).height_bounds(&MAIN_NETWORK).and_then(|(_, end)| end);
-        let expiry =
-            target_height.checked_add(DEFAULT_TX_EXPIRY_DELTA).ok_or(ZcashError::Protocol)?;
-        // A transaction is only valid in the branch it was signed for, so expiry stops at the
-        // last block before the next network upgrade, as zcashd does.
-        Ok(end.map_or(expiry, |end| expiry.min(u32::from(end).saturating_sub(1))))
-    }
-
     /// The address change returns to, the first source.
     pub(crate) fn change_address(&self) -> Result<&str, ZcashError> {
         self.sources.first().map(|source| source.address.as_str()).ok_or(INVALID_PAYMENT)
+    }
+
+    /// The payment, then the change when there is any.
+    pub(crate) fn outputs(&self) -> Result<Vec<TxOut>, ZcashError> {
+        let mut outputs = vec![TxOut::new(zatoshis(self.amount_zat)?, script(&self.to)?)];
+        if self.change_zat > 0 {
+            outputs.push(TxOut::new(zatoshis(self.change_zat)?, script(self.change_address()?)?));
+        }
+        Ok(outputs)
     }
 
     pub(crate) fn validate(&self) -> Result<(), ZcashError> {
@@ -97,7 +95,7 @@ impl Payment {
             || self.inputs.is_empty()
             || self.inputs.len() > MAX_INPUTS
             || !TxVersion::V5.valid_in_branch(self.branch())
-            || Self::expiry_height(self.target_height).ok() != Some(self.expiry_height)
+            || expiry_at(self.target_height).ok() != Some(self.expiry_height)
             || self.amount_zat < DUST_ZAT
             || (self.change_zat != 0 && self.change_zat < DUST_ZAT)
             || !self

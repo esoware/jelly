@@ -9,7 +9,7 @@ use crate::abi::{self, MULTICALL3};
 use crate::error::EvmError;
 use crate::fee;
 use crate::method::Method;
-use crate::node::{EvmNode, RpcCall};
+use crate::node::{Answered, EvmNode, RpcCall};
 use crate::rpc::{BlockTag, CallObject, FeeHistory, LogEntry, LogFilter, Receipt};
 use crate::token::TokenMeta;
 use crate::units;
@@ -31,6 +31,37 @@ pub(crate) enum BalanceRead {
     Nonce {
         owner: Address,
     },
+}
+
+impl BalanceRead {
+    /// The read as a JSON-RPC call of its own.
+    fn call(self) -> Result<RpcCall, EvmError> {
+        match self {
+            Self::Native { owner } => RpcCall::new(Method::GetBalance, &(owner, BlockTag::Latest)),
+            Self::Token { owner, token } => RpcCall::new(
+                Method::Call,
+                &(
+                    CallObject::read(token.address(), abi::balance_of_calldata(owner)),
+                    BlockTag::Latest,
+                ),
+            ),
+            Self::Nonce { owner } => {
+                RpcCall::new(Method::GetTransactionCount, &(owner, BlockTag::Latest))
+            }
+        }
+    }
+
+    /// The answer at `index` to [`Self::call`].
+    fn decode(self, answered: &Answered, index: usize) -> Result<U256, EvmError> {
+        match self {
+            Self::Native { .. } => answered.decode_at(index, Method::GetBalance),
+            Self::Token { .. } => {
+                let word: Bytes = answered.decode_at(index, Method::Call)?;
+                abi::decode_balance(word.as_ref())
+            }
+            Self::Nonce { .. } => answered.decode_at(index, Method::GetTransactionCount),
+        }
+    }
 }
 
 /// A second look at sends with no receipt. One node answers the whole batch, so a
@@ -165,12 +196,12 @@ impl EvmClient {
     /// for an endpoint that won't serve it.
     pub(crate) async fn balances(
         &self,
-        plan: &[BalanceRead],
+        reads: &[BalanceRead],
     ) -> Result<Vec<Option<U256>>, EvmError> {
-        if plan.is_empty() {
+        if reads.is_empty() {
             return Ok(Vec::new());
         }
-        match self.balances_by_multicall(plan).await {
+        match self.balances_by_multicall(reads).await {
             Ok(rows) => return Ok(rows),
             Err(error) => tracing::debug!(
                 target: TARGET,
@@ -178,7 +209,7 @@ impl EvmClient {
                 "the aggregate balance read failed, falling back to a json-rpc batch"
             ),
         }
-        self.balances_by_batch(plan).await
+        self.balances_by_batch(reads).await
     }
 
     /// A call to an address with no code returns `0x`, so an empty answer is
@@ -188,11 +219,11 @@ impl EvmClient {
     /// JSON-RPC batch.
     async fn balances_by_multicall(
         &self,
-        plan: &[BalanceRead],
+        reads: &[BalanceRead],
     ) -> Result<Vec<Option<U256>>, EvmError> {
-        let mut calls = Vec::with_capacity(plan.len());
+        let mut calls = Vec::with_capacity(reads.len());
         let mut nonces = Vec::new();
-        for read in plan {
+        for read in reads {
             match *read {
                 BalanceRead::Native { owner } => {
                     calls.push(abi::call3(MULTICALL3, abi::eth_balance_calldata(owner)));
@@ -200,8 +231,7 @@ impl EvmClient {
                 BalanceRead::Token { owner, token } => {
                     calls.push(abi::call3(token.address(), abi::balance_of_calldata(owner)));
                 }
-                BalanceRead::Nonce { owner } => nonces
-                    .push(RpcCall::new(Method::GetTransactionCount, &(owner, BlockTag::Latest))?),
+                BalanceRead::Nonce { .. } => nonces.push(read.call()?),
             }
         }
         let aggregated = calls.len();
@@ -233,8 +263,8 @@ impl EvmClient {
         }
         let mut balances = results.into_iter();
         let mut position = 0usize;
-        let mut rows = Vec::with_capacity(plan.len());
-        for read in plan {
+        let mut rows = Vec::with_capacity(reads.len());
+        for read in reads {
             let row = match *read {
                 BalanceRead::Native { .. } | BalanceRead::Token { .. } => balances
                     .next()
@@ -242,7 +272,7 @@ impl EvmClient {
                     .and_then(|row| abi::decode_balance(row.returnData.as_ref()).ok()),
                 BalanceRead::Nonce { .. } => {
                     position = position.saturating_add(1);
-                    answered.decode_at(position, Method::GetTransactionCount).ok()
+                    read.decode(&answered, position).ok()
                 }
             };
             rows.push(row);
@@ -250,40 +280,17 @@ impl EvmClient {
         Ok(rows)
     }
 
-    async fn balances_by_batch(&self, plan: &[BalanceRead]) -> Result<Vec<Option<U256>>, EvmError> {
-        let calls = plan
-            .iter()
-            .map(|read| match *read {
-                BalanceRead::Native { owner } => {
-                    RpcCall::new(Method::GetBalance, &(owner, BlockTag::Latest))
-                }
-                BalanceRead::Token { owner, token } => RpcCall::new(
-                    Method::Call,
-                    &(
-                        CallObject::read(token.address(), abi::balance_of_calldata(owner)),
-                        BlockTag::Latest,
-                    ),
-                ),
-                BalanceRead::Nonce { owner } => {
-                    RpcCall::new(Method::GetTransactionCount, &(owner, BlockTag::Latest))
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+    async fn balances_by_batch(
+        &self,
+        reads: &[BalanceRead],
+    ) -> Result<Vec<Option<U256>>, EvmError> {
+        let calls = reads.iter().copied().map(BalanceRead::call).collect::<Result<Vec<_>, _>>()?;
         let answered = self.node.batch(&calls).await?;
-        answered.check_count(Method::GetBalance, plan.len())?;
-        Ok(plan
+        answered.check_count(Method::GetBalance, reads.len())?;
+        Ok(reads
             .iter()
             .enumerate()
-            .map(|(index, read)| match *read {
-                BalanceRead::Native { .. } => answered.decode_at(index, Method::GetBalance).ok(),
-                BalanceRead::Token { .. } => {
-                    let word = answered.decode_at::<Bytes>(index, Method::Call).ok()?;
-                    abi::decode_balance(word.as_ref()).ok()
-                }
-                BalanceRead::Nonce { .. } => {
-                    answered.decode_at(index, Method::GetTransactionCount).ok()
-                }
-            })
+            .map(|(index, read)| read.decode(&answered, index).ok())
             .collect())
     }
 
@@ -303,18 +310,14 @@ impl EvmClient {
         token: Option<TokenMeta>,
         fee_history_blocks: Option<u64>,
     ) -> Result<Preflight, EvmError> {
+        let native_read = BalanceRead::Native { owner };
+        let token_read = token.map(|token| BalanceRead::Token { owner, token });
         let mut calls = vec![
             RpcCall::new(Method::GetTransactionCount, &(owner, BlockTag::Pending))?,
-            RpcCall::new(Method::GetBalance, &(owner, BlockTag::Latest))?,
+            native_read.call()?,
         ];
-        if let Some(metadata) = token {
-            calls.push(RpcCall::new(
-                Method::Call,
-                &(
-                    CallObject::read(metadata.address(), abi::balance_of_calldata(owner)),
-                    BlockTag::Latest,
-                ),
-            )?);
+        if let Some(read) = token_read {
+            calls.push(read.call()?);
         }
         if let Some(blocks) = fee_history_blocks {
             calls.push(fee_history_call(blocks)?);
@@ -323,14 +326,15 @@ impl EvmClient {
         let answered = self.node.batch(&calls).await?;
         answered.check_count(Method::GetTransactionCount, calls.len())?;
         let nonce: U256 = answered.decode_at(0, Method::GetTransactionCount)?;
-        let native: U256 = answered.decode_at(1, Method::GetBalance)?;
+        let native = native_read.decode(&answered, 1)?;
         let mut next = 2usize;
-        let token_balance = if token.is_some() {
-            let word: Bytes = answered.decode_at(next, Method::Call)?;
-            next = next.saturating_add(1);
-            Some(units::to_u128("token balance", abi::decode_balance(word.as_ref())?)?)
-        } else {
-            None
+        let token_balance = match token_read {
+            Some(read) => {
+                let balance = read.decode(&answered, next)?;
+                next = next.saturating_add(1);
+                Some(units::to_u128("token balance", balance)?)
+            }
+            None => None,
         };
         let history =
             fee_history_blocks.map(|_| answered.decode_at(next, Method::FeeHistory)).transpose()?;

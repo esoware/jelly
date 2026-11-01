@@ -3,8 +3,8 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use jelly_core::{
-    ChainAdapter as _, ChainError, ChainId, Clock, CursorScope, CursorStore, RawTx, RejectionKind,
-    ReservationSlot, RetryPolicy, SignedTx, TxId, TxOutcome,
+    ChainAdapter as _, ChainError, ChainId, Clock, CursorStore, RawTx, RejectionKind, RetryPolicy,
+    SignedTx, TxId, TxOutcome,
     test_util::{FakeClock, RefusingCursorStore},
 };
 use jelly_evm::{EvmAdapter, Method};
@@ -15,7 +15,7 @@ use crate::common::{
 };
 
 #[tokio::test]
-async fn a_send_whose_record_failed_never_leaves_and_frees_its_nonce() {
+async fn a_send_whose_sent_set_write_failed_never_leaves_and_frees_its_nonce() {
     let store = Arc::new(RefusingCursorStore::default());
     let node = FakeNode::new();
     let as_store: Arc<dyn CursorStore> = Arc::<RefusingCursorStore>::clone(&store);
@@ -70,11 +70,7 @@ async fn delayed_signed_bytes_keep_their_nonce_through_later_quotes_and_builds()
         .node
         .on(Method::SendRawTransaction, Answer::ok(&format!("\"{}\"", signed.txid.value())));
     assert_eq!(harness.adapter.broadcast(&signed).await.unwrap(), signed.txid);
-    let stored = harness
-        .cursors
-        .load_reservation(CursorScope::Address(7), ReservationSlot::EvmNonces)
-        .await
-        .unwrap();
+    let stored = harness.stored_sent_set().await.unwrap();
     assert!(stored.is_some(), "the delayed send is durably tracked before broadcast");
 }
 
@@ -117,26 +113,17 @@ async fn an_endpoint_that_echoes_another_hash_does_not_get_to_name_the_transacti
     assert_eq!(id.value(), signed.txid.value(), "the id is the one this build computed");
     assert_eq!(harness.adapter.in_flight(), 1, "the send is still followed under its own id");
 
-    let stored = harness
-        .cursors
-        .load_reservation(CursorScope::Address(7), ReservationSlot::EvmNonces)
-        .await
-        .unwrap()
-        .expect("a stored set");
+    let stored = harness.stored_sent_set().await.unwrap().expect("a stored set");
     let text = stored.with_bytes(|bytes| String::from_utf8(bytes.to_vec())).unwrap();
     assert!(text.contains(&signed.txid.value().to_ascii_lowercase()), "{text}");
     assert!(!text.contains(&invented), "{text}");
 }
 
 #[tokio::test]
-async fn the_watched_set_is_written_before_the_bytes_go_out() {
+async fn the_sent_set_is_written_before_the_bytes_go_out() {
     let (harness, signed) = signed().await.unwrap();
     assert_eq!(
-        harness
-            .cursors
-            .load_reservation(CursorScope::Address(7), ReservationSlot::EvmNonces)
-            .await
-            .unwrap(),
+        harness.stored_sent_set().await.unwrap(),
         None,
         "a build that has not been sent is not persisted"
     );
@@ -146,12 +133,7 @@ async fn the_watched_set_is_written_before_the_bytes_go_out() {
         .on(Method::SendRawTransaction, Answer::ok(&format!("\"{}\"", signed.txid.value())));
     harness.adapter.broadcast(&signed).await.unwrap();
 
-    let stored = harness
-        .cursors
-        .load_reservation(CursorScope::Address(7), ReservationSlot::EvmNonces)
-        .await
-        .unwrap()
-        .expect("a stored set");
+    let stored = harness.stored_sent_set().await.unwrap().expect("a stored set");
     let text = stored.with_bytes(|bytes| String::from_utf8(bytes.to_vec())).unwrap();
     assert!(text.contains(&signed.txid.value().to_ascii_lowercase()), "{text}");
     assert!(text.contains("\"nonce\":7"), "{text}");
@@ -255,17 +237,12 @@ async fn an_ambiguous_send_remains_retryable_after_its_reservation_is_restored()
     assert_eq!(harness.adapter.broadcast(&signed).await.unwrap(), signed.txid);
 
     let stored = harness
-        .cursors
-        .load_reservation(CursorScope::Address(7), ReservationSlot::EvmNonces)
+        .stored_sent_set()
         .await
         .unwrap()
         .expect("the reservation survived the ambiguous send");
     let restored = Harness::new(Setup::default()).unwrap();
-    restored
-        .cursors
-        .reserve(CursorScope::Address(7), ReservationSlot::EvmNonces, stored)
-        .await
-        .unwrap();
+    restored.seed_sent_set(stored).await.unwrap();
     restored.watch(&[watched(7, ChainId::Ethereum, SIGNER)]).await.unwrap();
     restored
         .node

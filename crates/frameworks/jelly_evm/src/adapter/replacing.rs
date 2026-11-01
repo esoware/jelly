@@ -1,3 +1,4 @@
+use alloy::primitives::Bytes;
 use async_trait::async_trait;
 use jelly_core::{
     Amount, AssetId, ChainError, FeeBump, FeeQuote, FeeSelection, SendAmount, TxCancel, TxId,
@@ -18,7 +19,7 @@ struct Replacing {
     asset: AssetId,
     amount: Amount,
     nonce: u64,
-    calldata: Option<Vec<u8>>,
+    calldata: Option<Bytes>,
 }
 
 impl EvmAdapter {
@@ -49,7 +50,7 @@ impl EvmAdapter {
             asset: entry.asset,
             amount: entry.amount,
             nonce: entry.nonce,
-            calldata: entry.calldata.as_ref().map(|calldata| calldata.to_vec()),
+            calldata: entry.calldata,
         })
     }
 }

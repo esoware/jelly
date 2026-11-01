@@ -80,16 +80,11 @@ impl TronClient {
     /// A TRC-20 balance, from `balanceOf(owner)`.
     pub(crate) async fn token_balance(
         &self,
-        owner: &str,
-        owner_body: &[u8; address::BODY_BYTES],
+        owner: &address::Body,
         token: TokenId,
     ) -> Result<u128, TronError> {
-        let request = Request::balance_of(owner, owner_body, token.contract())?;
-        let answer = self.node.call(&request).await?;
-        let call: ConstantCall = answer.decode()?;
-        if let Some(detail) = call.failure() {
-            return Err(TronError::CallFailed { detail });
-        }
+        let request = Request::balance_of(owner, token.contract())?;
+        let (answer, call) = self.constant_call(&request).await?;
         let word = call.first_word().ok_or_else(|| answer.unusable("return word"))?;
         abi::decode_balance(word).ok_or_else(|| answer.unusable("return word"))
     }
@@ -101,29 +96,39 @@ impl TronClient {
     /// busy contract, so don't add them together.
     pub(crate) async fn measure_transfer(
         &self,
-        owner: &str,
+        owner: &address::Body,
         token: TokenId,
-        to: &[u8; address::BODY_BYTES],
+        to: &address::Body,
         amount: u128,
     ) -> Result<EnergyReading, TronError> {
         let request = Request::measure_transfer(owner, token.contract(), to, amount)?;
-        let answer = self.node.call(&request).await?;
+        let (_, call) = self.constant_call(&request).await?;
+        Ok(EnergyReading { needed: call.energy_used(), penalty: call.energy_penalty() })
+    }
+
+    /// A read-only contract call that executed cleanly, with the answer it came in.
+    async fn constant_call(
+        &self,
+        request: &Request,
+    ) -> Result<(Answered, ConstantCall), TronError> {
+        let answer = self.node.call(request).await?;
         let call: ConstantCall = answer.decode()?;
         if let Some(detail) = call.failure() {
             return Err(TronError::CallFailed { detail });
         }
-        Ok(EnergyReading { needed: call.energy_used(), penalty: call.energy_penalty() })
+        Ok((answer, call))
     }
 
     /// The part of a call to `token` its deployer pays for `caller`, from the energy
     /// the deployer has left.
     pub(crate) async fn origin_share(
         &self,
-        caller: &str,
+        caller: &address::Body,
         token: TokenId,
     ) -> Result<OriginShare, TronError> {
         let contract = self.contract(token).await?;
         let percent = contract.origin_percent();
+        let caller = caller.to_string();
         let Some(origin) = contract.origin().filter(|origin| *origin != caller) else {
             return Ok(OriginShare::NONE);
         };
@@ -178,15 +183,16 @@ impl TronClient {
     /// internal transfers and all, that the sender's native stream lists.
     ///
     /// The sender comes from `gettransactionbyid`, which every full node answers
-    /// alike. A row not found within [`PARENT_PAGES`] pages and `deadline` is
-    /// reported as unusable rather than guessed at.
+    /// alike. A row the sender's history doesn't list within [`PARENT_PAGES`] pages
+    /// is `None` rather than guessed at, and a search `deadline` cuts short is an
+    /// error, so a later pass tries again.
     pub(crate) async fn parent(
         &self,
         txid: &str,
         timestamp_millis: i64,
         deadline: Deadline,
         clock: &dyn Clock,
-    ) -> Result<NativeRow, TronError> {
+    ) -> Result<Option<NativeRow>, TronError> {
         let answer = self.node.call(&Request::transaction_by_id(txid)?).await?;
         let held: NativeRow = answer.decode()?;
         let sender = held.sender().ok_or_else(|| answer.unusable("transaction sender"))?;
@@ -200,9 +206,12 @@ impl TronClient {
             let next = page.fingerprint().map(str::to_owned);
             let has_ended = page.data.is_empty() || next.is_none() || next == fingerprint;
             if let Some(row) = page.data.into_iter().find(|row| row.txid() == txid) {
-                return Ok(row);
+                return Ok(Some(row));
             }
-            if has_ended || pages_read >= PARENT_PAGES || deadline.is_expired(clock) {
+            if has_ended || pages_read >= PARENT_PAGES {
+                return Ok(None);
+            }
+            if deadline.is_expired(clock) {
                 return Err(answer.unusable("parent transaction"));
             }
             fingerprint = next;

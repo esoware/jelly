@@ -6,7 +6,7 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	listWallets: () => typedError<WalletRecord[], IpcError>(__TAURI_INVOKE("list_wallets")),
-	createSeedWallet: (name: string, color: WalletColor, password: string, words: PhraseWords, passphrase: PassphraseInput) => typedError<CreatedWallet, IpcError>(__TAURI_INVOKE("create_seed_wallet", { name, color, password, words, passphrase })),
+	createSeedWallet: (name: string, color: WalletColor, password: string, words: PhraseLength, passphrase: PassphraseInput) => typedError<CreatedWallet, IpcError>(__TAURI_INVOKE("create_seed_wallet", { name, color, password, words, passphrase })),
 	importSeedWallet: (name: string, color: WalletColor, password: string, phrase: string, passphrase: PassphraseInput) => typedError<null, IpcError>(__TAURI_INVOKE("import_seed_wallet", { name, color, password, phrase, passphrase })),
 	/**  Locks any wallet already open first, since the engine holds one session. */
 	unlockWallet: (walletId: number, password: string, passphrase: string | null) => typedError<null, IpcError>(__TAURI_INVOKE("unlock_wallet", { walletId, password, passphrase })),
@@ -233,6 +233,7 @@ export const commands = {
 	getWindowControls: () => typedError<WindowControls, IpcError>(__TAURI_INVOKE("get_window_controls")),
 	listChainMetadata: () => typedError<ChainMeta[], IpcError>(__TAURI_INVOKE("list_chain_metadata")),
 	listCoinMetadata: () => typedError<CoinMeta[], IpcError>(__TAURI_INVOKE("list_coin_metadata")),
+	/**  Every native coin in chain order, then every token in token order. */
 	listAssetMetadata: () => typedError<AssetMeta[], IpcError>(__TAURI_INVOKE("list_asset_metadata")),
 };
 
@@ -671,7 +672,7 @@ export type PassphrasePolicy = "none" |
 export type PendingTxId = string;
 
 /**  How many words a generated BIP-39 phrase has. */
-export type PhraseWords = "twelve" | "twenty_four";
+export type PhraseLength = "twelve" | "twenty_four";
 
 export type Platform = "macos" | "windows" | "linux";
 
@@ -944,8 +945,8 @@ export type TxEntry = {
 	 */
 	paysFor: string | null,
 	height: number | null,
-	/**  Unix seconds of the block, or of the first sighting while unmined. */
-	timestamp: number | null,
+	/**  The block's time, or the first sighting's while unmined. */
+	timestampUnixSecs: number | null,
 	/**  Derived from the current tip. */
 	confirmations: number,
 	detection: TxDetection,
@@ -1017,8 +1018,6 @@ export type TxQuery = {
 	txid: string | null,
 	direction: TxDirection | null,
 	cursor: string | null,
-	/**  Zero means the shipped page size. */
-	limit: number,
 };
 
 /**  The user's intent for one outgoing transfer. */

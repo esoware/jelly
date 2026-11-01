@@ -79,6 +79,7 @@ pub(crate) async fn resolve(inputs: &Inputs<'_>, request: &TxRequest) -> Result<
         None => Route::native(payer, recipient),
         Some(token) => Route::token(payer, recipient, token),
     };
+    let sampled_accounts = route.writable_accounts();
     let (reads, optional) =
         tokio::join!(inputs.client.build_reads(&route), inputs.client.optional_reads(&route));
     let reads = reads?;
@@ -91,6 +92,12 @@ pub(crate) async fn resolve(inputs: &Inputs<'_>, request: &TxRequest) -> Result<
             route.has_destination_account = reads.recipient_owner.is_some();
         }
     }
+    // A recipient that is itself the token account to credit wasn't in the fee sample.
+    let optional = if route.writable_accounts() == sampled_accounts {
+        optional
+    } else {
+        inputs.client.optional_reads(&route).await
+    };
 
     let balances = reads.balances;
     let account_rent = inputs.rent.quote(0, optional.account_rent_lamports);
@@ -112,10 +119,16 @@ pub(crate) async fn resolve(inputs: &Inputs<'_>, request: &TxRequest) -> Result<
         Chosen::Lamports(lamports) => Pricing::chosen(lamports, units.limit()),
         Chosen::Level(level) => level_pricing(market, level),
     };
+    let amount = match request.amount {
+        SendAmount::Max => send_max_amount(route.leg, &balances, pricing, units)?,
+        SendAmount::Exact { value } => {
+            u64::try_from(value.base_units()).map_err(|_| SolanaError::AmountTooLarge)?
+        }
+    };
 
-    let mut plan = Plan {
+    Ok(Plan {
         route,
-        amount: 0,
+        amount,
         should_send_max: request.amount == SendAmount::Max,
         units,
         pricing,
@@ -126,14 +139,27 @@ pub(crate) async fn resolve(inputs: &Inputs<'_>, request: &TxRequest) -> Result<
         account_rent,
         token_account_rent,
         recipient_program: reads.recipient_owner,
-    };
-    plan.amount = match request.amount {
-        SendAmount::Max => send_max_amount(&plan)?,
-        SendAmount::Exact { value } => {
-            u64::try_from(value.base_units()).map_err(|_| SolanaError::AmountTooLarge)?
-        }
-    };
-    Ok(plan)
+    })
+}
+
+/// A native send-max is the balance minus the fee, because a Solana account may be
+/// drained to exactly zero. A token send-max is the whole spendable token balance,
+/// because the fee comes from lamports.
+fn send_max_amount(
+    leg: Leg,
+    balances: &Balances,
+    pricing: Pricing,
+    units: ComputeUnits,
+) -> Result<u64, SolanaError> {
+    if let Leg::Token { .. } = leg {
+        return Ok(balances.token_spendable.unwrap_or(0));
+    }
+    let fee = pricing.fee(units)?;
+    balances.lamports.checked_sub(fee).ok_or_else(|| SolanaError::InsufficientFunds {
+        asset: NATIVE,
+        needed: Amount::from(fee),
+        available: Amount::from(balances.lamports),
+    })
 }
 
 /// The owner of the watched address a request spends from.
@@ -211,8 +237,7 @@ fn probe_amount(request: &TxRequest, balances: &Balances, token: Option<SolanaTo
 #[derive(Debug, Clone)]
 pub(crate) struct Plan {
     pub(crate) route: Route,
-    /// Base units of the asset the route moves. A send-max resolves it from the rest of
-    /// the plan, so it's the last field settled.
+    /// Base units of the asset the route moves.
     pub(crate) amount: u64,
     pub(crate) should_send_max: bool,
     pub(crate) units: ComputeUnits,
@@ -233,10 +258,8 @@ pub(crate) struct Plan {
 }
 
 impl Plan {
-    /// Excludes any rent deposit.
     pub(crate) fn fee(&self) -> Result<u64, SolanaError> {
-        fee::total_fee(self.pricing.micro_lamports_per_unit, self.units.limit())
-            .ok_or(SolanaError::Overflow { what: "the fee" })
+        self.pricing.fee(self.units)
     }
 
     pub(crate) fn priority_fee(&self) -> Result<u64, SolanaError> {
@@ -253,9 +276,9 @@ impl Plan {
             .into_iter()
             .zip(self.market)
             .map(|(level, pricing)| {
-                fee::total_fee(pricing.micro_lamports_per_unit, self.units.limit())
+                pricing
+                    .fee(self.units)
                     .map(|lamports| LevelFee { level, fee: Amount::from(lamports) })
-                    .ok_or(SolanaError::Overflow { what: "the fee" })
             })
             .collect::<Result<_, _>>()?;
         Ok(FeeQuote {
@@ -308,24 +331,6 @@ impl Plan {
             self.route.recipient.to_string(),
         ))
     }
-}
-
-/// A native send-max is the balance minus the fee, because a Solana account may be
-/// drained to exactly zero. A token send-max is the whole spendable token balance,
-/// because the fee comes from lamports.
-fn send_max_amount(plan: &Plan) -> Result<u64, SolanaError> {
-    if let Leg::Token { .. } = plan.route.leg {
-        return Ok(plan.balances.token_spendable.unwrap_or(0));
-    }
-    let reserved = plan
-        .fee()?
-        .checked_add(plan.deposit())
-        .ok_or(SolanaError::Overflow { what: "the total cost" })?;
-    plan.balances.lamports.checked_sub(reserved).ok_or_else(|| SolanaError::InsufficientFunds {
-        asset: NATIVE,
-        needed: Amount::from(reserved),
-        available: Amount::from(plan.balances.lamports),
-    })
 }
 
 /// Refuses a transfer the balances can't cover, in the asset it falls short in.

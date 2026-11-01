@@ -5,7 +5,7 @@ import { CURRENCIES } from "@/lib/fiat.ts"
 import { loadPrices } from "@/query/money.ts"
 import { useIpcMutation } from "@/query/mutation.ts"
 import { patchSettings, settingCommands, settingKeys, settingQueries } from "@/query/setting.ts"
-import { resetPriceHistory, resetPrices } from "@/store.ts"
+import { resetPrices } from "@/store.ts"
 import { Field } from "@/ui/field.tsx"
 import { SectionHeader } from "@/ui/section-header.tsx"
 import { Select, SelectPopup, SelectItem, SelectTrigger } from "@/ui/select.tsx"
@@ -31,7 +31,6 @@ function PriceFeedToggle() {
         void loadPrices()
       } else {
         resetPrices()
-        resetPriceHistory()
       }
     },
   })

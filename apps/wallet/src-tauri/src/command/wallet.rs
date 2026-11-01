@@ -1,4 +1,4 @@
-use jelly_core::{PhraseWords, SecretText, WalletColor};
+use jelly_core::{PhraseLength, SecretText, WalletColor};
 use jelly_engine::{LockState, PassphraseInput, WalletRecord};
 use secrecy::SecretString;
 use serde::Serialize;
@@ -41,7 +41,7 @@ pub(crate) async fn create_seed_wallet(
     name: String,
     color: WalletColor,
     password: String,
-    words: PhraseWords,
+    words: PhraseLength,
     passphrase: PassphraseInput,
 ) -> Result<CreatedWallet, IpcError> {
     let password = SecretString::from(password);

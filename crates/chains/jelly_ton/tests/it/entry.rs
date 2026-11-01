@@ -4,7 +4,10 @@ use jelly_core::{
     AddressError, ChainId, KeyError, KeyKind, ScriptKind, SecretText,
     test_util::{MARKER_PHRASE, assert_redacted},
 };
-use jelly_keypair::{HdKeychain, Seed, generate_key, parse_path, test_util::TEST_PHRASE};
+use jelly_keypair::{
+    Seed, generate_key, parse_path,
+    test_util::{BIP84_WIF, TEST_PHRASE},
+};
 use jelly_ton::{ENTRY, SPEC};
 use serde::Deserialize;
 use serde_json::Value;
@@ -35,11 +38,10 @@ fn suites() -> Result<Vec<Suite>, serde_json::Error> {
 #[test]
 fn derived_keys_match_the_published_addresses_and_secrets_at_the_default_path() {
     for suite in suites().unwrap() {
-        let keychain =
-            HdKeychain::from_seed(Seed::from_bytes(&hex::decode(&suite.seed).unwrap()).unwrap());
+        let seed = Seed::from_bytes(&hex::decode(&suite.seed).unwrap()).unwrap();
         for row in &suite.derived {
             let material =
-                keychain.key_material_at(SPEC.key_kind, &parse_path(&row.path).unwrap()).unwrap();
+                seed.key_material_at(SPEC.key_kind, &parse_path(&row.path).unwrap()).unwrap();
             assert_eq!(material.kind(), KeyKind::Ed25519Seed);
             material.with_bytes(|bytes| assert_eq!(bytes.len(), 32));
             assert!(format!("{material:?}").contains("redacted"));
@@ -142,12 +144,7 @@ fn a_seed_phrase_fails_as_a_ton_seed() {
 
 #[test]
 fn text_in_no_accepted_encoding_is_an_unknown_format_and_is_not_claimed() {
-    for input in [
-        "",
-        "KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d",
-        &"ab".repeat(31),
-        &"ab".repeat(64),
-    ] {
+    for input in ["", BIP84_WIF, &"ab".repeat(31), &"ab".repeat(64)] {
         assert!(matches!(ENTRY.import_key(input, None), Err(KeyError::UnknownFormat)), "{input}");
         assert_eq!(ENTRY.recognize_key(input), None, "{input}");
     }

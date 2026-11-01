@@ -145,13 +145,13 @@ impl Header {
 
 pub(crate) fn transfer(
     header: &Header,
-    from: &[u8; address::BODY_BYTES],
-    to: &[u8; address::BODY_BYTES],
+    from: &address::Body,
+    to: &address::Body,
     amount_sun: u64,
 ) -> Result<Vec<u8>, TronError> {
     let body = protocol::TransferContract {
-        owner_address: from.to_vec(),
-        to_address: to.to_vec(),
+        owner_address: from.as_bytes().to_vec(),
+        to_address: to.as_bytes().to_vec(),
         amount: i64::try_from(amount_sun).map_err(|_| TronError::AmountTooLarge)?,
     };
     Ok(encode(header, Contract::Transfer, &body))
@@ -160,13 +160,13 @@ pub(crate) fn transfer(
 /// A contract call. We only use it for `transfer(address,uint256)`.
 pub(crate) fn trigger(
     header: &Header,
-    from: &[u8; address::BODY_BYTES],
-    contract: &[u8; address::BODY_BYTES],
+    from: &address::Body,
+    contract: &address::Body,
     calldata: Vec<u8>,
 ) -> Vec<u8> {
     let body = protocol::TriggerSmartContract {
-        owner_address: from.to_vec(),
-        contract_address: contract.to_vec(),
+        owner_address: from.as_bytes().to_vec(),
+        contract_address: contract.as_bytes().to_vec(),
         data: calldata,
         ..Default::default()
     };
@@ -243,7 +243,7 @@ struct SignedWire {
 /// A `raw_data` read back into the facts it states.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Decoded {
-    pub(crate) owner: [u8; address::BODY_BYTES],
+    pub(crate) owner: address::Body,
     pub(crate) body: DecodedBody,
     pub(crate) header: Header,
 }
@@ -252,12 +252,12 @@ pub(crate) struct Decoded {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DecodedBody {
     Transfer {
-        to: [u8; address::BODY_BYTES],
+        to: address::Body,
         amount_sun: u64,
     },
     /// `calldata` is the whole call, selector included.
     Trigger {
-        contract: [u8; address::BODY_BYTES],
+        contract: address::Body,
         calldata: Vec<u8>,
     },
 }
@@ -308,9 +308,9 @@ pub(crate) fn decode(raw_data: &[u8]) -> Result<Decoded, TronError> {
         Contract::Transfer => {
             let body = protocol::TransferContract::decode(parameter.value.as_slice())?;
             Ok(Decoded {
-                owner: address::from_body("owner", &body.owner_address)?,
+                owner: address::Body::from_bytes("owner", &body.owner_address)?,
                 body: DecodedBody::Transfer {
-                    to: address::from_body("recipient", &body.to_address)?,
+                    to: address::Body::from_bytes("recipient", &body.to_address)?,
                     amount_sun: u64::try_from(body.amount)
                         .map_err(|_| TronError::Foreign { detail: "a negative amount" })?,
                 },
@@ -320,9 +320,9 @@ pub(crate) fn decode(raw_data: &[u8]) -> Result<Decoded, TronError> {
         Contract::TriggerSmartContract => {
             let body = protocol::TriggerSmartContract::decode(parameter.value.as_slice())?;
             Ok(Decoded {
-                owner: address::from_body("owner", &body.owner_address)?,
+                owner: address::Body::from_bytes("owner", &body.owner_address)?,
                 body: DecodedBody::Trigger {
-                    contract: address::from_body("token contract", &body.contract_address)?,
+                    contract: address::Body::from_bytes("token contract", &body.contract_address)?,
                     calldata: body.data,
                 },
                 header,
@@ -351,6 +351,7 @@ pub(crate) fn signed_parts(signed: &[u8]) -> Result<(Vec<u8>, [u8; SIGNATURE_BYT
 
 #[cfg(test)]
 mod tests {
+    use serde::Deserialize;
     use serde_json::Value;
 
     use super::*;
@@ -359,11 +360,22 @@ mod tests {
     use crate::proto::protocol::transaction::contract::ContractType;
     use crate::test_util::{TRX_OWNER_HEX, TRX_RECIPIENT_HEX};
 
-    /// The bytes and the id of mainnet transaction a46244ab.
-    const RECORDED_RAW: &str = "0a02a63d2208437d27f93863a48840a08fc3c6ff335a65080112610a2d747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e5472616e73666572436f6e747261637412300a1541a5b43182dad15ff0b707d829ffa67b1af6719483121541df0c86c531205eb7a4e27d9589ba7188dfb32f08180770b1cfbfc6ff33";
-    const RECORDED_TXID: &str = "a46244abb4be3f4247c538712715c41476b5b0b0f515f657c6acd76b67674bc8";
+    /// Mainnet transaction a46244ab, as an endpoint reported it.
+    const RECORDED_TX: &str = include_str!("../tests/fixtures/tx_trx.json");
     /// The receipt the network wrote for that transaction.
     const RECORDED_RECEIPT: &str = include_str!("../tests/fixtures/tx_trx_info.json");
+
+    /// The bytes and the id of the recorded transaction.
+    #[derive(Deserialize)]
+    struct Recorded {
+        raw_data_hex: String,
+        #[serde(rename = "txID")]
+        txid: String,
+    }
+
+    fn recorded() -> Recorded {
+        serde_json::from_str(RECORDED_TX).expect("the recorded transaction parses")
+    }
 
     fn recorded_header() -> Header {
         Header {
@@ -377,7 +389,7 @@ mod tests {
 
     /// The recorded `raw_data`, decoded by the generated code.
     fn recorded_raw() -> protocol::transaction::Raw {
-        let raw = hex::decode(RECORDED_RAW).expect("hex");
+        let raw = hex::decode(recorded().raw_data_hex).expect("hex");
         protocol::transaction::Raw::decode(raw.as_slice()).expect("it decodes")
     }
 
@@ -404,16 +416,18 @@ mod tests {
     fn a_rebuild_reproduces_the_recorded_mainnet_bytes_and_id() {
         let raw = transfer(&recorded_header(), &body(TRX_OWNER_HEX), &body(TRX_RECIPIENT_HEX), 7)
             .expect("a transfer builds");
-        assert_eq!(hex::encode(&raw), RECORDED_RAW);
-        assert_eq!(hex::encode(txid(&raw)), RECORDED_TXID);
+        let recorded = recorded();
+        assert_eq!(hex::encode(&raw), recorded.raw_data_hex);
+        assert_eq!(hex::encode(txid(&raw)), recorded.txid);
     }
 
     #[test]
     fn bandwidth_matches_the_receipt_the_network_wrote() {
+        let recorded = recorded();
         let receipt: Value = serde_json::from_str(RECORDED_RECEIPT).expect("the receipt parses");
         assert_eq!(
             receipt.get("id").and_then(Value::as_str),
-            Some(RECORDED_TXID),
+            Some(recorded.txid.as_str()),
             "the receipt is the one for these bytes"
         );
         let net_usage = receipt
@@ -422,7 +436,7 @@ mod tests {
             .and_then(Value::as_u64)
             .expect("the recorded bandwidth");
 
-        let raw = hex::decode(RECORDED_RAW).expect("hex");
+        let raw = hex::decode(recorded.raw_data_hex).expect("hex");
         assert_eq!(bandwidth_points(&raw).expect("points"), net_usage);
     }
 
@@ -541,8 +555,8 @@ mod tests {
     #[test]
     fn a_negative_amount_is_a_transaction_this_build_did_not_produce() {
         let transfer = protocol::TransferContract {
-            owner_address: body(TRX_OWNER_HEX).to_vec(),
-            to_address: body(TRX_RECIPIENT_HEX).to_vec(),
+            owner_address: body(TRX_OWNER_HEX).as_bytes().to_vec(),
+            to_address: body(TRX_RECIPIENT_HEX).as_bytes().to_vec(),
             amount: -1,
         };
         let raw = encode(&recorded_header(), Contract::Transfer, &transfer);
@@ -552,7 +566,8 @@ mod tests {
 
     #[test]
     fn the_signed_wire_form_carries_the_bytes_that_were_hashed_verbatim() {
-        let raw = hex::decode(RECORDED_RAW).expect("hex");
+        let recorded = recorded();
+        let raw = hex::decode(&recorded.raw_data_hex).expect("hex");
         let signature = [7u8; SIGNATURE_BYTES];
         let signed = signed_bytes(&raw, &signature);
         let wire = hex::encode(&signed);
@@ -565,8 +580,8 @@ mod tests {
         // Reading it back gives the same bytes, so the txid the JSON broadcast
         // body states is the signed transaction's.
         let (read_back, only) = signed_parts(&signed).expect("it reads back");
-        assert_eq!(hex::encode(&read_back), RECORDED_RAW);
-        assert_eq!(hex::encode(txid(&read_back)), RECORDED_TXID);
+        assert_eq!(hex::encode(&read_back), recorded.raw_data_hex);
+        assert_eq!(hex::encode(txid(&read_back)), recorded.txid);
         assert_eq!(only, signature);
     }
 

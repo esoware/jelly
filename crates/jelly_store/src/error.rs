@@ -67,14 +67,6 @@ impl StoreError {
         Self::NotFound { entity, id: id.to_string() }
     }
 
-    pub(crate) const fn decode(entity: &'static str, column: &'static str) -> Self {
-        Self::Decode { entity, column }
-    }
-
-    pub(crate) const fn io(context: &'static str, source: io::Error) -> Self {
-        Self::Io { context, source }
-    }
-
     /// The only place a damaged or locked file is recognized, so every path reports them
     /// the same way.
     pub(crate) fn sqlite(context: &'static str, source: rusqlite::Error) -> Self {

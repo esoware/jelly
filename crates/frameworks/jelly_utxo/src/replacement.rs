@@ -406,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn the_change_output_pays_for_the_bump() {
+    fn the_change_output_pays_for_the_replacement() {
         let story = story(Some(PAID_SAT), ONE_PER_VB, FUNDED_SAT).unwrap();
         let before = story.original.fee();
         let plan = story.plan(TEN_PER_VB).unwrap();
@@ -578,7 +578,7 @@ mod tests {
     }
 
     #[test]
-    fn a_bump_that_would_dust_the_payment_is_refused() {
+    fn a_replacement_that_would_dust_the_payment_is_refused() {
         let story = story(None, ONE_PER_VB, FUNDED_SAT).unwrap();
         let recipient = story.scene.theirs.script().script_pubkey();
         let weight = predict_weight([UtxoScript::P2wpkh], [recipient]);

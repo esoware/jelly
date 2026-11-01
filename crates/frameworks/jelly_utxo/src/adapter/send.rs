@@ -1,8 +1,8 @@
 use bitcoin::consensus::deserialize;
 use bitcoin::{Script, ScriptBuf, Transaction};
 use jelly_core::{
-    Amount, FeeLevel, FeeRate, KeyMaterial, RawTx, RetryPolicy, SendAmount, SignedTx, TxId,
-    TxPayload, TxRequest, UnsignedTx,
+    FeeLevel, FeeRate, KeyMaterial, RawTx, RetryPolicy, SendAmount, SignedTx, TxId, TxPayload,
+    TxRequest, UnsignedTx,
 };
 
 use crate::adapter::client::UtxoClient;
@@ -20,15 +20,14 @@ use crate::utxo::Utxo;
 /// Everything a build needs except the fee rate, so a quote prices exactly the
 /// transaction that would be built.
 #[derive(Debug, Clone)]
-pub(crate) struct Plan {
+pub(super) struct Plan {
     /// In the request's order. Change goes to the first.
     sources: Vec<Watched>,
     change_script: SpendableScript,
     /// Canonical, and already through the table's address gate.
     to: String,
     to_script: ScriptBuf,
-    /// `None` for a send-max.
-    amount: Option<Amount>,
+    amount: SendAmount,
     /// The spendable coins of every source.
     coins: Vec<Utxo>,
     tip_height: u32,
@@ -38,7 +37,7 @@ impl Plan {
     /// `known_tip` is the tip the last pass saw. Without one the height is fetched,
     /// since the anti-fee-sniping locktime has to name a block the network already
     /// has. The recipient is checked first, so a refused address costs no round trip.
-    pub(crate) async fn resolve(
+    pub(super) async fn resolve(
         params: &UtxoParams,
         client: &UtxoClient,
         sources: Vec<Watched>,
@@ -50,29 +49,33 @@ impl Plan {
             sources.first().map(|source| source.script.clone()).ok_or(UtxoError::NoSource)?;
         let to = params.canonical(&request.to)?;
         let to_script = params.script_pubkey(&to)?;
-        let amount = match request.amount {
-            SendAmount::Max => None,
-            SendAmount::Exact { value } => Some(value),
-        };
         let tip_height = tip_height(client, known_tip).await?;
-        Ok(Self { sources, change_script, to, to_script, amount, coins, tip_height })
+        Ok(Self {
+            sources,
+            change_script,
+            to,
+            to_script,
+            amount: request.amount,
+            coins,
+            tip_height,
+        })
     }
 
-    pub(crate) fn to_script(&self) -> &Script {
+    pub(super) fn to_script(&self) -> &Script {
         &self.to_script
     }
 
-    pub(crate) const fn is_send_max(&self) -> bool {
-        self.amount.is_none()
+    pub(super) const fn is_send_max(&self) -> bool {
+        matches!(self.amount, SendAmount::Max)
     }
 
-    pub(crate) const fn change_script(&self) -> &SpendableScript {
+    pub(super) const fn change_script(&self) -> &SpendableScript {
         &self.change_script
     }
 }
 
 /// The height the anti-fee-sniping locktime names.
-pub(crate) async fn tip_height(client: &UtxoClient, known: Option<u32>) -> Result<u32, UtxoError> {
+pub(super) async fn tip_height(client: &UtxoClient, known: Option<u32>) -> Result<u32, UtxoError> {
     match known {
         Some(height) => Ok(height),
         None => client.tip_height().await,
@@ -81,7 +84,7 @@ pub(crate) async fn tip_height(client: &UtxoClient, known: Option<u32>) -> Resul
 
 /// Does no I/O. Everything the network had to say is already in `fee_context` and
 /// `plan`.
-pub(crate) fn build(
+pub(super) fn build(
     fee_context: &FeeContext,
     plan: &Plan,
     rate: FeeRate,
@@ -104,7 +107,7 @@ pub(crate) fn build(
 ///
 /// `evicted` counts the later transactions a replacement cancels, which the preview
 /// warns about.
-pub(crate) fn unsigned(
+pub(super) fn unsigned(
     built: &BuiltTx,
     fee_context: &FeeContext,
     evicted: usize,
@@ -121,17 +124,14 @@ pub(crate) fn unsigned(
 }
 
 /// The engine payload of an unsigned transaction, checked for this chain.
-pub(crate) fn payload_of(params: &UtxoParams, tx: &UnsignedTx) -> Result<UtxoPayload, UtxoError> {
-    let found = tx.chain();
-    if found != params.chain {
-        return Err(UtxoError::ForeignChain { expected: params.chain, found });
-    }
+pub(super) fn payload_of(params: &UtxoParams, tx: &UnsignedTx) -> Result<UtxoPayload, UtxoError> {
+    params.check_chain(tx.chain())?;
     UtxoPayload::decode(tx.payload.as_bytes())
 }
 
 /// Signs with no I/O and refuses a key that doesn't match its source. `keys` follow
 /// the preview's sources, which are the payload's.
-pub(crate) fn sign(
+pub(super) fn sign(
     params: &UtxoParams,
     tx: &UnsignedTx,
     keys: &[KeyMaterial],
@@ -150,15 +150,12 @@ pub(crate) fn sign(
 /// back as the node's classified rejection. Litecoin Core, Bitcoin Cash Node, and
 /// Dogecoin Core use Bitcoin Core's reject strings, so the one classifier in
 /// `jelly_electrum` covers every chain.
-pub(crate) async fn deliver(
+pub(super) async fn deliver(
     params: &UtxoParams,
     client: &UtxoClient,
     tx: &SignedTx,
 ) -> Result<TxId, UtxoError> {
-    let found = tx.chain();
-    if found != params.chain {
-        return Err(UtxoError::ForeignChain { expected: params.chain, found });
-    }
+    params.check_chain(tx.chain())?;
     let decoded: Transaction =
         deserialize(tx.raw.as_bytes()).map_err(|_| UtxoError::NotATransaction)?;
     match client.broadcast(&decoded).await {

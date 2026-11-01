@@ -68,9 +68,11 @@ where
 /// Forwards startup status until a terminal phase. Startup owns this task.
 pub(crate) async fn startup_pump(handle: AppHandle, mut phases: watch::Receiver<Phase>) {
     loop {
-        let phase = phases.borrow_and_update().clone();
-        let is_terminal = phase.is_terminal();
-        emit(&handle, &StartupChanged(phase.status()));
+        let (status, is_terminal) = {
+            let phase = phases.borrow_and_update();
+            (phase.status(), phase.is_terminal())
+        };
+        emit(&handle, &StartupChanged(status));
         if is_terminal || phases.changed().await.is_err() {
             return;
         }
@@ -120,24 +122,18 @@ async fn bridge<T, E>(
 async fn wallet_events(handle: AppHandle, mut events: broadcast::Receiver<WalletEvent>) {
     loop {
         match events.recv().await {
-            Ok(event) => forward(&handle, event),
+            Ok(WalletEvent::BalanceChanged(_)) => emit(&handle, &BalanceChanged),
+            Ok(WalletEvent::TxDetected(record)) => {
+                emit(&handle, &TxDetected { txid: record.txid, asset: record.asset });
+            }
+            Ok(WalletEvent::TxUpdated(_)) => emit(&handle, &TxUpdated),
+            Ok(WalletEvent::TxConfirmed(_)) => emit(&handle, &TxConfirmed),
+            // Nothing in the frontend reads sync progress.
+            Ok(WalletEvent::SyncProgress(_)) => {}
             Err(RecvError::Lagged(dropped)) => {
                 tracing::warn!(target: TARGET, dropped, "the interface fell behind the events");
             }
             Err(RecvError::Closed) => return,
         }
-    }
-}
-
-fn forward(handle: &AppHandle, event: WalletEvent) {
-    match event {
-        WalletEvent::BalanceChanged(_) => emit(handle, &BalanceChanged),
-        WalletEvent::TxDetected(record) => {
-            emit(handle, &TxDetected { txid: record.txid, asset: record.asset });
-        }
-        WalletEvent::TxUpdated(_) => emit(handle, &TxUpdated),
-        WalletEvent::TxConfirmed(_) => emit(handle, &TxConfirmed),
-        // Nothing in the frontend reads sync progress.
-        WalletEvent::SyncProgress(_) => {}
     }
 }

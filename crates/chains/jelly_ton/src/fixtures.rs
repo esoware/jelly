@@ -1,11 +1,11 @@
 use tonlib_core::types::TonAddress;
 
-use crate::address::ton_destination;
-use crate::record::AccountTx;
+use crate::address::TonDestination;
+use crate::tx::AccountTx;
 
 /// The account `text` names, in any spelling a recipient may write.
 pub(crate) fn address(text: &str) -> TonAddress {
-    ton_destination(text).unwrap().address
+    TonDestination::parse(text).unwrap().address
 }
 
 /// The rows of a history fixture. Every one is real mainnet history, newest first, as

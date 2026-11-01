@@ -1,7 +1,7 @@
 //! What the network fixes, as opposed to the tunables in [`crate::MoneroConfig`],
 //! and where each persisted blob is stored.
 
-use jelly_core::{Amount, AssetId, ChainId, ReservationSlot, ScanStream};
+use jelly_core::{AssetId, ChainId, ReservationSlot, ScanStream};
 
 use crate::error::MoneroError;
 
@@ -17,11 +17,6 @@ pub(crate) const ASSET: AssetId = AssetId::Native(CHAIN);
 /// Monero prices a fee per unit of weight, which for the two-output transactions this
 /// adapter builds is the size in bytes.
 pub(crate) const FEE_RATE_UNIT: &str = "piconero/B";
-
-/// An amount this crate counts in piconero, the chain's base unit.
-pub(crate) fn piconero(value: u64) -> Amount {
-    Amount::from(value)
-}
 
 /// Monero's spendability lock in blocks. An output is unspendable until ten
 /// blocks after the one that created it.

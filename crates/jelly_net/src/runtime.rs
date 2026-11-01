@@ -7,70 +7,53 @@ use crate::endpoint::Endpoint;
 use crate::health::HealthTracker;
 use crate::pacer::{Pacer, PacerPolicy};
 use crate::pool::Pool;
-use crate::registry::{ChainEntries, EndpointRegistry};
 
-/// The clock, health tracker, pacer, and endpoint registry every pool shares, so all pools
-/// agree on time and read the same endpoint list as the interface.
+/// The clock, health tracker, and pacer every pool shares, so all pools agree on time and
+/// on how each endpoint is behaving.
 #[derive(Debug)]
 pub struct NetRuntime {
     clock: Arc<dyn Clock>,
-    health: Arc<HealthTracker>,
-    pacer: Arc<Pacer>,
-    registry: EndpointRegistry,
+    health: HealthTracker,
+    pacer: Pacer,
 }
 
 impl NetRuntime {
-    pub fn new(clock: Arc<dyn Clock>, chains: ChainEntries) -> Arc<Self> {
-        Self::build(clock, PacerPolicy::DEFAULT, chains)
+    pub fn new(clock: Arc<dyn Clock>) -> Arc<Self> {
+        Self::build(clock, PacerPolicy::DEFAULT)
     }
 
-    /// A runtime that serves no chain, for tests that build their pools by hand.
+    /// A runtime paced by `pacing`, for tests that build their pools by hand.
     #[cfg(any(test, feature = "test-util"))]
     pub fn with_pacing(clock: Arc<dyn Clock>, pacing: PacerPolicy) -> Arc<Self> {
-        Self::build(clock, pacing, &[])
+        Self::build(clock, pacing)
     }
 
-    /// A runtime that serves `chains`, for tests of what a chain builds over the registry.
-    #[cfg(any(test, feature = "test-util"))]
-    pub fn with_chains(
-        clock: Arc<dyn Clock>,
-        pacing: PacerPolicy,
-        chains: ChainEntries,
-    ) -> Arc<Self> {
-        Self::build(clock, pacing, chains)
-    }
-
-    fn build(clock: Arc<dyn Clock>, pacing: PacerPolicy, chains: ChainEntries) -> Arc<Self> {
-        let health = Arc::new(HealthTracker::new(Arc::clone(&clock)));
-        let pacer = Arc::new(Pacer::new(pacing, Arc::clone(&clock)));
-        Arc::new(Self { clock, health, pacer, registry: EndpointRegistry::new(chains) })
+    fn build(clock: Arc<dyn Clock>, pacing: PacerPolicy) -> Arc<Self> {
+        let health = HealthTracker::new(Arc::clone(&clock));
+        let pacer = Pacer::new(pacing, Arc::clone(&clock));
+        Arc::new(Self { clock, health, pacer })
     }
 
     pub(crate) const fn clock(&self) -> &Arc<dyn Clock> {
         &self.clock
     }
 
-    pub const fn health(&self) -> &Arc<HealthTracker> {
+    pub const fn health(&self) -> &HealthTracker {
         &self.health
     }
 
-    pub(crate) const fn pacer(&self) -> &Arc<Pacer> {
+    pub(crate) const fn pacer(&self) -> &Pacer {
         &self.pacer
     }
 
-    pub const fn registry(&self) -> &EndpointRegistry {
-        &self.registry
-    }
-
-    /// A pool over `endpoints`. Nothing is read from the registry here, so the caller
-    /// decides what an empty list means for its chain.
+    /// A pool over `endpoints`. The caller decides what an empty list means for its chain.
     pub fn pool<C: Send + Sync + 'static>(
-        &self,
+        self: &Arc<Self>,
         chain: ChainId,
         transport: Transport,
         connector: Arc<dyn Connect<C>>,
         endpoints: Vec<Endpoint>,
     ) -> Pool<C> {
-        Pool::new(chain, transport, connector, endpoints, self)
+        Pool::new(Arc::clone(self), chain, transport, connector, endpoints)
     }
 }

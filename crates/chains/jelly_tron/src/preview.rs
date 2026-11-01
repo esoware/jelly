@@ -7,11 +7,15 @@
 use jelly_core::{Amount, AssetId, TxDetail, TxPreview, TxWarning, TxWarningKind};
 
 use crate::config::CHAIN;
-use crate::fee::{BandwidthSource, EnergyCost, TxCost, trx_text};
+use crate::fee::{BandwidthSource, EnergyCost, TxCost};
 use crate::params::ChainParams;
 use crate::payload::Facts;
 use crate::raw::Header;
 use crate::send::Plan;
+
+pub(crate) fn trx_text(sun: u64) -> String {
+    CHAIN.format_amount(Amount::from(sun))
+}
 
 pub(crate) fn of(plan: &Plan, facts: &Facts) -> TxPreview {
     TxPreview {
@@ -211,4 +215,17 @@ fn prices(params: &ChainParams) -> String {
         "Bandwidth {} sun per point, energy {} sun per unit ({source})",
         params.bandwidth_price_sun, params.energy_price_sun
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sun_renders_as_trx_through_the_one_decimal_conversion() {
+        assert_eq!(trx_text(0), "0 TRX");
+        assert_eq!(trx_text(1), "0.000001 TRX");
+        assert_eq!(trx_text(13_026_600), "13.0266 TRX");
+        assert_eq!(trx_text(1_000_000), "1 TRX");
+    }
 }

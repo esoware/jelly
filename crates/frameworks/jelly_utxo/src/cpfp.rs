@@ -90,7 +90,7 @@ fn child_fee(
 
 #[derive(Debug, Clone)]
 pub(crate) struct ChildRequest<'a> {
-    pub(crate) rate: FeeRate,
+    pub(crate) fee_rate: FeeRate,
     /// The parent's sources. The child pays back to the first.
     pub(crate) sources: Vec<Source<'a>>,
     /// The parent's change, which the child spends first.
@@ -112,17 +112,17 @@ pub(crate) fn build_child(
     request: &ChildRequest<'_>,
 ) -> Result<BuiltTx, UtxoError> {
     let current = package.rate()?;
-    if request.rate <= current {
+    if request.fee_rate <= current {
         return Err(UtxoError::RateNotIncreased {
             txid: package.parent(),
             old: current,
             unit: params.fee_rate_unit,
         });
     }
-    fee::check_relay_floor(params, request.rate, request.relay_floor)?;
+    fee::check_relay_floor(params, request.fee_rate, request.relay_floor)?;
     let to = request.sources.first().ok_or(UtxoError::payload("a child names no source"))?;
     let dust = params.dust_threshold(to.script.script_pubkey());
-    let mut extras = ordered_candidates(request.extras, request.rate, Eligible::Confirmed)
+    let mut extras = ordered_candidates(request.extras, request.fee_rate, Eligible::Confirmed)
         .into_iter()
         .filter(|coin| {
             coin.outpoint() != request.change.outpoint()
@@ -133,7 +133,7 @@ pub(crate) fn build_child(
     let (weight, child, value) = loop {
         let weight =
             weight::predict_weight(inputs.iter().map(Utxo::kind), [to.script.script_pubkey()]);
-        let child = child_fee(package, request.rate, request.relay_floor, weight)?;
+        let child = child_fee(package, request.fee_rate, request.relay_floor, weight)?;
         let available = Utxo::total(&inputs)?;
         if let Some(value) = available.checked_sub(child).filter(|value| *value >= dust) {
             break (weight, child, value);
@@ -277,7 +277,7 @@ mod tests {
     impl Parent {
         fn request<'a>(&'a self, rate: FeeRate, extras: &'a [Utxo]) -> ChildRequest<'a> {
             ChildRequest {
-                rate,
+                fee_rate: rate,
                 sources: self.scene.own_source().to_vec(),
                 change: &self.change,
                 extras,

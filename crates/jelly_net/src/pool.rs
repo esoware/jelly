@@ -11,9 +11,8 @@ use tokio::time::sleep;
 use crate::connect::{Connect, Identity};
 use crate::endpoint::Endpoint;
 use crate::error::{NetError, within};
-use crate::health::{HealthClass, HealthTracker};
+use crate::health::HealthClass;
 use crate::http::CONNECT_TIMEOUT;
-use crate::pacer::Pacer;
 use crate::runtime::NetRuntime;
 
 const TARGET: &str = "jelly::net::pool";
@@ -134,14 +133,12 @@ enum Failed {
 /// Tries endpoints in health order until one answers. Callers supply a connector, the
 /// request, and a classifier for failures.
 pub struct Pool<C> {
+    runtime: Arc<NetRuntime>,
     chain: ChainId,
     transport: Transport,
     timeouts: TimeoutPolicy,
     endpoints: Vec<Endpoint>,
     connector: Arc<dyn Connect<C>>,
-    health: Arc<HealthTracker>,
-    pacer: Arc<Pacer>,
-    clock: Arc<dyn Clock>,
     admissions: Mutex<HashMap<String, Admission<C>>>,
 }
 
@@ -163,21 +160,19 @@ impl<C: Send + Sync + 'static> Pool<C> {
     /// Only [`NetRuntime::pool`] builds one, so a pool can't rotate on one clock and record
     /// on another.
     pub(crate) fn new(
+        runtime: Arc<NetRuntime>,
         chain: ChainId,
         transport: Transport,
         connector: Arc<dyn Connect<C>>,
         endpoints: Vec<Endpoint>,
-        runtime: &NetRuntime,
     ) -> Self {
         Self {
+            runtime,
             chain,
             transport,
             timeouts: TimeoutPolicy::for_transport(transport),
             endpoints,
             connector,
-            health: Arc::clone(runtime.health()),
-            pacer: Arc::clone(runtime.pacer()),
-            clock: Arc::clone(runtime.clock()),
             admissions: Mutex::new(HashMap::new()),
         }
     }
@@ -302,7 +297,7 @@ impl<C: Send + Sync + 'static> Pool<C> {
         if queue.is_empty() {
             return Err(NetError::NoEndpoints { chain: self.chain });
         }
-        let deadline = self.clock.deadline_in(self.timeouts.walk);
+        let deadline = self.clock().deadline_in(self.timeouts.walk);
         let mut sleep_left = self.timeouts.walk;
         let mut attempts: Vec<EndpointAttempt> = Vec::new();
         let mut has_tried = false;
@@ -315,13 +310,13 @@ impl<C: Send + Sync + 'static> Pool<C> {
                 if has_tried && rotation == Rotation::Once {
                     break;
                 }
-                if deadline.remaining(self.clock.as_ref()) < self.timeouts.floor {
+                if deadline.remaining(self.clock()) < self.timeouts.floor {
                     break;
                 }
                 if self.is_disqualified(endpoint) {
                     continue;
                 }
-                let permit = match self.pacer.try_acquire(endpoint.url()) {
+                let permit = match self.runtime.pacer().try_acquire(endpoint.url()) {
                     Ok(permit) => permit,
                     Err(wait) => {
                         ready_in = Some(ready_in.map_or(wait, |current| current.min(wait)));
@@ -333,8 +328,8 @@ impl<C: Send + Sync + 'static> Pool<C> {
 
                 // The dial, the identity check, and the call share one deadline, since
                 // separate timeouts would add up.
-                let turn = deadline.min(self.clock.deadline_in(self.timeouts.per_attempt));
-                let started_millis = self.clock.elapsed_millis();
+                let turn = deadline.min(self.clock().deadline_in(self.timeouts.per_attempt));
+                let started_millis = self.clock().elapsed_millis();
                 let result = self.attempt(endpoint, turn, &f).await;
                 drop(permit);
                 let (outcome, error) = match result {
@@ -364,7 +359,7 @@ impl<C: Send + Sync + 'static> Pool<C> {
             // an attempt still fits in the walk after the wait. Time asleep counts
             // against the walk even on a clock that doesn't see it.
             let Some(wait) = ready_in else { break };
-            let left = deadline.remaining(self.clock.as_ref()).min(sleep_left);
+            let left = deadline.remaining(self.clock()).min(sleep_left);
             if (has_tried && rotation == Rotation::Once)
                 || left.saturating_sub(wait) < self.timeouts.floor
             {
@@ -411,7 +406,7 @@ impl<C: Send + Sync + 'static> Pool<C> {
         Fut: Future<Output = Result<T, NetError>> + Send,
     {
         let connection = self.connection(endpoint, turn).await?;
-        let left = turn.remaining(self.clock.as_ref());
+        let left = turn.remaining(self.clock());
         within(endpoint.label(), left, f(connection)).await.map_err(Failed::Classify)
     }
 
@@ -449,7 +444,7 @@ impl<C: Send + Sync + 'static> Pool<C> {
     /// A dial gets the transport's connect budget, or what's left of the turn if that's
     /// shorter.
     async fn dial(&self, endpoint: &Endpoint, turn: Deadline) -> Result<Arc<C>, Failed> {
-        let budget = turn.remaining(self.clock.as_ref()).min(self.timeouts.connect);
+        let budget = turn.remaining(self.clock()).min(self.timeouts.connect);
         within(endpoint.label(), budget, self.connector.connect(endpoint))
             .await
             .map_err(Failed::Classify)
@@ -463,7 +458,7 @@ impl<C: Send + Sync + 'static> Pool<C> {
         connection: &C,
         turn: Deadline,
     ) -> Result<(), Failed> {
-        let budget = turn.remaining(self.clock.as_ref());
+        let budget = turn.remaining(self.clock());
         let identity =
             within(endpoint.label(), budget, self.connector.identify(endpoint, connection))
                 .await
@@ -492,9 +487,9 @@ impl<C: Send + Sync + 'static> Pool<C> {
     }
 
     fn credit(&self, endpoint: &Endpoint, started_millis: u64) {
-        let latency_millis = self.clock.elapsed_millis().saturating_sub(started_millis);
-        self.pacer.record_success(endpoint.url());
-        self.health.record_success(endpoint, Duration::from_millis(latency_millis));
+        let latency_millis = self.clock().elapsed_millis().saturating_sub(started_millis);
+        self.runtime.pacer().record_success(endpoint.url());
+        self.runtime.health().record_success(endpoint, Duration::from_millis(latency_millis));
     }
 
     fn penalize(
@@ -512,8 +507,8 @@ impl<C: Send + Sync + 'static> Pool<C> {
             "rotating to the next endpoint"
         );
         self.drop_connection(endpoint);
-        self.pacer.record_failure(endpoint.url(), error.retry_after());
-        self.health.record_failure(endpoint, error);
+        self.runtime.pacer().record_failure(endpoint.url(), error.retry_after());
+        self.runtime.health().record_failure(endpoint, error);
         EndpointAttempt::new(endpoint.label().clone(), error.kind(), reason(error))
     }
 
@@ -535,7 +530,7 @@ impl<C: Send + Sync + 'static> Pool<C> {
                 if place == Standing::Excluded {
                     return None;
                 }
-                let (class, latency_tier) = self.health.rank(self.chain, endpoint.url());
+                let (class, latency_tier) = self.runtime.health().rank(self.chain, endpoint.url());
                 let settled =
                     if class == HealthClass::Unknown { HealthClass::Healthy } else { class };
                 Some(((settled, place, class, endpoint.origin(), latency_tier, index), endpoint))
@@ -543,6 +538,10 @@ impl<C: Send + Sync + 'static> Pool<C> {
             .collect();
         keyed.sort_unstable_by_key(|(key, _)| *key);
         keyed.into_iter().map(|(_, endpoint)| endpoint).collect()
+    }
+
+    fn clock(&self) -> &dyn Clock {
+        self.runtime.clock().as_ref()
     }
 
     fn is_unverified(&self, endpoint: &Endpoint) -> bool {

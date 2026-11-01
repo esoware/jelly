@@ -83,10 +83,10 @@ pub(super) async fn log_history(
     watched: &[Watched],
     cursors: &mut BTreeMap<i64, ScanCursor>,
     tip: u64,
-    floor: u64,
     mut size: WindowSize,
 ) -> WindowSize {
     let params = inputs.params;
+    let floor = params.backfill_floor;
     let native = params.has_native_transfer_logs.then(|| params.native());
     for group in groups(watched, cursors) {
         let mut cursor = group.cursor;
@@ -96,7 +96,7 @@ pub(super) async fn log_history(
         let mut is_clean = true;
         // Only the first forward window overlaps, because a reorg can only have
         // moved the blocks the previous pass ended on.
-        let mut overlap = inputs.params.rescan_overlap_blocks();
+        let mut overlap = params.rescan_overlap_blocks();
 
         loop {
             if inputs.is_out_of_time() {
@@ -191,8 +191,7 @@ async fn read_window(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fixtures::{token_table, watched};
-    use crate::test_util::{ETHEREUM, POLYGON};
+    use crate::fixtures::{ETHEREUM, POLYGON, token_table, watched};
 
     #[test]
     fn one_window_asks_both_sides_over_every_contract_and_every_address() {

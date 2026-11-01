@@ -191,7 +191,7 @@ pub(crate) struct ScanState {
     recent_blocks: VecDeque<BlockRef>,
     /// Broadcast transactions whose fate is unknown, by transaction id.
     in_flight_sends: BTreeMap<[u8; 32], InFlight>,
-    pub(crate) terminal_sends: Vec<TerminalSend>,
+    terminal_sends: Vec<TerminalSend>,
     /// The ring each output was offered with, as the positions of its members on the
     /// blockchain in ascending order, by the output's key image.
     ///
@@ -199,8 +199,10 @@ pub(crate) struct ScanState {
     /// build spends the same outputs, and two different rings around one output give
     /// the real member away to anyone who sees both. Like the sends in flight, these
     /// outlive a rescan.
-    pub(crate) rings: BTreeMap<[u8; 32], Vec<u64>>,
-    pub(crate) settled_through: u64,
+    rings: BTreeMap<[u8; 32], Vec<u64>>,
+    /// The newest terminal checkpoint a pass has reported, which the scan blob carries
+    /// so a committed scan can acknowledge the terminal sends up to it.
+    settled_through: u64,
     /// Bumped by every reset and never persisted, so a pass can tell that the batch
     /// it scanned predates a reset.
     generation: u64,
@@ -292,6 +294,39 @@ impl ScanState {
 
     pub(crate) fn in_flight_count(&self) -> usize {
         self.in_flight_sends.len()
+    }
+
+    pub(crate) fn terminal_sends(&self) -> &[TerminalSend] {
+        &self.terminal_sends
+    }
+
+    pub(crate) const fn rings(&self) -> &BTreeMap<[u8; 32], Vec<u64>> {
+        &self.rings
+    }
+
+    pub(crate) const fn settled_through(&self) -> u64 {
+        self.settled_through
+    }
+
+    /// Moves the settlement checkpoint forward only.
+    pub(crate) const fn settle_through(&mut self, checkpoint: u64) {
+        if checkpoint > self.settled_through {
+            self.settled_through = checkpoint;
+        }
+    }
+
+    /// Puts back what the sends blob held, into a state a restore just built.
+    pub(crate) fn restore_sends(
+        &mut self,
+        in_flight: Vec<InFlight>,
+        terminal: Vec<TerminalSend>,
+        rings: BTreeMap<[u8; 32], Vec<u64>>,
+    ) {
+        for send in in_flight {
+            self.track(send);
+        }
+        self.terminal_sends = terminal;
+        self.rings = rings;
     }
 
     /// Takes `committed` as this state's scan, keeping the sends and rings, and says
@@ -499,6 +534,22 @@ impl ScanState {
         Ok(())
     }
 
+    /// Marks landed every terminal send reported failed whose own spend the scan has
+    /// since seen, as when a send abandoned for its budget lands after all.
+    pub(crate) fn mark_landed_terminal_sends(&mut self) {
+        let landed: Vec<[u8; 32]> = self
+            .terminal_sends
+            .iter()
+            .filter(|send| send.is_failed && self.has_spend(send.txid))
+            .map(|send| send.txid)
+            .collect();
+        for send in &mut self.terminal_sends {
+            if landed.contains(&send.txid) {
+                send.is_failed = false;
+            }
+        }
+    }
+
     /// Keeps the ring each of `chosen` was offered with, and says whether any is new.
     pub(crate) fn remember_rings(&mut self, chosen: BTreeMap<[u8; 32], Vec<u64>>) -> bool {
         let mut has_changed = false;
@@ -525,7 +576,7 @@ impl ScanState {
         self.rings.len() != before
     }
 
-    pub(crate) fn has_spend(&self, txid: [u8; 32]) -> bool {
+    fn has_spend(&self, txid: [u8; 32]) -> bool {
         self.outputs.iter().any(|output| output.spend.is_some_and(|spend| spend.txid == txid))
     }
 
@@ -705,29 +756,62 @@ mod tests {
         }
         state.retire_failed(&[1; 32]).unwrap();
         let mut earlier = ScanState::new(PUBLIC_SPEND, 100, (4, 4));
-        earlier.settled_through = 1;
+        earlier.settle_through(1);
         state.retire_failed(&[2; 32]).unwrap();
         assert_eq!(
-            state.terminal_sends.iter().map(|send| send.checkpoint).collect::<Vec<_>>(),
+            state.terminal_sends().iter().map(|send| send.checkpoint).collect::<Vec<_>>(),
             vec![1, 2]
         );
         assert!(state.replace_scan(earlier));
-        assert_eq!(state.terminal_sends.len(), 1);
+        assert_eq!(state.terminal_sends().len(), 1);
         assert_eq!(state.sent_from(&[2; 32]), Some(Subaddress::new(0, 2)));
         assert_eq!(state.in_flight_count(), 1);
         state.reset_scan();
-        assert_eq!(state.terminal_sends.len(), 1);
+        assert_eq!(state.terminal_sends().len(), 1);
         assert_eq!(state.in_flight_count(), 1);
         state.retire_landed(&[3; 32]).unwrap();
         let mut reset = ScanState::new(PUBLIC_SPEND, 100, (4, 4));
-        reset.settled_through = 3;
+        reset.settle_through(3);
         assert!(state.replace_scan(reset));
         assert_eq!(
-            state.terminal_sends.len(),
+            state.terminal_sends().len(),
             1,
             "a reset watermark alone cannot acknowledge a spend"
         );
         assert_eq!(state.sent_from(&[3; 32]), Some(Subaddress::new(0, 3)));
+    }
+
+    #[test]
+    fn a_send_reported_failed_is_marked_landed_once_the_scan_sees_its_own_spend() {
+        let mut state = state();
+        let outputs = recorded_outputs();
+        let image = outputs.first().map(OwnedOutput::key_image).expect("a key image");
+        for owned in outputs {
+            state.record_output(owned);
+        }
+        for marker in [1, 2] {
+            state.track(InFlight {
+                txid: [marker; 32],
+                key_images: vec![image],
+                raw: Vec::new(),
+                sent_at_height: 100,
+                amount_piconero: 500,
+                recipient: "4AAA".to_owned(),
+                subaddress: Subaddress::PRIMARY,
+                endpoint: "https://node.invalid:18081".to_owned(),
+            });
+            state.retire_failed(&[marker; 32]).unwrap();
+        }
+        state.mark_landed_terminal_sends();
+        assert!(state.terminal_sends().iter().all(|send| send.is_failed), "nothing spent yet");
+
+        state.mark_spent(&image, [1; 32], 200);
+        state.mark_landed_terminal_sends();
+        assert_eq!(
+            state.terminal_sends().iter().map(|send| send.is_failed).collect::<Vec<_>>(),
+            vec![false, true],
+            "only the send whose own spend the scan saw landed"
+        );
     }
 
     #[test]
@@ -745,7 +829,7 @@ mod tests {
         state.reset_scan();
         let committed = ScanState::new(PUBLIC_SPEND, 100, (4, 4));
         state.replace_scan(committed);
-        assert_eq!(state.rings.len(), 2, "a rescan does not unsee a ring");
+        assert_eq!(state.rings().len(), 2, "a rescan does not unsee a ring");
         for owned in recorded_outputs() {
             state.record_output(owned);
         }
@@ -758,7 +842,7 @@ mod tests {
         state.set_tip_height(tip + 1);
         assert!(state.prune_rings());
         assert_eq!(
-            state.rings.keys().collect::<Vec<_>>(),
+            state.rings().keys().collect::<Vec<_>>(),
             [&unknown],
             "an unknown output keeps its ring"
         );

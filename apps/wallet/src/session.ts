@@ -1,10 +1,10 @@
 import { hashKey } from "@tanstack/react-query"
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
-import type { AnyRouter } from "@tanstack/react-router"
+import type { RegisteredRouter } from "@tanstack/react-router"
 
 import { events } from "@/ipc/bindings.gen.ts"
 import type { ChainId, LockState, StartupStatus, TxDetected } from "@/ipc/bindings.gen.ts"
-import { attempt, onSessionLost } from "@/ipc/client.ts"
+import { onSessionLost, subscribe } from "@/ipc/client.ts"
 import { allChains } from "@/lib/chain.ts"
 import { describeIncomingTx } from "@/lib/tx.ts"
 import { addressQueries } from "@/query/address.ts"
@@ -20,23 +20,10 @@ import {
   notify,
   priceSignal,
   recordStartupStatus,
-  resetPriceHistory,
   resetPrices,
   setPriceHistory,
   setPrices,
 } from "@/store.ts"
-
-interface Channel<T> {
-  listen: (handler: (event: { payload: T }) => void) => Promise<unknown>
-}
-
-function subscribe<T>(channel: Channel<T>, listener: (payload: T) => void): void {
-  attempt("Event listener registration", () =>
-    channel.listen((event) => {
-      listener(event.payload)
-    }),
-  )
-}
 
 function prefetchAppQueries(client: QueryClient): void {
   void Promise.allSettled([client.query(appQueries.version()), client.query(appQueries.dataDir())])
@@ -131,7 +118,7 @@ async function loadStartupStatus(client: QueryClient): Promise<void> {
   await loadStartupStatus(client)
 }
 
-async function followLockState(router: AnyRouter, state: LockState): Promise<void> {
+async function followLockState(router: RegisteredRouter, state: LockState): Promise<void> {
   const routeIds = new Set(router.state.matches.map((match) => match.routeId))
   if (state.kind === "locked" && routeIds.has("/_unlocked")) {
     await router.navigate({ to: "/unlock", replace: true })
@@ -142,7 +129,7 @@ async function followLockState(router: AnyRouter, state: LockState): Promise<voi
 
 async function retireSession(
   client: QueryClient,
-  router: AnyRouter,
+  router: RegisteredRouter,
   state: LockState,
 ): Promise<void> {
   try {
@@ -151,7 +138,6 @@ async function retireSession(
     client.removeQueries({ predicate: (query) => !KEPT_ON_LOCK_HASHES.has(query.queryHash) })
     client.getMutationCache().clear()
     resetPrices()
-    resetPriceHistory()
   }
 }
 
@@ -160,7 +146,7 @@ function startUnlockedSession(client: QueryClient): void {
   void loadPrices()
 }
 
-function applyLockState(client: QueryClient, router: AnyRouter, state: LockState): void {
+function applyLockState(client: QueryClient, router: RegisteredRouter, state: LockState): void {
   client.setQueryData(walletQueries.lockState().queryKey, state)
 
   if (state.kind === "locked") {
@@ -176,7 +162,7 @@ function applyLockState(client: QueryClient, router: AnyRouter, state: LockState
   void followLockState(router, state)
 }
 
-async function resyncLockState(client: QueryClient, router: AnyRouter): Promise<void> {
+async function resyncLockState(client: QueryClient, router: RegisteredRouter): Promise<void> {
   const key = walletQueries.lockState().queryKey
   await client.invalidateQueries({ queryKey: key })
   const state = client.getQueryData(key)
@@ -194,7 +180,7 @@ async function resumeSession(client: QueryClient): Promise<void> {
   }
 }
 
-export function startSession(client: QueryClient, router: AnyRouter): void {
+export function startSession(client: QueryClient, router: RegisteredRouter): void {
   const scheduleInvalidation = createInvalidator(client)
 
   subscribe(events.balanceChanged, () => {

@@ -1,4 +1,3 @@
-import { Toast } from "@base-ui/react/toast"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { RouterProvider } from "@tanstack/react-router"
 import { StrictMode } from "react"
@@ -14,7 +13,7 @@ import { makeRouter } from "@/router.tsx"
 import { startSession } from "@/session.ts"
 import { BootFailed } from "@/shell/shell.tsx"
 import { toastManager } from "@/store.ts"
-import { Toaster } from "@/ui/toaster.tsx"
+import { ToastProvider } from "@/ui/toast.tsx"
 import { TooltipProvider } from "@/ui/tooltip.tsx"
 
 function isEditable(target: EventTarget | null): boolean {
@@ -60,37 +59,29 @@ declare module "@tanstack/react-query" {
 
 const RETRY_LIMIT = 2
 
-function makeQueryClient(): QueryClient {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        networkMode: "always",
-        refetchOnWindowFocus: false,
-        staleTime: Number.POSITIVE_INFINITY,
-        gcTime: Number.POSITIVE_INFINITY,
-        retry: (failureCount, error) => !hasCode(error, "locked") && failureCount < RETRY_LIMIT,
-      },
-      mutations: { networkMode: "always", retry: false, gcTime: 0 },
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      networkMode: "always",
+      refetchOnWindowFocus: false,
+      staleTime: Number.POSITIVE_INFINITY,
+      gcTime: Number.POSITIVE_INFINITY,
+      retry: (failureCount, error) => !hasCode(error, "locked") && failureCount < RETRY_LIMIT,
     },
-  })
-}
-
-const TOAST_LIMIT = 3
+    mutations: { networkMode: "always", retry: false, gcTime: 0 },
+  },
+})
 
 interface ProvidersProps {
-  client: QueryClient
   children: ReactNode
 }
 
-function Providers({ client, children }: ProvidersProps) {
+function Providers({ children }: ProvidersProps) {
   return (
     <StrictMode>
-      <QueryClientProvider client={client}>
+      <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <Toast.Provider toastManager={toastManager} limit={TOAST_LIMIT}>
-            {children}
-            <Toaster />
-          </Toast.Provider>
+          <ToastProvider toastManager={toastManager}>{children}</ToastProvider>
         </TooltipProvider>
       </QueryClientProvider>
     </StrictMode>
@@ -104,15 +95,6 @@ async function setRootData(key: string, value: Promise<string>): Promise<void> {
     reportError(error)
   }
 }
-
-refuseBrowserInput()
-await Promise.all([
-  setRootData("backdrop", appCommands.windowBackdrop()),
-  setRootData("windowControls", appCommands.windowControls()),
-  setRootData("platform", appCommands.platform()),
-])
-
-const queryClient = makeQueryClient()
 
 function logRenderFailure(
   scope: string,
@@ -129,7 +111,7 @@ async function boot(root: Root): Promise<void> {
     await loadCatalog()
   } catch (error) {
     root.render(
-      <Providers client={queryClient}>
+      <Providers>
         <BootFailed message={describeFailure(error)} />
       </Providers>,
     )
@@ -139,11 +121,18 @@ async function boot(root: Root): Promise<void> {
   const router = makeRouter(queryClient)
   startSession(queryClient, router)
   root.render(
-    <Providers client={queryClient}>
+    <Providers>
       <RouterProvider router={router} />
     </Providers>,
   )
 }
+
+refuseBrowserInput()
+await Promise.all([
+  setRootData("backdrop", appCommands.windowBackdrop()),
+  setRootData("windowControls", appCommands.windowControls()),
+  setRootData("platform", appCommands.platform()),
+])
 
 const container = document.querySelector("#root")
 

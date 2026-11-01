@@ -24,23 +24,22 @@ pub(crate) fn sign(
     }
     let digest = payload.signature_hash();
 
-    key.with_bytes(|bytes| {
-        if bytes.len() != 32 {
-            return Err(EvmError::WrongKeyLength { got: bytes.len() });
-        }
-        let signing = Secp256k1Key::from_secret_bytes(bytes).map_err(EvmError::Signing)?;
-        let owner = address::of_public_key(&signing.public_uncompressed())?;
-        if owner != payload.from() {
-            return Err(EvmError::KeyNotOwner);
-        }
+    let signing = key.with_bytes(|bytes| {
+        let secret = <&[u8; 32]>::try_from(bytes)
+            .map_err(|_| EvmError::WrongKeyLength { got: bytes.len() })?;
+        Secp256k1Key::from_secret_bytes(secret).map_err(EvmError::Signing)
+    })?;
+    let owner = address::of_public_key(&signing.public_uncompressed())?;
+    if owner != payload.from() {
+        return Err(EvmError::KeyNotOwner);
+    }
 
-        let compact = signing.sign_prehash_recoverable(&digest.0).map_err(EvmError::Signing)?;
-        let signature = signature_from_compact(&compact)?;
-        let signed: Signed<_> = payload.tx().clone().into_signed(signature);
-        Ok(SignedTx {
-            raw: RawTx::from_bytes(signed.encoded_2718()),
-            txid: TxId::new(params.chain, signed.hash().to_string()),
-        })
+    let compact = signing.sign_prehash_recoverable(&digest.0).map_err(EvmError::Signing)?;
+    let signature = signature_from_compact(&compact)?;
+    let signed: Signed<_> = payload.tx().clone().into_signed(signature);
+    Ok(SignedTx {
+        raw: RawTx::from_bytes(signed.encoded_2718()),
+        txid: TxId::new(params.chain, signed.hash().to_string()),
     })
 }
 
@@ -70,9 +69,8 @@ mod tests {
 
     use super::*;
     use crate::fee::FeePair;
-    use crate::fixtures::address;
+    use crate::fixtures::{ETHEREUM, POLYGON, address};
     use crate::payload::{self, Intent, Shape};
-    use crate::test_util::{ETHEREUM, POLYGON};
 
     #[test]
     fn a_recovery_id_above_one_is_refused_rather_than_folded() {

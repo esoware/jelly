@@ -133,7 +133,7 @@ async fn expiry_needs_a_complete_history_proof() {
 }
 
 #[tokio::test]
-async fn provisional_claim_costs_are_not_final_until_validated() {
+async fn a_tec_result_settles_as_failed_with_its_fee_only_once_validated() {
     let node = Node::new();
     let adapter = node.adapter().await.unwrap();
     let unsigned = adapter.build_tx(&request()).await.unwrap();

@@ -9,6 +9,8 @@ mod config;
 mod cursor;
 mod entry;
 mod error;
+#[cfg(test)]
+mod fixtures;
 mod identity;
 mod method;
 mod node;

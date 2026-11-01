@@ -1,4 +1,3 @@
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::Deserialize;
 use tonlib_core::cell::dict::predefined_readers::{key_reader_u16, val_reader_ref_cell};
 use tonlib_core::cell::{ArcCell, Cell, CellParser};
@@ -8,7 +7,7 @@ use tonlib_core::tlb_types::block::msg_address::MsgAddress;
 use tonlib_core::tlb_types::tlb::TLB as _;
 use tonlib_core::types::TonAddress;
 
-use crate::client::Position;
+use crate::client::{Position, base64_bytes};
 use crate::error::TonError;
 use crate::sign::normalized_hash;
 
@@ -21,7 +20,7 @@ pub(crate) struct AccountTx {
 
 /// One transaction of one account, read from its cell rather than from the provider's
 /// summary of it.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct Tx {
     pub(crate) lt: u64,
     pub(crate) previous: Position,
@@ -36,14 +35,14 @@ pub(crate) struct Tx {
     pub(crate) phases: Phases,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) enum Inbound {
     External,
     Internal { from: TonAddress, value_nanogram: u64, is_bounced: bool, body: ArcCell },
     None,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct Outbound {
     pub(crate) to: TonAddress,
     pub(crate) value_nanogram: u64,
@@ -53,7 +52,7 @@ pub(crate) struct Outbound {
     pub(crate) body: ArcCell,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Default)]
 pub(crate) struct Phases {
     pub(crate) is_aborted: bool,
     pub(crate) is_skipped: bool,
@@ -66,7 +65,7 @@ impl AccountTx {
     /// total_fees state_update:^ description:^`, from
     /// <https://github.com/ton-blockchain/ton/blob/master/crypto/block/block.tlb>.
     pub(crate) fn read(&self, account: &TonAddress) -> Result<Tx, TonError> {
-        let cell = Cell::from_boc(&STANDARD.decode(&self.data).map_err(|_| TonError::Protocol)?)?;
+        let cell = Cell::from_boc(&base64_bytes(&self.data)?)?;
         let mut parser = cell.parser();
         if parser.load_u8(4)? != 7
             || parser.load_tonhash()? != account.hash_part
