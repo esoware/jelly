@@ -36,7 +36,7 @@ pub(crate) async fn follow(
         }
         states.settle(entry.address_id).await?;
     } else if let Stage::Sent(signed) = &pending.stage {
-        states.persist(entry.address_id, Some(&pending)).await?;
+        states.persist_sent(entry.address_id, &pending.payment, signed).await?;
         // A rebroadcast is best effort, because the send stays tracked until it settles or
         // expires.
         let _ = client.broadcast(&signed.boc).await;

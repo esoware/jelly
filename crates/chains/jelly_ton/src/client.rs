@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use jelly_core::Amount;
+use jelly_core::{Amount, TokenId};
 use serde::de::{DeserializeOwned, Error as _};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Value, json};
@@ -14,13 +14,14 @@ use tonlib_core::wallet::versioned::v4::WalletDataV4;
 use tonlib_core::wallet::versioned::v5::WalletDataV5;
 
 use crate::address::non_bounceable;
-use crate::config::{MAX_FEE_NANOGRAM, is_mainnet};
+use crate::config::is_mainnet;
 use crate::error::TonError;
+use crate::jetton::master;
 use crate::message;
 use crate::method::Method;
 use crate::node::TonNode;
 use crate::payload::Payment;
-use crate::record::AccountTx;
+use crate::tx::AccountTx;
 use crate::wallet::{Version, ton_wallet};
 
 const TRANSACTIONS_PAGE_LIMIT: u32 = 32;
@@ -145,7 +146,7 @@ impl Account {
     }
 }
 
-fn base64_bytes(text: &str) -> Result<Vec<u8>, TonError> {
+pub(crate) fn base64_bytes(text: &str) -> Result<Vec<u8>, TonError> {
     STANDARD.decode(text).map_err(|_| TonError::Protocol)
 }
 
@@ -270,40 +271,42 @@ impl TonClient {
         }
     }
 
-    /// The jetton wallet `owner` holds under `master`, as the master computes it at block
-    /// `tip`, or at the node's latest block for `None`.
+    /// The jetton wallet `owner` holds under the master of `token`, as the master computes
+    /// it at block `tip`, or at the node's latest block for `None`.
     pub(crate) async fn jetton_wallet(
         &self,
-        master: &TonAddress,
+        token: TokenId,
         owner: &TonAddress,
         tip: Option<u64>,
     ) -> Result<TonAddress, TonError> {
+        let master = master(token)?;
         let stack = json!([["tvm.Slice", address_slice(owner)?]]);
-        let result = self.run(master, "get_wallet_address", stack, tip).await?;
+        let result = self.run(&master, "get_wallet_address", stack, tip).await?;
         stack_address(result.first())
     }
 
     /// The balance of the jetton wallet at `wallet`, as its `get_wallet_data` reports it
-    /// at block `tip`. A wallet that doesn't name `owner` and `master` in TEP-74's order
-    /// is refused.
+    /// at block `tip`. A wallet that doesn't name `owner` and the master of `token` in
+    /// TEP-74's order is refused.
     pub(crate) async fn jetton_balance(
         &self,
         wallet: &TonAddress,
         owner: &TonAddress,
-        master: &TonAddress,
+        token: TokenId,
         tip: u64,
     ) -> Result<Amount, TonError> {
+        let master = master(token)?;
         let result = self.run(wallet, "get_wallet_data", json!([]), Some(tip)).await?;
         let balance = stack_number(result.first())?;
         let named_owner = stack_address(result.get(1))?;
         let named_master = stack_address(result.get(2))?;
-        if named_owner != *owner || named_master != *master {
+        if named_owner != *owner || named_master != master {
             return Err(TonError::Protocol);
         }
         Ok(Amount::from_base_units(balance))
     }
 
-    pub(crate) async fn fee_nanogram(&self, payment: &Payment) -> Result<u64, TonError> {
+    pub(crate) async fn estimate_fee_nanogram(&self, payment: &Payment) -> Result<u64, TonError> {
         let wallet = ton_wallet(&payment.pubkey, payment.version)?;
         let version = payment.version.wallet_version();
         let signed = VersionHelper::sign_msg(version, &message::body(payment)?, &[0; 64])?;
@@ -336,17 +339,7 @@ impl TonClient {
             };
             total_nanogram = total_nanogram.checked_add(fee_nanogram).ok_or(TonError::Protocol)?;
         }
-        let estimate_nanogram = total_nanogram
-            .checked_mul(12)
-            .and_then(|fee| fee.checked_div(10))
-            .and_then(|fee| fee.checked_add(1_000))
-            .ok_or(TonError::Protocol)?;
-        if total_nanogram == 0 || estimate_nanogram > MAX_FEE_NANOGRAM {
-            return Err(TonError::Invalid(
-                "The TON fee estimate is not reasonable. Try again later.",
-            ));
-        }
-        Ok(estimate_nanogram)
+        Ok(total_nanogram)
     }
 
     /// A page of `address`'s history, newest first, from the transaction at `position`
@@ -416,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn a_number_that_is_not_hex_or_is_negative_is_refused() {
+    fn only_a_num_entry_in_non_negative_hex_reads_as_a_number() {
         for text in ["-0x1", "12", "0xzz"] {
             stack_number(Some(&json!(["num", text]))).unwrap_err();
         }

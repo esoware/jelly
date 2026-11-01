@@ -8,7 +8,7 @@ use tonlib_core::wallet::versioned::v3::WalletExtMsgBodyV3;
 use tonlib_core::wallet::versioned::v4::WalletExtMsgBodyV4;
 use tonlib_core::wallet::versioned::v5::WalletExtMsgBodyV5;
 
-use crate::address::{TonDestination, ton_destination};
+use crate::address::TonDestination;
 use crate::error::TonError;
 use crate::payload::{INVALID_PAYMENT, Payment, Transfer};
 use crate::wallet::{Version, ton_wallet};
@@ -61,7 +61,7 @@ pub(crate) fn body(payment: &Payment) -> Result<Cell, TonError> {
 /// The one internal message the wallet sends, with the mode it sends it in.
 fn internal_message(payment: &Payment) -> Result<(ArcCell, u8), TonError> {
     let TonDestination { address: to, .. } =
-        ton_destination(&payment.to).map_err(|_| INVALID_PAYMENT)?;
+        TonDestination::parse(&payment.to).map_err(|_| INVALID_PAYMENT)?;
     let (target, is_bounceable, value, mode, body) = match payment.transfer {
         Transfer::Native { amount_nanogram, is_bounceable, ref comment } => {
             // A message sent with `SEND_CARRY_ALL_BALANCE` carries the whole remaining
@@ -76,7 +76,7 @@ fn internal_message(payment: &Payment) -> Result<(ArcCell, u8), TonError> {
         Transfer::Jetton {
             ref wallet, amount, query_id, attached_nanogram, ref comment, ..
         } => {
-            let from = ton_destination(&payment.from).map_err(|_| INVALID_PAYMENT)?.address;
+            let from = TonDestination::parse(&payment.from).map_err(|_| INVALID_PAYMENT)?.address;
             // The forward payload goes inline when the comment fits in the body and in a
             // reference otherwise, as MyTonWallet writes it. No comment is an empty inline
             // payload, a single zero bit.

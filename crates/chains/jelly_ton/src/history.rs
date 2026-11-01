@@ -14,21 +14,21 @@ use crate::address::non_bounceable;
 use crate::config::CHAIN;
 use crate::error::TonError;
 use crate::jetton::{Body, INTERNAL_TRANSFER, TRANSFER, read_body};
-use crate::record::{Inbound, Tx};
+use crate::tx::{Inbound, Tx};
 
 /// A bounce or an excess lands seconds after its send. A send waits this long for its
 /// returns, and a return this long for its send, before history settles them.
 const RETURN_WINDOW_SECONDS: u32 = 3600;
 
 /// The jetton wallet the owner holds under one registry master.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub(crate) struct Held {
     pub(crate) token: TokenId,
     pub(crate) wallet: TonAddress,
 }
 
 /// Part of the history cursor, so its field names are a stored format.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Returns {
     sends: Vec<Sent>,
@@ -38,7 +38,7 @@ pub(crate) struct Returns {
 /// A send as its record stands. One that awaits a return is kept until the return window
 /// passes, even once everything has come back, so a walk that reads a return again knows
 /// it isn't new.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Sent {
     txid: String,
@@ -55,7 +55,7 @@ struct Sent {
     awaits: Vec<Await>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Await {
     part: Part,
@@ -63,7 +63,7 @@ struct Await {
     returned_by: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Part {
     /// A bounceable Gram message, which the account it paid may bounce.
@@ -73,7 +73,7 @@ enum Part {
 }
 
 /// A return the walk read before its send.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Orphan {
     back: Back,
@@ -86,7 +86,7 @@ struct Orphan {
     fee_nanogram: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Back {
     /// The Gram a jetton transfer didn't spend, which its last jetton wallet returns.
@@ -592,7 +592,7 @@ mod tests {
 
     use super::*;
     use crate::fixtures::{address, rows};
-    use crate::record::AccountTx;
+    use crate::tx::AccountTx;
 
     const NATIVE: AssetId = AssetId::Native(CHAIN);
     const USDT: AssetId = AssetId::Token(TokenId::UsdtJetton);
@@ -602,10 +602,14 @@ mod tests {
     /// It's charged its own fees, the forwarding of its four messages, and what the
     /// bounces didn't bring back: 807689 + 4 * 44446 + 349443 - 104, where 104 is what
     /// the four returns brought in above their own fees.
-    const BOUNCED_SEND_FEE_NANOTON: u128 = 1_334_812;
+    const BOUNCED_SEND_FEE_NANOGRAM: u128 = 1_334_812;
 
     fn usdt(wallet: &str) -> [Held; 1] {
         [Held { token: TokenId::UsdtJetton, wallet: address(wallet) }]
+    }
+
+    fn reader<'a>(owner: &'a TonAddress, held: &'a [Held]) -> Reader<'a> {
+        Reader { address_id: 1, owner, held, tip: 100, sync_utime: 0 }
     }
 
     /// Reads `rows` the way a walk of the owner's wallet does.
@@ -630,7 +634,7 @@ mod tests {
     #[test]
     fn real_mainnet_history_decodes_from_cells_not_provider_summaries() {
         let owner = address("UQDv2YSmlrlLH3hLNOVxC8FcQf4F9eGNs4vb2zKma4txo6i3");
-        let reader = Reader { address_id: 1, owner: &owner, held: &[], tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &[]);
         let rows = rows(include_str!("../tests/fixtures/history.json"));
         let first = rows[0].read(&owner).unwrap();
         let record = one(reader.wallet_tx(&first, &mut Returns::default()).unwrap());
@@ -658,7 +662,7 @@ mod tests {
         let row: AccountTx =
             serde_json::from_str(include_str!("../tests/fixtures/bounced.json")).unwrap();
         let owner = address("EQB61bsO2ekfVGrBkk8o8HWqoQkdbht3q2B9VywE4dnv-5Ko");
-        let reader = Reader { address_id: 1, owner: &owner, held: &[], tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &[]);
         let tx = row.read(&owner).unwrap();
         let record = one(reader.wallet_tx(&tx, &mut Returns::default()).unwrap());
         assert_eq!(
@@ -679,7 +683,7 @@ mod tests {
         let row: AccountTx =
             serde_json::from_str(include_str!("../tests/fixtures/zero_value.json")).unwrap();
         let owner = address("EQCapl10YPW2yGLt62420qxAZUBOxceNaj4PB-EUA8TzpXWj");
-        let reader = Reader { address_id: 1, owner: &owner, held: &[], tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &[]);
         let tx = row.read(&owner).unwrap();
         let record = one(reader.wallet_tx(&tx, &mut Returns::default()).unwrap());
         assert_eq!(
@@ -695,7 +699,7 @@ mod tests {
     #[test]
     fn bounced_gram_messages_fail_their_send_and_charge_only_what_was_lost() {
         let owner = address("EQBOipe4nieujUcQ7G642_mvM_0NHoeK91DF6va-OpUKzUMn");
-        let reader = Reader { address_id: 1, owner: &owner, held: &[], tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &[]);
         let mut returns = Returns::default();
         let rows = rows(include_str!("../tests/fixtures/native_bounces.json"));
         let record = one(walk(&reader, &mut returns, &rows));
@@ -708,14 +712,14 @@ mod tests {
             (NATIVE, TxDirection::Outgoing, TxOutcome::Failed)
         );
         assert_eq!(record.amount, Amount::ZERO);
-        assert_eq!(fee(&record), BOUNCED_SEND_FEE_NANOTON);
+        assert_eq!(fee(&record), BOUNCED_SEND_FEE_NANOGRAM);
         assert!(reader.settle(&mut returns).unwrap().is_empty());
     }
 
     #[test]
     fn a_bounce_read_after_its_send_rewrites_the_send_to_the_same_end() {
         let owner = address("EQBOipe4nieujUcQ7G642_mvM_0NHoeK91DF6va-OpUKzUMn");
-        let reader = Reader { address_id: 1, owner: &owner, held: &[], tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &[]);
         let rows = rows(include_str!("../tests/fixtures/native_bounces.json"));
         let mut returns = Returns::default();
         let sent = one(walk(&reader, &mut returns, &rows[4..]));
@@ -729,7 +733,7 @@ mod tests {
         let last = rewrites.last().unwrap();
         assert_eq!(
             (last.outcome, last.amount, fee(last)),
-            (TxOutcome::Failed, Amount::ZERO, BOUNCED_SEND_FEE_NANOTON)
+            (TxOutcome::Failed, Amount::ZERO, BOUNCED_SEND_FEE_NANOGRAM)
         );
     }
 
@@ -742,7 +746,7 @@ mod tests {
             (send.utime.saturating_add(RETURN_WINDOW_SECONDS), true),
             (send.utime.saturating_add(RETURN_WINDOW_SECONDS).saturating_add(1), false),
         ] {
-            let reader = Reader { address_id: 1, owner: &owner, held: &[], tip: 100, sync_utime };
+            let reader = Reader { sync_utime, ..reader(&owner, &[]) };
             let mut returns = Returns::default();
             reader.wallet_tx(&send, &mut returns).unwrap();
             assert_eq!(returns.sends.len(), usize::from(is_kept), "{sync_utime}");
@@ -755,7 +759,7 @@ mod tests {
         // and bounced, and a 0.75 USDT transfer that delivered and returned an excess.
         let owner = address("0:6B0D3FA7A07B0C116C947436FB46CB269C1E9FC4BA113001BF72C060404041A5");
         let held = usdt("0:26052FDC85FD7FA37BD4B16827F52FB1575002991943217EAA6FD78B549C3CAD");
-        let reader = Reader { address_id: 1, owner: &owner, held: &held, tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &held);
         let mut returns = Returns::default();
         let rows = rows(include_str!("../tests/fixtures/usdt_bounce_owner.json"));
         let [bounced, delivered] = walk(&reader, &mut returns, &rows).try_into().unwrap();
@@ -781,7 +785,7 @@ mod tests {
     fn a_return_read_twice_is_not_counted_twice() {
         let owner = address("0:6B0D3FA7A07B0C116C947436FB46CB269C1E9FC4BA113001BF72C060404041A5");
         let held = usdt("0:26052FDC85FD7FA37BD4B16827F52FB1575002991943217EAA6FD78B549C3CAD");
-        let reader = Reader { address_id: 1, owner: &owner, held: &held, tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &held);
         let rows = rows(include_str!("../tests/fixtures/usdt_bounce_owner.json"));
         let mut returns = Returns::default();
         let first = walk(&reader, &mut returns, &rows);
@@ -797,7 +801,7 @@ mod tests {
         // Gram funding, then two USDT transfers that each returned an excess.
         let owner = address("UQCh41gQP1A4I0lnAn6yAfitDAIYpXG6UFIXqeSz1TVxNOJ_");
         let held = usdt("EQDg4AjfaxQBVsUFueenkKlHLhhYWrcBvCEzbEgfrT0nxuGC");
-        let reader = Reader { address_id: 1, owner: &owner, held: &held, tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &held);
         let mut returns = Returns::default();
         let rows = rows(include_str!("../tests/fixtures/usdt_owner.json"));
         let [commented, first, funding] = walk(&reader, &mut returns, &rows).try_into().unwrap();
@@ -817,7 +821,7 @@ mod tests {
     #[test]
     fn only_the_jetton_wallets_of_registry_masters_count() {
         let owner = address("UQCh41gQP1A4I0lnAn6yAfitDAIYpXG6UFIXqeSz1TVxNOJ_");
-        let reader = Reader { address_id: 1, owner: &owner, held: &[], tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &[]);
         let mut returns = Returns::default();
         let rows = rows(include_str!("../tests/fixtures/usdt_owner.json"));
         let mut records = walk(&reader, &mut returns, &rows);
@@ -832,7 +836,7 @@ mod tests {
     fn a_jetton_wallet_records_what_arrived_and_nothing_its_owner_sent() {
         let owner = address("UQCh41gQP1A4I0lnAn6yAfitDAIYpXG6UFIXqeSz1TVxNOJ_");
         let held = usdt("EQDg4AjfaxQBVsUFueenkKlHLhhYWrcBvCEzbEgfrT0nxuGC");
-        let reader = Reader { address_id: 1, owner: &owner, held: &held, tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &held);
         let mut returns = Returns::default();
         let mut records = Vec::new();
         for row in rows(include_str!("../tests/fixtures/usdt_wallet.json")) {
@@ -865,7 +869,7 @@ mod tests {
         // internal_transfer back to the sender's jetton wallet, which keeps the Gram.
         let owner = address("0:BABFC7B073E63D5C072463E7E3CF069767847B8937C92AC80086A323E9BF58BA");
         let held = usdt("0:5192CD62508B80067FF41E3377DCC99CE4CE831B8723D44B91122605538A051D");
-        let reader = Reader { address_id: 1, owner: &owner, held: &held, tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &held);
         let mut returns = Returns::default();
         let owner_rows = rows(include_str!("../tests/fixtures/recipient_bounce_owner.json"));
         let sent = one(walk(&reader, &mut returns, &owner_rows));
@@ -886,7 +890,7 @@ mod tests {
     fn a_zero_amount_jetton_movement_is_never_recorded() {
         let owner = address("UQCh41gQP1A4I0lnAn6yAfitDAIYpXG6UFIXqeSz1TVxNOJ_");
         let held = usdt("EQDg4AjfaxQBVsUFueenkKlHLhhYWrcBvCEzbEgfrT0nxuGC");
-        let reader = Reader { address_id: 1, owner: &owner, held: &held, tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &held);
         let wallet_rows = rows(include_str!("../tests/fixtures/usdt_wallet.json"));
         let mut tx = wallet_rows[2].read(&held[0].wallet).unwrap();
         let empty = JettonInternalTransferMessage {
@@ -929,7 +933,7 @@ mod tests {
     fn a_return_whose_send_would_be_a_window_older_settles_as_a_receipt() {
         let owner = address("UQCh41gQP1A4I0lnAn6yAfitDAIYpXG6UFIXqeSz1TVxNOJ_");
         let held = usdt("EQDg4AjfaxQBVsUFueenkKlHLhhYWrcBvCEzbEgfrT0nxuGC");
-        let reader = Reader { address_id: 1, owner: &owner, held: &held, tip: 100, sync_utime: 0 };
+        let reader = reader(&owner, &held);
         let rows = rows(include_str!("../tests/fixtures/usdt_owner.json"));
         let mut returns = Returns::default();
         let excess = rows[0].read(&owner).unwrap();

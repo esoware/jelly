@@ -1,13 +1,12 @@
 use jelly_core::{
-    Amount, AssetId, Clock, ClockError, FeeSelection, SendAmount, TokenId, TxRequest, random_bytes,
+    Amount, AssetId, Clock, ClockError, FeeSelection, SendAmount, TxRequest, random_bytes,
 };
-use tonlib_core::types::TonAddress;
 
-use crate::address::{TonDestination, non_bounceable, ton_destination};
+use crate::address::{TonDestination, non_bounceable};
 use crate::client::{AccountState, TonClient};
-use crate::config::{CHAIN, MAX_COMMENT_BYTES};
+use crate::config::{CHAIN, MAX_COMMENT_BYTES, MAX_FEE_NANOGRAM};
 use crate::error::TonError;
-use crate::jetton::{Jetton, asset_jetton, master};
+use crate::jetton::{Jetton, asset_jetton};
 use crate::payload::{Payment, Transfer};
 use crate::state::States;
 use crate::watched::Watched;
@@ -39,8 +38,16 @@ struct Sender<'a> {
 }
 
 impl Sender<'_> {
-    fn payment(&self, to: String, is_max: bool, transfer: Transfer) -> Payment {
-        Payment {
+    /// The payment of `transfer` to `to`, charged what the node estimates it costs plus a
+    /// margin.
+    async fn payment(
+        &self,
+        client: &TonClient,
+        to: String,
+        is_max: bool,
+        transfer: Transfer,
+    ) -> Result<Payment, TonError> {
+        let mut payment = Payment {
             from: non_bounceable(&self.watched.address),
             to,
             pubkey: self.watched.pubkey,
@@ -52,7 +59,19 @@ impl Sender<'_> {
             is_deploy: self.is_deploy,
             is_max,
             transfer,
+        };
+        let estimate_nanogram = client.estimate_fee_nanogram(&payment).await?;
+        payment.fee_nanogram = estimate_nanogram
+            .checked_mul(12)
+            .and_then(|fee| fee.checked_div(10))
+            .and_then(|fee| fee.checked_add(1_000))
+            .ok_or(TonError::Protocol)?;
+        if estimate_nanogram == 0 || payment.fee_nanogram > MAX_FEE_NANOGRAM {
+            return Err(TonError::Invalid(
+                "The TON fee estimate is not reasonable. Try again later.",
+            ));
         }
+        Ok(payment)
     }
 }
 
@@ -80,7 +99,7 @@ pub(crate) async fn resolve(
     if states.is_held(source_id) {
         return Err(TonError::Busy);
     }
-    let mut destination = ton_destination(&request.to)
+    let mut destination = TonDestination::parse(&request.to)
         .map_err(|_| TonError::Invalid("Enter a valid TON mainnet address or payment request."))?;
     if let Some(comment) = request.comment.as_ref().filter(|comment| !comment.is_empty()) {
         if comment.len() > MAX_COMMENT_BYTES {
@@ -166,12 +185,14 @@ async fn native_payment(
         is_active
     };
     let is_max = amount == SendAmount::Max;
-    let mut payment = sender.payment(
-        recipient.to_base64_url_flags(!is_bounceable, false),
-        is_max,
-        Transfer::Native { amount_nanogram, is_bounceable, comment },
-    );
-    payment.fee_nanogram = client.fee_nanogram(&payment).await?;
+    let mut payment = sender
+        .payment(
+            client,
+            recipient.to_base64_url_flags(!is_bounceable, false),
+            is_max,
+            Transfer::Native { amount_nanogram, is_bounceable, comment },
+        )
+        .await?;
     let amount_nanogram = if is_max {
         let remaining_nanogram = balance_nanogram.saturating_sub(payment.fee_nanogram);
         if let Transfer::Native { amount_nanogram: ref mut paid, .. } = payment.transfer {
@@ -198,10 +219,15 @@ async fn jetton_payment(
     destination: TonDestination,
     jetton: Jetton,
 ) -> Result<Payment, TonError> {
-    let wallet = jetton_wallet(client, states, sender.watched, jetton.token, sender.tip).await?;
+    let owner = &sender.watched.address;
+    // The wallet sync already found for the sender, or else the one the master names.
+    let cursor = states.cursor(sender.watched.address_id).await?;
+    let wallet = match cursor.jettons.iter().find(|known| known.token == jetton.token) {
+        Some(known) => known.address()?,
+        None => client.jetton_wallet(jetton.token, owner, Some(sender.tip)).await?,
+    };
     let balance = if client.account(&wallet, sender.tip).await?.state == AccountState::Active {
-        let owner = &sender.watched.address;
-        client.jetton_balance(&wallet, owner, &master(jetton.token)?, sender.tip).await?
+        client.jetton_balance(&wallet, owner, jetton.token, sender.tip).await?
     } else {
         Amount::ZERO
     };
@@ -220,19 +246,21 @@ async fn jetton_payment(
         *random_bytes::<8>()
             .map_err(|_| TonError::Internal("secure random bytes are unavailable"))?,
     );
-    let mut payment = sender.payment(
-        destination.spelling(),
-        amount == SendAmount::Max,
-        Transfer::Jetton {
-            token: jetton.token,
-            wallet: wallet.to_hex(),
-            amount: value,
-            query_id,
-            attached_nanogram: jetton.attached_nanogram,
-            comment: destination.comment,
-        },
-    );
-    payment.fee_nanogram = client.fee_nanogram(&payment).await?;
+    let payment = sender
+        .payment(
+            client,
+            destination.spelling(),
+            amount == SendAmount::Max,
+            Transfer::Jetton {
+                token: jetton.token,
+                wallet: wallet.to_hex(),
+                amount: value,
+                query_id,
+                attached_nanogram: jetton.attached_nanogram,
+                comment: destination.comment,
+            },
+        )
+        .await?;
     let needed_nanogram = payment.cost_nanogram()?;
     if needed_nanogram > sender.balance_nanogram {
         return Err(TonError::Funds {
@@ -242,19 +270,4 @@ async fn jetton_payment(
         });
     }
     Ok(payment)
-}
-
-/// The jetton wallet sync already found for the sender, or the one the master names.
-async fn jetton_wallet(
-    client: &TonClient,
-    states: &States,
-    watched: &Watched,
-    token: TokenId,
-    tip: u64,
-) -> Result<TonAddress, TonError> {
-    let cursor = states.cursor(watched.address_id).await?;
-    if let Some(known) = cursor.jettons.iter().find(|jetton| jetton.token == token) {
-        return known.address();
-    }
-    client.jetton_wallet(&master(token)?, &watched.address, Some(tip)).await
 }

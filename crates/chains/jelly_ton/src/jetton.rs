@@ -56,7 +56,7 @@ pub(crate) fn master(token: TokenId) -> Result<TonAddress, TonError> {
 }
 
 /// What a message body says, as far as jetton history reads it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub(crate) enum Body {
     Transfer { query_id: u64, amount: u128, destination: TonAddress },
     InternalTransfer { amount: u128, from: TonAddress },
