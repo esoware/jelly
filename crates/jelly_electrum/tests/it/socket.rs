@@ -1,5 +1,11 @@
+use std::collections::BTreeMap;
 use std::iter::repeat_n;
 
+use bitcoin::absolute::LockTime;
+use bitcoin::consensus::encode::serialize_hex;
+use bitcoin::hashes::Hash as _;
+use bitcoin::transaction::Version;
+use bitcoin::{Amount, OutPoint, ScriptBuf, Transaction, TxIn, TxOut, Txid};
 use jelly_electrum::{
     ElectrumError, Method, ProtocolVersion,
     test_util::{Answer, FakeElectrum, endpoint_label},
@@ -162,6 +168,10 @@ mod lifecycle {
 mod batching {
     use super::*;
 
+    /// `ElectrumX`'s default `MAX_SEND` for a coin that isn't merge-mined, the largest
+    /// response aiorpcx will send.
+    const ELECTRUMX_MAX_SEND: usize = 1_000_000;
+
     #[tokio::test]
     async fn an_empty_request_never_reaches_the_wire() {
         let fake = FakeElectrum::new();
@@ -231,6 +241,50 @@ mod batching {
         let headers = client.block_headers(&heights).await.expect("forty-five headers");
         assert_eq!(headers.len(), 45);
         assert_eq!(fake.calls_to(Method::BlockHeader).len(), 45);
+    }
+
+    /// About thirty kilobytes, the size of a large consolidation, and different for
+    /// every `seed`.
+    fn bulky_tx(seed: u8) -> Transaction {
+        Transaction {
+            version: Version::TWO,
+            lock_time: LockTime::ZERO,
+            input: vec![TxIn {
+                previous_output: OutPoint::new(Txid::all_zeros(), u32::from(seed)),
+                ..TxIn::default()
+            }],
+            output: vec![TxOut {
+                value: Amount::from_sat(10_000),
+                script_pubkey: ScriptBuf::from_bytes(vec![seed; 30_000]),
+            }],
+        }
+    }
+
+    #[tokio::test]
+    async fn a_batch_too_large_for_electrumx_as_a_whole_is_asked_again_in_halves() {
+        let bulky: Vec<Transaction> = (0..20).map(bulky_tx).collect();
+        let txids: Vec<Txid> = bulky.iter().map(Transaction::compute_txid).collect();
+        let served: BTreeMap<String, String> = bulky
+            .iter()
+            .map(|tx| (tx.compute_txid().to_string(), quoted(&serialize_hex(tx))))
+            .collect();
+        let largest = served.values().map(String::len).max().unwrap();
+        assert!(largest * 10 < ELECTRUMX_MAX_SEND, "each answer alone is far under the limit");
+
+        let fake = FakeElectrum::new();
+        fake.set_max_send(ELECTRUMX_MAX_SEND);
+        fake.always(Method::GetTransaction, Answer::Keyed(served));
+        let client = fake.client().await.expect("the fake negotiates");
+
+        let fetched = client.txs(&txids).await;
+        assert!(
+            fetched.as_ref().is_ok_and(|served| served.len() == txids.len()),
+            "expected all {} transactions, each answer about {largest} bytes, to be fetched from an \
+             ElectrumX server whose limit is {ELECTRUMX_MAX_SEND} bytes per response, but the \
+             fetch ended with {:?}",
+            txids.len(),
+            fetched.map(|served| served.len()),
+        );
     }
 }
 

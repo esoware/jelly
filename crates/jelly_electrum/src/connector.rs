@@ -29,7 +29,7 @@ impl ElectrumConnector {
 impl Connect<ElectrumClient> for ElectrumConnector {
     async fn connect(&self, endpoint: &Endpoint) -> Result<Arc<ElectrumClient>, NetError> {
         let sockets =
-            Arc::new(TlsSockets { dialer: self.dialer.clone(), endpoint: endpoint.clone() });
+            Box::new(TlsSockets { dialer: self.dialer.clone(), endpoint: endpoint.clone() });
         let client = ElectrumClient::open(sockets, self.chain).await?;
         Ok(Arc::new(client))
     }

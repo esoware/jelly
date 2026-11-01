@@ -27,10 +27,16 @@ const TARGET: &str = "jelly::electrum::client";
 /// check can report another chain as a mismatch. Reads retry once on a socket that died
 /// without answering. A broadcast never retries.
 pub struct ElectrumClient {
-    sockets: Arc<dyn SocketSource>,
+    sockets: Box<dyn SocketSource>,
     chain: ElectrumChain,
-    connection: AsyncMutex<Option<Arc<Connection>>>,
+    cached: AsyncMutex<Option<Cached>>,
     sockets_opened: AtomicU64,
+}
+
+/// The socket every call goes to. Only the first one is cached before its proof.
+struct Cached {
+    connection: Arc<Connection>,
+    is_proved: bool,
 }
 
 impl fmt::Debug for ElectrumClient {
@@ -45,14 +51,14 @@ impl fmt::Debug for ElectrumClient {
 impl ElectrumClient {
     /// Negotiates on the first socket, so a client that exists has reached its server.
     pub(crate) async fn open(
-        sockets: Arc<dyn SocketSource>,
+        sockets: Box<dyn SocketSource>,
         chain: ElectrumChain,
     ) -> Result<Self, ElectrumError> {
-        let connection = Connection::open(sockets.as_ref(), chain).await?;
+        let connection = Arc::new(Connection::open(sockets.as_ref(), chain).await?);
         Ok(Self {
             sockets,
             chain,
-            connection: AsyncMutex::new(Some(Arc::new(connection))),
+            cached: AsyncMutex::new(Some(Cached { connection, is_proved: false })),
             sockets_opened: AtomicU64::new(1),
         })
     }
@@ -64,14 +70,14 @@ impl ElectrumClient {
     /// What the cached socket negotiated, or `None` while no socket is cached.
     #[cfg(feature = "test-util")]
     pub async fn protocol(&self) -> Option<ProtocolVersion> {
-        self.connection.lock().await.as_ref().map(|connection| connection.protocol())
+        self.cached.lock().await.as_ref().map(|cached| cached.connection.protocol())
     }
 
     /// The software string the server gave in the cached socket's handshake, or `None`
     /// while no socket is cached.
     #[cfg(feature = "test-util")]
     pub async fn software(&self) -> Option<String> {
-        self.connection.lock().await.as_ref().map(|connection| connection.software().to_owned())
+        self.cached.lock().await.as_ref().map(|cached| cached.connection.software().to_owned())
     }
 
     /// Opening a client doesn't prove its chain, and a wrong block here is an
@@ -161,20 +167,22 @@ impl ElectrumClient {
     /// Holds the lock across the dial and the proof, so concurrent callers share one
     /// reconnect.
     async fn connection(&self) -> Result<Arc<Connection>, ElectrumError> {
-        let mut guard = self.connection.lock().await;
-        if let Some(existing) = guard.as_ref()
-            && existing.is_live()
+        let mut guard = self.cached.lock().await;
+        if let Some(cached) = guard.as_mut()
+            && cached.connection.is_live()
         {
-            let existing = Arc::clone(existing);
-            if let Err(error) = existing.prove().await {
-                *guard = None;
-                return Err(error);
+            if !cached.is_proved {
+                if let Err(error) = cached.connection.prove().await {
+                    *guard = None;
+                    return Err(error);
+                }
+                cached.is_proved = true;
             }
-            return Ok(existing);
+            return Ok(Arc::clone(&cached.connection));
         }
         *guard = None;
         let fresh = Arc::new(self.dial().await?);
-        *guard = Some(Arc::clone(&fresh));
+        *guard = Some(Cached { connection: Arc::clone(&fresh), is_proved: true });
         Ok(fresh)
     }
 
@@ -216,8 +224,8 @@ impl ElectrumClient {
 
     /// Drops `stale` from the cache, unless a reconnect has already replaced it.
     async fn discard(&self, stale: &Arc<Connection>) {
-        let mut guard = self.connection.lock().await;
-        if guard.as_ref().is_some_and(|held| Arc::ptr_eq(held, stale)) {
+        let mut guard = self.cached.lock().await;
+        if guard.as_ref().is_some_and(|cached| Arc::ptr_eq(&cached.connection, stale)) {
             *guard = None;
         }
     }

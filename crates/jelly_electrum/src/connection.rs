@@ -1,5 +1,3 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use bitcoin::consensus::encode::serialize_hex;
 use bitcoin::{BlockHash, ScriptBuf, Transaction, Txid, block};
 use jelly_core::EndpointLabel;
@@ -40,12 +38,11 @@ const MAX_BATCH: usize = 20;
 const OVERSIZED_ANSWER: &str = "response too large";
 
 /// One negotiated socket, with its subscriptions and the checks on every answer.
-/// `ElectrumClient` handles reconnection.
+/// `ElectrumClient` handles reconnection and decides when a socket proves its chain.
 pub(crate) struct Connection {
     socket: RpcSocket,
     version: ServerVersion,
     chain: ElectrumChain,
-    is_proved: AtomicBool,
     registration: AsyncMutex<Option<Registration>>,
 }
 
@@ -70,13 +67,7 @@ impl Connection {
     ) -> Result<Self, ElectrumError> {
         let socket = RpcSocket::open(sockets.open().await?, sockets.endpoint().clone());
         let version = negotiate(&socket).await?;
-        Ok(Self {
-            socket,
-            version,
-            chain,
-            is_proved: AtomicBool::new(false),
-            registration: AsyncMutex::new(None),
-        })
+        Ok(Self { socket, version, chain, registration: AsyncMutex::new(None) })
     }
 
     fn endpoint(&self) -> &EndpointLabel {
@@ -159,15 +150,12 @@ impl Connection {
         }
     }
 
-    /// Checks this socket's blocks against the chain's, once per socket.
+    /// Checks this socket's blocks against the chain's.
     ///
     /// The headers are the proof, since `server.features` is only a claim. A server whose
     /// block zero contradicts its own claim is refused anyway, because that looks like a
     /// proxy stitching two backends together.
     pub(crate) async fn prove(&self) -> Result<(), ElectrumError> {
-        if self.is_proved.load(Ordering::Acquire) {
-            return Ok(());
-        }
         let heights: Vec<u32> = self.chain.proofs().map(|proof| proof.height).collect();
         let (features, headers) = tokio::join!(
             self.call::<_, ServerFeatures>(Method::ServerFeatures, &[(); 0]),
@@ -208,7 +196,6 @@ impl Connection {
                 });
             }
         }
-        self.is_proved.store(true, Ordering::Release);
         Ok(())
     }
 
@@ -489,159 +476,4 @@ fn decode<T: DeserializeOwned>(
 
 fn script_hashes(scripts: &[ScriptBuf]) -> Vec<(ElectrumScriptHash,)> {
     scripts.iter().map(|script| (ElectrumScriptHash::of(script),)).collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::BTreeMap;
-    use std::sync::Arc;
-
-    use async_trait::async_trait;
-    use bitcoin::absolute::LockTime;
-    use bitcoin::consensus::serialize;
-    use bitcoin::hashes::Hash as _;
-    use bitcoin::transaction::Version;
-    use bitcoin::{Amount, OutPoint, TxIn, TxOut};
-    use jelly_net::Socket;
-    use parking_lot::Mutex;
-    use serde_json::{Value, json};
-    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _, DuplexStream, duplex};
-    use tokio::task::JoinSet;
-
-    use super::*;
-    use crate::frame::{FrameReader, encode_line};
-
-    /// `ElectrumX`'s default `MAX_SEND` for a coin that isn't merge-mined, the largest
-    /// response aiorpcx will send.
-    const ELECTRUMX_MAX_SEND: usize = 1_000_000;
-
-    /// An `ElectrumX` server that answers a batch the way aiorpcx does.
-    ///
-    /// It keeps a running total of the answers' sizes, and every element past
-    /// `ELECTRUMX_MAX_SEND` gets an oversized-response error instead of its result.
-    #[derive(Debug)]
-    struct Electrumx {
-        endpoint: EndpointLabel,
-        txs: Arc<BTreeMap<String, String>>,
-        servers: Mutex<JoinSet<()>>,
-    }
-
-    #[async_trait]
-    impl SocketSource for Electrumx {
-        fn endpoint(&self) -> &EndpointLabel {
-            &self.endpoint
-        }
-
-        async fn open(&self) -> Result<Box<dyn Socket>, ElectrumError> {
-            let (client, server) = duplex(65_536);
-            self.servers.lock().spawn(serve(server, Arc::clone(&self.txs)));
-            Ok(Box::new(client))
-        }
-    }
-
-    async fn serve(mut stream: DuplexStream, txs: Arc<BTreeMap<String, String>>) {
-        let mut lines = FrameReader::new(usize::MAX);
-        let mut chunk = vec![0u8; 4096];
-        loop {
-            let read_bytes = match stream.read(&mut chunk).await {
-                Ok(0) | Err(_) => return,
-                Ok(read_bytes) => read_bytes,
-            };
-            lines.extend(&chunk[..read_bytes]);
-            while let Some(line) = lines.take_line() {
-                let request: Value = serde_json::from_slice(&line).unwrap();
-                let answer = match request.as_array() {
-                    Some(batch) => answer_batch(batch, &txs),
-                    None => answer_one(&request, &txs),
-                };
-                stream.write_all(&encode_line(&answer)).await.unwrap();
-            }
-        }
-    }
-
-    fn answer_one(request: &Value, txs: &BTreeMap<String, String>) -> String {
-        let result = match request.get("method").and_then(Value::as_str) {
-            Some("server.version") => json!(["ElectrumX 1.18.0", "1.4.3"]),
-            Some("blockchain.transaction.get") => request
-                .pointer("/params/0")
-                .and_then(Value::as_str)
-                .and_then(|txid| txs.get(txid))
-                .map_or(Value::Null, |hex_text| json!(hex_text)),
-            _ => Value::Null,
-        };
-        json!({"jsonrpc": "2.0", "result": result, "id": request.get("id")}).to_string()
-    }
-
-    fn answer_batch(batch: &[Value], txs: &BTreeMap<String, String>) -> String {
-        let mut size = 0usize;
-        let parts: Vec<String> = batch
-            .iter()
-            .map(|request| {
-                let part = answer_one(request, txs);
-                size = size.saturating_add(part.len()).saturating_add(2);
-                if size <= ELECTRUMX_MAX_SEND {
-                    return part;
-                }
-                let message = format!("response too large (over {ELECTRUMX_MAX_SEND} bytes");
-                json!({
-                    "jsonrpc": "2.0",
-                    "error": {"code": -32600, "message": message},
-                    "id": request.get("id"),
-                })
-                .to_string()
-            })
-            .collect();
-        format!("[{}]", parts.join(", "))
-    }
-
-    /// About thirty kilobytes, the size of a large consolidation, and different for
-    /// every `seed`.
-    fn bulky_tx(seed: u8) -> Transaction {
-        Transaction {
-            version: Version::TWO,
-            lock_time: LockTime::ZERO,
-            input: vec![TxIn {
-                previous_output: OutPoint::new(Txid::all_zeros(), u32::from(seed)),
-                ..TxIn::default()
-            }],
-            output: vec![TxOut {
-                value: Amount::from_sat(10_000),
-                script_pubkey: ScriptBuf::from_bytes(vec![seed; 30_000]),
-            }],
-        }
-    }
-
-    #[tokio::test]
-    async fn a_batch_too_large_for_electrumx_as_a_whole_is_asked_again_in_halves() {
-        let bulky: Vec<Transaction> = (0..20).map(bulky_tx).collect();
-        let txids: Vec<Txid> = bulky.iter().map(Transaction::compute_txid).collect();
-        let served: BTreeMap<String, String> = bulky
-            .iter()
-            .map(|tx| (tx.compute_txid().to_string(), hex::encode(serialize(tx))))
-            .collect();
-        let largest = served.values().map(String::len).max().unwrap();
-        assert!(largest * 10 < ELECTRUMX_MAX_SEND, "each answer alone is far under the limit");
-
-        let sockets = Electrumx {
-            endpoint: EndpointLabel::new("ssl", "electrum.invalid", Some(50002)),
-            txs: Arc::new(served),
-            servers: Mutex::default(),
-        };
-        let chain = ElectrumChain {
-            genesis: BlockHash::all_zeros(),
-            checkpoint: None,
-            is_merge_mined: false,
-        };
-        let connection = Connection::open(&sockets, chain).await.unwrap();
-
-        let fetched = connection.txs(&txids).await;
-        assert!(
-            fetched.as_ref().is_ok_and(|served| served.len() == txids.len()),
-            "expected all {} transactions, each answer about {largest} bytes, to be fetched from an \
-             ElectrumX server whose limit is {ELECTRUMX_MAX_SEND} bytes per response, but the \
-             fetch ended with {:?}",
-            txids.len(),
-            fetched.map(|served| served.len()),
-        );
-    }
 }

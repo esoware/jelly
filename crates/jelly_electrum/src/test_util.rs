@@ -112,6 +112,7 @@ pub struct Call {
 #[derive(Debug)]
 struct State {
     pipe_capacity_bytes: AtomicUsize,
+    max_send_bytes: AtomicUsize,
     queued_answers: Mutex<HashMap<Method, VecDeque<Answer>>>,
     standing_answers: Mutex<HashMap<Method, Answer>>,
     pending_notifications: Mutex<Vec<String>>,
@@ -144,6 +145,7 @@ impl FakeElectrum {
         Self {
             state: Arc::new(State {
                 pipe_capacity_bytes: AtomicUsize::new(DEFAULT_PIPE_CAPACITY_BYTES),
+                max_send_bytes: AtomicUsize::new(usize::MAX),
                 queued_answers: Mutex::new(HashMap::new()),
                 standing_answers: Mutex::new(standing_answers),
                 pending_notifications: Mutex::new(Vec::new()),
@@ -157,6 +159,14 @@ impl FakeElectrum {
     /// A tiny pipe forces the reader to reassemble every line from several reads.
     pub fn set_pipe_capacity(&self, bytes: usize) {
         self.state.pipe_capacity_bytes.store(bytes.max(1), Ordering::SeqCst);
+    }
+
+    /// Answers a batch the way `ElectrumX`'s aiorpcx applies its `MAX_SEND`.
+    ///
+    /// It keeps a running total of the answers' sizes, and every element past `bytes`
+    /// gets an oversized-response error instead of its result.
+    pub fn set_max_send(&self, bytes: usize) {
+        self.state.max_send_bytes.store(bytes, Ordering::SeqCst);
     }
 
     /// Queues one answer for `method`, consumed by the next call.
@@ -235,8 +245,8 @@ impl FakeElectrum {
 
     /// A socket source under a caller's label, for a pool whose endpoints name
     /// their own hosts.
-    fn source_for(&self, endpoint: EndpointLabel) -> Arc<dyn SocketSource> {
-        Arc::new(FakeSockets { fake: self.clone(), endpoint })
+    fn source_for(&self, endpoint: EndpointLabel) -> Box<dyn SocketSource> {
+        Box::new(FakeSockets { fake: self.clone(), endpoint })
     }
 
     fn record(&self, method: Method, params: &str) {
@@ -313,10 +323,11 @@ impl FakeElectrum {
             return Reply::Nothing;
         };
         let text = if is_batch {
-            format!("[{}]", elements.join(","))
+            let max_send_bytes = self.state.max_send_bytes.load(Ordering::SeqCst);
+            format!("[{}]", within_max_send(elements, max_send_bytes).join(","))
         } else {
             match elements.into_iter().next() {
-                Some(text) => text,
+                Some((_, text)) => text,
                 None => return Reply::Nothing,
             }
         };
@@ -372,27 +383,43 @@ enum Reply {
     Nothing,
 }
 
-fn elements(ids: &[u64], keys: &[Option<String>], answer: &Answer) -> Option<Vec<String>> {
+/// Each reply element with the request id it answers.
+fn elements(ids: &[u64], keys: &[Option<String>], answer: &Answer) -> Option<Vec<(u64, String)>> {
     match *answer {
         Answer::Silence | Answer::HangUp => None,
         Answer::Result(ref json) | Answer::Deferred(ref json) => {
-            Some(ids.iter().map(|id| success(*id, json)).collect())
+            Some(ids.iter().map(|id| (*id, success(*id, json))).collect())
         }
         Answer::Each(ref list) => {
-            Some(ids.iter().zip(list.iter()).map(|(id, json)| success(*id, json)).collect())
+            Some(ids.iter().zip(list.iter()).map(|(id, json)| (*id, success(*id, json))).collect())
         }
         Answer::Keyed(ref by_key) => Some(
             ids.iter()
                 .zip(keys)
                 .filter_map(|(id, key)| {
-                    key.as_ref().and_then(|key| by_key.get(key)).map(|json| success(*id, json))
+                    let json = by_key.get(key.as_ref()?)?;
+                    Some((*id, success(*id, json)))
                 })
                 .collect(),
         ),
         Answer::Error { code, ref message } => {
-            Some(ids.iter().map(|id| failure(*id, code, message)).collect())
+            Some(ids.iter().map(|id| (*id, failure(*id, code, message))).collect())
         }
     }
+}
+
+fn within_max_send(elements: Vec<(u64, String)>, max_send_bytes: usize) -> Vec<String> {
+    let mut sent_bytes = 0usize;
+    elements
+        .into_iter()
+        .map(|(id, text)| {
+            sent_bytes = sent_bytes.saturating_add(text.len());
+            if sent_bytes <= max_send_bytes {
+                return text;
+            }
+            failure(id, -32600, &format!("response too large (over {max_send_bytes} bytes"))
+        })
+        .collect()
 }
 
 fn success(id: u64, json: &str) -> String {

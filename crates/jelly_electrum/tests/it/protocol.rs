@@ -112,7 +112,7 @@ mod scripts {
     use super::*;
 
     #[tokio::test]
-    async fn history_decodes_through_the_wire_path() {
+    async fn a_history_decodes_its_confirmations_and_mempool_fees() {
         let fake = FakeElectrum::new();
         fake.always(Method::GetHistory, Answer::Result(raw(HISTORY, "/result")));
         let client = fake.client().await.expect("the fake negotiates");
@@ -194,7 +194,7 @@ mod scripts {
     }
 
     #[tokio::test]
-    async fn unspent_outputs_decode() {
+    async fn unspent_outputs_decode_into_outpoints_values_and_heights() {
         let fake = FakeElectrum::new();
         fake.always(Method::ListUnspent, Answer::Result(raw(LISTUNSPENT, "/result")));
         let client = fake.client().await.expect("the fake negotiates");
