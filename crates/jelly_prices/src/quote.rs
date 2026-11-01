@@ -33,13 +33,12 @@ impl QuoteRequest {
         if tickers.is_empty() {
             return None;
         }
-        let tickers: Vec<Ticker> = tickers.iter().copied().collect();
         let rate_pairs: Vec<RatePair> = RatePair::all().collect();
         let coins = tickers.iter().map(|&ticker| Pair::asset(ticker).canonical);
         let rates = rate_pairs.iter().map(|rate| rate.pair.canonical);
         let pairs: Vec<&str> = coins.chain(rates).collect();
         let url = format!("https://{}/0/public/Ticker?pair={}", kraken::HOST, pairs.join(","));
-        Some(Self { url, tickers, rate_pairs })
+        Some(Self { url, tickers: tickers.iter().copied().collect(), rate_pairs })
     }
 
     /// What this request is expected to price. Every one of them appears in the
@@ -94,9 +93,7 @@ fn last_trade(result: &BTreeMap<String, Entry>, pair: Pair) -> Result<Price, Quo
     let quoted = Price::quote(last)?;
     match pair.listed {
         Listed::AsQuoted => Ok(quoted),
-        Listed::Inverted => {
-            quoted.inverse().filter(|inverted| !inverted.is_zero()).ok_or(QuoteRejection::Zero)
-        }
+        Listed::Inverted => quoted.inverse().ok_or(QuoteRejection::Zero),
     }
 }
 

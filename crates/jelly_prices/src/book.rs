@@ -18,7 +18,7 @@ pub(crate) const DISCARD_AFTER: Duration = Duration::from_hours(24);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PriceRecord {
-    pub(crate) asset: AssetId,
+    asset: AssetId,
     pub(crate) price: Price,
     pub(crate) as_of_unix_secs: i64,
 }
@@ -36,7 +36,7 @@ pub struct PriceBook {
 /// A price or rate the book holds, and when it was quoted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Dated {
-    pub(crate) value: Price,
+    value: Price,
     pub(crate) as_of_unix_secs: i64,
 }
 
@@ -76,10 +76,8 @@ impl PriceBook {
         } else if let Some(rate) = self.rates.get(&self.currency) {
             usd_records
                 .filter_map(|record| {
-                    let price =
-                        record.price.convert(rate.value).filter(|price| !price.is_zero())?;
                     Some(PriceRecord {
-                        price,
+                        price: record.price.convert(rate.value)?,
                         as_of_unix_secs: record.as_of_unix_secs.min(rate.as_of_unix_secs),
                         ..record
                     })

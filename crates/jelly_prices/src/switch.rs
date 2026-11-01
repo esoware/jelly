@@ -2,25 +2,11 @@ use tokio::sync::watch;
 
 /// True once `enabled` holds `true`, or false once its sender is dropped.
 pub(crate) async fn wait_until_enabled(enabled: &mut watch::Receiver<bool>) -> bool {
-    loop {
-        if *enabled.borrow_and_update() {
-            return true;
-        }
-        if enabled.changed().await.is_err() {
-            return false;
-        }
-    }
+    enabled.wait_for(|&is_enabled| is_enabled).await.is_ok()
 }
 
-/// True once `enabled` changes to `false`, or false once its sender is dropped.
-/// A repeated `true` is ignored.
+/// True once `enabled` holds `false`, or false once its sender is dropped. Every caller
+/// has last seen `true`, so this is the switch turning off.
 pub(crate) async fn wait_until_disabled(enabled: &mut watch::Receiver<bool>) -> bool {
-    loop {
-        if enabled.changed().await.is_err() {
-            return false;
-        }
-        if !*enabled.borrow_and_update() {
-            return true;
-        }
-    }
+    enabled.wait_for(|&is_enabled| !is_enabled).await.is_ok()
 }

@@ -55,9 +55,9 @@ pub(crate) enum Market {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Candle {
     pub(crate) open_unix_secs: i64,
-    pub(crate) open: Price,
-    pub(crate) high: Price,
-    pub(crate) low: Price,
+    open: Price,
+    high: Price,
+    low: Price,
     pub(crate) close: Price,
 }
 
@@ -69,12 +69,11 @@ impl Candle {
     /// The same trading counted the other way round, so the inverse of the low is
     /// the new high.
     fn inverse(self) -> Option<Self> {
-        let invert = |price: Price| price.inverse().filter(|inverted| !inverted.is_zero());
         Some(Self {
-            open: invert(self.open)?,
-            high: invert(self.low)?,
-            low: invert(self.high)?,
-            close: invert(self.close)?,
+            open: self.open.inverse()?,
+            high: self.low.inverse()?,
+            low: self.high.inverse()?,
+            close: self.close.inverse()?,
             ..self
         })
     }
@@ -82,12 +81,11 @@ impl Candle {
     /// This candle in another currency, at `rate` units of it per unit of this one.
     /// Every price truncates the same way, so the candle keeps its shape.
     pub(crate) fn convert(self, rate: Price) -> Option<Self> {
-        let convert = |price: Price| price.convert(rate).filter(|converted| !converted.is_zero());
         Some(Self {
-            open: convert(self.open)?,
-            high: convert(self.high)?,
-            low: convert(self.low)?,
-            close: convert(self.close)?,
+            open: self.open.convert(rate)?,
+            high: self.high.convert(rate)?,
+            low: self.low.convert(rate)?,
+            close: self.close.convert(rate)?,
             ..self
         })
     }
