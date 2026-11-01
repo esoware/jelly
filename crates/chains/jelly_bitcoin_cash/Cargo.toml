@@ -19,7 +19,9 @@ bitcoin = { workspace = true }
 [dev-dependencies]
 jelly_core    = { workspace = true, features = ["test-util"] }
 jelly_keypair = { workspace = true, features = ["test-util"] }
+jelly_net     = { workspace = true, features = ["test-util"] }
 jelly_utxo    = { workspace = true, features = ["test-util"] }
 hex           = { workspace = true }
 serde         = { workspace = true }
 serde_json    = { workspace = true }
+tokio         = { workspace = true }

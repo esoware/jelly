@@ -3884,6 +3884,7 @@ dependencies = [
  "jelly_net",
  "jelly_utxo",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -3898,6 +3899,7 @@ dependencies = [
  "jelly_utxo",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -3972,6 +3974,7 @@ dependencies = [
  "jelly_net",
  "jelly_utxo",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -4099,6 +4102,7 @@ dependencies = [
  "jelly_net",
  "jelly_utxo",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

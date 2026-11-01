@@ -136,9 +136,9 @@ pub async fn build(
     network: &Network,
     request: &BuildRequest,
 ) -> Result<Arc<dyn ChainAdapter>, BuildError> {
-    jelly_utxo::build(network, request, &PARAMS, &SPEC).await
+    jelly_utxo::build(&SPEC, &PARAMS, network, request).await
 }
 
 pub async fn probe(network: &Network, endpoint: &Endpoint) -> ProbeReport {
-    jelly_utxo::probe(network, endpoint, &PARAMS).await
+    jelly_utxo::probe(&PARAMS, network, endpoint).await
 }

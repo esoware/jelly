@@ -24,10 +24,10 @@ fn electrum(network: &Network, params: &UtxoParams) -> Result<ElectrumConnector,
 /// An auctioned chain without a fee service falls back to the Electrum server's
 /// estimates. A flat chain reads no market, so it gets no fee service.
 pub async fn build(
+    spec: &ChainSpec,
+    params: &UtxoParams,
     network: &Network,
     request: &BuildRequest,
-    params: &UtxoParams,
-    spec: &ChainSpec,
 ) -> Result<Arc<dyn ChainAdapter>, BuildError> {
     let pool = network.primary_pool(spec, electrum(network, params)?)?;
     let fee_api: Option<Arc<dyn FeeApi>> = if let FeeMarket::Auction(auction) = params.fee_market
@@ -49,7 +49,7 @@ pub async fn build(
 /// The registry probes a REST service itself before dispatching here, so an endpoint
 /// on any other transport was built outside the registry and gets the registry's own
 /// refusal.
-pub async fn probe(network: &Network, endpoint: &Endpoint, params: &UtxoParams) -> ProbeReport {
+pub async fn probe(params: &UtxoParams, network: &Network, endpoint: &Endpoint) -> ProbeReport {
     if endpoint.transport() != Transport::ElectrumSsl {
         return ProbeReport::unused_transport(endpoint.label());
     }
