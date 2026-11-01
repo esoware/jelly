@@ -17,15 +17,15 @@ import { SectionHeader } from "@/ui/section-header.tsx"
 import { Switch } from "@/ui/switch.tsx"
 import { ChainLogo } from "@/widgets/logos.tsx"
 
+interface SavePollInterval {
+  draft: string
+  pollSecs: number | null
+}
+
 interface ChainRowProps {
   chain: ChainId
   isEnabled: boolean
   onEnabledChange: (isEnabled: boolean) => void
-}
-
-interface SavePollInterval {
-  draft: string
-  pollSecs: number | null
 }
 
 function ChainRow({ chain, isEnabled, onEnabledChange }: ChainRowProps) {
@@ -95,33 +95,34 @@ function ChainRow({ chain, isEnabled, onEnabledChange }: ChainRowProps) {
   )
 }
 
-const CHAIN: ChainId = "monero"
-
-interface RestoreHeightFormProps {
-  wallet: WalletRecord | null
-}
+const RESTORE_HEIGHT_CHAIN: ChainId = "monero"
 
 interface SaveRestoreHeight {
   draft: string
   height: number | null
 }
 
+interface RestoreHeightFormProps {
+  wallet: WalletRecord | null
+}
+
 function RestoreHeightForm({ wallet }: RestoreHeightFormProps) {
   const [draft, setDraft] = useState<string | null>(null)
-  const storedHeight = wallet?.restoreHeights[CHAIN] ?? null
+  const storedHeight = wallet?.restoreHeights[RESTORE_HEIGHT_CHAIN] ?? null
   const value = draft ?? (storedHeight === null ? "" : String(storedHeight))
   const parsed = parseOptionalWhole(value, Number.MAX_SAFE_INTEGER, "Enter a whole block height.")
 
   const save = useIpcMutation<null, SaveRestoreHeight>({
-    mutationFn: (variables) => chainCommands.setRestoreHeight(CHAIN, variables.height),
+    mutationFn: (variables) =>
+      chainCommands.setRestoreHeight(RESTORE_HEIGHT_CHAIN, variables.height),
     invalidates: [walletKeys.root],
     optimistic: (client, variables) => {
       patchWallet(client, wallet?.id ?? null, (row) => {
         const restoreHeights = { ...row.restoreHeights }
         if (variables.height === null) {
-          delete restoreHeights[CHAIN]
+          delete restoreHeights[RESTORE_HEIGHT_CHAIN]
         } else {
-          restoreHeights[CHAIN] = variables.height
+          restoreHeights[RESTORE_HEIGHT_CHAIN] = variables.height
         }
         return { ...row, restoreHeights }
       })
@@ -145,7 +146,7 @@ function RestoreHeightForm({ wallet }: RestoreHeightFormProps) {
     >
       <SectionHeader
         level="subsection"
-        title={`${chainName(CHAIN)} restore height`}
+        title={`${chainName(RESTORE_HEIGHT_CHAIN)} restore height`}
         description="Start scanning at this block."
       />
 

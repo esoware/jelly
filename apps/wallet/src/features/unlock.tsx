@@ -18,6 +18,8 @@ import { Select, SelectPopup, SelectItem, SelectTrigger } from "@/ui/select.tsx"
 import { DeleteWalletDialog } from "@/widgets/dialogs.tsx"
 import { WalletAvatar, walletBadges } from "@/widgets/logos.tsx"
 
+const UNLOCK_FAILURE_TITLE = "Could not unlock the wallet"
+
 interface UnlockWallet {
   walletId: number
   password: string
@@ -37,7 +39,7 @@ export function UnlockView() {
   const unlock = useIpcMutation<null, UnlockWallet>({
     mutationFn: (variables) =>
       walletCommands.unlock(variables.walletId, variables.password, variables.passphrase),
-    errorTitle: "Could not unlock the wallet",
+    errorTitle: UNLOCK_FAILURE_TITLE,
     onDone: () => {
       void navigate({ to: "/wallet", replace: true })
     },
@@ -154,7 +156,7 @@ export function UnlockView() {
         ) : null}
 
         {formError === null ? null : (
-          <Callout tone="danger" heading="Could not unlock the wallet">
+          <Callout tone="danger" heading={UNLOCK_FAILURE_TITLE}>
             {formError}
           </Callout>
         )}

@@ -110,14 +110,11 @@ export function StartupFailed({ message }: StartupFailedProps) {
 const INITIAL_PROXY: ProxySetting = { kind: "socks5h", url: "" }
 
 function ProxyRepair() {
-  const [isSaved, setIsSaved] = useState(false)
   const save = useIpcMutation<null, ProxySetting | null>({
     mutationFn: appCommands.repairProxy,
     errorTitle: "Could not save the proxy settings",
-    onDone: () => {
-      setIsSaved(true)
-    },
   })
+  const isSaved = save.isSuccess
 
   return (
     <StartupNotice
@@ -148,18 +145,22 @@ function ProxyRepair() {
 }
 
 interface DatabaseRebuiltDialogProps {
-  open: boolean
   rebuilt: DatabaseRebuilt
-  onAcknowledge: () => void
 }
 
-function DatabaseRebuiltDialog({ open, rebuilt, onAcknowledge }: DatabaseRebuiltDialogProps) {
+function DatabaseRebuiltDialog({ rebuilt }: DatabaseRebuiltDialogProps) {
+  const [isAcknowledged, setIsAcknowledged] = useState(false)
+
+  function acknowledge(): void {
+    setIsAcknowledged(true)
+  }
+
   return (
     <Dialog
-      open={open}
+      open={!isAcknowledged}
       onOpenChange={(next) => {
         if (!next) {
-          onAcknowledge()
+          acknowledge()
         }
       }}
     >
@@ -181,7 +182,7 @@ function DatabaseRebuiltDialog({ open, rebuilt, onAcknowledge }: DatabaseRebuilt
         </DialogBody>
 
         <DialogFooter>
-          <Button onClick={onAcknowledge}>Continue</Button>
+          <Button onClick={acknowledge}>Continue</Button>
         </DialogFooter>
       </DialogPopup>
     </Dialog>
@@ -194,23 +195,13 @@ interface StartupGateProps {
 
 export function StartupGate({ children }: StartupGateProps) {
   const status = useStartupStatus()
-  const [isAcknowledged, setIsAcknowledged] = useState(false)
 
   if (status?.kind === "starting") {
     return <Splash />
   }
 
   const rebuilt = status?.rebuilt ?? null
-  const rebuiltNotice =
-    rebuilt === null ? null : (
-      <DatabaseRebuiltDialog
-        open={!isAcknowledged}
-        rebuilt={rebuilt}
-        onAcknowledge={() => {
-          setIsAcknowledged(true)
-        }}
-      />
-    )
+  const rebuiltNotice = rebuilt === null ? null : <DatabaseRebuiltDialog rebuilt={rebuilt} />
 
   if (status?.kind === "failed") {
     return (

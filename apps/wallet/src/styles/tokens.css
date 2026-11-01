@@ -92,6 +92,7 @@
   --container-md: 28rem;
   --container-lg: 32rem;
   --container-xl: 36rem;
+  --container-page: calc(var(--container-xl) - var(--spacing) * 8);
 
   --blur-sm: 8px;
   --blur-lg: 24px;

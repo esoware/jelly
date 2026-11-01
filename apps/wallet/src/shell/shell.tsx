@@ -217,8 +217,7 @@ function Titlebar({ title, center, right }: TitlebarProps) {
     }
   }, [])
 
-  const osTitle =
-    title === null || title === undefined || title === "" ? "Jelly" : `Jelly - ${title}`
+  const osTitle = title === null || title === undefined ? "Jelly" : `Jelly - ${title}`
 
   useEffect(() => {
     setWindowTitle(osTitle)

@@ -33,7 +33,7 @@ export function SettingsLayout() {
       </nav>
 
       <main className="min-h-0 flex-1 scroll-y-4">
-        <div className="mx-auto flex w-full max-w-[calc(var(--container-xl)-var(--spacing)*8)] flex-col gap-4 pt-5 pb-4">
+        <div className="mx-auto flex w-full max-w-page flex-col gap-4 pt-5 pb-4">
           <Outlet />
         </div>
       </main>
