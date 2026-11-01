@@ -33,12 +33,14 @@ use chacha20poly1305::{
 };
 use hkdf::{Hkdf, HkdfExtract};
 use hmac::{Hmac, Mac as _};
+use jelly_core::random_bytes;
 use secrecy::SecretBox;
 use sha2::Sha256;
 use subtle::ConstantTimeEq as _;
 use zeroize::Zeroizing;
 
 use crate::error::VaultError;
+use crate::kdf::{Argon2Params, KDF_SALT_LEN, VaultPassword, hash_password};
 use crate::keychain::MasterKey;
 
 /// Width of every derived key: the Argon2id output, the AEAD key, and the header MAC key.
@@ -54,16 +56,97 @@ const AEAD_INFO: &[u8] = b"jelly-vault/v3/aead";
 const HMAC_INFO: &[u8] = b"jelly-vault/v3/hmac";
 const COMMIT_INFO: &[u8] = b"jelly-vault/v3/commit";
 
+/// The per-file inputs to the hierarchy, which the header records. A rekey replaces all
+/// three, and every other write keeps them.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Derivation {
+    pub(crate) kdf_params: Argon2Params,
+    pub(crate) kdf_salt: [u8; KDF_SALT_LEN],
+    pub(crate) hkdf_salt: [u8; HKDF_SALT_LEN],
+}
+
+impl Derivation {
+    /// Argon2id over the password, then HKDF over both factors.
+    pub(crate) fn password_keys(
+        &self,
+        master: &MasterKey,
+        password: &VaultPassword,
+        wallet_id: &str,
+    ) -> Result<PasswordKeys, VaultError> {
+        let hash = hash_password(password, &self.kdf_salt, self.kdf_params)?;
+        combine_factors(master, &hash, &self.hkdf_salt, wallet_id)
+    }
+}
+
 /// What a password unlocks: the AEAD key, and the commitment proving it's the key this
 /// file was sealed under.
 pub(crate) struct PasswordKeys {
-    pub(crate) aead_key: Zeroizing<[u8; KEY_LEN]>,
-    pub(crate) commitment: [u8; COMMITMENT_LEN],
+    aead_key: Zeroizing<[u8; KEY_LEN]>,
+    commitment: [u8; COMMITMENT_LEN],
+}
+
+impl PasswordKeys {
+    /// Constant-time, so a mismatch doesn't leak where the two differ.
+    pub(crate) fn check_commitment(
+        &self,
+        recorded: &[u8; COMMITMENT_LEN],
+    ) -> Result<(), VaultError> {
+        if bool::from(self.commitment.ct_eq(recorded)) {
+            Ok(())
+        } else {
+            Err(VaultError::WrongPassword)
+        }
+    }
 }
 
 impl fmt::Debug for PasswordKeys {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("PasswordKeys(<redacted>)")
+    }
+}
+
+/// The keys a session seals under, and the header values that go with them.
+///
+/// The cipher and the header MAC key are boxed. An `UnlockedVault` is returned by value,
+/// and a move is a memcpy, so an inline key would leave an unwiped copy at every address
+/// the session has had.
+pub(crate) struct SessionKeys {
+    pub(crate) cipher: Box<SessionCipher>,
+    pub(crate) mac_key: SecretBox<[u8; KEY_LEN]>,
+    /// Not secret, since the header holds the same value.
+    pub(crate) commitment: [u8; COMMITMENT_LEN],
+    pub(crate) derivation: Derivation,
+}
+
+impl SessionKeys {
+    pub(crate) fn new(
+        password_keys: &PasswordKeys,
+        mac_key: SecretBox<[u8; KEY_LEN]>,
+        derivation: Derivation,
+    ) -> Self {
+        Self {
+            cipher: Box::new(SessionCipher::new(&password_keys.aead_key)),
+            mac_key,
+            commitment: password_keys.commitment,
+            derivation,
+        }
+    }
+
+    /// Both factors under fresh salts, for a new file or a rekey.
+    pub(crate) fn derive(
+        master: &MasterKey,
+        password: &VaultPassword,
+        wallet_id: &str,
+        kdf_params: Argon2Params,
+    ) -> Result<Self, VaultError> {
+        let derivation = Derivation {
+            kdf_params,
+            kdf_salt: *random_bytes::<KDF_SALT_LEN>()?,
+            hkdf_salt: *random_bytes::<HKDF_SALT_LEN>()?,
+        };
+        let password_keys = derivation.password_keys(master, password, wallet_id)?;
+        let mac_key = header_mac_key(master, &derivation.hkdf_salt, wallet_id)?;
+        Ok(Self::new(&password_keys, mac_key, derivation))
     }
 }
 
@@ -79,7 +162,7 @@ pub(crate) fn header_mac_key(
     Ok(SecretBox::init_with_mut(|slot: &mut [u8; KEY_LEN]| *slot = *key))
 }
 
-pub(crate) fn password_keys(
+fn combine_factors(
     master: &MasterKey,
     password_hash: &[u8; KEY_LEN],
     hkdf_salt: &[u8; HKDF_SALT_LEN],
@@ -93,15 +176,6 @@ pub(crate) fn password_keys(
         aead_key: expand(&hkdf, AEAD_INFO, wallet_id)?,
         commitment: *expand(&hkdf, COMMIT_INFO, wallet_id)?,
     })
-}
-
-/// Constant-time, so a mismatch doesn't leak where the two differ.
-#[must_use]
-pub(crate) fn commitment_matches(
-    left: &[u8; COMMITMENT_LEN],
-    right: &[u8; COMMITMENT_LEN],
-) -> bool {
-    left.ct_eq(right).into()
 }
 
 /// `length` as eight little-endian bytes, part of the on-disk format.
@@ -166,7 +240,7 @@ impl fmt::Debug for HeaderMac {
 pub(crate) struct SessionCipher(XChaCha20Poly1305);
 
 impl SessionCipher {
-    pub(crate) fn new(key: &[u8; KEY_LEN]) -> Self {
+    fn new(key: &[u8; KEY_LEN]) -> Self {
         Self(XChaCha20Poly1305::new(key.into()))
     }
 
@@ -236,7 +310,7 @@ mod tests {
         let master_bytes = [0x11u8; MASTER_KEY_LEN];
         let password_hash = [0x22u8; KEY_LEN];
         let keys =
-            password_keys(&MasterKey::from_bytes(master_bytes), &password_hash, &SALT, WALLET_ID)
+            combine_factors(&MasterKey::from_bytes(master_bytes), &password_hash, &SALT, WALLET_ID)
                 .unwrap();
         let mac = header_mac_key(&MasterKey::from_bytes(master_bytes), &SALT, WALLET_ID).unwrap();
 
@@ -258,7 +332,7 @@ mod tests {
 
     #[test]
     fn the_three_outputs_are_independent() {
-        let keys = password_keys(&master(1), &[2u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
+        let keys = combine_factors(&master(1), &[2u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
         let mac = header_mac_key(&master(1), &SALT, WALLET_ID).unwrap();
         assert_ne!(*keys.aead_key, keys.commitment);
         assert_ne!(*keys.aead_key, *mac.expose_secret());
@@ -267,19 +341,19 @@ mod tests {
 
     #[test]
     fn the_aead_key_and_the_commitment_depend_on_the_password() {
-        let first = password_keys(&master(1), &[2u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
-        let second = password_keys(&master(1), &[3u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
+        let first = combine_factors(&master(1), &[2u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
+        let second = combine_factors(&master(1), &[3u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
         assert_ne!(*first.aead_key, *second.aead_key);
         assert_ne!(first.commitment, second.commitment);
     }
 
     #[test]
     fn the_master_key_the_salt_and_the_wallet_id_all_bind() {
-        let base = password_keys(&master(1), &[2u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
-        let other_master = password_keys(&master(2), &[2u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
+        let base = combine_factors(&master(1), &[2u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
+        let other_master = combine_factors(&master(2), &[2u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
         let other_salt =
-            password_keys(&master(1), &[2u8; KEY_LEN], &[8u8; HKDF_SALT_LEN], WALLET_ID).unwrap();
-        let other_wallet = password_keys(&master(1), &[2u8; KEY_LEN], &SALT, "wallet-2").unwrap();
+            combine_factors(&master(1), &[2u8; KEY_LEN], &[8u8; HKDF_SALT_LEN], WALLET_ID).unwrap();
+        let other_wallet = combine_factors(&master(1), &[2u8; KEY_LEN], &SALT, "wallet-2").unwrap();
         for other in [&other_master, &other_salt, &other_wallet] {
             assert_ne!(*base.aead_key, *other.aead_key);
             assert_ne!(base.commitment, other.commitment);
@@ -360,11 +434,12 @@ mod tests {
     }
 
     #[test]
-    fn commitments_compare_by_value() {
-        assert!(commitment_matches(&[1u8; COMMITMENT_LEN], &[1u8; COMMITMENT_LEN]));
-        let mut other = [1u8; COMMITMENT_LEN];
-        *other.last_mut().unwrap() = 2;
-        assert!(!commitment_matches(&[1u8; COMMITMENT_LEN], &other));
+    fn a_differing_commitment_is_a_wrong_password() {
+        let keys = combine_factors(&master(1), &[2u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
+        keys.check_commitment(&keys.commitment).unwrap();
+        let mut other = keys.commitment;
+        *other.last_mut().unwrap() ^= 1;
+        assert!(matches!(keys.check_commitment(&other), Err(VaultError::WrongPassword)));
     }
 
     #[test]
@@ -373,7 +448,7 @@ mod tests {
             format!("{:?}", SessionCipher::new(&[1u8; KEY_LEN])),
             "SessionCipher(<redacted>)"
         );
-        let keys = password_keys(&master(1), &[2u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
+        let keys = combine_factors(&master(1), &[2u8; KEY_LEN], &SALT, WALLET_ID).unwrap();
         let rendered = format!("{keys:?}");
         assert_eq!(rendered, "PasswordKeys(<redacted>)");
         assert!(!rendered.contains(&hex::encode(*keys.aead_key)));

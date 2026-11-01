@@ -23,6 +23,7 @@ impl MasterKey {
         Ok(Self(random_bytes()?))
     }
 
+    #[cfg(any(test, feature = "test-util"))]
     pub fn from_bytes(bytes: [u8; MASTER_KEY_LEN]) -> Self {
         Self(Zeroizing::new(bytes))
     }
@@ -31,12 +32,12 @@ impl MasterKey {
     /// that decrypts nothing.
     fn from_slice(bytes: &[u8]) -> Result<Self, VaultError> {
         <[u8; MASTER_KEY_LEN]>::try_from(bytes)
-            .map(Self::from_bytes)
+            .map(|bytes| Self(Zeroizing::new(bytes)))
             .map_err(|_| VaultError::KeychainMalformed)
     }
 
     /// The bytes must not leave the closure in anything that doesn't zeroize.
-    pub fn with_bytes<R>(&self, read: impl FnOnce(&[u8; MASTER_KEY_LEN]) -> R) -> R {
+    pub(crate) fn with_bytes<R>(&self, read: impl FnOnce(&[u8; MASTER_KEY_LEN]) -> R) -> R {
         read(&self.0)
     }
 }
@@ -109,6 +110,8 @@ impl MasterKeyStore for KeyringStore {
 
 #[cfg(test)]
 mod tests {
+    use std::process;
+
     use super::*;
 
     #[test]
@@ -143,5 +146,29 @@ mod tests {
     fn the_keychain_constants_are_pinned() {
         assert_eq!(KEYCHAIN_SERVICE, "Jelly");
         assert_eq!(MASTER_KEY_LEN, 32);
+    }
+
+    /// A headless or locked session can't serve the platform store.
+    #[test]
+    #[ignore = "writes to the platform credential store"]
+    fn the_platform_store_round_trips_the_master_key() {
+        let store = KeyringStore;
+        store.check_available().expect("the platform credential store is available");
+
+        let wallet_id = format!("jelly-test-wallet-{}", process::id());
+        store.delete(&wallet_id).expect("pre-clean");
+        assert!(store.get(&wallet_id).expect("get on empty").is_none());
+
+        let key = MasterKey::from_bytes([0x3c; MASTER_KEY_LEN]);
+        store.put(&wallet_id, &key).expect("put");
+        let got = store.get(&wallet_id).expect("get").expect("present");
+        assert_eq!(
+            got.with_bytes(|bytes| *bytes),
+            [0x3c; MASTER_KEY_LEN],
+            "the master key survived byte for byte"
+        );
+
+        store.delete(&wallet_id).expect("delete");
+        assert!(store.get(&wallet_id).expect("get after delete").is_none());
     }
 }

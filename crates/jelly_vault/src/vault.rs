@@ -6,21 +6,18 @@ use std::mem;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use jelly_core::{KeyMaterial, random_bytes};
+use jelly_core::KeyMaterial;
 use parking_lot::Mutex;
-use secrecy::{ExposeSecret as _, SecretBox};
+use secrecy::ExposeSecret as _;
 
 use crate::disk;
 use crate::entry::{BlobKind, EntryId, SecretBlob};
 use crate::error::VaultError;
-use crate::kdf::{Argon2Params, KDF_SALT_LEN, VaultPassword, hash_password};
+use crate::kdf::{Argon2Params, VaultPassword};
 use crate::keychain::{MasterKey, MasterKeyStore};
-use crate::keys::{
-    COMMITMENT_LEN, HKDF_SALT_LEN, KEY_LEN, NONCE_LEN, SessionCipher, commitment_matches,
-    header_mac_key, password_keys,
-};
+use crate::keys::{SessionKeys, header_mac_key};
 use crate::payload;
-use crate::vault_file::{AeadBlock, HkdfBlock, KdfBlock, VaultFile, associated_data};
+use crate::vault_file::VaultFile;
 
 /// A locked vault. Holds no key material and does no I/O until a method is called.
 ///
@@ -110,40 +107,22 @@ impl Vault {
         }
 
         let master = self.master()?;
-        let mac_key = header_mac_key(&master, &file.hkdf.salt, &self.wallet_id)?;
+        let derivation = file.derivation();
+        let mac_key = header_mac_key(&master, &derivation.hkdf_salt, &self.wallet_id)?;
         file.verify_integrity(mac_key.expose_secret())?;
 
-        let kdf_params = file.kdf.params();
-        let hash = hash_password(password, &file.kdf.salt, kdf_params)?;
-        let derived = password_keys(&master, &hash, &file.hkdf.salt, &self.wallet_id)?;
-        drop(hash);
+        let password_keys = derivation.password_keys(&master, password, &self.wallet_id)?;
         drop(master);
-        if !commitment_matches(&derived.commitment, &file.commitment) {
-            return Err(VaultError::WrongPassword);
-        }
+        password_keys.check_commitment(&file.commitment)?;
 
-        let cipher = Box::new(SessionCipher::new(&derived.aead_key));
-        let aad = associated_data(&self.wallet_id)?;
-        let plaintext = cipher
-            .open(&file.aead.nonce, &aad, &file.ciphertext)
-            .ok_or_else(|| VaultError::corrupt("the ciphertext doesn't open under a proven key"))?;
+        let keys = SessionKeys::new(&password_keys, mac_key, derivation);
+        let plaintext = file.open(&keys.cipher)?;
         let entries = payload::decode(&plaintext)?;
         drop(plaintext);
 
-        let mut session = UnlockedVault {
-            handle: self.clone(),
-            keys: SessionKeys {
-                cipher,
-                mac_key,
-                commitment: derived.commitment,
-                kdf_params,
-                kdf_salt: file.kdf.salt,
-                hkdf_salt: file.hkdf.salt,
-            },
-            entries,
-        };
-        let raised = kdf_params.at_least(self.kdf_params);
-        if raised != kdf_params {
+        let mut session = UnlockedVault { handle: self.clone(), keys, entries };
+        let raised = derivation.kdf_params.at_least(self.kdf_params);
+        if raised != derivation.kdf_params {
             match session.rekey(password, raised) {
                 Ok(()) => tracing::info!("vault kdf parameters upgraded"),
                 Err(error) => tracing::warn!(%error, "couldn't upgrade the vault kdf parameters"),
@@ -232,46 +211,6 @@ pub struct UnlockedVault {
     entries: BTreeMap<EntryId, SecretBlob>,
 }
 
-/// The keys a session seals under, and the header values that go with them.
-///
-/// The cipher and the header MAC key are boxed. An [`UnlockedVault`] is returned by
-/// value, and a move is a memcpy, so an inline key would leave an unwiped copy at every
-/// address the session has had.
-struct SessionKeys {
-    cipher: Box<SessionCipher>,
-    mac_key: SecretBox<[u8; KEY_LEN]>,
-    /// Not secret, since the header holds the same value.
-    commitment: [u8; COMMITMENT_LEN],
-    kdf_params: Argon2Params,
-    kdf_salt: [u8; KDF_SALT_LEN],
-    hkdf_salt: [u8; HKDF_SALT_LEN],
-}
-
-impl SessionKeys {
-    /// Both factors under fresh salts, for a new file or a rekey.
-    fn derive(
-        master: &MasterKey,
-        password: &VaultPassword,
-        wallet_id: &str,
-        kdf_params: Argon2Params,
-    ) -> Result<Self, VaultError> {
-        let kdf_salt = *random_bytes::<KDF_SALT_LEN>()?;
-        let hkdf_salt = *random_bytes::<HKDF_SALT_LEN>()?;
-        let hash = hash_password(password, &kdf_salt, kdf_params)?;
-        let derived = password_keys(master, &hash, &hkdf_salt, wallet_id)?;
-        drop(hash);
-        let mac_key = header_mac_key(master, &hkdf_salt, wallet_id)?;
-        Ok(Self {
-            cipher: Box::new(SessionCipher::new(&derived.aead_key)),
-            mac_key,
-            commitment: derived.commitment,
-            kdf_params,
-            kdf_salt,
-            hkdf_salt,
-        })
-    }
-}
-
 impl fmt::Debug for UnlockedVault {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("UnlockedVault")
@@ -286,12 +225,17 @@ impl UnlockedVault {
     /// on every axis.
     #[cfg(feature = "test-util")]
     pub const fn kdf_params(&self) -> Argon2Params {
-        self.keys.kdf_params
+        self.keys.derivation.kdf_params
     }
 
     #[cfg(feature = "test-util")]
     pub fn entry_count(&self) -> usize {
         self.entries.len()
+    }
+
+    #[cfg(feature = "test-util")]
+    pub fn read(&self, id: EntryId) -> Result<SecretBlob, VaultError> {
+        self.entries.get(&id).map(SecretBlob::duplicate).ok_or(VaultError::EntryNotFound(id))
     }
 
     /// Consuming `self` drops every key and decrypted secret, so no handle can read one
@@ -315,13 +259,6 @@ impl UnlockedVault {
         self.entries_of_kind(kind).next()
     }
 
-    /// For secrets the session is already authorized for. A caller that hands a secret
-    /// out re-authenticates first, through [`UnlockedVault::export`] or
-    /// [`UnlockedVault::verify_password`].
-    pub fn read(&self, id: EntryId) -> Result<SecretBlob, VaultError> {
-        self.entries.get(&id).map(SecretBlob::duplicate).ok_or(VaultError::EntryNotFound(id))
-    }
-
     pub fn read_first(&self, kind: BlobKind) -> Option<SecretBlob> {
         self.find(kind).map(|(_, blob)| blob.duplicate())
     }
@@ -342,23 +279,22 @@ impl UnlockedVault {
         Ok(blob.duplicate())
     }
 
+    /// For keys the session is already authorized for. A caller that hands a secret out
+    /// re-authenticates first, through [`UnlockedVault::export`] or
+    /// [`UnlockedVault::verify_password`].
     pub fn key_material(&self, id: EntryId) -> Result<KeyMaterial, VaultError> {
-        self.read(id)?.into_key_material().ok_or(VaultError::NotKeyMaterial(id))
+        let blob = self.entries.get(&id).ok_or(VaultError::EntryNotFound(id))?;
+        blob.duplicate().into_key_material().ok_or(VaultError::NotKeyMaterial(id))
     }
 
     /// Compares a re-derived commitment in constant time with the one this session
     /// opened under. Costs a full KDF pass, which is the point.
     pub fn verify_password(&self, password: &VaultPassword) -> Result<(), VaultError> {
         let master = self.handle.master()?;
-        let hash = hash_password(password, &self.keys.kdf_salt, self.keys.kdf_params)?;
-        let derived = password_keys(&master, &hash, &self.keys.hkdf_salt, &self.handle.wallet_id)?;
-        drop(hash);
+        let password_keys =
+            self.keys.derivation.password_keys(&master, password, &self.handle.wallet_id)?;
         drop(master);
-        if commitment_matches(&derived.commitment, &self.keys.commitment) {
-            Ok(())
-        } else {
-            Err(VaultError::WrongPassword)
-        }
+        password_keys.check_commitment(&self.keys.commitment)
     }
 
     /// Takes ownership, so the secret isn't copied on its way in.
@@ -402,7 +338,7 @@ impl UnlockedVault {
         new: &VaultPassword,
     ) -> Result<(), VaultError> {
         self.verify_password(current)?;
-        self.rekey(new, self.keys.kdf_params.at_least(self.handle.kdf_params))?;
+        self.rekey(new, self.keys.derivation.kdf_params.at_least(self.handle.kdf_params))?;
         tracing::info!("vault password changed");
         Ok(())
     }
@@ -424,19 +360,7 @@ impl UnlockedVault {
     }
 
     fn seal(&self) -> Result<Vec<u8>, VaultError> {
-        let keys = &self.keys;
-        let aad = associated_data(&self.handle.wallet_id)?;
-        let nonce = *random_bytes::<NONCE_LEN>()?;
-        let ciphertext = keys.cipher.seal(&nonce, &aad, payload::encode(&self.entries)?)?;
-        let file = VaultFile::build(
-            &self.handle.wallet_id,
-            KdfBlock::new(keys.kdf_params, keys.kdf_salt),
-            HkdfBlock::new(keys.hkdf_salt),
-            AeadBlock::new(nonce),
-            keys.commitment,
-            ciphertext,
-            keys.mac_key.expose_secret(),
-        )?;
-        file.to_bytes()
+        let plaintext = payload::encode(&self.entries)?;
+        VaultFile::seal(&self.handle.wallet_id, &self.keys, plaintext)?.to_bytes()
     }
 }
