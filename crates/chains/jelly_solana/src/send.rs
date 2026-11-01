@@ -79,6 +79,7 @@ pub(crate) async fn resolve(inputs: &Inputs<'_>, request: &TxRequest) -> Result<
         None => Route::native(payer, recipient),
         Some(token) => Route::token(payer, recipient, token),
     };
+    let sampled_accounts = route.writable_accounts();
     let (reads, optional) =
         tokio::join!(inputs.client.build_reads(&route), inputs.client.optional_reads(&route));
     let reads = reads?;
@@ -91,6 +92,12 @@ pub(crate) async fn resolve(inputs: &Inputs<'_>, request: &TxRequest) -> Result<
             route.has_destination_account = reads.recipient_owner.is_some();
         }
     }
+    // A recipient that is itself the token account to credit wasn't in the fee sample.
+    let optional = if route.writable_accounts() == sampled_accounts {
+        optional
+    } else {
+        inputs.client.optional_reads(&route).await
+    };
 
     let balances = reads.balances;
     let account_rent = inputs.rent.quote(0, optional.account_rent_lamports);
