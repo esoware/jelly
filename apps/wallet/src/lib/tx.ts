@@ -72,13 +72,13 @@ export function txListEntries(rows: readonly TxEntry[]): TxListEntry[] {
   const entries: TxListEntry[] = []
   let currentDay: string | null = null
   for (const row of rows) {
-    const day = dayKey(row.timestamp)
+    const day = dayKey(row.timestampUnixSecs)
     if (day !== currentDay) {
       currentDay = day
       entries.push({
         kind: "day",
         key: `${day}:${txKey(row)}`,
-        label: formatDay(row.timestamp, now),
+        label: formatDay(row.timestampUnixSecs, now),
       })
     }
     entries.push({ kind: "tx", key: txKey(row), row })

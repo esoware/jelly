@@ -323,7 +323,7 @@ function TxRow({ row, shouldShowChain, onOpen }: TxRowProps) {
                 {outcomeText}
               </span>
             )}
-            {row.timestamp === null ? null : formatClock(row.timestamp)}
+            {row.timestampUnixSecs === null ? null : formatClock(row.timestampUnixSecs)}
           </span>
           {row.counterparty === null ? null : (
             <span className="flex min-w-0 items-center gap-1">

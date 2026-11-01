@@ -56,9 +56,7 @@ impl CursorStore for CursorRouter {
 
         let mut scans = Vec::new();
         if !secret.is_empty() {
-            let wanted: Vec<(&'static str, ScanStream)> =
-                secret.into_iter().map(|stream| (stream.as_str(), stream)).collect();
-            let found = read_secrets(&inner, self.wallet_id, scopes, &wanted)?;
+            let found = read_secrets(&inner, self.wallet_id, scopes, &secret, ScanStream::as_str)?;
             scans.extend(found.into_iter().map(|(scope, stream, cursor)| ScanAdvance {
                 scope,
                 stream,
@@ -91,9 +89,8 @@ impl CursorStore for CursorRouter {
 
         let mut reservations = Vec::new();
         if !secret.is_empty() {
-            let wanted: Vec<(&'static str, ReservationSlot)> =
-                secret.into_iter().map(|slot| (slot.as_str(), slot)).collect();
-            let found = read_secrets(&inner, self.wallet_id, scopes, &wanted)?;
+            let found =
+                read_secrets(&inner, self.wallet_id, scopes, &secret, ReservationSlot::as_str)?;
             reservations.extend(found.into_iter().map(|(scope, slot, payload)| HeldReservation {
                 scope,
                 slot,

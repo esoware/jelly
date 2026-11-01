@@ -22,6 +22,8 @@ use crate::error::blocking;
 use crate::session::Session;
 use crate::{WalletEngine, derive};
 
+const TARGET: &str = "jelly::engine::address";
+
 /// The typed confirmation an irreversible key deletion requires.
 const DELETE_KEY_CONFIRMATION: &str = "DELETE";
 
@@ -129,8 +131,8 @@ impl WalletEngine {
                 "this chain's addresses are subaddresses of the wallet account, not derivations",
             ));
         }
-        let path = parse_path(path.as_str())?;
-        let added = self.insert_derived(&session, chain, &path, script, label).await?;
+        let bip32_path = parse_path(path.as_str())?;
+        let added = self.insert_derived(&session, chain, &bip32_path, script, label).await?;
         self.adopt_used_scripts(&session, &added).await;
         Ok(added)
     }
@@ -267,14 +269,14 @@ impl WalletEngine {
             self.inner.store.delete_address(holder.id).await?;
         }
         session.vault_write(move |vault| vault.remove(entry)).await?;
-        tracing::warn!(target: "jelly::engine::address", address_id, "standalone key deleted");
+        tracing::warn!(target: TARGET, address_id, "standalone key deleted");
         Ok(())
     }
 
     pub async fn get_xpub(&self, path: &DerivationPath) -> Result<String, CoreError> {
         let session = self.require_session().await?;
-        let path = parse_path(path.as_str())?;
-        Ok(session.seed().xpub_at(&path)?)
+        let bip32_path = parse_path(path.as_str())?;
+        Ok(session.seed().xpub_at(&bip32_path)?)
     }
 
     /// The account-level xpub behind a derived address, when it has one.
@@ -287,8 +289,8 @@ impl WalletEngine {
         let KeySource::Derived { ref path } = row.source else {
             return Ok(None);
         };
-        let path = parse_path(path.as_str())?;
-        let Some(account) = account_prefix(&path) else {
+        let bip32_path = parse_path(path.as_str())?;
+        let Some(account) = account_prefix(&bip32_path) else {
             return Ok(None);
         };
         Ok(Some(session.seed().xpub_at(&account)?))
@@ -313,13 +315,13 @@ impl WalletEngine {
         match adopting.await {
             Ok(Ok(())) => {}
             Ok(Err(error)) => tracing::warn!(
-                target: "jelly::engine::address",
+                target: TARGET,
                 chain = added.chain.as_str(),
                 %error,
                 "could not check the other script flavors of a new key"
             ),
             Err(_) => tracing::warn!(
-                target: "jelly::engine::address",
+                target: TARGET,
                 chain = added.chain.as_str(),
                 "the check of a new key's other script flavors ran out of time"
             ),
@@ -341,23 +343,23 @@ impl WalletEngine {
         let row = self.require_row(session.wallet_id(), added.id).await?;
         let key = derive::resolve_key(session, &row)?;
         let rows = self.inner.store.list_addresses(session.wallet_id(), Some(added.chain)).await?;
-        let mut candidates = Vec::new();
+        let mut scripts = Vec::new();
+        let mut addresses = Vec::new();
         for &script in entry.spec().script_kinds {
             if row.script_kind == Some(script) {
                 continue;
             }
             let address = entry.address(&key, Some(script))?;
             if rows.iter().all(|known| known.address != address) {
-                candidates.push((script, Address::assume_canonical(added.chain, address)));
+                scripts.push(script);
+                addresses.push(Address::assume_canonical(added.chain, address));
             }
         }
-        if candidates.is_empty() {
+        if addresses.is_empty() {
             return Ok(());
         }
-        let addresses: Vec<Address> =
-            candidates.iter().map(|(_, address)| address.clone()).collect();
         let used = probe.used(&addresses).await?;
-        for (script, address) in candidates {
+        for (script, address) in scripts.into_iter().zip(addresses) {
             if !used.contains(&address) {
                 continue;
             }
@@ -479,7 +481,7 @@ impl WalletEngine {
         };
         if let Err(error) = subaddresses.register_window(major, minor).await {
             tracing::warn!(
-                target: "jelly::engine::address",
+                target: TARGET,
                 %error,
                 "could not widen the subaddress window"
             );

@@ -1,7 +1,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use jelly_core::{PhraseLength, WalletColor, test_util::FakeClock};
+use jelly_core::{
+    Amount, AssetId, ChainId, PhraseLength, TxPreview, WalletColor, test_util::FakeClock,
+};
 use jelly_vault::test_util::MemoryKeyStore;
 use secrecy::SecretString;
 use tempfile::TempDir;
@@ -11,6 +13,22 @@ use crate::{EngineDeps, PassphraseInput, WalletEngine, WalletRecord};
 
 pub(crate) fn password() -> SecretString {
     SecretString::from("test wallet password")
+}
+
+/// The preview the frozen digest in `digest.rs` was taken from.
+pub(crate) fn preview() -> TxPreview {
+    TxPreview {
+        chain: ChainId::Bitcoin,
+        asset: AssetId::Native(ChainId::Bitcoin),
+        from: vec![String::from("bc1qfrom")],
+        to: String::from("bc1qto"),
+        destination_tag: None,
+        amount: Amount::from_base_units(10_000),
+        fee: Amount::from_base_units(250),
+        rent: None,
+        details: Vec::new(),
+        warnings: Vec::new(),
+    }
 }
 
 /// An engine's ports on `directory`: a fake clock, an in-memory credential store, and a

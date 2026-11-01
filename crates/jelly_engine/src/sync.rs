@@ -16,6 +16,8 @@ use crate::engine::Inner;
 use crate::error::blocking;
 use crate::session::Session;
 
+const TARGET: &str = "jelly::engine::sync";
+
 /// Ceiling for the backoff after consecutive failing passes.
 const SYNC_BACKOFF_MAX: Duration = Duration::from_secs(30);
 
@@ -57,7 +59,7 @@ impl ChainLoop {
                 Err(CoreError::Locked) => break,
                 Err(ref error) => {
                     tracing::warn!(
-                        target: "jelly::engine::sync",
+                        target: TARGET,
                         chain = self.chain.as_str(),
                         %error,
                         "sync pass failed"
@@ -174,7 +176,7 @@ async fn announce_confirmations(
         Ok(page) => page,
         Err(error) => {
             tracing::debug!(
-                target: "jelly::engine::sync",
+                target: TARGET,
                 chain = chain.as_str(),
                 %error,
                 "recent transactions could not be read for a confirmation refresh"
@@ -209,7 +211,7 @@ async fn persist_height(inner: &Inner, wallet_id: i64, progress: ChainSyncProgre
     let patch = ChainStatePatch { synced_height: Patch::Set(height), ..ChainStatePatch::default() };
     if let Err(error) = inner.store.set_chain_state(wallet_id, progress.chain(), patch).await {
         tracing::warn!(
-            target: "jelly::engine::sync",
+            target: TARGET,
             %error,
             "could not record the synced height"
         );

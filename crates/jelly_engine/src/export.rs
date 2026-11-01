@@ -7,6 +7,8 @@ use zeroize::Zeroizing;
 use crate::error::blocking;
 use crate::{WalletEngine, derive, seed};
 
+const TARGET: &str = "jelly::engine::export";
+
 impl WalletEngine {
     /// The wallet's BIP-39 phrase. The vault checks the password itself, so a caller
     /// can't skip it.
@@ -19,7 +21,7 @@ impl WalletEngine {
             entropy.with_bytes(Mnemonic::from_entropy).map(|mnemonic| mnemonic.phrase())
         })
         .await?;
-        tracing::warn!(target: "jelly::engine::export", "seed phrase exported");
+        tracing::warn!(target: TARGET, "seed phrase exported");
         Ok(phrase)
     }
 
@@ -29,7 +31,7 @@ impl WalletEngine {
     ) -> Result<Zeroizing<String>, CoreError> {
         let blob = self.reauthed_export(password, BlobKind::SeedPassphrase).await?;
         let passphrase = blob.with_bytes(seed::passphrase_text)?;
-        tracing::warn!(target: "jelly::engine::export", "seed passphrase exported");
+        tracing::warn!(target: TARGET, "seed passphrase exported");
         Ok(passphrase)
     }
 
@@ -39,7 +41,7 @@ impl WalletEngine {
         password: SecretString,
     ) -> Result<Zeroizing<String>, CoreError> {
         let entropy = self.reauthed_export(password, BlobKind::SeedEntropy).await?;
-        tracing::warn!(target: "jelly::engine::export", "seed entropy exported");
+        tracing::warn!(target: TARGET, "seed entropy exported");
         Ok(entropy.with_bytes(|bytes| Zeroizing::new(hex::encode(bytes))))
     }
 
@@ -54,7 +56,7 @@ impl WalletEngine {
         let account = session.account_key(chain)?;
         let seed = session.entry(chain).account_seed_words(account)?;
         tracing::warn!(
-            target: "jelly::engine::export",
+            target: TARGET,
             chain = chain.as_str(),
             "account seed exported"
         );
@@ -72,7 +74,7 @@ impl WalletEngine {
         session.verify_password(password).await?;
         let material = derive::resolve_key(&session, &row)?;
         let key = session.entry(row.chain).export_key(&material)?;
-        tracing::warn!(target: "jelly::engine::export", address_id, "private key exported");
+        tracing::warn!(target: TARGET, address_id, "private key exported");
         Ok(key)
     }
 

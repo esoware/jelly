@@ -44,6 +44,11 @@ async fn watched(harness: &Harness) -> Fallible<()> {
     Ok(())
 }
 
+/// A digest the engine never issued, `byte` repeated, as the interface's echo arrives.
+fn forged(byte: &str) -> Fallible<PreviewDigest> {
+    Ok(serde_json::from_value(byte.repeat(PreviewDigest::LEN).into())?)
+}
+
 /// A UTXO fee rate in sat/vB, which the fake adapter accepts.
 fn rate(sat_per_vb: &str) -> FeeSelection {
     FeeSelection::Rate { rate: String::from(sat_per_vb) }
@@ -90,7 +95,8 @@ async fn a_prepared_transaction_is_signed_broadcast_and_recorded() {
     assert_eq!(state.discards(), 0, "a sent transaction keeps its reservation");
     assert!(test_util::list_pending_txs(&harness.engine).await.unwrap().is_empty());
 
-    let page = harness.engine.list_txs(TxQuery { limit: 10, ..Default::default() }).await.unwrap();
+    let page =
+        harness.engine.list_txs(TxQuery { limit: Some(10), ..Default::default() }).await.unwrap();
     assert_eq!(page.rows.len(), 1);
     assert_eq!(page.rows.first().map(|row| row.txid.clone()), Some(txid.value().to_owned()));
     assert_eq!(
@@ -107,7 +113,8 @@ async fn a_sent_transaction_is_recorded_with_the_rent_its_review_showed() {
     assert_eq!(prepared.preview.rent, Some(Amount::from_base_units(2_039_280)));
     harness.engine.submit_tx(prepared.id, secret(PASSWORD), prepared.preview_digest).await.unwrap();
 
-    let page = harness.engine.list_txs(TxQuery { limit: 10, ..Default::default() }).await.unwrap();
+    let page =
+        harness.engine.list_txs(TxQuery { limit: Some(10), ..Default::default() }).await.unwrap();
     let row = page.rows.first().expect("the sent row");
     assert_eq!(row.fee, Some(Amount::from_base_units(1_000)));
     assert_eq!(row.rent, Some(Amount::from_base_units(2_039_280)));
@@ -161,8 +168,7 @@ async fn a_payment_uri_reaches_the_adapter_as_its_bare_address() {
 async fn a_guessed_or_spent_token_is_refused() {
     let (harness, from) = ready().await.unwrap();
     let guessed = PendingTxId::from_bytes([0u8; PendingTxId::LEN]);
-    let forged = PreviewDigest::parse(&"00".repeat(PreviewDigest::LEN)).unwrap();
-    let refused = harness.engine.submit_tx(guessed, secret(PASSWORD), forged).await;
+    let refused = harness.engine.submit_tx(guessed, secret(PASSWORD), forged("00").unwrap()).await;
     assert!(matches!(refused, Err(CoreError::UnknownPendingTx(_))), "{refused:?}");
 
     let prepared = harness.engine.prepare_tx(request(from)).await.unwrap();
@@ -193,7 +199,7 @@ async fn a_preview_the_user_did_not_see_needs_a_rebuild() {
     let prepared = harness.engine.prepare_tx(request(from)).await.unwrap();
 
     for byte in ["00", "ff"] {
-        let wrong = PreviewDigest::parse(&byte.repeat(PreviewDigest::LEN)).unwrap();
+        let wrong = forged(byte).unwrap();
         let refused = harness.engine.submit_tx(prepared.id, secret(PASSWORD), wrong).await;
         assert!(matches!(refused, Err(CoreError::RebuildRequired)), "{wrong}: {refused:?}");
     }
@@ -534,7 +540,7 @@ async fn a_send_another_transaction_replaced_is_listed_as_replaced_with_nothing_
 }
 
 #[tokio::test]
-async fn a_zero_limit_means_the_default_page() {
+async fn a_query_without_a_limit_lists_the_default_page() {
     let (harness, from) = ready().await.unwrap();
     for _ in 0..3 {
         let prepared = harness.engine.prepare_tx(request(from)).await.unwrap();

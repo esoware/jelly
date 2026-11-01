@@ -26,7 +26,10 @@ async fn a_new_seed_wallet_opens_and_reopens() {
     assert_eq!(harness.engine.list_wallets().await.unwrap().len(), 1);
 
     harness.engine.lock_wallet().await;
-    assert_eq!(harness.engine.lock_state_now(), LockState::locked(LockReason::Requested));
+    assert_eq!(
+        harness.engine.lock_state_now(),
+        LockState::Locked { reason: LockReason::Requested }
+    );
 
     let reopened =
         harness.engine.unlock_wallet(created.wallet.id, secret(PASSWORD), None).await.unwrap();
@@ -230,7 +233,10 @@ async fn a_closed_wallet_is_deleted_without_touching_the_session() {
 
     harness.engine.delete_wallet(doomed.wallet.id, secret(PASSWORD), "doomed").await.unwrap();
     assert_eq!(harness.engine.list_wallets().await.unwrap().len(), 1);
-    assert_eq!(harness.engine.lock_state_now().wallet_id(), Some(open.wallet.id));
+    assert_eq!(
+        harness.engine.lock_state_now(),
+        LockState::Unlocked { wallet_id: open.wallet.id, wallet_name: "open".to_owned() }
+    );
 }
 
 #[tokio::test]

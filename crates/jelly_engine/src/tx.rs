@@ -8,15 +8,18 @@ use jelly_core::{
 };
 use jelly_store::{AddressRow, StoreError, SyncBatch, TxFilter, TxWrite};
 use secrecy::SecretString;
-use tokio::sync::{MutexGuard, OwnedMutexGuard};
+use tokio::sync::OwnedMutexGuard;
 use tokio::time::sleep;
 
+use crate::digest::PreviewDigest;
 use crate::engine::Inner;
 use crate::error::task_error;
 use crate::events::announcement;
-use crate::pending::{PendingTx, PreparedTx, PreviewDigest};
+use crate::pending::{PendingTx, PreparedTx};
 use crate::session::Session;
 use crate::{WalletEngine, derive};
+
+const TARGET: &str = "jelly::engine::tx";
 
 impl WalletEngine {
     /// What a transfer would pay at its fee selection, straight from the adapter.
@@ -109,20 +112,21 @@ impl WalletEngine {
         password: SecretString,
         digest: PreviewDigest,
     ) -> Result<TxId, CoreError> {
-        let session = self.require_session().await?;
-        let sending = Arc::clone(&self.inner.sends).lock_owned().await;
-        if session.cancel.is_cancelled() {
-            return Err(CoreError::Locked);
-        }
+        let (session, sending) = self.begin_send().await?;
         self.authorized(id, digest).await?;
         session.verify_password(password).await?;
 
         // Password checking and signing can each outlast the authorization's TTL.
-        let held = self.authorized(id, digest).await?;
-        let adapter = self.adapter(held.chain())?;
-        let (signed, _sending) =
-            sign(Arc::clone(&session), Arc::clone(&adapter), held.signers, held.unsigned, sending)
-                .await?;
+        let authorized = self.authorized(id, digest).await?;
+        let adapter = self.adapter(authorized.chain())?;
+        let (signed, _sending) = sign(
+            Arc::clone(&session),
+            Arc::clone(&adapter),
+            authorized.signers,
+            authorized.unsigned,
+            sending,
+        )
+        .await?;
 
         if session.cancel.is_cancelled() {
             return Err(CoreError::Locked);
@@ -136,8 +140,8 @@ impl WalletEngine {
             .map_err(|error| CoreError::internal("the system clock is unusable", error))?;
         // The guard still excludes publication, eviction, and other builds.
         let now_millis = self.inner.clock.elapsed_millis();
-        let held = match self.inner.pending.take_spendable(id, now_millis, &adapter) {
-            Ok(held) => held,
+        let spent = match self.inner.pending.take_spendable(id, now_millis, &adapter) {
+            Ok(spent) => spent,
             Err(error) => {
                 self.evict_stale().await;
                 return Err(error);
@@ -146,29 +150,25 @@ impl WalletEngine {
         let txid = match adapter.broadcast(&signed).await {
             Ok(txid) => txid,
             Err(error) => {
-                release_refused(adapter.as_ref(), &held.unsigned, &error).await;
+                release_refused(adapter.as_ref(), &spent.unsigned, &error).await;
                 return Err(CoreError::Chain(error));
             }
         };
-        let record = sent_record(&held, &txid, seen_unix_secs);
+        let record = sent_record(&spent, &txid, seen_unix_secs);
         // Persistence precedes the announcement here too, so a record the database
         // refused is announced only by the retry that lands it.
         match record_sent(&self.inner, record.clone()).await {
             Ok(write) => self.inner.events.publish(announcement(record, write)),
             Err(error) => {
                 tracing::warn!(
-                    target: "jelly::engine::tx",
+                    target: TARGET,
                     %error,
                     "the broadcast succeeded but the local record failed"
                 );
                 self.retry_record(record);
             }
         }
-        tracing::info!(
-            target: "jelly::engine::tx",
-            chain = held.chain().as_str(),
-            "transaction broadcast"
-        );
+        tracing::info!(target: TARGET, chain = spent.chain().as_str(), "transaction broadcast");
         Ok(txid)
     }
 
@@ -191,9 +191,9 @@ impl WalletEngine {
 
     /// The open session and the send guard, refusing a session a lock canceled while
     /// this waited for the guard.
-    async fn begin_send(&self) -> Result<(Arc<Session>, MutexGuard<'_, ()>), CoreError> {
+    async fn begin_send(&self) -> Result<(Arc<Session>, OwnedMutexGuard<()>), CoreError> {
         let session = self.require_session().await?;
-        let sending = self.inner.sends.lock().await;
+        let sending = Arc::clone(&self.inner.sends).lock_owned().await;
         if session.cancel.is_cancelled() {
             return Err(CoreError::Locked);
         }
@@ -296,14 +296,14 @@ impl WalletEngine {
                         return;
                     }
                     Err(error) => tracing::warn!(
-                        target: "jelly::engine::tx",
+                        target: TARGET,
                         %error,
                         "a broadcast transaction is still not recorded locally"
                     ),
                 }
             }
             tracing::error!(
-                target: "jelly::engine::tx",
+                target: TARGET,
                 "a broadcast transaction could not be recorded; the next sync pass has to find it"
             );
         });
@@ -463,7 +463,7 @@ async fn release(pending: &PendingTx) {
     };
     if let Err(error) = tracker.discard(&pending.unsigned).await {
         tracing::warn!(
-            target: "jelly::engine::tx",
+            target: TARGET,
             %error,
             "the adapter could not release a discarded transaction"
         );
@@ -489,7 +489,7 @@ async fn release_refused(adapter: &dyn ChainAdapter, unsigned: &UnsignedTx, erro
     };
     if let Err(error) = tracker.discard(unsigned).await {
         tracing::warn!(
-            target: "jelly::engine::tx",
+            target: TARGET,
             %error,
             "the adapter could not release a refused transaction"
         );
@@ -515,7 +515,7 @@ async fn sign(
                 .iter()
                 .map(|row| derive::resolve_key(&session, row))
                 .collect::<Result<Vec<_>, _>>()?;
-            let signed = adapter.sign_tx(&unsigned, &keys).map_err(CoreError::Chain)?;
+            let signed = adapter.sign_tx(&unsigned, &keys)?;
             // The task holds the send guard, so even if the caller is dropped, nothing can
             // retire the adapter or release its nonce until the signer is done with its
             // reservations.

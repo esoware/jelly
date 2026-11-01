@@ -19,6 +19,8 @@ use crate::seed::{self, NewSeed, SeedSource};
 use crate::session::{LockReason, LockState, Session};
 use crate::{WalletEngine, derive};
 
+const TARGET: &str = "jelly::engine::wallet";
+
 /// Sub-directory of the data directory that holds one vault file per wallet.
 const VAULT_DIR: &str = "vaults";
 
@@ -75,7 +77,7 @@ pub enum PassphraseInput {
 }
 
 impl PassphraseInput {
-    pub const fn policy(&self) -> PassphrasePolicy {
+    pub(crate) const fn policy(&self) -> PassphrasePolicy {
         match self {
             Self::None => PassphrasePolicy::None,
             Self::Stored { .. } => PassphrasePolicy::Stored,
@@ -83,7 +85,7 @@ impl PassphraseInput {
         }
     }
 
-    pub const fn value(&self) -> Option<&SecretText> {
+    pub(crate) const fn value(&self) -> Option<&SecretText> {
         match self {
             Self::None => None,
             Self::Stored { value } | Self::Prompt { value } => Some(value),
@@ -159,8 +161,8 @@ impl WalletEngine {
         // opens anything.
         self.verify_passphrase(&session).await?;
 
-        let record = self.wallet_record(row.clone()).await?;
-        self.install_session(session, &row);
+        let record = self.wallet_record(row).await?;
+        self.install_session(session, &record);
         self.publish_adapters().await;
         Ok(record)
     }
@@ -187,8 +189,10 @@ impl WalletEngine {
         let name = wallet_name(name)?;
         let _transition = self.begin_transition().await?;
         let row = self.inner.store.update_wallet(wallet_id, name, color).await?;
-        if self.inner.session.state().wallet_id() == Some(wallet_id) {
-            self.inner.session.publish(LockState::unlocked(&row));
+        if let LockState::Unlocked { wallet_id: open_id, .. } = self.inner.session.state()
+            && open_id == wallet_id
+        {
+            self.inner.session.publish(LockState::Unlocked { wallet_id, wallet_name: row.name });
         }
         Ok(())
     }
@@ -220,7 +224,7 @@ impl WalletEngine {
         let handle = self.vault_handle(wallet_id);
         blocking(move || handle.destroy()).await?;
         self.inner.store.delete_wallet(wallet_id).await?;
-        tracing::warn!(target: "jelly::engine::wallet", wallet_id, "wallet deleted");
+        tracing::warn!(target: TARGET, wallet_id, "wallet deleted");
         Ok(())
     }
 
@@ -264,7 +268,7 @@ impl WalletEngine {
                 }
             }
             tracing::warn!(
-                target: "jelly::engine::wallet",
+                target: TARGET,
                 wallet_id = row.id,
                 "a vault or keychain key already holds this wallet id; taking the next one"
             );
@@ -276,7 +280,7 @@ impl WalletEngine {
         for id in skipped {
             if let Err(error) = self.inner.store.delete_wallet(id).await {
                 tracing::warn!(
-                    target: "jelly::engine::wallet",
+                    target: TARGET,
                     %error,
                     "could not release a skipped wallet id"
                 );
@@ -317,27 +321,28 @@ impl WalletEngine {
         let _transition = self.begin_transition().await?;
         self.lock_inner(LockReason::Requested).await;
         let row = self.allocate_wallet(new).await?;
-        let handle = self.vault_handle(row.id);
+        let wallet_id = row.id;
+        let handle = self.vault_handle(wallet_id);
         let NewSeed { secrets, keys } = seed;
         let vault = match seed::provision(handle.clone(), password, secrets).await {
             Ok(vault) => vault,
             Err(error) => {
-                self.roll_back(handle, row.id, &error).await;
+                self.roll_back(handle, wallet_id, &error).await;
                 return Err(error);
             }
         };
 
-        let record = match self.wallet_record(row.clone()).await {
+        let record = match self.wallet_record(row).await {
             Ok(record) => record,
             Err(error) => {
                 drop(vault);
-                self.roll_back(handle, row.id, &error).await;
+                self.roll_back(handle, wallet_id, &error).await;
                 return Err(error);
             }
         };
         let session =
-            Session::new(row.id, vault, keys, self.inner.clock.as_ref(), self.inner.table);
-        self.install_session(session, &row);
+            Session::new(wallet_id, vault, keys, self.inner.clock.as_ref(), self.inner.table);
+        self.install_session(session, &record);
         self.publish_adapters().await;
         Ok(record)
     }
@@ -347,7 +352,7 @@ impl WalletEngine {
     async fn publish_adapters(&self) {
         if let Err(error) = self.rebuild_adapters().await {
             tracing::warn!(
-                target: "jelly::engine::wallet",
+                target: TARGET,
                 %error,
                 "could not build the adapter set"
             );
@@ -383,14 +388,14 @@ impl WalletEngine {
             && let Err(error) = blocking(move || handle.destroy()).await
         {
             tracing::warn!(
-                target: "jelly::engine::wallet",
+                target: TARGET,
                 %error,
                 "could not remove the vault of a half-created wallet"
             );
         }
         if let Err(error) = self.inner.store.delete_wallet(wallet_id).await {
             tracing::warn!(
-                target: "jelly::engine::wallet",
+                target: TARGET,
                 %error,
                 "could not remove the row of a half-created wallet"
             );
@@ -526,5 +531,24 @@ mod tests {
         assert!(keystore.store.is_empty());
         assert!(engine.list_wallets().await.unwrap().is_empty());
         assert!(!engine.lock_state_now().is_unlocked());
+    }
+
+    #[test]
+    fn a_passphrase_input_implies_its_policy() {
+        assert_eq!(PassphraseInput::None.policy(), PassphrasePolicy::None);
+        assert!(PassphraseInput::None.value().is_none());
+        let kept = PassphraseInput::Stored { value: SecretText::new(String::from("kept")) };
+        assert_eq!(kept.policy(), PassphrasePolicy::Stored);
+        assert!(kept.value().is_some_and(|value| value.with_str(|text| text == "kept")));
+        let asked = PassphraseInput::Prompt { value: SecretText::new(String::from("asked")) };
+        assert_eq!(asked.policy(), PassphrasePolicy::Prompt);
+    }
+
+    #[test]
+    fn a_passphrase_input_deserializes_from_its_tagged_form() {
+        let input: PassphraseInput =
+            serde_json::from_str("{\"kind\":\"prompt\",\"value\":\"pw\"}").unwrap();
+        assert_eq!(input.policy(), PassphrasePolicy::Prompt);
+        assert!(input.value().is_some_and(|value| value.with_str(|text| text == "pw")));
     }
 }

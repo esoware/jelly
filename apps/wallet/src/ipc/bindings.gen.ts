@@ -944,8 +944,8 @@ export type TxEntry = {
 	 */
 	paysFor: string | null,
 	height: number | null,
-	/**  Unix seconds of the block, or of the first sighting while unmined. */
-	timestamp: number | null,
+	/**  The block's time, or the first sighting's while unmined. */
+	timestampUnixSecs: number | null,
 	/**  Derived from the current tip. */
 	confirmations: number,
 	detection: TxDetection,
@@ -1017,8 +1017,8 @@ export type TxQuery = {
 	txid: string | null,
 	direction: TxDirection | null,
 	cursor: string | null,
-	/**  Zero means the shipped page size. */
-	limit: number,
+	/**  `None` means the shipped page size. */
+	limit: number | null,
 };
 
 /**  The user's intent for one outgoing transfer. */

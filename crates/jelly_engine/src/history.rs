@@ -24,8 +24,8 @@ pub struct TxQuery {
     pub txid: Option<String>,
     pub direction: Option<TxDirection>,
     pub cursor: Option<String>,
-    /// Zero means the shipped page size.
-    pub limit: u32,
+    /// `None` means the shipped page size.
+    pub limit: Option<u32>,
 }
 
 /// One transaction of one asset in the history.
@@ -58,8 +58,8 @@ pub struct TxEntry {
     /// spends that transaction's change and moves nothing else.
     pub pays_for: Option<String>,
     pub height: Option<u64>,
-    /// Unix seconds of the block, or of the first sighting while unmined.
-    pub timestamp: Option<i64>,
+    /// The block's time, or the first sighting's while unmined.
+    pub timestamp_unix_secs: Option<i64>,
     /// Derived from the current tip.
     pub confirmations: u32,
     pub detection: TxDetection,
@@ -89,7 +89,7 @@ impl WalletEngine {
                 })
             })
             .transpose()?;
-        let limit = if query.limit == 0 { TxFilter::DEFAULT_LIMIT } else { query.limit };
+        let limit = query.limit.unwrap_or(TxFilter::DEFAULT_LIMIT);
         let wallet_id = session.wallet_id();
         let (entries, next_cursor) = if let Some(address_id) = query.address_id {
             let filter = TxFilter {
@@ -181,7 +181,7 @@ fn entry_of_row(row: TxRow, tips: &BTreeMap<ChainId, u64>) -> TxEntry {
         counterparty: row.counterparty,
         pays_for: row.pays_for,
         height: row.height,
-        timestamp: row.timestamp_unix_secs,
+        timestamp_unix_secs: row.timestamp_unix_secs,
         confirmations,
         detection: row.detection,
     }
@@ -244,7 +244,8 @@ fn entry_of_group(group: TxGroup, tips: &BTreeMap<ChainId, u64>) -> Option<TxEnt
         TxDetection::BalanceDelta
     };
     let height = members.iter().filter_map(|member| member.row.height).max();
-    let timestamp = members.iter().filter_map(|member| member.row.timestamp_unix_secs).min();
+    let timestamp_unix_secs =
+        members.iter().filter_map(|member| member.row.timestamp_unix_secs).min();
     let fee = members.iter().filter_map(|member| member.row.fee).max();
     // Each row's rent is what its own address paid, so they add up.
     let rent = members
@@ -268,7 +269,7 @@ fn entry_of_group(group: TxGroup, tips: &BTreeMap<ChainId, u64>) -> Option<TxEnt
         counterparty,
         pays_for,
         height,
-        timestamp,
+        timestamp_unix_secs,
         confirmations: depth(lead.chain, height, tips),
         detection,
     })
@@ -344,7 +345,7 @@ mod tests {
             counterparty: Some(String::from("bc1qother")),
             pays_for: None,
             height: Some(100),
-            timestamp: Some(1_700_000_000),
+            timestamp_unix_secs: Some(1_700_000_000),
             confirmations: 1,
             detection: TxDetection::Full,
         }
@@ -372,7 +373,7 @@ mod tests {
                 "receiverIds",
                 "rent",
                 "senderIds",
-                "timestamp",
+                "timestampUnixSecs",
                 "txid",
             ]
         );
