@@ -251,7 +251,7 @@ function ContactDialog({
 
   const trimmedName = name.trim()
   const trimmedAddress = address.trim()
-  const noteArg = trimmedOrNull(note)
+  const trimmedNote = trimmedOrNull(note)
 
   const deferredAddress = useDeferredValue(trimmedAddress)
   const validation = useQuery(addressQueries.validate(chain, deferredAddress))
@@ -270,14 +270,14 @@ function ContactDialog({
   }
 
   const isUnchanged =
-    canonical === contact?.address && trimmedName === contact.name && noteArg === contact.note
+    canonical === contact?.address && trimmedName === contact.name && trimmedNote === contact.note
   const canSave = trimmedName !== "" && canonical !== null && !isDuplicate && !isUnchanged
 
   const save = useIpcMutation<null>({
     mutationFn: () =>
       contact === null
-        ? contactCommands.add(chain, trimmedAddress, trimmedName, noteArg)
-        : contactCommands.update(contact.id, trimmedAddress, trimmedName, noteArg),
+        ? contactCommands.add(chain, trimmedAddress, trimmedName, trimmedNote)
+        : contactCommands.update(contact.id, trimmedAddress, trimmedName, trimmedNote),
     errorTitle: contact === null ? "Could not save the contact" : "Could not update the contact",
     invalidates: [contactKeys.root],
     successToast: contact === null ? "Contact saved" : "Contact updated",

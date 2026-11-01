@@ -213,8 +213,6 @@ export function formatChange(change: Change): string {
   return `${text}%`
 }
 
-const COORDINATE_DIGITS = 1
-
 interface Extent {
   low: bigint
   high: bigint
@@ -225,11 +223,6 @@ interface Domain {
   endUnixSecs: number
 }
 
-export interface Spot {
-  x: number
-  y: number
-}
-
 const NO_EXTENT: Extent = { low: 0n, high: 0n }
 
 function extentOf(prices: readonly bigint[]): Extent {
@@ -238,10 +231,7 @@ function extentOf(prices: readonly bigint[]): Extent {
       (extent, price) =>
         extent === null
           ? { low: price, high: price }
-          : {
-              low: price < extent.low ? price : extent.low,
-              high: price > extent.high ? price : extent.high,
-            },
+          : { low: smaller(price, extent.low), high: larger(price, extent.high) },
       null,
     ) ?? NO_EXTENT
   )
@@ -264,22 +254,6 @@ export function seriesDomain(series: ChartSeries): Domain {
     startUnixSecs: series.candles.at(0)?.openUnixSecs ?? 0,
     endUnixSecs: (series.candles.at(-1)?.openUnixSecs ?? 0) + series.bucketSeconds,
   }
-}
-
-export function coordinate(value: number): string {
-  return value.toFixed(COORDINATE_DIGITS)
-}
-
-export function nearestIndex(spots: readonly Spot[], x: number): number {
-  let nearest = 0
-  let distance = Number.POSITIVE_INFINITY
-  spots.forEach((spot, i) => {
-    if (Math.abs(spot.x - x) < distance) {
-      nearest = i
-      distance = Math.abs(spot.x - x)
-    }
-  })
-  return nearest
 }
 
 const STEP_MULTIPLIERS = { one: 1n, two: 2n, five: 5n, ten: 10n } as const
@@ -347,12 +321,12 @@ const DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 })
 
-export interface PriceTick {
+interface PriceTick {
   price: bigint
   label: string
 }
 
-export interface TimeTick {
+interface TimeTick {
   unixSecs: number
   label: string
 }

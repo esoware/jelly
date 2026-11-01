@@ -8,14 +8,7 @@ import {
   TxDetailDialog,
   useTxFiat,
 } from "@/features/wallet/tx-detail.tsx"
-import type {
-  AddressRecord,
-  AssetId,
-  ChainId,
-  TxDirection,
-  TxEntry,
-  TxQuery,
-} from "@/ipc/bindings.gen.ts"
+import type { AddressRecord, ChainId, TxDirection, TxEntry, TxQuery } from "@/ipc/bindings.gen.ts"
 import { assetChain, assetFromKey, assetKey, assetSymbol, assetsForChain } from "@/lib/chain.ts"
 import { HISTORICAL_PRICE_NOTICE } from "@/lib/fiat.ts"
 import { formatClock, truncateMiddle } from "@/lib/format.ts"
@@ -99,46 +92,6 @@ function addressName(row: AddressRecord): string {
   return row.label ?? truncateMiddle(row.address, ADDRESS_HEAD_CHARS, ADDRESS_TAIL_CHARS)
 }
 
-interface FilterChoices {
-  directions: readonly Choice[]
-  assets: readonly Choice[]
-  addresses: readonly Choice[]
-  directionValue: string
-  assetValue: string
-  addressValue: string
-  directionChipLabel: string | null
-  assetChipLabel: string | null
-  addressChipLabel: string | null
-  pickDirection: (value: string) => TxDirection | null
-  pickAsset: (value: string) => AssetId | null
-  pickAddress: (value: string) => number | null
-}
-
-function useFilterChoices(chain: ChainId, filter: TxFilter): FilterChoices {
-  const addresses = useQuery(addressQueries.list(chain))
-  const rows = addresses.data ?? []
-  const assets = assetsForChain(chain).map((asset) => ({
-    value: assetKey(asset),
-    label: assetSymbol(asset),
-  }))
-  const chosenAddress = rows.find((row) => row.id === filter.addressId) ?? null
-
-  return {
-    directions: DIRECTION_CHOICES,
-    assets,
-    addresses: rows.map((row) => ({ value: String(row.id), label: addressName(row) })),
-    directionValue: filter.direction ?? ANY,
-    assetValue: filter.asset === null ? ANY : assetKey(filter.asset),
-    addressValue: filter.addressId === null ? ANY : String(filter.addressId),
-    directionChipLabel: filter.direction === null ? null : DIRECTION_TITLES[filter.direction],
-    assetChipLabel: filter.asset === null ? null : assetSymbol(filter.asset),
-    addressChipLabel: chosenAddress === null ? null : addressName(chosenAddress),
-    pickDirection: (value) => (isTxDirection(value) ? value : null),
-    pickAsset: (value) => (value === ANY ? null : assetFromKey(value)),
-    pickAddress: (value) => rows.find((row) => String(row.id) === value)?.id ?? null,
-  }
-}
-
 interface ClearChipProps {
   label: string
   onClear: () => void
@@ -183,7 +136,14 @@ interface FilterMenuProps {
 }
 
 function FilterMenu({ chain, filter, onFilterChange }: FilterMenuProps) {
-  const choices = useFilterChoices(chain, filter)
+  const addresses = useQuery(addressQueries.list(chain))
+  const rows = addresses.data ?? []
+  const assetChoices = assetsForChain(chain).map((asset) => ({
+    value: assetKey(asset),
+    label: assetSymbol(asset),
+  }))
+  const addressChoices = rows.map((row) => ({ value: String(row.id), label: addressName(row) }))
+  const chosenAddress = rows.find((row) => row.id === filter.addressId) ?? null
 
   function update(patch: Partial<TxFilter>): void {
     onFilterChange({ ...filter, ...patch })
@@ -191,25 +151,25 @@ function FilterMenu({ chain, filter, onFilterChange }: FilterMenuProps) {
 
   return (
     <>
-      {choices.directionChipLabel === null ? null : (
+      {filter.direction === null ? null : (
         <ClearChip
-          label={choices.directionChipLabel}
+          label={DIRECTION_TITLES[filter.direction]}
           onClear={() => {
             update({ direction: null })
           }}
         />
       )}
-      {choices.assetChipLabel === null ? null : (
+      {filter.asset === null ? null : (
         <ClearChip
-          label={choices.assetChipLabel}
+          label={assetSymbol(filter.asset)}
           onClear={() => {
             update({ asset: null })
           }}
         />
       )}
-      {choices.addressChipLabel === null ? null : (
+      {chosenAddress === null ? null : (
         <ClearChip
-          label={choices.addressChipLabel}
+          label={addressName(chosenAddress)}
           onClear={() => {
             update({ addressId: null })
           }}
@@ -225,31 +185,31 @@ function FilterMenu({ chain, filter, onFilterChange }: FilterMenuProps) {
           <FilterGroup
             label="Direction"
             anyLabel="Any direction"
-            value={choices.directionValue}
-            choices={choices.directions}
+            value={filter.direction ?? ANY}
+            choices={DIRECTION_CHOICES}
             onValueChange={(next) => {
-              update({ direction: choices.pickDirection(next) })
+              update({ direction: isTxDirection(next) ? next : null })
             }}
           />
-          {choices.assets.length > 1 ? (
+          {assetChoices.length > 1 ? (
             <FilterGroup
               label="Asset"
               anyLabel="All assets"
-              value={choices.assetValue}
-              choices={choices.assets}
+              value={filter.asset === null ? ANY : assetKey(filter.asset)}
+              choices={assetChoices}
               onValueChange={(next) => {
-                update({ asset: choices.pickAsset(next) })
+                update({ asset: next === ANY ? null : assetFromKey(next) })
               }}
             />
           ) : null}
-          {choices.addresses.length > 1 ? (
+          {addressChoices.length > 1 ? (
             <FilterGroup
               label="Address"
               anyLabel="All addresses"
-              value={choices.addressValue}
-              choices={choices.addresses}
+              value={filter.addressId === null ? ANY : String(filter.addressId)}
+              choices={addressChoices}
               onValueChange={(next) => {
-                update({ addressId: choices.pickAddress(next) })
+                update({ addressId: rows.find((row) => String(row.id) === next)?.id ?? null })
               }}
             />
           ) : null}

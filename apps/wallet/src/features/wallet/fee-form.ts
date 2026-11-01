@@ -1,6 +1,7 @@
 import type { ChainId, FeeLevel, FeeSelection } from "@/ipc/bindings.gen.ts"
 import { formatAmount, isZeroAmount, toBaseUnits } from "@/lib/amount.ts"
 import { assetDecimals, assetSymbol, chainMeta, nativeAsset } from "@/lib/chain.ts"
+import { WHOLE_NUMBER } from "@/lib/format.ts"
 import type { Parsed } from "@/lib/format.ts"
 
 const GWEI_DECIMALS = 9
@@ -79,7 +80,6 @@ export function feeForm(chain: ChainId, seed: FeeSelection | null): FeeForm | nu
   }
 }
 
-const DIGITS = /^[0-9]+$/u
 const DECIMAL = /^[0-9]+(?:\.[0-9]+)?$/u
 const LEADING_ZEROS = /^0+(?=[0-9])/u
 const ZERO_SHAPE = /^0+(?:\.0*)?$/u
@@ -120,7 +120,7 @@ function parseGasLimit(raw: string): Parsed<string | null> {
   if (text === "") {
     return { isOk: true, value: null }
   }
-  if (!DIGITS.test(text)) {
+  if (!WHOLE_NUMBER.test(text)) {
     return { isOk: false, error: "Enter the gas limit as a whole number." }
   }
   if (Number(text) < MIN_GAS_LIMIT) {

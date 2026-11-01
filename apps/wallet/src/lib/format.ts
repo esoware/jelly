@@ -16,7 +16,7 @@ export function truncateMiddle(value: string, head: number, tail: number): strin
   return `${value.slice(0, head)}${ELLIPSIS}${value.slice(-tail)}`
 }
 
-const WHOLE_NUMBER = /^\d+$/u
+export const WHOLE_NUMBER = /^\d+$/u
 
 export const MAX_U32 = 4_294_967_295
 

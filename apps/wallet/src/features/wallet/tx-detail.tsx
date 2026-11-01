@@ -360,7 +360,7 @@ function TxFacts({ row, onBumpFee, onCancel }: TxFactsProps) {
 
 type Replacement = "bump" | "cancel"
 
-const COPY = {
+const REPLACEMENT_COPY = {
   bump: {
     title: "Bump fee",
     description:
@@ -397,7 +397,7 @@ function ReplacementStep({
   onSubmit,
   children,
 }: ReplacementStepProps) {
-  const copy = COPY[replacement]
+  const copy = REPLACEMENT_COPY[replacement]
   return (
     <DialogForm
       onSubmit={() => {

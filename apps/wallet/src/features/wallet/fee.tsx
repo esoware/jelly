@@ -38,6 +38,10 @@ interface FeeQuoteState {
   isFetching: boolean
 }
 
+function canQuote(target: QuoteTarget): boolean {
+  return target.kind !== "send" || target.request !== null
+}
+
 export function quoteOf(state: FeeQuoteState): FeeQuote | null {
   return state.estimate.status === "quoted" ? state.estimate.quote : null
 }
@@ -52,7 +56,7 @@ export function useFeeQuote(
     placeholderData: keepPreviousData,
     enabled: isEnabled,
   })
-  const isQuotable = fee !== null && (target.kind !== "send" || target.request !== null)
+  const isQuotable = fee !== null && canQuote(target)
   let estimate: FeeEstimate = { status: "unquotable" }
   if (isQuotable && result.isError) {
     estimate = {
@@ -326,7 +330,6 @@ function FeeDialog({
   const draftQuote = useFeeQuote(target, quoted?.isOk === true ? quoted.value : null, open)
   const draft = customOf(form)
   const draftFee = draft?.isOk === true ? draft.value : null
-  const canQuote = target.kind !== "send" || target.request !== null
   const draftEstimate = draftQuote.estimate
   const isDraftChecked =
     isSettled &&
@@ -352,7 +355,7 @@ function FeeDialog({
       onOpenChange={onOpenChange}
       title="Custom fee"
       submitLabel="Apply"
-      isSubmitDisabled={draftFee === null || (canQuote && !isDraftChecked)}
+      isSubmitDisabled={draftFee === null || (canQuote(target) && !isDraftChecked)}
       isBusy={false}
       onSubmit={() => {
         if (draftFee !== null) {
@@ -444,7 +447,7 @@ export function FeeSection({ chain, target, fee, quote, onFeeChange }: FeeSectio
   const [isEditing, setIsEditing] = useState(false)
   const { feeLevels, customFee } = chainMeta(chain)
 
-  function openEditor(): void {
+  function handleEdit(): void {
     setOpenCount((count) => count + 1)
     setIsEditing(true)
   }
@@ -462,7 +465,7 @@ export function FeeSection({ chain, target, fee, quote, onFeeChange }: FeeSectio
               fee={fee}
               quote={quote}
               onFeeChange={onFeeChange}
-              onEdit={openEditor}
+              onEdit={handleEdit}
             />
           )
         }
