@@ -16,12 +16,9 @@ use jelly_core::{
 use jelly_net::{
     Connect, Endpoint, EndpointRegistry, HttpClient, HttpEndpoint, Identity, IdentityCheck as _,
     NetError, NetRuntime, PacerPolicy,
+    test_util::{LoopbackHttp, ServedRequest},
 };
 use jelly_tron::{PooledNode, TronAdapter, TronIdentity, test_util::OWNER};
-use parking_lot::Mutex;
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 use crate::common::{Fallible, TRX, balances, fixture, watched};
@@ -34,18 +31,10 @@ const IDENTITY_PATH: &str = "/wallet/getblockbynum";
 const MAINNET_BLOCK_ZERO: &str =
     r#"{"blockID":"00000000000000001ebf88508a03865c71d452e25f4d51194196a1d22b6653dc"}"#;
 
-/// One request a stand-in read.
-#[derive(Debug, Clone)]
-struct Seen {
-    path: String,
-    has_key: bool,
-}
-
 #[derive(Debug)]
 struct Host {
     can_serve_history: bool,
     is_down: bool,
-    log: Arc<Mutex<Vec<Seen>>>,
 }
 
 impl Host {
@@ -69,44 +58,6 @@ impl Host {
             _ => ("404 Not Found", String::from("{}")),
         }
     }
-}
-
-/// Answers one request per connection until the test drops it.
-async fn serve(listener: TcpListener, host: Host) {
-    while let Ok((mut stream, _)) = listener.accept().await {
-        let Some(seen) = read(&mut stream).await else {
-            continue;
-        };
-        let (status, body) = host.reply(&seen.path);
-        host.log.lock().push(seen);
-        let reply = format!(
-            "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
-            body.len()
-        );
-        let _ = stream.write_all(reply.as_bytes()).await;
-    }
-}
-
-async fn read(stream: &mut TcpStream) -> Option<Seen> {
-    let mut head: Vec<u8> = Vec::new();
-    let mut byte = [0u8; 1];
-    while !head.ends_with(b"\r\n\r\n") {
-        stream.read_exact(&mut byte).await.ok()?;
-        head.extend_from_slice(&byte);
-    }
-    let head = String::from_utf8(head).ok()?;
-    let headers: Vec<(&str, &str)> = head.lines().filter_map(|line| line.split_once(':')).collect();
-    let length = headers
-        .iter()
-        .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
-        .and_then(|(_, value)| value.trim().parse::<usize>().ok())
-        .unwrap_or_default();
-    let mut payload = vec![0u8; length];
-    stream.read_exact(&mut payload).await.ok()?;
-    let target = head.lines().next()?.split(' ').nth(1)?;
-    let path = target.split_once('?').map_or(target, |(path, _)| path).to_owned();
-    let has_key = headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(KEY_HEADER));
-    Some(Seen { path, has_key })
 }
 
 /// The shipped connector's identity check, with each configured endpoint connected to
@@ -158,8 +109,7 @@ struct Hosts {
     runtime: Arc<NetRuntime>,
     registry: EndpointRegistry,
     local: HashMap<String, Endpoint>,
-    seen: BTreeMap<String, Arc<Mutex<Vec<Seen>>>>,
-    _servers: JoinSet<()>,
+    servers: BTreeMap<String, LoopbackHttp>,
 }
 
 impl Hosts {
@@ -169,26 +119,21 @@ impl Hosts {
         let runtime =
             NetRuntime::with_pacing(Arc::<FakeClock>::clone(&clock), PacerPolicy::UNTHROTTLED);
         let registry = EndpointRegistry::new(&[jelly_tron::ENTRY]);
-        let mut servers = JoinSet::new();
         let mut local = HashMap::new();
-        let mut seen = BTreeMap::new();
+        let mut servers = BTreeMap::new();
         for entry in &registry.defaults(ChainId::Tron)?.endpoints {
-            let listener = TcpListener::bind("127.0.0.1:0").await?;
-            let address = format!("http://{}", listener.local_addr()?);
-            let log = Arc::new(Mutex::new(Vec::new()));
             let host = Host {
                 can_serve_history: entry.url == TRONGRID,
                 is_down: down.contains(&entry.url),
-                log: Arc::clone(&log),
             };
-            servers.spawn(serve(listener, host));
+            let server = LoopbackHttp::start(move |request| host.reply(request.path())).await?;
             local.insert(
                 entry.url.clone(),
-                Endpoint::parse(ChainId::Tron, Transport::TronHttp, &address)?,
+                Endpoint::parse(ChainId::Tron, Transport::TronHttp, server.url())?,
             );
-            seen.insert(entry.url.clone(), log);
+            servers.insert(entry.url.clone(), server);
         }
-        Ok(Self { clock, runtime, registry, local, seen, _servers: servers })
+        Ok(Self { clock, runtime, registry, local, servers })
     }
 
     /// The endpoints the registry hands the TRON pool once `rows` are the stored
@@ -200,7 +145,7 @@ impl Hosts {
 
     /// Gives every host the same good health record.
     fn equally_healthy(&self) {
-        for url in self.seen.keys() {
+        for url in self.servers.keys() {
             self.runtime.health().restore(ChainId::Tron, url, proven());
         }
     }
@@ -228,12 +173,12 @@ impl Hosts {
         Ok(balances(&sink.drain()))
     }
 
-    fn requests(&self, url: &str) -> Vec<Seen> {
-        self.seen.get(url).map(|log| log.lock().clone()).unwrap_or_default()
+    fn requests(&self, url: &str) -> Vec<ServedRequest> {
+        self.servers.get(url).map(LoopbackHttp::requests).unwrap_or_default()
     }
 
     fn paths(&self, url: &str) -> Vec<String> {
-        self.requests(url).into_iter().map(|seen| seen.path).collect()
+        self.requests(url).iter().map(|request| request.path().to_owned()).collect()
     }
 
     /// Every path the full nodes were asked for, together.
@@ -338,8 +283,13 @@ async fn the_trongrid_key_never_reaches_a_full_node() {
     assert!(has_reported_trx(&hosts.pass(&adapter).await.unwrap()));
     assert!(!wallet_reads(&hosts.full_node_paths().unwrap()).is_empty());
     for url in shipped_full_nodes().unwrap() {
-        for seen in hosts.requests(&url) {
-            assert!(!seen.has_key, "{url} was sent the key with {}", seen.path);
+        for request in hosts.requests(&url) {
+            assert_eq!(
+                request.header(KEY_HEADER),
+                None,
+                "{url} was sent the key with {}",
+                request.path()
+            );
         }
     }
 }

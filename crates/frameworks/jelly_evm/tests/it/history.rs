@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::io;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -14,12 +13,9 @@ use jelly_evm::{
     EtherscanHistory, EvmAdapter, EvmConfig, EvmError, HistoryApi, HistoryPage, InternalRow,
     Method, NativeRow, TokenRow, test_util::FakeHistory,
 };
+use jelly_net::test_util::{LoopbackHttp, ServedRequest};
 use parking_lot::Mutex;
 use serde_json::Value;
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
-use tokio::net::TcpListener;
-use tokio::sync::oneshot;
-use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 use crate::common::{
@@ -224,56 +220,24 @@ const EMPTY_PAGE: &str = r#"{"status":"0","message":"No transactions found","res
 
 /// A history service on a loopback port, which answers each request with the body
 /// for the `page` it names, or with an empty page.
-struct LoopbackService {
-    url: String,
-    stop: oneshot::Sender<()>,
-    server: JoinSet<io::Result<Vec<String>>>,
+async fn history_service(pages: Vec<String>) -> Fallible<LoopbackHttp> {
+    Ok(LoopbackHttp::start(move |request| {
+        let body = page_of(request_line(request))
+            .checked_sub(1)
+            .and_then(|index| pages.get(usize::try_from(index).ok()?))
+            .map_or(EMPTY_PAGE, String::as_str);
+        ("200 OK", body.to_owned())
+    })
+    .await?)
 }
 
-impl LoopbackService {
-    /// Gives up after twenty seconds without a caller.
-    async fn start(pages: Vec<String>) -> Fallible<Self> {
-        let listener = TcpListener::bind("127.0.0.1:0").await?;
-        let url = format!("http://{}/api", listener.local_addr()?);
-        let (stop, mut receiver) = oneshot::channel();
-        let mut server = JoinSet::new();
-        server.spawn(async move {
-            let mut lines = Vec::new();
-            loop {
-                let (mut stream, _) = tokio::select! {
-                    _ = &mut receiver => return Ok(lines),
-                    accepted = timeout(Duration::from_secs(20), listener.accept()) => accepted??,
-                };
-                let mut head = Vec::new();
-                let mut byte = [0u8; 1];
-                while !head.ends_with(b"\r\n\r\n") {
-                    timeout(Duration::from_secs(10), stream.read_exact(&mut byte)).await??;
-                    head.extend_from_slice(&byte);
-                }
-                let line =
-                    String::from_utf8_lossy(&head).lines().next().unwrap_or_default().to_owned();
-                let body = page_of(&line)
-                    .checked_sub(1)
-                    .and_then(|index| pages.get(usize::try_from(index).ok()?))
-                    .map_or(EMPTY_PAGE, String::as_str);
-                lines.push(line);
-                let reply = format!(
-                    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\
-                     connection: close\r\n\r\n{body}",
-                    body.len()
-                );
-                stream.write_all(reply.as_bytes()).await?;
-                stream.shutdown().await?;
-            }
-        });
-        Ok(Self { url, stop, server })
-    }
+fn request_line(request: &ServedRequest) -> &str {
+    request.head.lines().next().unwrap_or_default()
+}
 
-    /// Stops answering and hands back every request line, in order.
-    async fn finish(mut self) -> Fallible<Vec<String>> {
-        let _ = self.stop.send(());
-        Ok(self.server.join_next().await.ok_or("the service task is missing")???)
-    }
+/// Every request line the service read, in order.
+fn request_lines(service: &LoopbackHttp) -> Vec<String> {
+    service.requests().iter().map(|request| request_line(request).to_owned()).collect()
 }
 
 /// The `page` a request line asks for, or zero when it names none.
@@ -327,14 +291,13 @@ async fn a_full_history_page_with_an_unreadable_row_does_not_end_the_walk() {
         .to_string(),
     ];
 
-    let service = LoopbackService::start(pages).await.unwrap();
-    let pool = http_pool(ChainId::Ethereum, &[&service.url]).unwrap();
+    let service = history_service(pages).await.unwrap();
+    let pool = http_pool(ChainId::Ethereum, &[&format!("{}/api", service.url())]).unwrap();
     let history = EtherscanHistory::new(pool, "a-key", ETHEREUM).unwrap();
     let owner: Address = OWNER.parse().unwrap();
 
     let read = timeout(Duration::from_secs(20), history.tokens(owner, 0)).await;
-    let asked: Vec<u32> =
-        service.finish().await.unwrap().iter().map(|line| page_of(line)).collect();
+    let asked: Vec<u32> = request_lines(&service).iter().map(|line| page_of(line)).collect();
     let page = read.expect("the read finished inside its budget").expect("the service answered");
 
     let reaches_page_two = page.rows().iter().any(|row| row.hash == later);
@@ -348,8 +311,8 @@ async fn a_full_history_page_with_an_unreadable_row_does_not_end_the_walk() {
 
 #[tokio::test]
 async fn a_bsc_history_read_is_not_capped_below_the_current_height() {
-    let service = LoopbackService::start(Vec::new()).await.unwrap();
-    let pool = http_pool(ChainId::Bsc, &[&service.url]).unwrap();
+    let service = history_service(Vec::new()).await.unwrap();
+    let pool = http_pool(ChainId::Bsc, &[&format!("{}/api", service.url())]).unwrap();
     let history = EtherscanHistory::new(pool, "a-key", BSC).unwrap();
     let owner: Address = OWNER.parse().unwrap();
 
@@ -357,7 +320,7 @@ async fn a_bsc_history_read_is_not_capped_below_the_current_height() {
         .await
         .expect("the read finished inside its budget")
         .expect("the service answered");
-    let lines = service.finish().await.unwrap();
+    let lines = request_lines(&service);
     let line = lines.first().expect("the service was asked");
 
     let end = line.split(['?', '&', ' ']).find_map(|pair| pair.strip_prefix("endblock="));
@@ -971,14 +934,14 @@ async fn a_free_key_on_bnb_smart_chain_falls_back_to_logs_and_stops_asking() {
 #[tokio::test]
 async fn an_internal_read_names_the_chain_and_the_key_and_no_last_block() {
     let owner: Address = OWNER.parse().unwrap();
-    let service = LoopbackService::start(Vec::new()).await.unwrap();
-    let pool = http_pool(ChainId::Bsc, &[&service.url]).unwrap();
+    let service = history_service(Vec::new()).await.unwrap();
+    let pool = http_pool(ChainId::Bsc, &[&format!("{}/api", service.url())]).unwrap();
     let etherscan = EtherscanHistory::new(pool, "a-key", BSC).unwrap();
     timeout(Duration::from_secs(20), etherscan.internal(owner, 10))
         .await
         .expect("the read finished inside its budget")
         .expect("the service answered");
-    let lines = service.finish().await.unwrap();
+    let lines = request_lines(&service);
     let line = lines.first().expect("the service was asked");
     assert!(line.contains("chainid=56&"), "{line}");
     assert!(line.contains("action=txlistinternal&"), "{line}");
@@ -990,15 +953,15 @@ async fn an_internal_read_names_the_chain_and_the_key_and_no_last_block() {
 #[tokio::test]
 async fn a_keyless_service_is_sent_no_key() {
     let owner: Address = OWNER.parse().unwrap();
-    let service = LoopbackService::start(Vec::new()).await.unwrap();
-    let pool = http_pool(ChainId::Avalanche, &[&service.url]).unwrap();
+    let service = history_service(Vec::new()).await.unwrap();
+    let pool = http_pool(ChainId::Avalanche, &[&format!("{}/api", service.url())]).unwrap();
     let routescan = EtherscanHistory::keyless(pool, AVALANCHE);
     assert!(format!("{routescan:?}").contains("has_key: false"), "{routescan:?}");
     timeout(Duration::from_secs(20), routescan.native(owner, 10))
         .await
         .expect("the read finished inside its budget")
         .expect("the service answered");
-    let lines = service.finish().await.unwrap();
+    let lines = request_lines(&service);
     let line = lines.first().expect("the service was asked");
     assert!(line.contains("action=txlist&"), "{line}");
     assert!(line.contains("&startblock=10&"), "{line}");

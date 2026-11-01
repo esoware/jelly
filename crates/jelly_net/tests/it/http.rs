@@ -3,13 +3,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use jelly_core::ProxySetting;
-use jelly_net::{HttpClient, HttpRequest, NetError, UrlRejection};
+use jelly_net::{HttpClient, HttpRequest, NetError, UrlRejection, test_util::read_head};
 use parking_lot::Mutex;
 use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpStream;
 use tokio::time::timeout;
 
-use crate::common::{endpoint, loopback_server, read_head};
+use crate::common::{endpoint, loopback_server};
 
 /// A remote name the endpoint policy refuses over plaintext. The fake proxy answers for
 /// it, so nothing leaves the machine.

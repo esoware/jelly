@@ -319,8 +319,7 @@ async fn the_trongrid_key_reaches_no_other_tron_node() {
         r#"{"blockID":"00000000000000001ebf88508a03865c71d452e25f4d51194196a1d22b6653dc"}"#;
     const NOW_BLOCK: &str = r#"{"blockID":"000000000515a651af7c721ebc0c55d84f973b989508d8f40ba10affa980fd3e","block_header":{"raw_data":{"number":85304913,"timestamp":1786585806000}}}"#;
 
-    let (url, server) =
-        serve(vec![("200 OK", MAINNET_BLOCK_ZERO), ("200 OK", NOW_BLOCK)]).await.unwrap();
+    let server = serve(vec![("200 OK", MAINNET_BLOCK_ZERO), ("200 OK", NOW_BLOCK)]).await.unwrap();
 
     let harness = Harness::new().unwrap();
     let registry = harness.network.registry();
@@ -334,7 +333,7 @@ async fn the_trongrid_key_reaches_no_other_tron_node() {
             (ChainId::Tron, row)
         })
         .collect();
-    rows.push((ChainId::Tron, EndpointOverride::new(url)));
+    rows.push((ChainId::Tron, EndpointOverride::new(server.url())));
     registry.load_overrides(rows);
 
     let request = BuildRequest {
@@ -351,10 +350,12 @@ async fn the_trongrid_key_reaches_no_other_tron_node() {
     let pass = timeout(Duration::from_secs(30), tron.sync(deadline, &events)).await;
     assert!(pass.is_ok(), "the sync pass did not finish");
 
-    let requests = timeout(Duration::from_secs(30), server).await.unwrap().unwrap().unwrap();
+    let requests = server.requests();
+    assert_eq!(requests.len(), 2);
     let tip = requests.last().unwrap();
-    assert!(tip.starts_with("POST /wallet/getblock "), "{tip}");
+    assert!(tip.head.starts_with("POST /wallet/getblock "), "{}", tip.head);
     for request in &requests {
-        assert!(!request.contains(TRONGRID_KEY), "{request}");
+        assert!(!request.head.contains(TRONGRID_KEY), "{}", request.head);
+        assert!(!request.body.contains(TRONGRID_KEY), "{}", request.body);
     }
 }

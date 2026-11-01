@@ -42,4 +42,4 @@ jelly_optimism  = { workspace = true }
 jelly_bsc       = { workspace = true }
 jelly_polygon   = { workspace = true }
 jelly_avalanche = { workspace = true }
-tokio           = { workspace = true, features = ["test-util", "net", "io-util"] }
+tokio           = { workspace = true, features = ["test-util"] }

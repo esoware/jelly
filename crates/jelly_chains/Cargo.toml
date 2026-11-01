@@ -39,4 +39,4 @@ jelly_core    = { workspace = true, features = ["test-util"] }
 jelly_keypair = { workspace = true, features = ["test-util"] }
 jelly_net     = { workspace = true, features = ["test-util"] }
 
-tokio = { workspace = true, features = ["io-util", "net"] }
+tokio = { workspace = true }

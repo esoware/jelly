@@ -1,10 +1,11 @@
-//! Test helpers: a direct network on a fake clock, and an in-memory websocket JSON-RPC
-//! server.
+//! Test helpers: a direct network on a fake clock, an in-memory websocket JSON-RPC
+//! server, and a loopback HTTP server.
 //!
-//! The server speaks the real websocket protocol over a duplex pipe, so an offline test
+//! The websocket server speaks the real protocol over a duplex pipe, so an offline test
 //! exercises the same handshake, framing, routing, and reconnection a TLS socket would.
 
 use std::collections::{HashMap, VecDeque};
+use std::io;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 
@@ -14,7 +15,8 @@ use jelly_core::test_util::{FakeClock, MemoryPinStore};
 use jelly_core::{Clock, EndpointLabel};
 use parking_lot::Mutex;
 use serde_json::Value;
-use tokio::io::{DuplexStream, duplex};
+use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _, DuplexStream, duplex};
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::task::JoinSet;
@@ -316,5 +318,107 @@ impl Connect<WsClient> for FakeWsConnector {
         connection: &WsClient,
     ) -> Result<Identity, NetError> {
         self.check.identify(endpoint, connection).await
+    }
+}
+
+/// Reads one HTTP head through its blank line, a byte at a time, so whatever follows it
+/// on the stream, such as a TLS handshake inside a tunnel, is left unread.
+pub async fn read_head(stream: &mut TcpStream) -> io::Result<String> {
+    let mut head: Vec<u8> = Vec::new();
+    let mut byte = [0u8; 1];
+    while !head.ends_with(b"\r\n\r\n") {
+        stream.read_exact(&mut byte).await?;
+        head.extend_from_slice(&byte);
+    }
+    Ok(String::from_utf8_lossy(&head).into_owned())
+}
+
+/// One request a [`LoopbackHttp`] read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServedRequest {
+    /// The request line and headers, through the blank line.
+    pub head: String,
+    /// The `content-length` bytes after the head, as text.
+    pub body: String,
+}
+
+impl ServedRequest {
+    /// The target of the request line, without its query.
+    pub fn path(&self) -> &str {
+        let target = self.head.split(' ').nth(1).unwrap_or_default();
+        target.split_once('?').map_or(target, |(path, _)| path)
+    }
+
+    /// The value of the first header named `name`, in any case.
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.head
+            .lines()
+            .skip(1)
+            .filter_map(|line| line.split_once(':'))
+            .find(|(field, _)| field.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.trim())
+    }
+}
+
+/// A plaintext HTTP/1.1 server on a loopback port that keeps every request it reads.
+///
+/// It answers one request per connection with the status, such as `200 OK`, and the JSON
+/// body its reply function gives for that request. A request is kept before its reply is
+/// written, so it's there by the time the reply arrives. The server stops when it's
+/// dropped.
+#[derive(Debug)]
+pub struct LoopbackHttp {
+    url: String,
+    requests: Arc<Mutex<Vec<ServedRequest>>>,
+    _server: JoinSet<()>,
+}
+
+impl LoopbackHttp {
+    pub async fn start(
+        reply: impl Fn(&ServedRequest) -> (&'static str, String) + Send + 'static,
+    ) -> io::Result<Self> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let url = format!("http://{}", listener.local_addr()?);
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let kept = Arc::clone(&requests);
+        let mut server = JoinSet::new();
+        server.spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                let read = async {
+                    let mut request =
+                        ServedRequest { head: read_head(&mut stream).await?, body: String::new() };
+                    let length = request
+                        .header("content-length")
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .unwrap_or_default();
+                    let mut body = vec![0u8; length];
+                    stream.read_exact(&mut body).await?;
+                    request.body = String::from_utf8_lossy(&body).into_owned();
+                    Ok::<ServedRequest, io::Error>(request)
+                };
+                let Ok(request) = read.await else { continue };
+                let (status, body) = reply(&request);
+                kept.lock().push(request);
+                let answer = format!(
+                    "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\
+                     connection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                if stream.write_all(answer.as_bytes()).await.is_ok() {
+                    let _ = stream.shutdown().await;
+                }
+            }
+        });
+        Ok(Self { url, requests, _server: server })
+    }
+
+    /// `http://` and the server's loopback address, with no path.
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+
+    /// Every request read so far, oldest first.
+    pub fn requests(&self) -> Vec<ServedRequest> {
+        self.requests.lock().clone()
     }
 }

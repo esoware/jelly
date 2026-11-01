@@ -16,25 +16,27 @@ const BSC_CHAIN_ID_REPLY: &str = r#"{"jsonrpc":"2.0","id":1,"result":"0x38"}"#;
 /// answers for BNB Smart Chain is reported as the wrong network.
 #[tokio::test]
 async fn an_ethereum_node_is_held_to_ethereums_chain_id() {
-    let (url, server) = serve(vec![("200 OK", BSC_CHAIN_ID_REPLY)]).await.unwrap();
+    let server = serve(vec![("200 OK", BSC_CHAIN_ID_REPLY)]).await.unwrap();
     let network = direct_network().unwrap();
-    let endpoint = Endpoint::parse(ChainId::Ethereum, Transport::HttpJsonrpc, &url).unwrap();
+    let endpoint =
+        Endpoint::parse(ChainId::Ethereum, Transport::HttpJsonrpc, server.url()).unwrap();
 
     assert_eq!(probe(&network, &endpoint).await, ProbeReport::WrongNetwork);
-    let requests = server.await.unwrap().unwrap();
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1);
     let request = requests.first().unwrap();
-    assert!(request.starts_with("POST / HTTP/1.1\r\n"), "{request}");
-    assert!(request.contains(r#""method":"eth_chainId""#), "{request}");
+    assert!(request.head.starts_with("POST / HTTP/1.1\r\n"), "{}", request.head);
+    assert!(request.body.contains(r#""method":"eth_chainId""#), "{}", request.body);
 }
 
 #[tokio::test]
 async fn a_bsc_node_answering_for_bsc_is_verified() {
-    let (url, server) = serve(vec![("200 OK", BSC_CHAIN_ID_REPLY)]).await.unwrap();
+    let server = serve(vec![("200 OK", BSC_CHAIN_ID_REPLY)]).await.unwrap();
     let network = direct_network().unwrap();
-    let endpoint = Endpoint::parse(ChainId::Bsc, Transport::HttpJsonrpc, &url).unwrap();
+    let endpoint = Endpoint::parse(ChainId::Bsc, Transport::HttpJsonrpc, server.url()).unwrap();
 
     assert_eq!(probe(&network, &endpoint).await, ProbeReport::Verified { latency_ms: 0 });
-    server.await.unwrap().unwrap();
+    assert_eq!(server.requests().len(), 1);
 }
 
 #[tokio::test]
@@ -49,11 +51,12 @@ async fn xrp_nodes_must_report_mainnet_and_cannot_omit_the_network_id() {
         ),
     ];
     for (body, expected) in cases {
-        let (url, server) = serve(vec![("200 OK", body)]).await.unwrap();
-        let endpoint = Endpoint::parse(ChainId::Xrp, Transport::HttpJsonrpc, &url).unwrap();
+        let server = serve(vec![("200 OK", body)]).await.unwrap();
+        let endpoint = Endpoint::parse(ChainId::Xrp, Transport::HttpJsonrpc, server.url()).unwrap();
         assert_eq!(probe(&network, &endpoint).await, expected);
-        let requests = server.await.unwrap().unwrap();
-        assert!(requests.first().unwrap().contains(r#""method":"server_info""#));
+        let requests = server.requests();
+        assert_eq!(requests.len(), 1);
+        assert!(requests.first().unwrap().body.contains(r#""method":"server_info""#));
     }
 }
 
@@ -75,11 +78,12 @@ async fn ton_nodes_must_match_both_mainnet_genesis_hashes() {
         ),
     ];
     for (body, expected) in cases {
-        let (url, server) = serve(vec![("200 OK", body)]).await.unwrap();
-        let endpoint = Endpoint::parse(ChainId::Ton, Transport::HttpJsonrpc, &url).unwrap();
+        let server = serve(vec![("200 OK", body)]).await.unwrap();
+        let endpoint = Endpoint::parse(ChainId::Ton, Transport::HttpJsonrpc, server.url()).unwrap();
         assert_eq!(probe(&network, &endpoint).await, expected);
-        let requests = server.await.unwrap().unwrap();
-        assert!(requests.first().unwrap().contains(r#""method":"getMasterchainInfo""#));
+        let requests = server.requests();
+        assert_eq!(requests.len(), 1);
+        assert!(requests.first().unwrap().body.contains(r#""method":"getMasterchainInfo""#));
     }
 }
 
@@ -98,12 +102,13 @@ async fn zcash_blockbook_endpoints_must_match_mainnet_and_its_genesis() {
             ProbeReport::WrongNetwork,
         ),
     ] {
-        let (url, server) = serve(vec![("200 OK", status), ("200 OK", block)]).await.unwrap();
-        let endpoint = Endpoint::parse(ChainId::Zcash, Transport::Blockbook, &url).unwrap();
+        let server = serve(vec![("200 OK", status), ("200 OK", block)]).await.unwrap();
+        let endpoint = Endpoint::parse(ChainId::Zcash, Transport::Blockbook, server.url()).unwrap();
         assert_eq!(probe(&network, &endpoint).await, expected);
-        let requests = server.await.unwrap().unwrap();
-        assert!(requests.first().unwrap().starts_with("GET /api/v2 HTTP/1.1"));
-        assert!(requests.last().unwrap().starts_with("GET /api/v2/block-index/0 HTTP/1.1"));
+        let requests = server.requests();
+        assert_eq!(requests.len(), 2);
+        assert!(requests.first().unwrap().head.starts_with("GET /api/v2 HTTP/1.1"));
+        assert!(requests.last().unwrap().head.starts_with("GET /api/v2/block-index/0 HTTP/1.1"));
     }
 }
 
@@ -111,14 +116,19 @@ async fn zcash_blockbook_endpoints_must_match_mainnet_and_its_genesis() {
 async fn a_tron_node_is_held_to_mainnets_block_zero() {
     let foreign_block_zero =
         r#"{"blockID":"0000000000000000000000000000000000000000000000000000000000000000"}"#;
-    let (url, server) = serve(vec![("200 OK", foreign_block_zero)]).await.unwrap();
+    let server = serve(vec![("200 OK", foreign_block_zero)]).await.unwrap();
     let network = direct_network().unwrap();
-    let endpoint = Endpoint::parse(ChainId::Tron, Transport::TronHttp, &url).unwrap();
+    let endpoint = Endpoint::parse(ChainId::Tron, Transport::TronHttp, server.url()).unwrap();
 
     assert_eq!(probe(&network, &endpoint).await, ProbeReport::WrongNetwork);
-    let requests = server.await.unwrap().unwrap();
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1);
     let request = requests.first().unwrap();
-    assert!(request.starts_with("POST /wallet/getblockbynum HTTP/1.1\r\n"), "{request}");
+    assert!(
+        request.head.starts_with("POST /wallet/getblockbynum HTTP/1.1\r\n"),
+        "{}",
+        request.head
+    );
 }
 
 /// The Monero connector negotiates with the daemon first, and only then asks
@@ -127,13 +137,14 @@ async fn a_tron_node_is_held_to_mainnets_block_zero() {
 async fn a_monero_daemon_is_held_to_mainnet() {
     let stagenet =
         r#"{"jsonrpc":"2.0","id":1,"result":{"status":"OK","nettype":"stagenet","height":1}}"#;
-    let (url, server) = serve(vec![("200 OK", "[]"), ("200 OK", stagenet)]).await.unwrap();
+    let server = serve(vec![("200 OK", "[]"), ("200 OK", stagenet)]).await.unwrap();
     let network = direct_network().unwrap();
-    let endpoint = Endpoint::parse(ChainId::Monero, Transport::MoneroRpc, &url).unwrap();
+    let endpoint = Endpoint::parse(ChainId::Monero, Transport::MoneroRpc, server.url()).unwrap();
 
     assert_eq!(probe(&network, &endpoint).await, ProbeReport::WrongNetwork);
-    let requests = server.await.unwrap().unwrap();
-    assert!(requests.last().unwrap().contains(r#""method":"get_info""#), "{requests:?}");
+    let requests = server.requests();
+    assert_eq!(requests.len(), 2);
+    assert!(requests.last().unwrap().body.contains(r#""method":"get_info""#), "{requests:?}");
 }
 
 /// A REST service's pool sends nothing to identify it, so the probe only asks
@@ -144,17 +155,18 @@ async fn a_rest_service_is_only_asked_whether_it_answers() {
     for (chain, transport) in
         [(ChainId::Bitcoin, Transport::FeeApi), (ChainId::Ethereum, Transport::HistoryApi)]
     {
-        let (url, server) = serve(vec![("404 Not Found", "")]).await.unwrap();
-        let endpoint = Endpoint::parse(chain, transport, &url).unwrap();
+        let server = serve(vec![("404 Not Found", "")]).await.unwrap();
+        let endpoint = Endpoint::parse(chain, transport, server.url()).unwrap();
 
         assert_eq!(
             probe(&network, &endpoint).await,
             ProbeReport::Reachable { latency_ms: 0 },
             "{transport}"
         );
-        let requests = server.await.unwrap().unwrap();
+        let requests = server.requests();
+        assert_eq!(requests.len(), 1, "{transport}");
         let request = requests.first().unwrap();
-        assert!(request.starts_with("GET / HTTP/1.1\r\n"), "{transport}: {request}");
+        assert!(request.head.starts_with("GET / HTTP/1.1\r\n"), "{transport}: {}", request.head);
     }
 }
 
@@ -179,15 +191,16 @@ async fn a_node_that_answers_badly_is_reported_as_a_bad_answer() {
         ),
     ];
     for (index, (chain, transport, replies)) in cases.into_iter().enumerate() {
-        let (url, server) = serve(replies).await.unwrap();
-        let endpoint = Endpoint::parse(chain, transport, &url).unwrap();
+        let scripted = replies.len();
+        let server = serve(replies).await.unwrap();
+        let endpoint = Endpoint::parse(chain, transport, server.url()).unwrap();
 
         assert_eq!(
             probe(&network, &endpoint).await,
             ProbeReport::Unreachable { failure: ProbeFailure::BadAnswer },
             "case {index}: {chain}"
         );
-        server.await.unwrap().unwrap();
+        assert_eq!(server.requests().len(), scripted, "case {index}: {chain}");
     }
 }
 

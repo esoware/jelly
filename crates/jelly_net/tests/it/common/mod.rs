@@ -10,7 +10,6 @@ use jelly_net::{
     Connect, Endpoint, HealthTracker, Identity, NetError, NetRuntime, Outcome, PacerPolicy, Pool,
 };
 use parking_lot::Mutex;
-use tokio::io::AsyncReadExt as _;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::{JoinHandle, JoinSet};
 
@@ -20,18 +19,6 @@ pub(crate) const ENDPOINT_C: &str = "https://c.example";
 
 pub(crate) const fn rotate(_: &NetError) -> Outcome {
     Outcome::Rotate
-}
-
-/// Reads one HTTP head through its blank line, a byte at a time, so whatever follows it
-/// on the stream, such as a TLS handshake inside a tunnel, is left unread.
-pub(crate) async fn read_head(stream: &mut TcpStream) -> io::Result<String> {
-    let mut head: Vec<u8> = Vec::new();
-    let mut byte = [0u8; 1];
-    while !head.ends_with(b"\r\n\r\n") {
-        stream.read_exact(&mut byte).await?;
-        head.extend_from_slice(&byte);
-    }
-    Ok(String::from_utf8_lossy(&head).into_owned())
 }
 
 /// A loopback server that hands every connection to `serve`, until its handle is aborted.

@@ -9,13 +9,13 @@ use jelly_core::{ChainId, Clock, Transport, test_util::FakeClock};
 use jelly_net::{
     Connect as _, Endpoint, Identity, IdentityCheck, NetError, NetRuntime, NoIdentity, PacerPolicy,
     Pool, WsClient, WsConnector, WsSubscription,
-    test_util::{FakeWs, WsAnswer, direct_network},
+    test_util::{FakeWs, WsAnswer, direct_network, read_head},
 };
 use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpListener;
 use tokio::time::{sleep, timeout};
 
-use crate::common::{read_head, rotate};
+use crate::common::rotate;
 
 const NO_FLOOR: Duration = Duration::ZERO;
 

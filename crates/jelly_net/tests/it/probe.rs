@@ -3,32 +3,14 @@ use std::time::Duration;
 
 use jelly_core::{ChainId, EndpointLabel, FailureKind, Transport, test_util::FakeClock};
 use jelly_net::{
-    Endpoint, HttpClient, NetError, ProbeFailure, ProbeReport, UrlRejection, probe, probe_reachable,
+    Endpoint, HttpClient, NetError, ProbeFailure, ProbeReport, UrlRejection, probe,
+    probe_reachable, test_util::LoopbackHttp,
 };
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
-use crate::common::{ENDPOINT_A, endpoint, harness, read_head};
-
-async fn answer_once(
-    status: &'static str,
-    body: String,
-) -> io::Result<(String, JoinHandle<io::Result<String>>)> {
-    let listener = TcpListener::bind("127.0.0.1:0").await?;
-    let url = format!("http://{}", listener.local_addr()?);
-    let server = tokio::spawn(async move {
-        let (mut stream, _) = listener.accept().await?;
-        let head = read_head(&mut stream).await?;
-        let reply = format!(
-            "HTTP/1.1 {status}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
-            body.len()
-        );
-        stream.write_all(reply.as_bytes()).await?;
-        Ok(head)
-    });
-    Ok((url, server))
-}
+use crate::common::{ENDPOINT_A, endpoint, harness};
 
 #[tokio::test(start_paused = true)]
 async fn a_confirmed_endpoint_is_verified_with_the_time_the_dial_and_the_check_took() {
@@ -94,41 +76,47 @@ async fn a_check_that_never_answers_runs_out_of_the_probe_budget() {
 
 #[tokio::test]
 async fn a_rest_service_that_answers_at_all_is_reachable() {
-    let (url, server) =
-        answer_once("404 Not Found", String::new()).await.expect("a loopback server");
-    let endpoint = Endpoint::parse(ChainId::Bitcoin, Transport::FeeApi, &url).expect("loopback");
+    let server =
+        LoopbackHttp::start(|_| ("404 Not Found", String::new())).await.expect("a loopback server");
+    let endpoint =
+        Endpoint::parse(ChainId::Bitcoin, Transport::FeeApi, server.url()).expect("loopback");
     let http = HttpClient::new(None).expect("the client builds");
 
     let report = probe_reachable(&http, &FakeClock::default(), &endpoint).await;
 
     assert_eq!(report, ProbeReport::Reachable { latency_ms: 0 });
-    let head = server.await.expect("the server ran").expect("the request was read");
-    assert!(head.starts_with("GET / HTTP/1.1\r\n"), "{head}");
+    let requests = server.requests();
+    let [request] = requests.as_slice() else { panic!("one request: {requests:?}") };
+    assert!(request.head.starts_with("GET / HTTP/1.1\r\n"), "{}", request.head);
 }
 
 #[tokio::test]
 async fn a_rest_service_with_an_oversized_body_is_refused() {
-    let (url, server) = answer_once("200 OK", "a".repeat(65_537)).await.expect("a loopback server");
-    let endpoint = Endpoint::parse(ChainId::Bitcoin, Transport::FeeApi, &url).expect("loopback");
+    let server =
+        LoopbackHttp::start(|_| ("200 OK", "a".repeat(65_537))).await.expect("a loopback server");
+    let endpoint =
+        Endpoint::parse(ChainId::Bitcoin, Transport::FeeApi, server.url()).expect("loopback");
     let http = HttpClient::new(None).expect("the client builds");
 
     let report = probe_reachable(&http, &FakeClock::default(), &endpoint).await;
-    let _ = server.await.expect("the server ran");
 
     assert_eq!(report, ProbeReport::Unreachable { failure: ProbeFailure::BadAnswer });
+    assert_eq!(server.requests().len(), 1);
 }
 
 #[tokio::test]
 async fn a_rest_service_failing_on_its_own_side_is_unreachable() {
-    let (url, server) =
-        answer_once("503 Service Unavailable", String::new()).await.expect("a loopback server");
-    let endpoint = Endpoint::parse(ChainId::Bitcoin, Transport::FeeApi, &url).expect("loopback");
+    let server = LoopbackHttp::start(|_| ("503 Service Unavailable", String::new()))
+        .await
+        .expect("a loopback server");
+    let endpoint =
+        Endpoint::parse(ChainId::Bitcoin, Transport::FeeApi, server.url()).expect("loopback");
     let http = HttpClient::new(None).expect("the client builds");
 
     let report = probe_reachable(&http, &FakeClock::default(), &endpoint).await;
 
     assert_eq!(report, ProbeReport::Unreachable { failure: ProbeFailure::HttpStatus });
-    server.await.expect("the server ran").expect("the request was read");
+    assert_eq!(server.requests().len(), 1);
 }
 
 /// A loopback server that reads one TLS record, the client hello, and answers it with a
