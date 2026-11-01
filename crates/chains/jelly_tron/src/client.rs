@@ -183,15 +183,16 @@ impl TronClient {
     /// internal transfers and all, that the sender's native stream lists.
     ///
     /// The sender comes from `gettransactionbyid`, which every full node answers
-    /// alike. A row not found within [`PARENT_PAGES`] pages and `deadline` is
-    /// reported as unusable rather than guessed at.
+    /// alike. A row the sender's history doesn't list within [`PARENT_PAGES`] pages
+    /// is `None` rather than guessed at, and a search `deadline` cuts short is an
+    /// error, so a later pass tries again.
     pub(crate) async fn parent(
         &self,
         txid: &str,
         timestamp_millis: i64,
         deadline: Deadline,
         clock: &dyn Clock,
-    ) -> Result<NativeRow, TronError> {
+    ) -> Result<Option<NativeRow>, TronError> {
         let answer = self.node.call(&Request::transaction_by_id(txid)?).await?;
         let held: NativeRow = answer.decode()?;
         let sender = held.sender().ok_or_else(|| answer.unusable("transaction sender"))?;
@@ -205,9 +206,12 @@ impl TronClient {
             let next = page.fingerprint().map(str::to_owned);
             let has_ended = page.data.is_empty() || next.is_none() || next == fingerprint;
             if let Some(row) = page.data.into_iter().find(|row| row.txid() == txid) {
-                return Ok(row);
+                return Ok(Some(row));
             }
-            if has_ended || pages_read >= PARENT_PAGES || deadline.is_expired(clock) {
+            if has_ended || pages_read >= PARENT_PAGES {
+                return Ok(None);
+            }
+            if deadline.is_expired(clock) {
                 return Err(answer.unusable("parent transaction"));
             }
             fingerprint = next;

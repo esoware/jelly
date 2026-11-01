@@ -205,6 +205,36 @@ async fn an_unfinished_walk_stays_due_until_it_is_done() {
     assert_eq!(reads(&harness), [0, 0, 0], "caught up and nothing new");
 }
 
+#[tokio::test]
+async fn a_backfill_page_that_fails_keeps_what_the_forward_walk_reported() {
+    let txid = |n: i64| format!("{n:02x}").repeat(32);
+    let row = |n: i64| {
+        transfer_row(&txid(n), 1_786_585_000_000 + n * 100_000, TRX_OWNER_HEX, TRX_RECIPIENT_HEX, 5)
+    };
+    let [r1, r2] = [1, 2].map(row);
+    let fake = balances_only(TRX_OWNER)
+        .on(Route::TokenHistory, Answer::body(fixture!("page_empty")))
+        .on(Route::NativeHistory, history_page(&[r2.as_str()], Some("FpOlder")))
+        .on_matching(Route::NativeHistory, "fingerprint=FpOlder", Answer::Status(503))
+        .on_matching(
+            Route::NativeHistory,
+            "fingerprint=FpOlder",
+            history_page(&[r1.as_str()], None),
+        );
+    let config = TronConfig { forward_pages: 1, backfill_pages: 1, ..TronConfig::default() };
+    let harness = watching_owner(&fake, config).await.unwrap();
+    let sink = FakeEventSink::new();
+
+    pass(&harness, &sink).await.unwrap();
+    assert_eq!(txids(&records(&sink.drain())), vec![txid(2)]);
+    pass(&harness, &sink).await.unwrap();
+    assert_eq!(
+        txids(&records(&sink.drain())),
+        vec![txid(1)],
+        "the retry reads only the page that failed"
+    );
+}
+
 /// An address the adapter hasn't read since it was built is read on its first
 /// pass, whatever its balances say, and so is one it stopped watching and then
 /// watched again.

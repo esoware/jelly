@@ -36,11 +36,12 @@ impl Route {
         matches!(self, Self::NativeHistory | Self::TokenHistory | Self::InternalHistory)
     }
 
-    /// A history page carries whole transactions and may be large. Everything
-    /// else is a handful of fields, and a hostile or broken endpoint shouldn't
-    /// force a bigger allocation.
+    /// A history page or a transaction read by id carries whole transactions and
+    /// may be large. The largest java-tron accepts, 512,000 bytes, comes back twice
+    /// in hex, near 2 MB. Everything else is a handful of fields, and a hostile or
+    /// broken endpoint shouldn't force a bigger allocation.
     pub(crate) const fn max_response_bytes(self) -> usize {
-        if self.is_indexer() { 4_194_304 } else { 262_144 }
+        if self.is_indexer() || matches!(self, Self::TransactionById) { 4_194_304 } else { 262_144 }
     }
 }
 
@@ -303,6 +304,13 @@ mod tests {
             indexer_routes,
             [Route::NativeHistory, Route::TokenHistory, Route::InternalHistory]
         );
+    }
+
+    #[test]
+    fn a_transaction_read_by_id_fits_at_the_largest_size_java_tron_accepts() {
+        // Its 512,000 bytes come back twice in hex, as `raw_data_hex` and in `raw_data`.
+        let answer_bytes = 512_000usize.saturating_mul(4);
+        assert!(Route::TransactionById.max_response_bytes() > answer_bytes);
     }
 
     #[test]
