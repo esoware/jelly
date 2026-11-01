@@ -30,7 +30,8 @@ pub use crate::contact::{ContactEdit, ContactRow, NewContact};
 pub use crate::db::Recovered;
 pub use crate::error::StoreError;
 pub use crate::history::{
-    PageCursor, TxFilter, TxGroup, TxGroupFilter, TxGroupPage, TxMember, TxPage, TxRow,
+    PageCursor, TX_PAGE_SIZE, TxFilter, TxGroup, TxGroupFilter, TxGroupPage, TxMember, TxPage,
+    TxRow,
 };
 pub use crate::patch::Patch;
 pub use crate::pin::PinRow;

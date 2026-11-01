@@ -97,7 +97,6 @@ impl WalletEngine {
                 txid: query.txid,
                 direction: query.direction,
                 cursor,
-                limit: TxFilter::DEFAULT_LIMIT,
             };
             let page = self.inner.store.list_txs(filter).await?;
             let entries: Vec<Entry> = page.rows.into_iter().map(Entry::Row).collect();
@@ -110,7 +109,6 @@ impl WalletEngine {
                 txid: query.txid,
                 direction: query.direction,
                 cursor,
-                limit: TxFilter::DEFAULT_LIMIT,
             };
             let page = self.inner.store.list_tx_groups(filter).await?;
             let entries: Vec<Entry> = page.groups.into_iter().map(Entry::Group).collect();

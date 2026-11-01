@@ -110,6 +110,8 @@ statements! {
         );
 }
 
+pub const TX_PAGE_SIZE: u32 = 50;
+
 /// No confirmation count, since that's derived from the current tip at read time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TxRow {
@@ -143,15 +145,9 @@ pub struct TxFilter {
     pub txid: Option<String>,
     pub direction: Option<TxDirection>,
     pub cursor: Option<PageCursor>,
-    /// Clamped to `1..=MAX_LIMIT`. Callers that treat zero as the default must map it to
-    /// `DEFAULT_LIMIT` first.
-    pub limit: u32,
 }
 
 impl TxFilter {
-    pub const DEFAULT_LIMIT: u32 = 50;
-    pub const MAX_LIMIT: u32 = 500;
-
     pub const fn new(wallet_id: i64) -> Self {
         Self {
             wallet_id,
@@ -161,7 +157,6 @@ impl TxFilter {
             txid: None,
             direction: None,
             cursor: None,
-            limit: Self::DEFAULT_LIMIT,
         }
     }
 }
@@ -177,8 +172,6 @@ pub struct TxGroupFilter {
     /// Matched against the direction the whole group takes.
     pub direction: Option<TxDirection>,
     pub cursor: Option<PageCursor>,
-    /// Clamped to `1..=TxFilter::MAX_LIMIT`.
-    pub limit: u32,
 }
 
 /// One row of a transaction, with whether its counterparty is another of the wallet's
@@ -284,8 +277,7 @@ fn map(row: &Row<'_>) -> Result<TxRow, StoreError> {
 
 impl Reader<'_> {
     pub(crate) fn list_txs(&self, filter: TxFilter) -> Result<TxPage, StoreError> {
-        let TxFilter { wallet_id, chain, asset, address_id, txid, direction, cursor, limit } =
-            filter;
+        let TxFilter { wallet_id, chain, asset, address_id, txid, direction, cursor } = filter;
         let filters = params![
             wallet_id,
             chain.map(ChainId::as_str),
@@ -294,12 +286,12 @@ impl Reader<'_> {
             txid,
             direction.map(TxDirection::as_str),
         ];
-        let (rows, next_cursor) = self.page(LIST, filters, cursor, limit, map)?;
+        let (rows, next_cursor) = self.page(LIST, filters, cursor, map)?;
         Ok(TxPage { rows, next_cursor })
     }
 
     pub(crate) fn list_tx_groups(&self, filter: TxGroupFilter) -> Result<TxGroupPage, StoreError> {
-        let TxGroupFilter { wallet_id, chain, asset, txid, direction, cursor, limit } = filter;
+        let TxGroupFilter { wallet_id, chain, asset, txid, direction, cursor } = filter;
         let filters = params![
             wallet_id,
             chain.map(ChainId::as_str),
@@ -307,7 +299,7 @@ impl Reader<'_> {
             txid,
             direction.map(TxDirection::as_str),
         ];
-        let (leads, next_cursor) = self.page(GROUP_LIST, filters, cursor, limit, |row| {
+        let (leads, next_cursor) = self.page(GROUP_LIST, filters, cursor, |row| {
             Ok(Lead {
                 chain: codec::wire(row, CHAIN, ChainId::parse)?,
                 asset: row.get("asset")?,
@@ -337,19 +329,17 @@ impl Reader<'_> {
     /// One page of `list` after `cursor`, with `filters` bound first. Each statement it
     /// pages selects `sort_time` and `id`, the row's keyset position.
     ///
-    /// `limit` is clamped to `1..=TxFilter::MAX_LIMIT`. Fetching one row past it tells
-    /// whether there's a next page without a second query.
+    /// Fetching one row past the page tells whether there's a next page without a
+    /// second query.
     fn page<T>(
         &self,
         list: &str,
         filters: &[&dyn ToSql],
         cursor: Option<PageCursor>,
-        limit: u32,
         mut map: impl FnMut(&Row<'_>) -> Result<T, StoreError>,
     ) -> Result<(Vec<T>, Option<PageCursor>), StoreError> {
-        let limit = limit.clamp(1, TxFilter::MAX_LIMIT);
         let position = cursor.unwrap_or(PageCursor::START);
-        let probe = i64::from(limit).saturating_add(1);
+        let probe = i64::from(TX_PAGE_SIZE).saturating_add(1);
         let mut rows = sql::all(
             self.connection(),
             list,
@@ -357,7 +347,7 @@ impl Reader<'_> {
             |row| Ok((map(row)?, PageCursor::new(row.get("sort_time")?, row.get("id")?))),
         )?;
 
-        let wanted = usize::try_from(limit).unwrap_or(usize::MAX);
+        let wanted = usize::try_from(TX_PAGE_SIZE).unwrap_or(usize::MAX);
         let next_cursor = if rows.len() > wanted {
             rows.truncate(wanted);
             rows.last().map(|&(_, position)| position)
