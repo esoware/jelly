@@ -5,7 +5,6 @@ use std::fmt;
 use std::future::pending;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 use alloy::primitives::{Address, B256, Bytes};
 use async_trait::async_trait;
@@ -14,10 +13,10 @@ use jelly_core::{
     FeeBump, FeeQuote, KeyMaterial, PendingTracker, SignedTx, TxCancel, TxId, TxRequest,
     UnsignedTx, WatchedAddress, sole_key,
 };
-use jelly_net::{NetError, Outcome, Pool, WsClient, WsSubscription};
+use jelly_net::{Pool, WsClient, WsSubscription};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::Mutex as AsyncMutex;
-use tokio::time::{sleep, timeout};
+use tokio::time::timeout;
 
 use self::draft::Draft;
 use crate::client::EvmClient;
@@ -31,15 +30,6 @@ use crate::sync::{self, Carried, PassInputs};
 use crate::token::TokenTable;
 use crate::watched::{self, Watched};
 use crate::{send, sent_set, sign};
-
-/// Short enough to re-register a recovered endpoint well inside one poll
-/// interval, long enough not to hammer a dead one.
-const WATCH_RETRY: Duration = Duration::from_secs(5);
-
-/// One endpoint's subscription failure says nothing about the next.
-const fn classify_watch(_: &NetError) -> Outcome {
-    Outcome::Rotate
-}
 
 /// One EIP-155 network over one rotating pool of JSON-RPC endpoints.
 pub struct EvmAdapter {
@@ -272,34 +262,18 @@ impl ChainAdapter for EvmAdapter {
         Ok(progress.inspect_err(|error| self.block_if_unreadable(error))?)
     }
 
-    /// Wakes sync on `newHeads` pushes without trusting their contents.
-    ///
-    /// Only the subscription goes through pool failover. The wait runs outside
-    /// the pool and wakes at most once per `watch_floor`. Without a push pool
-    /// this never resolves.
+    /// Wakes sync on `newHeads` pushes without trusting their contents, at most once per
+    /// `watch_floor`. Without a push pool this never resolves.
     async fn wait_activity(&self) {
         let Some(pushes) = self.pushes.as_ref() else {
             pending::<()>().await;
             return;
         };
-        let subscriptions = [WsSubscription::new("eth_subscribe", serde_json::json!(["newHeads"]))];
-        loop {
-            let registered = pushes
-                .call("evm watch", classify_watch, |client| {
-                    let subscriptions = subscriptions.clone();
-                    async move {
-                        client.register(&subscriptions).await?;
-                        Ok(client)
-                    }
-                })
-                .await;
-            if let Ok(client) = registered
-                && client.wait_notice(self.params.watch_floor).await.is_ok()
-            {
-                return;
-            }
-            sleep(WATCH_RETRY).await;
-        }
+        pushes
+            .wait_push("evm watch", self.params.watch_floor, || {
+                vec![WsSubscription::new("eth_subscribe", serde_json::json!(["newHeads"]))]
+            })
+            .await;
     }
 
     async fn quote_fee(&self, request: &TxRequest) -> Result<FeeQuote, ChainError> {

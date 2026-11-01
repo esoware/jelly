@@ -6,8 +6,6 @@
 
 use std::collections::HashSet;
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD as BASE64;
 use jelly_core::{
     Amount, BalanceUpdate, ChainSyncProgress, Clock, Deadline, EventSink, WalletEvent,
 };
@@ -210,7 +208,7 @@ async fn settle(
 /// A failure is only logged, because a resend is a best effort on top of the node's
 /// own retries.
 async fn resend(inputs: &PassInputs<'_>, entry: &Tracked) {
-    let Ok(raw) = BASE64.decode(&entry.raw) else {
+    let Some(raw) = entry.raw_bytes() else {
         tracing::warn!(
             target: TARGET,
             signature = %entry.signature,

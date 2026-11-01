@@ -40,18 +40,12 @@ impl SolanaConfig {
     /// The protocol's own ceiling on a signature page.
     const MAX_SIGNATURE_PAGE: u32 = 1_000;
 
-    pub(crate) const fn page_size(&self) -> u32 {
-        if self.signature_page_size == 0 {
-            1
-        } else if self.signature_page_size > Self::MAX_SIGNATURE_PAGE {
-            Self::MAX_SIGNATURE_PAGE
-        } else {
-            self.signature_page_size
-        }
+    pub(crate) fn page_size(&self) -> u32 {
+        self.signature_page_size.clamp(1, Self::MAX_SIGNATURE_PAGE)
     }
 
-    pub(crate) const fn pages_per_pass(&self) -> u32 {
-        if self.page_budget == 0 { 1 } else { self.page_budget }
+    pub(crate) fn pages_per_pass(&self) -> u32 {
+        self.page_budget.max(1)
     }
 
     pub(crate) fn batch_size(&self) -> usize {

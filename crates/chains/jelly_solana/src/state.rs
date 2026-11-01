@@ -304,24 +304,17 @@ impl States {
                 state.pending.iter().find(|held| held.signature == signature)?.is_sent;
             Some((*id, is_already_sent, state))
         });
-        let Some((address_id, is_already_sent, state)) = followed else {
-            return FirstAttempt {
-                states: self,
-                signature: signature.to_owned(),
-                address_id: None,
-                is_alone: false,
-            };
+        let (address_id, is_alone) = match followed {
+            None => (None, false),
+            Some((address_id, is_already_sent, state)) => {
+                let attempts = state.first_attempts.entry(signature.to_owned()).or_default();
+                let is_alone = !is_already_sent && attempts.outstanding == 0;
+                attempts.is_overlapped |= attempts.outstanding > 0;
+                attempts.outstanding = attempts.outstanding.saturating_add(1);
+                (Some(address_id), is_alone)
+            }
         };
-        let attempts = state.first_attempts.entry(signature.to_owned()).or_default();
-        let is_alone = !is_already_sent && attempts.outstanding == 0;
-        attempts.is_overlapped |= attempts.outstanding > 0;
-        attempts.outstanding = attempts.outstanding.saturating_add(1);
-        FirstAttempt {
-            states: self,
-            signature: signature.to_owned(),
-            address_id: Some(address_id),
-            is_alone,
-        }
+        FirstAttempt { states: self, signature: signature.to_owned(), address_id, is_alone }
     }
 
     /// Stops following a send whose first attempt was refused, and returns its address.

@@ -1,19 +1,33 @@
 //! The instruction rows are decoded from the bytes that will be signed, not from the
 //! request.
 
-use jelly_core::{Amount, TxDetail, TxPreview, TxWarning, TxWarningKind};
+use jelly_core::{Amount, AssetId, TxDetail, TxPreview, TxWarning, TxWarningKind};
 use solana_message::VersionedMessage;
 use solana_system_interface::program::ID as SYSTEM_PROGRAM;
 
 use crate::config::CHAIN;
 use crate::error::SolanaError;
-use crate::fee::{LAMPORTS_PER_SIGNATURE, amount_text, lamports_text, sol_text};
+use crate::fee::{LAMPORTS_PER_SIGNATURE, UnitSource};
 use crate::payload::SolanaPayload;
 use crate::program;
 use crate::rent::RentQuote;
 use crate::route::Leg;
 use crate::send::Plan;
 use crate::sign;
+
+/// `base_units` of `asset` at the asset's own scale, followed by its symbol.
+fn amount_text(asset: AssetId, base_units: u64) -> String {
+    format!("{} {}", Amount::from(base_units).format(asset.decimals()), asset.coin().symbol())
+}
+
+pub(crate) fn sol_text(lamports: u64) -> String {
+    CHAIN.format_amount(Amount::from(lamports))
+}
+
+/// SOL and lamports both, as every fee row in a preview shows them.
+pub(crate) fn lamports_text(lamports: u64) -> String {
+    format!("{} ({lamports} lamports)", sol_text(lamports))
+}
 
 pub(crate) fn of(plan: &Plan, payload: &SolanaPayload) -> Result<TxPreview, SolanaError> {
     Ok(TxPreview {
@@ -31,6 +45,11 @@ pub(crate) fn of(plan: &Plan, payload: &SolanaPayload) -> Result<TxPreview, Sola
 }
 
 fn details(plan: &Plan, payload: &SolanaPayload) -> Result<Vec<TxDetail>, SolanaError> {
+    let unit_source = match plan.units.source() {
+        UnitSource::Simulated => "Measured by simulation",
+        UnitSource::Cached => "Measured earlier this session",
+        UnitSource::Compiled => "Fallback estimate",
+    };
     let mut details = vec![
         TxDetail::new("Fee payer", plan.route.payer.to_string()),
         TxDetail::new("Recipient", plan.route.recipient.to_string()),
@@ -39,7 +58,7 @@ fn details(plan: &Plan, payload: &SolanaPayload) -> Result<Vec<TxDetail>, Solana
         TxDetail::new("Valid until block height", plan.expiry_height.to_string()),
         TxDetail::new("Base fee", lamports_text(LAMPORTS_PER_SIGNATURE)),
         TxDetail::new("Compute unit limit", plan.units.limit().to_string()),
-        TxDetail::new("Compute unit limit source", plan.units.source().label()),
+        TxDetail::new("Compute unit limit source", unit_source),
         TxDetail::new(
             "Priority price",
             format!("{} micro-lamports per compute unit", plan.pricing.micro_lamports_per_unit),
@@ -181,5 +200,19 @@ fn rent_warnings(plan: &Plan, warnings: &mut Vec<TxWarning>) {
                 sol_text(plan.account_rent.lamports())
             ),
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use jelly_core::TokenId;
+
+    use super::*;
+
+    #[test]
+    fn a_figure_names_its_asset_at_the_assets_own_scale() {
+        assert_eq!(sol_text(1_000_000), "0.001 SOL");
+        assert_eq!(lamports_text(5_000), "0.000005 SOL (5000 lamports)");
+        assert_eq!(amount_text(AssetId::Token(TokenId::UsdcSpl), 1_500_000), "1.5 USDC");
     }
 }

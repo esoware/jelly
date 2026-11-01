@@ -5,8 +5,9 @@ use jelly_core::{
 use jelly_net::{NetError, Outcome};
 use solana_message::CompileError;
 
-use crate::fee::{MAX_CHOSEN_PRIORITY_FEE_LAMPORTS, sol_text};
+use crate::fee::MAX_CHOSEN_PRIORITY_FEE_LAMPORTS;
 use crate::method::Method;
+use crate::preview::sol_text;
 
 pub(crate) const PARSE_ERROR: i64 = -32700;
 pub(crate) const INVALID_REQUEST: i64 = -32600;
@@ -143,7 +144,7 @@ pub enum SolanaError {
     EmptyBatch,
 
     #[error("the unsigned transaction payload is not a solana transaction: {detail}")]
-    Payload { detail: String },
+    Payload { detail: &'static str },
 
     #[error("solana signing needs an ed25519 seed, not {}", got.as_str())]
     WrongKeyKind { got: KeyKind },
@@ -177,10 +178,6 @@ impl SolanaError {
             line: source.line(),
             column: source.column(),
         }
-    }
-
-    pub(crate) fn payload(detail: impl Into<String>) -> Self {
-        Self::Payload { detail: detail.into() }
     }
 
     /// Public so a scripted [`crate::SolanaNode`] classifies failures exactly as
