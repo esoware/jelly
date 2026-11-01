@@ -8,9 +8,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use jelly_core::{ChainId, ErrorCode, PhraseLength, ProxySetting, WalletColor};
-use jelly_engine::{PassphraseInput, StartupError};
+use jelly_engine::{AppSettings, PassphraseInput, StartupError};
 use jelly_lib::{AppState, IpcError, Services, ShellConfig, ShellDeps, StartupStatus};
 use jelly_vault::test_util::FailingKeyStore;
+use serde_json::Value;
 
 use crate::common::{PASSWORD, deps, offline_config, secret};
 
@@ -347,11 +348,15 @@ async fn proxy_repair_saves_offline_and_preserves_unrelated_settings() {
         "commands still answer the startup failure"
     );
     assert_eq!(listener.accept().unwrap_err().kind(), ErrorKind::WouldBlock);
-    let stored: jelly_engine::AppSettings =
-        serde_json::from_slice(&fs::read(&saved_path).unwrap()).unwrap();
-    assert_eq!(stored, jelly_engine::AppSettings { proxy: Some(proxy), ..before });
+    let mut expected: Value = serde_json::from_slice(&saved).unwrap();
+    expected["proxy"] = serde_json::to_value(&proxy).unwrap();
+    let stored: Value = serde_json::from_slice(&fs::read(&saved_path).unwrap()).unwrap();
+    assert_eq!(stored, expected);
     let restarted = Services::start(offline_config(), deps(directory.path())).await.unwrap();
-    assert_eq!(restarted.engine().unwrap().app_settings().await, stored);
+    assert_eq!(
+        restarted.engine().unwrap().app_settings().await,
+        AppSettings { proxy: Some(proxy), ..before }
+    );
     restarted.shutdown().await;
 }
 

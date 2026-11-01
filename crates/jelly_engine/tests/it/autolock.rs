@@ -35,9 +35,15 @@ async fn background_writes_do_not_hold_the_session_open() {
     assert_eq!(harness.engine.lock_state_now(), IDLE);
 
     harness.engine.unlock_wallet(created.wallet.id, secret(PASSWORD), None).await.unwrap();
-    let page =
-        harness.engine.list_txs(TxQuery { limit: Some(200), ..Default::default() }).await.unwrap();
-    assert_eq!(page.rows.len(), BACKGROUND_WRITES);
+    let mut rows = Vec::new();
+    let mut cursor = None;
+    loop {
+        let page = harness.engine.list_txs(TxQuery { cursor, ..TxQuery::default() }).await.unwrap();
+        rows.extend(page.rows);
+        let Some(next) = page.next_cursor else { break };
+        cursor = Some(next);
+    }
+    assert_eq!(rows.len(), BACKGROUND_WRITES);
 }
 
 #[tokio::test]

@@ -147,15 +147,10 @@ export function formatAssetAmount(amount: Amount, asset: AssetId): string {
   return `${formatAmount(amount, assetDecimals(asset))} ${assetLabel(asset)}`
 }
 
-function nativeFirst(asset: AssetId): number {
-  return asset.kind === "native" ? 0 : 1
-}
-
 export function assetsForChain(chain: ChainId): AssetId[] {
   return [...assetsByKey.values()]
     .filter((entry) => entry.chain === chain)
     .map((entry) => entry.asset)
-    .toSorted((a, b) => nativeFirst(a) - nativeFirst(b))
 }
 
 interface AssetGroup {

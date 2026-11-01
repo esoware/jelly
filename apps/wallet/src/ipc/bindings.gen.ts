@@ -233,6 +233,7 @@ export const commands = {
 	getWindowControls: () => typedError<WindowControls, IpcError>(__TAURI_INVOKE("get_window_controls")),
 	listChainMetadata: () => typedError<ChainMeta[], IpcError>(__TAURI_INVOKE("list_chain_metadata")),
 	listCoinMetadata: () => typedError<CoinMeta[], IpcError>(__TAURI_INVOKE("list_coin_metadata")),
+	/**  Every native coin in chain order, then every token in token order. */
 	listAssetMetadata: () => typedError<AssetMeta[], IpcError>(__TAURI_INVOKE("list_asset_metadata")),
 };
 
@@ -1017,8 +1018,6 @@ export type TxQuery = {
 	txid: string | null,
 	direction: TxDirection | null,
 	cursor: string | null,
-	/**  `None` means the shipped page size. */
-	limit: number | null,
 };
 
 /**  The user's intent for one outgoing transfer. */

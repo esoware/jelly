@@ -182,6 +182,7 @@ pub(crate) async fn list_coin_metadata() -> Result<Vec<CoinMeta>, IpcError> {
     Ok(metadata.collect())
 }
 
+/// Every native coin in chain order, then every token in token order.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn list_asset_metadata() -> Result<Vec<AssetMeta>, IpcError> {
@@ -261,9 +262,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn asset_metadata_covers_every_asset() {
+    async fn asset_metadata_carries_every_asset_in_asset_order() {
         let all = list_asset_metadata().await.unwrap();
-        assert_eq!(all.len(), AssetId::COUNT);
+        assert_eq!(
+            all.iter().map(|metadata| metadata.asset).collect::<Vec<_>>(),
+            AssetId::all().collect::<Vec<_>>()
+        );
         for metadata in &all {
             let key = metadata.asset.key();
             assert_eq!(metadata.chain, metadata.asset.chain(), "{key}");

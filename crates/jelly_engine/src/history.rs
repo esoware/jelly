@@ -24,8 +24,6 @@ pub struct TxQuery {
     pub txid: Option<String>,
     pub direction: Option<TxDirection>,
     pub cursor: Option<String>,
-    /// `None` means the shipped page size.
-    pub limit: Option<u32>,
 }
 
 /// One transaction of one asset in the history.
@@ -89,7 +87,6 @@ impl WalletEngine {
                 })
             })
             .transpose()?;
-        let limit = query.limit.unwrap_or(TxFilter::DEFAULT_LIMIT);
         let wallet_id = session.wallet_id();
         let (entries, next_cursor) = if let Some(address_id) = query.address_id {
             let filter = TxFilter {
@@ -100,7 +97,7 @@ impl WalletEngine {
                 txid: query.txid,
                 direction: query.direction,
                 cursor,
-                limit,
+                limit: TxFilter::DEFAULT_LIMIT,
             };
             let page = self.inner.store.list_txs(filter).await?;
             let entries: Vec<Entry> = page.rows.into_iter().map(Entry::Row).collect();
@@ -113,7 +110,7 @@ impl WalletEngine {
                 txid: query.txid,
                 direction: query.direction,
                 cursor,
-                limit,
+                limit: TxFilter::DEFAULT_LIMIT,
             };
             let page = self.inner.store.list_tx_groups(filter).await?;
             let entries: Vec<Entry> = page.groups.into_iter().map(Entry::Group).collect();

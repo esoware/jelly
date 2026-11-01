@@ -1,7 +1,5 @@
-use jelly_core::{AssetId, FiatCurrency, ProxySetting, SecretText, TokenId};
-use jelly_engine::{AmountEntry, BackdropSetting};
-use serde::Serialize;
-use specta::Type;
+use jelly_core::{AssetId, FiatCurrency, ProxySetting, SecretText};
+use jelly_engine::{AmountEntry, AppSettings, BackdropSetting};
 use tauri::{AppHandle, State};
 
 use crate::command::{with_engine, with_services};
@@ -9,48 +7,10 @@ use crate::error::IpcError;
 use crate::state::AppState;
 use crate::window;
 
-/// The settings as the frontend sees them: whether each API key is set, never the key.
-#[expect(clippy::struct_excessive_bools, reason = "independent settings")]
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct AppSettings {
-    auto_lock_minutes: u32,
-    has_etherscan_api_key: bool,
-    has_trongrid_api_key: bool,
-    is_price_feed_enabled: bool,
-    /// Charts are hidden while the price feed is off, whatever this says.
-    is_price_chart_enabled: bool,
-    proxy: Option<ProxySetting>,
-    backdrop: BackdropSetting,
-    /// At most one per chain. A chain with none shows its native coin.
-    shown_tokens: Vec<TokenId>,
-    fiat_currency: FiatCurrency,
-    /// Amounts are entered in units while the price feed is off, whatever this says.
-    amount_entry: AmountEntry,
-}
-
-impl From<jelly_engine::AppSettings> for AppSettings {
-    fn from(settings: jelly_engine::AppSettings) -> Self {
-        Self {
-            auto_lock_minutes: settings.auto_lock_minutes,
-            has_etherscan_api_key: settings.etherscan_api_key.is_some(),
-            has_trongrid_api_key: settings.trongrid_api_key.is_some(),
-            is_price_feed_enabled: settings.is_price_feed_enabled,
-            is_price_chart_enabled: settings.is_price_chart_enabled,
-            proxy: settings.proxy,
-            backdrop: settings.backdrop,
-            shown_tokens: settings.shown_tokens.into_iter().collect(),
-            fiat_currency: settings.fiat_currency,
-            amount_entry: settings.amount_entry,
-        }
-    }
-}
-
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, IpcError> {
-    with_engine(&state, async move |engine| Ok(AppSettings::from(engine.app_settings().await)))
-        .await
+    with_engine(&state, async move |engine| Ok(engine.app_settings().await)).await
 }
 
 /// `None` removes the key. Only indexed EVM history uses it.

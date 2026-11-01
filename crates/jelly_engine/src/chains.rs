@@ -18,7 +18,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::WalletEngine;
 use crate::session::Session;
-use crate::settings::AppSettings;
+use crate::settings::StoredSettings;
 use crate::status::StatusBoard;
 use crate::sync::{self, ChainLoop};
 
@@ -168,7 +168,7 @@ pub(crate) fn restore_heights(states: &[ChainStateRow]) -> BTreeMap<ChainId, u64
     states.iter().filter_map(|row| row.restore_height.map(|height| (row.chain, height))).collect()
 }
 
-fn api_keys(settings: &AppSettings) -> BTreeMap<KeyService, SecretText> {
+fn api_keys(settings: &StoredSettings) -> BTreeMap<KeyService, SecretText> {
     KeyService::ALL
         .into_iter()
         .filter_map(|service| {

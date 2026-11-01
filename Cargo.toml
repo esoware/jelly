@@ -97,12 +97,12 @@ unicode-normalization = { version = "0.1.25", default-features = false, features
 # No std or alloc, which compiles out the normalizers that don't wipe and the Vec-returning
 # to_entropy. No rand either, since entropy comes from jelly_core::random_fill.
 bip39     = { version = "3.0.0", default-features = false, features = ["zeroize"] }
-bitcoin   = { version = "0.32.102", default-features = false, features = ["std", "serde", "base64"] }
+bitcoin   = { version = "0.32.102", default-features = false, features = ["std", "serde"] }
 secp256k1 = { version = "0.29.1", default-features = false, features = ["std", "recovery"] }
 
-reqwest       = { version = "0.13.5", default-features = false, features = ["http2", "rustls-no-provider", "charset", "socks", "gzip"] }
-rustls        = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12", "logging"] }
-tokio-rustls  = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }
+reqwest       = { version = "0.13.5", default-features = false, features = ["http2", "rustls-no-provider", "socks", "gzip"] }
+rustls        = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls  = { version = "0.26.6", default-features = false, features = ["ring", "tls12"] }
 webpki-roots  = "1.0.9"
 # Protocol only, with no TLS or connector. jelly_net dials the socket itself, so websockets
 # go through its TLS stack and egress policy.

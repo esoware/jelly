@@ -42,8 +42,7 @@ async fn a_pass_persists_what_the_adapter_reports() {
     assert_eq!(balances.len(), 1);
     assert_eq!(balances.first().map(|row| row.address_id), Some(address_id));
 
-    let page =
-        harness.engine.list_txs(TxQuery { limit: Some(10), ..Default::default() }).await.unwrap();
+    let page = harness.engine.list_txs(TxQuery::default()).await.unwrap();
     assert_eq!(page.rows.len(), 1);
     assert_eq!(page.rows.first().map(|row| row.confirmations), Some(1));
 
@@ -119,8 +118,7 @@ async fn a_pass_that_moves_the_tip_reannounces_confirmation_depths() {
     let announced = confirmations_in(drain(&mut events));
     assert_eq!(announced, vec![2], "the deeper count is announced once, unprompted");
 
-    let page =
-        harness.engine.list_txs(TxQuery { limit: Some(10), ..Default::default() }).await.unwrap();
+    let page = harness.engine.list_txs(TxQuery::default()).await.unwrap();
     assert_eq!(page.rows.first().map(|row| row.confirmations), Some(2));
 
     // A pass that finds the tip where it was announces nothing.
@@ -187,7 +185,7 @@ async fn history_read_before_the_adapters_are_built_counts_from_the_stored_heigh
     });
     harness.builder.build_started().await;
 
-    let page = harness.engine.list_txs(TxQuery { limit: Some(10), ..Default::default() }).await;
+    let page = harness.engine.list_txs(TxQuery::default()).await;
     harness.builder.release();
     unlocking.await.unwrap().unwrap();
     assert_eq!(page.unwrap().rows.first().map(|row| row.confirmations), Some(100));

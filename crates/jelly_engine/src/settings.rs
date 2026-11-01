@@ -38,12 +38,52 @@ wire_enum! {
 
 wire_enum! {
     #[cfg_attr(feature = "ipc", derive(specta::Type))]
+    #[derive(Default)]
     /// What the window shows behind the page, where the operating system can draw it.
     pub enum BackdropSetting {
         /// A blur of whatever is behind the window, under the canvas.
+        #[default]
         Blur => "blur",
         /// The opaque canvas.
         Solid => "solid",
+    }
+}
+
+/// The settings as the frontend sees them: whether each API key is set, never the key.
+#[cfg_attr(feature = "ipc", derive(specta::Type))]
+#[expect(clippy::struct_excessive_bools, reason = "independent settings")]
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettings {
+    pub auto_lock_minutes: u32,
+    pub has_etherscan_api_key: bool,
+    pub has_trongrid_api_key: bool,
+    pub is_price_feed_enabled: bool,
+    /// Charts are hidden while the price feed is off, whatever this says.
+    pub is_price_chart_enabled: bool,
+    pub proxy: Option<ProxySetting>,
+    pub backdrop: BackdropSetting,
+    /// At most one per chain. A chain with none shows its native coin.
+    pub shown_tokens: Vec<TokenId>,
+    pub fiat_currency: FiatCurrency,
+    /// Amounts are entered in units while the price feed is off, whatever this says.
+    pub amount_entry: AmountEntry,
+}
+
+impl From<&StoredSettings> for AppSettings {
+    fn from(stored: &StoredSettings) -> Self {
+        Self {
+            auto_lock_minutes: stored.auto_lock_minutes,
+            has_etherscan_api_key: stored.etherscan_api_key.is_some(),
+            has_trongrid_api_key: stored.trongrid_api_key.is_some(),
+            is_price_feed_enabled: stored.is_price_feed_enabled,
+            is_price_chart_enabled: stored.is_price_chart_enabled,
+            proxy: stored.proxy.clone(),
+            backdrop: stored.backdrop,
+            shown_tokens: stored.shown_tokens.iter().copied().collect(),
+            fiat_currency: stored.fiat_currency,
+            amount_entry: stored.amount_entry,
+        }
     }
 }
 
@@ -51,20 +91,20 @@ wire_enum! {
 /// (an empty one counts), so a log never echoes a key.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
-pub struct AppSettings {
-    pub auto_lock_minutes: u32,
+pub(crate) struct StoredSettings {
+    pub(crate) auto_lock_minutes: u32,
     #[serde(serialize_with = "serialize_api_key")]
-    pub etherscan_api_key: Option<SecretText>,
+    pub(crate) etherscan_api_key: Option<SecretText>,
     #[serde(serialize_with = "serialize_api_key")]
-    pub trongrid_api_key: Option<SecretText>,
-    pub is_price_feed_enabled: bool,
-    pub is_price_chart_enabled: bool,
-    pub proxy: Option<ProxySetting>,
-    pub backdrop: BackdropSetting,
+    pub(crate) trongrid_api_key: Option<SecretText>,
+    pub(crate) is_price_feed_enabled: bool,
+    pub(crate) is_price_chart_enabled: bool,
+    pub(crate) proxy: Option<ProxySetting>,
+    pub(crate) backdrop: BackdropSetting,
     /// The tokens shown in place of their chains' native coins, at most one per chain.
-    pub shown_tokens: BTreeSet<TokenId>,
-    pub fiat_currency: FiatCurrency,
-    pub amount_entry: AmountEntry,
+    pub(crate) shown_tokens: BTreeSet<TokenId>,
+    pub(crate) fiat_currency: FiatCurrency,
+    pub(crate) amount_entry: AmountEntry,
 }
 
 fn serialize_api_key<'a, S: Serializer>(
@@ -77,7 +117,7 @@ fn serialize_api_key<'a, S: Serializer>(
     }
 }
 
-impl Default for AppSettings {
+impl Default for StoredSettings {
     fn default() -> Self {
         Self {
             auto_lock_minutes: 15,
@@ -86,7 +126,7 @@ impl Default for AppSettings {
             is_price_feed_enabled: true,
             is_price_chart_enabled: true,
             proxy: None,
-            backdrop: BackdropSetting::Blur,
+            backdrop: BackdropSetting::default(),
             shown_tokens: BTreeSet::new(),
             fiat_currency: FiatCurrency::Usd,
             amount_entry: AmountEntry::Fiat,
@@ -94,9 +134,9 @@ impl Default for AppSettings {
     }
 }
 
-impl fmt::Debug for AppSettings {
+impl fmt::Debug for StoredSettings {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AppSettings")
+        f.debug_struct("StoredSettings")
             .field("auto_lock_minutes", &self.auto_lock_minutes)
             .field("has_etherscan_api_key", &self.etherscan_api_key.is_some())
             .field("has_trongrid_api_key", &self.trongrid_api_key.is_some())
@@ -111,7 +151,7 @@ impl fmt::Debug for AppSettings {
     }
 }
 
-impl AppSettings {
+impl StoredSettings {
     /// Shows `asset` in place of whatever its chain showed. A native asset puts its
     /// chain back to the coin.
     fn show_asset(&mut self, asset: AssetId) {
@@ -133,7 +173,7 @@ impl AppSettings {
 #[derive(Debug)]
 pub(crate) struct Settings {
     path: PathBuf,
-    current: RwLock<AppSettings>,
+    current: RwLock<StoredSettings>,
 }
 
 impl Settings {
@@ -144,7 +184,7 @@ impl Settings {
             Ok(bytes) => serde_json::from_slice(&Zeroizing::new(bytes))
                 .map_err(|source| StartupError::SettingsInvalid { source: Box::new(source) })?,
             Err(error) if error.kind() == ErrorKind::NotFound => {
-                let defaults = AppSettings::default();
+                let defaults = StoredSettings::default();
                 write_atomically(&path, &defaults)
                     .map_err(|source| StartupError::DataDirUnwritable { source })?;
                 defaults
@@ -159,7 +199,7 @@ impl Settings {
         Ok(Self { path, current: RwLock::new(settings) })
     }
 
-    pub(crate) async fn get(&self) -> AppSettings {
+    pub(crate) async fn get(&self) -> StoredSettings {
         self.current.read().await.clone()
     }
 
@@ -167,7 +207,7 @@ impl Settings {
     /// a failed write leaves memory and disk agreeing.
     pub(crate) async fn update(
         &self,
-        change: impl FnOnce(&mut AppSettings),
+        change: impl FnOnce(&mut StoredSettings),
     ) -> Result<(), CoreError> {
         let mut guard = self.current.write().await;
         let mut next = guard.clone();
@@ -188,7 +228,7 @@ impl Settings {
 }
 
 /// Pretty-printed, because the file exists to be read by a person.
-fn write_atomically(path: &Path, settings: &AppSettings) -> io::Result<()> {
+fn write_atomically(path: &Path, settings: &StoredSettings) -> io::Result<()> {
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(directory)?;
     let bytes = Zeroizing::new(serde_json::to_vec_pretty(settings)?);
@@ -202,7 +242,7 @@ fn write_atomically(path: &Path, settings: &AppSettings) -> io::Result<()> {
 
 impl WalletEngine {
     pub async fn app_settings(&self) -> AppSettings {
-        self.inner.settings.get().await
+        AppSettings::from(&*self.inner.settings.current.read().await)
     }
 
     /// Saves the setting and retunes the live session's auto-lock, including from off to
@@ -276,9 +316,9 @@ mod tests {
 
     #[test]
     fn the_defaults_round_trip_through_the_file_form() {
-        let text = serde_json::to_string_pretty(&AppSettings::default()).unwrap();
-        let parsed: AppSettings = serde_json::from_str(&text).unwrap();
-        assert_eq!(parsed, AppSettings::default());
+        let text = serde_json::to_string_pretty(&StoredSettings::default()).unwrap();
+        let parsed: StoredSettings = serde_json::from_str(&text).unwrap();
+        assert_eq!(parsed, StoredSettings::default());
         assert!(text.contains("\"autoLockMinutes\": 15"), "{text}");
     }
 
@@ -302,7 +342,7 @@ mod tests {
 
     #[test]
     fn a_file_missing_a_key_reads_as_its_default() {
-        let parsed: AppSettings = serde_json::from_str(r#"{"autoLockMinutes":5}"#).unwrap();
+        let parsed: StoredSettings = serde_json::from_str(r#"{"autoLockMinutes":5}"#).unwrap();
         assert_eq!(parsed.auto_lock_minutes, 5);
         assert!(parsed.is_price_feed_enabled);
         assert!(parsed.is_price_chart_enabled);
@@ -342,13 +382,13 @@ mod tests {
 
     #[test]
     fn an_unknown_token_is_refused() {
-        let refused = serde_json::from_str::<AppSettings>(r#"{"shownTokens":["usdc_spi"]}"#);
+        let refused = serde_json::from_str::<StoredSettings>(r#"{"shownTokens":["usdc_spi"]}"#);
         assert!(refused.is_err(), "a misspelt token must not be silently dropped");
     }
 
     #[test]
     fn showing_an_asset_replaces_only_its_own_chain() {
-        let mut settings = AppSettings::default();
+        let mut settings = StoredSettings::default();
         settings.show_asset(AssetId::Token(TokenId::UsdtErc20));
         settings.show_asset(AssetId::Token(TokenId::UsdcSpl));
         assert_eq!(settings.shown_tokens, BTreeSet::from([TokenId::UsdtErc20, TokenId::UsdcSpl]));
@@ -366,7 +406,7 @@ mod tests {
     #[test]
     fn switching_the_price_feed_overrides_the_amount_entry() {
         let mut settings =
-            AppSettings { amount_entry: AmountEntry::Units, ..AppSettings::default() };
+            StoredSettings { amount_entry: AmountEntry::Units, ..StoredSettings::default() };
         settings.set_price_feed_enabled(true);
         assert_eq!(settings.amount_entry, AmountEntry::Fiat);
 
@@ -377,12 +417,12 @@ mod tests {
 
     #[test]
     fn debug_leaves_out_the_api_keys() {
-        let settings = AppSettings {
+        let settings = StoredSettings {
             etherscan_api_key: Some(SecretText::new(String::from("SUPERSECRETVALUE"))),
-            ..AppSettings::default()
+            ..StoredSettings::default()
         };
         let stored = serde_json::to_string(&settings).unwrap();
-        let parsed: AppSettings = serde_json::from_str(&stored).unwrap();
+        let parsed: StoredSettings = serde_json::from_str(&stored).unwrap();
         assert_eq!(parsed, settings);
         let rendered = format!("{settings:?}");
         assert!(!rendered.contains("SUPERSECRETVALUE"), "{rendered}");

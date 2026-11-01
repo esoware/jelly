@@ -13,8 +13,6 @@ import type {
 } from "@/ipc/bindings.gen.ts"
 import { unwrap } from "@/ipc/client.ts"
 
-const TX_PAGE_SIZE = 50
-
 const QUOTE_STALE_MS = 20_000
 const QUOTE_GC_MS = 60_000
 
@@ -29,7 +27,6 @@ export function txPageQuery(filters: TxPageFilters): TxQuery {
     txid: filters.txid ?? null,
     direction: filters.direction ?? null,
     cursor: null,
-    limit: TX_PAGE_SIZE,
   }
 }
 

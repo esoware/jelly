@@ -62,8 +62,7 @@ async fn every_detected_transaction_survives_its_window() {
     }
     assert_eq!(seen, vec!["tx-0", "tx-1", "tx-2", "tx-3", "tx-4"]);
 
-    let page =
-        harness.engine.list_txs(TxQuery { limit: Some(50), ..Default::default() }).await.unwrap();
+    let page = harness.engine.list_txs(TxQuery::default()).await.unwrap();
     assert_eq!(page.rows.len(), 5);
 }
 
