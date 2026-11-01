@@ -276,7 +276,7 @@ mod tests {
 
     fn pool(chain: ChainId, urls: &[&str]) -> Arc<Pool<HttpEndpoint>> {
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
-        let runtime = NetRuntime::new(clock, &[]);
+        let runtime = NetRuntime::new(clock);
         let endpoints = urls
             .iter()
             .map(|url| Endpoint::parse(chain, Transport::TronHttp, url).expect("a canonical url"))

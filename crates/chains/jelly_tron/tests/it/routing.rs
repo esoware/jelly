@@ -151,10 +151,12 @@ fn shipped_full_nodes() -> Fallible<Vec<String>> {
         .collect())
 }
 
-/// A loopback stand-in for every shipped endpoint, and the runtime the pool is built on.
+/// A loopback stand-in for every shipped endpoint, the registry that lists them, and the
+/// runtime the pool is built on.
 struct Hosts {
     clock: Arc<FakeClock>,
     runtime: Arc<NetRuntime>,
+    registry: EndpointRegistry,
     local: HashMap<String, Endpoint>,
     seen: BTreeMap<String, Arc<Mutex<Vec<Seen>>>>,
     _servers: JoinSet<()>,
@@ -164,15 +166,13 @@ impl Hosts {
     /// Every host in `down` answers 500 to everything.
     async fn start(down: &[String]) -> Fallible<Self> {
         let clock = Arc::new(FakeClock::default());
-        let runtime = NetRuntime::with_chains(
-            Arc::<FakeClock>::clone(&clock),
-            PacerPolicy::UNTHROTTLED,
-            &[jelly_tron::ENTRY],
-        );
+        let runtime =
+            NetRuntime::with_pacing(Arc::<FakeClock>::clone(&clock), PacerPolicy::UNTHROTTLED);
+        let registry = EndpointRegistry::new(&[jelly_tron::ENTRY]);
         let mut servers = JoinSet::new();
         let mut local = HashMap::new();
         let mut seen = BTreeMap::new();
-        for entry in &runtime.registry().defaults(ChainId::Tron)?.endpoints {
+        for entry in &registry.defaults(ChainId::Tron)?.endpoints {
             let listener = TcpListener::bind("127.0.0.1:0").await?;
             let address = format!("http://{}", listener.local_addr()?);
             let log = Arc::new(Mutex::new(Vec::new()));
@@ -188,15 +188,14 @@ impl Hosts {
             );
             seen.insert(entry.url.clone(), log);
         }
-        Ok(Self { clock, runtime, local, seen, _servers: servers })
+        Ok(Self { clock, runtime, registry, local, seen, _servers: servers })
     }
 
     /// The endpoints the registry hands the TRON pool once `rows` are the stored
     /// overrides.
     fn configured(&self, rows: Vec<EndpointOverride>) -> Fallible<Vec<Endpoint>> {
-        let registry = self.runtime.registry();
-        registry.load_overrides(rows.into_iter().map(|row| (ChainId::Tron, row)));
-        Ok(registry.enabled(ChainId::Tron, Transport::TronHttp)?)
+        self.registry.load_overrides(rows.into_iter().map(|row| (ChainId::Tron, row)));
+        Ok(self.registry.enabled(ChainId::Tron, Transport::TronHttp)?)
     }
 
     /// Gives every host the same good health record.

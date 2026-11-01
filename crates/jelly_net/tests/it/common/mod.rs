@@ -124,12 +124,15 @@ impl Connect<FakeConnection> for FakeConnector {
 #[derive(Debug)]
 pub(crate) struct Harness {
     pub(crate) runtime: Arc<NetRuntime>,
-    pub(crate) health: Arc<HealthTracker>,
     pub(crate) connector: Arc<FakeConnector>,
     pub(crate) pool: Pool<FakeConnection>,
 }
 
 impl Harness {
+    pub(crate) fn health(&self) -> &HealthTracker {
+        self.runtime.health()
+    }
+
     /// Another pool over the same runtime and connector, so it shares this one's clock,
     /// health, and pacing.
     pub(crate) fn pool_over(&self, endpoints: Vec<Endpoint>) -> Pool<FakeConnection> {
@@ -164,6 +167,5 @@ pub(crate) fn harness_with(urls: &[&str], pacing: PacerPolicy) -> Result<Harness
         Arc::<FakeConnector>::clone(&connector),
         endpoints?,
     );
-    let health = Arc::clone(runtime.health());
-    Ok(Harness { runtime, health, connector, pool })
+    Ok(Harness { runtime, connector, pool })
 }

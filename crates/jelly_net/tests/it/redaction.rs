@@ -113,7 +113,7 @@ async fn the_all_endpoints_failed_path_carries_no_key() {
         .expect_err("both endpoints refuse");
 
     assert!(!error.to_string().contains(SECRET));
-    for row in harness.health.snapshot(ChainId::Ethereum) {
+    for row in harness.health().snapshot(ChainId::Ethereum) {
         assert!(row.url.contains(SECRET), "the canonical url is the health key");
         assert!(!row.health.last_error.unwrap_or_default().contains(SECRET));
     }

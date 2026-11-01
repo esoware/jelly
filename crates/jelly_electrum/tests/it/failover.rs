@@ -22,7 +22,7 @@ fn runtime() -> (Arc<NetRuntime>, Arc<FakeClock>) {
 
 /// A pool of one endpoint over the in-memory server, built on `runtime` the way a chain
 /// crate builds one and running the real chain guard.
-fn pool_on(fake: &FakeElectrum, runtime: &NetRuntime) -> Option<Arc<Pool<ElectrumClient>>> {
+fn pool_on(fake: &FakeElectrum, runtime: &Arc<NetRuntime>) -> Option<Arc<Pool<ElectrumClient>>> {
     let endpoint = Endpoint::parse(ChainId::Bitcoin, Transport::ElectrumSsl, ENDPOINT_URL).ok()?;
     Some(Arc::new(runtime.pool(
         ChainId::Bitcoin,

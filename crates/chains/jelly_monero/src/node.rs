@@ -269,7 +269,7 @@ mod tests {
 
     fn pool(chain: ChainId, urls: &[&str]) -> Arc<Pool<DaemonEndpoint>> {
         let clock: Arc<dyn Clock> = Arc::new(FakeClock::default());
-        let runtime = NetRuntime::new(clock, &[]);
+        let runtime = NetRuntime::new(clock);
         let endpoints = urls
             .iter()
             .filter_map(|url| Endpoint::parse(chain, Transport::MoneroRpc, url).ok())

@@ -197,7 +197,7 @@ impl FakeWs {
     /// Turns one request into the frames to send back, if any.
     fn respond(&self, text: &str) -> WsReply {
         let Ok(value) = serde_json::from_str::<Value>(text) else {
-            return WsReply::None;
+            return WsReply::Nothing;
         };
         let id = value.get("id").and_then(Value::as_u64).unwrap_or_default();
         let method = value.get("method").and_then(Value::as_str).unwrap_or_default().to_owned();
@@ -223,7 +223,7 @@ impl FakeWs {
 enum WsReply {
     Now(String),
     HangUp,
-    None,
+    Nothing,
 }
 
 async fn serve(state: Weak<State>, stream: DuplexStream) {
@@ -251,7 +251,7 @@ async fn serve(state: Weak<State>, stream: DuplexStream) {
                 let reply = fake.respond(&text);
                 drop(fake);
                 match reply {
-                    WsReply::None => {}
+                    WsReply::Nothing => {}
                     WsReply::HangUp => return,
                     WsReply::Now(reply) => {
                         if socket.send(Message::text(reply)).await.is_err() {

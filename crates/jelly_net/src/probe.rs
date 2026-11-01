@@ -69,10 +69,7 @@ impl ProbeReport {
     /// registry never lists one, so only an endpoint built outside it gets here, and it
     /// gets the registry's own refusal.
     pub fn unused_transport(endpoint: &EndpointLabel) -> Self {
-        Self::from_failure(
-            endpoint,
-            &NetError::InvalidUrl { reason: UrlRejection::UnusedTransport },
-        )
+        Self::from_failure(endpoint, &UrlRejection::UnusedTransport.into())
     }
 
     /// The report for a failure. Its text goes to the log, and the report carries only

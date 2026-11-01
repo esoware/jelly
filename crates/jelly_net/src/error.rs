@@ -226,6 +226,12 @@ impl NetError {
     }
 }
 
+impl From<UrlRejection> for NetError {
+    fn from(reason: UrlRejection) -> Self {
+        Self::InvalidUrl { reason }
+    }
+}
+
 /// Runs `future` for at most `budget`, and reports running out as `label` timing out.
 pub(crate) async fn within<T>(
     label: &EndpointLabel,

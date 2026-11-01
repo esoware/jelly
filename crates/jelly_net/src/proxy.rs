@@ -63,13 +63,7 @@ fn named_url(proxy: &ProxySetting) -> Result<Option<Url>, NetError> {
             Url::parse(&format!("socks5h://{unschemed}")).map_err(unusable)?
         }
         ProxySetting::Http { url } => {
-            let trimmed = url.trim();
-            let parsed = if trimmed.contains("://") {
-                Url::parse(trimmed)
-            } else {
-                Url::parse(&format!("http://{trimmed}"))
-            };
-            let parsed = parsed.map_err(unusable)?;
+            let parsed = http_address(url).map_err(unusable)?;
             if !matches!(parsed.scheme(), "http" | "https") {
                 return Err(NetError::config(
                     UNUSABLE,
@@ -165,13 +159,17 @@ fn system_proxy() -> Option<ProxyRoute> {
 /// Reads one `ALL_PROXY` value. Anything that isn't a proxy address this dialer can
 /// speak counts as no setting at all.
 fn parse_system_proxy(value: &str) -> Option<ProxyRoute> {
+    http_address(value).ok().as_ref().and_then(route_of)
+}
+
+/// A proxy address that names no scheme is `http`, as reqwest reads one.
+fn http_address(value: &str) -> Result<Url, url::ParseError> {
     let trimmed = value.trim();
-    let parsed = if trimmed.contains("://") {
+    if trimmed.contains("://") {
         Url::parse(trimmed)
     } else {
         Url::parse(&format!("http://{trimmed}"))
-    };
-    parsed.ok().as_ref().and_then(route_of)
+    }
 }
 
 /// The hop a parsed proxy address names, or `None` when it names no host or a scheme

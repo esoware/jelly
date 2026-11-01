@@ -61,6 +61,7 @@ jelly_win32 = { workspace = true }
 jelly        = { path = ".", features = ["test-util"] }
 jelly_core   = { workspace = true, features = ["test-util"] }
 jelly_engine = { workspace = true, features = ["test-util"] }
+jelly_net    = { workspace = true, features = ["test-util"] }
 jelly_vault  = { workspace = true, features = ["test-util"] }
 
 serde_json = { workspace = true }

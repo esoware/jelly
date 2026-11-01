@@ -268,8 +268,7 @@ fn closed(endpoint: &EndpointLabel) -> NetError {
 /// and the URL parser puts it back. The userinfo goes out as basic credentials, because
 /// tungstenite would otherwise send it nowhere.
 fn handshake_request(endpoint: &EndpointLabel, url: &str) -> Result<Request, NetError> {
-    let mut parsed =
-        Url::parse(url).map_err(|_| NetError::InvalidUrl { reason: UrlRejection::Unparsable })?;
+    let mut parsed = Url::parse(url).map_err(|_| UrlRejection::Unparsable)?;
     let credentials = Credentials::of(&parsed);
     // Clearing the userinfo fails only for a URL with no host, and every endpoint has one.
     let _ = parsed.set_username("");
@@ -556,8 +555,3 @@ impl Connect<WsClient> for WsConnector {
         self.check.identify(endpoint, connection).await
     }
 }
-
-/// The pool keeps one client per endpoint and hands `Arc`s of it to concurrent
-/// tasks.
-const fn assert_send_sync<T: Send + Sync>() {}
-const _: () = assert_send_sync::<WsClient>();
