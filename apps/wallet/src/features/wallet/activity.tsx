@@ -374,7 +374,13 @@ interface ActivityPanelProps {
 }
 
 export function ActivityPanel({ chain, onReceive }: ActivityPanelProps) {
-  const [filter, setFilter] = useState<TxFilter>(NO_TX_FILTER)
+  const [chosenFilter, setChosenFilter] = useState<TxFilter>(NO_TX_FILTER)
+  const addresses = useQuery(addressQueries.list(chain))
+  const isChosenAddressGone =
+    chosenFilter.addressId !== null &&
+    addresses.data !== undefined &&
+    !addresses.data.some((row) => row.id === chosenFilter.addressId)
+  const filter = isChosenAddressGone ? { ...chosenFilter, addressId: null } : chosenFilter
   const detail = useDialogPayload<TxEntry>()
   const feed = useTxStream(chain, filter)
   const [scrollArea, setScrollArea] = useState<HTMLDivElement | null>(null)
@@ -403,7 +409,7 @@ export function ActivityPanel({ chain, onReceive }: ActivityPanelProps) {
     <Panel className="min-w-0 flex-1">
       <PanelHeader
         title="Activity"
-        actions={<FilterMenu chain={chain} filter={filter} onFilterChange={setFilter} />}
+        actions={<FilterMenu chain={chain} filter={filter} onFilterChange={setChosenFilter} />}
       />
 
       <PanelBody ref={setScrollArea}>
