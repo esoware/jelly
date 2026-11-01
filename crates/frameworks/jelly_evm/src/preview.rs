@@ -232,7 +232,7 @@ fn coins(wei: u128, params: &EvmParams) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_util::{BSC, ETHEREUM, POLYGON};
+    use crate::fixtures::{BSC, ETHEREUM, POLYGON};
 
     #[test]
     fn rendering_uses_the_scale_of_the_unit_being_shown() {

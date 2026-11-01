@@ -405,8 +405,7 @@ mod tests {
     use jelly_core::{ChainId, TokenId};
 
     use super::*;
-    use crate::fixtures::{address, token_table, watched};
-    use crate::test_util::POLYGON;
+    use crate::fixtures::{POLYGON, address, token_table, watched};
 
     fn transfer_log(from: Address, to: Address, value: u128, index: u64) -> LogEntry {
         LogEntry {

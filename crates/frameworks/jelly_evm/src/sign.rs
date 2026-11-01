@@ -69,9 +69,8 @@ mod tests {
 
     use super::*;
     use crate::fee::FeePair;
-    use crate::fixtures::address;
+    use crate::fixtures::{ETHEREUM, POLYGON, address};
     use crate::payload::{self, Intent, Shape};
-    use crate::test_util::{ETHEREUM, POLYGON};
 
     #[test]
     fn a_recovery_id_above_one_is_refused_rather_than_folded() {

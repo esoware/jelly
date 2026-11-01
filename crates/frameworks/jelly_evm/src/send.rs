@@ -233,9 +233,8 @@ mod tests {
 
     use super::*;
     use crate::fee::GasSource;
-    use crate::fixtures::address;
+    use crate::fixtures::{ETHEREUM, address};
     use crate::rpc::FeeHistory;
-    use crate::test_util::ETHEREUM;
 
     const GWEI: u128 = 1_000_000_000;
     const ETH: u128 = 1_000_000_000_000_000_000;

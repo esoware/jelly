@@ -349,8 +349,7 @@ mod tests {
     use jelly_core::{Amount, AssetId, ChainId, test_util::TxRequestBuilder};
 
     use super::*;
-    use crate::fixtures::NETWORKS;
-    use crate::test_util::{AVALANCHE, BSC, ETHEREUM};
+    use crate::fixtures::{AVALANCHE, BSC, ETHEREUM, NETWORKS};
 
     const GWEI: u128 = 1_000_000_000;
 

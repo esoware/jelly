@@ -34,7 +34,7 @@ jelly_keypair   = { workspace = true, features = ["test-util"] }
 jelly_core      = { workspace = true, features = ["test-util"] }
 jelly_net       = { workspace = true, features = ["test-util"] }
 jelly_evm       = { workspace = true, features = ["test-util"] }
-# The integration tests run against the networks as their chain crates ship them.
+# The unit and integration tests run against the networks as their chain crates ship them.
 jelly_ethereum  = { workspace = true }
 jelly_arbitrum  = { workspace = true }
 jelly_base      = { workspace = true }

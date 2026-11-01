@@ -57,7 +57,8 @@ mod tests {
     };
 
     use super::*;
-    use crate::test_util::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, OPTIMISM, POLYGON, endpoint};
+    use crate::fixtures::{ARBITRUM, AVALANCHE, BASE, BSC, ETHEREUM, OPTIMISM, POLYGON};
+    use crate::test_util::endpoint;
 
     #[test]
     fn each_network_admits_its_own_chain_id_and_names_any_other() {

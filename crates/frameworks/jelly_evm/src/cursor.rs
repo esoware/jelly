@@ -216,7 +216,7 @@ impl ScanCursor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_util::ETHEREUM;
+    use crate::fixtures::ETHEREUM;
 
     const FLOOR: u64 = 4_634_748;
 

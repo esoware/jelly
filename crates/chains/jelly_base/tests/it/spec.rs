@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use jelly_base::{ENTRY, PARAMS, SPEC};
 use jelly_core::{ChainId, KeyKind, TokenId, Transport};
-use jelly_evm::test_util;
 use jelly_net::DefaultEndpoints;
 
 #[test]
@@ -47,9 +46,11 @@ fn the_params_carry_the_eip_155_chain_id_and_bases_figures() {
     assert_eq!(PARAMS.request_timeout, Duration::from_secs(10));
     const { assert!(!PARAMS.has_native_transfer_logs, "ether moves without a log") };
     const { assert!(PARAMS.has_l1_data_fee, "the OP Stack charges L1 data apart from gas") };
+    const { assert!(!PARAMS.has_keyless_history, "Etherscan serves Base with a key") };
 
     assert_eq!(PARAMS.fee_history_blocks, 30);
     assert_eq!(PARAMS.min_priority_fee_wei, 1_000_000, "op-geth's suggested 0.001 gwei");
+    assert_eq!(PARAMS.max_priority_fee_wei, None);
     assert_eq!(PARAMS.backfill_floor, 0, "the WETH predeploy is in genesis");
     assert_eq!(PARAMS.log_window_blocks, 10_000);
 }
@@ -91,10 +92,4 @@ fn the_shipped_endpoints_use_exactly_the_specs_transports() {
         file.endpoints.iter().map(|endpoint| endpoint.transport).collect();
     let declared: BTreeSet<Transport> = SPEC.transports.iter().copied().collect();
     assert_eq!(used, declared);
-}
-
-/// The framework's own unit tests run on a copy of these params.
-#[test]
-fn the_params_match_the_frameworks_test_copy() {
-    assert_eq!(PARAMS, test_util::BASE);
 }

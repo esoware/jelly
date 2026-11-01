@@ -178,8 +178,7 @@ mod tests {
     use jelly_core::{ChainId, TokenId};
 
     use super::*;
-    use crate::fixtures::{address, token_table};
-    use crate::test_util::ETHEREUM;
+    use crate::fixtures::{ETHEREUM, address, token_table};
 
     const COIN: u128 = 1_000_000_000_000_000_000;
 

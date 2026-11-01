@@ -191,8 +191,7 @@ async fn read_window(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fixtures::{token_table, watched};
-    use crate::test_util::{ETHEREUM, POLYGON};
+    use crate::fixtures::{ETHEREUM, POLYGON, token_table, watched};
 
     #[test]
     fn one_window_asks_both_sides_over_every_contract_and_every_address() {

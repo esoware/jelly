@@ -94,8 +94,7 @@ impl TryFrom<TokenId> for TokenMeta {
 mod tests {
     use super::*;
     use crate::abi::MULTICALL3;
-    use crate::fixtures::NETWORKS;
-    use crate::test_util::ETHEREUM;
+    use crate::fixtures::{ETHEREUM, NETWORKS};
 
     #[test]
     fn the_table_resolves_every_network_and_answers_by_address_and_by_id() {
