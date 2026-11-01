@@ -4,11 +4,11 @@ use crate::address;
 use crate::config::CHAIN;
 use crate::error::TronError;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Watched {
     pub(crate) address_id: i64,
     pub(crate) address: String,
-    pub(crate) body: [u8; address::BODY_BYTES],
+    pub(crate) body: address::Body,
 }
 
 /// All or nothing. A foreign or invalid address fails the whole set, because
@@ -20,8 +20,8 @@ pub(crate) fn resolve(addresses: &[WatchedAddress]) -> Result<Vec<Watched>, Tron
         if chain != CHAIN {
             return Err(TronError::ForeignChain { chain });
         }
-        let body = address::body("watched address", entry.address.value())?;
-        watched.push(Watched { address_id: entry.id, address: address::display(&body), body });
+        let body = address::Body::parse("watched address", entry.address.value())?;
+        watched.push(Watched { address_id: entry.id, address: body.to_string(), body });
     }
     Ok(watched)
 }
@@ -41,7 +41,7 @@ mod tests {
         let entry = resolved.first().expect("one entry");
         assert_eq!(entry.address_id, 7);
         assert_eq!(entry.address, OWNER);
-        assert_eq!(address::display(&entry.body), OWNER);
+        assert_eq!(entry.body.to_string(), OWNER);
     }
 
     #[test]

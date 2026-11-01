@@ -2,8 +2,9 @@
 //! 21-byte `0x41 || keccak-tail` body that protobuf and the HTTP API carry, and
 //! the bare 20-byte tail in an ABI word.
 //!
-//! A string is parsed once, by [`canonical`] or [`body`], and later steps work on
-//! fixed-size arrays.
+//! A string is parsed once, by [`Body::parse`], and later steps work on the [`Body`].
+
+use std::fmt;
 
 use jelly_core::{Address, AddressCodec, AddressError, ChainId, KeyError};
 use jelly_keypair::keccak_address_bytes;
@@ -14,8 +15,7 @@ use crate::error::TronError;
 /// Mainnet's prefix byte, which makes every address start with `T`.
 pub(crate) const PREFIX: u8 = 0x41;
 
-/// The address body, prefix included.
-pub(crate) const BODY_BYTES: usize = 21;
+const BODY_BYTES: usize = 21;
 
 /// The same 20 bytes as the key's Ethereum address.
 pub(crate) const TAIL_BYTES: usize = 20;
@@ -37,8 +37,66 @@ impl AddressCodec for TronCodec {
     }
 }
 
+/// The address body, prefix included. Every one carries mainnet's prefix, and it
+/// displays as the `T...` form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Body([u8; BODY_BYTES]);
+
+impl Body {
+    /// Parses a `T...` address or a 21-byte hex body, with or without `0x`.
+    ///
+    /// A bare 20-byte hex value is refused, because that's an Ethereum address and
+    /// recipient fields come through here.
+    pub(crate) fn parse(field: &'static str, value: &str) -> Result<Self, TronError> {
+        let trimmed = value.trim();
+        let hex_chars = BODY_BYTES.saturating_mul(2);
+        let stripped = trimmed.strip_prefix("0x").unwrap_or(trimmed);
+        if stripped.len() == hex_chars
+            && let Ok(raw) = hex::decode(stripped)
+        {
+            return Self::from_bytes(field, &raw);
+        }
+        decode_base58(trimmed)
+            .map_err(|source| TronError::invalid_address(field, source.to_string()))
+    }
+
+    /// 21 bytes, checked for the mainnet prefix.
+    pub(crate) fn from_bytes(field: &'static str, raw: &[u8]) -> Result<Self, TronError> {
+        let body: [u8; BODY_BYTES] = raw.try_into().map_err(|_| {
+            TronError::invalid_address(field, format!("{} bytes, not 21", raw.len()))
+        })?;
+        match body.first() {
+            Some(&PREFIX) => Ok(Self(body)),
+            _ => Err(TronError::invalid_address(field, "a prefix byte that is not tron mainnet")),
+        }
+    }
+
+    /// Rebuilds the body from the 20-byte tail in an ABI word.
+    pub(crate) const fn from_tail(tail: &[u8; TAIL_BYTES]) -> Self {
+        let mut body = [PREFIX; BODY_BYTES];
+        let (_, rest) = body.split_at_mut(1);
+        rest.copy_from_slice(tail);
+        Self(body)
+    }
+
+    pub(crate) const fn tail(&self) -> [u8; TAIL_BYTES] {
+        let [_, tail @ ..] = self.0;
+        tail
+    }
+
+    pub(crate) const fn as_bytes(&self) -> &[u8; BODY_BYTES] {
+        &self.0
+    }
+}
+
+impl fmt::Display for Body {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&bs58::encode(self.0).with_check().into_string())
+    }
+}
+
 /// The body a `T...` address carries, checked for the mainnet prefix.
-fn decode_base58(value: &str) -> Result<[u8; BODY_BYTES], AddressError> {
+fn decode_base58(value: &str) -> Result<Body, AddressError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         return Err(AddressError::Empty { chain: CHAIN });
@@ -50,65 +108,14 @@ fn decode_base58(value: &str) -> Result<[u8; BODY_BYTES], AddressError> {
     let body: [u8; BODY_BYTES] =
         raw.as_slice().try_into().map_err(|_| AddressError::WrongLength { chain: CHAIN })?;
     match body.first() {
-        Some(&PREFIX) => Ok(body),
+        Some(&PREFIX) => Ok(Body(body)),
         _ => Err(AddressError::WrongNetwork { chain: CHAIN }),
     }
 }
 
-/// Normalizes a `T...` address or a 21-byte hex body, with or without `0x`, to the
-/// `T...` form.
-///
-/// A bare 20-byte hex value is refused, because that's an Ethereum address and
-/// recipient fields come through here.
-pub(crate) fn canonical(field: &'static str, value: &str) -> Result<String, TronError> {
-    Ok(display(&body(field, value)?))
-}
-
-/// Parses either spelling to the 21-byte body that transactions and requests
-/// carry.
-pub(crate) fn body(field: &'static str, value: &str) -> Result<[u8; BODY_BYTES], TronError> {
-    let trimmed = value.trim();
-    let hex_chars = BODY_BYTES.saturating_mul(2);
-    let stripped = trimmed.strip_prefix("0x").unwrap_or(trimmed);
-    if stripped.len() == hex_chars
-        && let Ok(raw) = hex::decode(stripped)
-    {
-        return from_body(field, &raw);
-    }
-    decode_base58(trimmed).map_err(|source| TronError::invalid_address(field, source.to_string()))
-}
-
-/// A 21-byte body, checked for the mainnet prefix.
-pub(crate) fn from_body(field: &'static str, raw: &[u8]) -> Result<[u8; BODY_BYTES], TronError> {
-    let body: [u8; BODY_BYTES] = raw
-        .try_into()
-        .map_err(|_| TronError::invalid_address(field, format!("{} bytes, not 21", raw.len())))?;
-    match body.first() {
-        Some(&PREFIX) => Ok(body),
-        _ => Err(TronError::invalid_address(field, "a prefix byte that is not tron mainnet")),
-    }
-}
-
-pub(crate) fn display(body: &[u8; BODY_BYTES]) -> String {
-    bs58::encode(body).with_check().into_string()
-}
-
-pub(crate) const fn tail(body: &[u8; BODY_BYTES]) -> [u8; TAIL_BYTES] {
-    let [_, tail @ ..] = *body;
-    tail
-}
-
-/// Rebuilds the body from the 20-byte tail in an ABI word.
-pub(crate) const fn from_tail(tail: &[u8; TAIL_BYTES]) -> [u8; BODY_BYTES] {
-    let mut body = [PREFIX; BODY_BYTES];
-    let (_, rest) = body.split_at_mut(1);
-    rest.copy_from_slice(tail);
-    body
-}
-
 /// The address of a secp256k1 public key in either SEC1 form.
 pub(crate) fn from_pubkey(pubkey: &[u8]) -> Result<String, KeyError> {
-    Ok(display(&from_tail(&keccak_address_bytes(pubkey)?)))
+    Ok(Body::from_tail(&keccak_address_bytes(pubkey)?).to_string())
 }
 
 #[cfg(test)]
@@ -136,26 +143,29 @@ mod tests {
         for spelling in
             [RECIPIENT, RECIPIENT_HEX, &format!("0x{RECIPIENT_HEX}"), &format!("  {RECIPIENT}  ")]
         {
-            let decoded = body("recipient", spelling).expect("it decodes");
-            assert_eq!(decoded.as_slice(), expected.as_slice(), "{spelling}");
-            assert_eq!(canonical("recipient", spelling).expect("it re-encodes"), RECIPIENT);
+            let decoded = Body::parse("recipient", spelling).expect("it decodes");
+            assert_eq!(decoded.as_bytes().as_slice(), expected.as_slice(), "{spelling}");
+            assert_eq!(decoded.to_string(), RECIPIENT);
         }
     }
 
     #[test]
     fn the_hex_body_and_the_base58_form_are_one_encoding() {
         let suite: Vectors = serde_json::from_str(VECTORS_JSON).expect("the vector file parses");
-        let body: [u8; BODY_BYTES] =
-            hex::decode(&suite.body_hex).expect("hex").as_slice().try_into().expect("21 bytes");
-        assert_eq!(display(&body), suite.body_address);
-        assert_eq!(hex::encode(decode_base58(&suite.body_address).expect("body")), suite.body_hex);
+        let body = Body::from_bytes("vector", &hex::decode(&suite.body_hex).expect("hex"))
+            .expect("a mainnet body");
+        assert_eq!(body.to_string(), suite.body_address);
+        assert_eq!(
+            hex::encode(decode_base58(&suite.body_address).expect("body").as_bytes()),
+            suite.body_hex
+        );
     }
 
     #[test]
     fn a_bare_twenty_byte_address_is_never_read_as_a_tron_address() {
         // Twenty bytes of hex is an Ethereum address, and a pasted one is almost
         // certainly meant for another chain.
-        let error = body("recipient", "0x9d8a62f656a8d1615c1294fd71e9cfb3e4855a4f")
+        let error = Body::parse("recipient", "0x9d8a62f656a8d1615c1294fd71e9cfb3e4855a4f")
             .expect_err("the bare tail is refused");
         assert!(matches!(error, TronError::InvalidAddress { field: "recipient", .. }), "{error:?}");
     }
@@ -165,20 +175,22 @@ mod tests {
         let mut broken = String::from(RECIPIENT);
         broken.pop();
         broken.push(if RECIPIENT.ends_with('b') { 'c' } else { 'b' });
-        assert!(matches!(body("recipient", &broken), Err(TronError::InvalidAddress { .. })));
+        assert!(matches!(Body::parse("recipient", &broken), Err(TronError::InvalidAddress { .. })));
 
         let mut foreign = hex::decode(RECIPIENT_HEX).expect("hex");
         if let Some(first) = foreign.first_mut() {
             *first = 0x42;
         }
-        assert!(matches!(from_body("recipient", &foreign), Err(TronError::InvalidAddress { .. })));
         assert!(matches!(
-            body("recipient", &hex::encode(&foreign)),
+            Body::from_bytes("recipient", &foreign),
             Err(TronError::InvalidAddress { .. })
         ));
-        let foreign_body: [u8; BODY_BYTES] = foreign.as_slice().try_into().expect("21 bytes");
+        assert!(matches!(
+            Body::parse("recipient", &hex::encode(&foreign)),
+            Err(TronError::InvalidAddress { .. })
+        ));
         assert_eq!(
-            decode_base58(&display(&foreign_body)),
+            decode_base58(&bs58::encode(&foreign).with_check().into_string()),
             Err(AddressError::WrongNetwork { chain: CHAIN })
         );
     }
@@ -193,9 +205,9 @@ mod tests {
 
     #[test]
     fn the_tail_is_the_body_without_its_prefix_and_round_trips() {
-        let decoded = body("recipient", RECIPIENT).expect("it decodes");
-        assert_eq!(hex::encode(tail(&decoded)), "e28b3cfd4e0e909077821478e9fcb86b84be786e");
-        assert_eq!(display(&from_tail(&tail(&decoded))), RECIPIENT);
+        let decoded = Body::parse("recipient", RECIPIENT).expect("it decodes");
+        assert_eq!(hex::encode(decoded.tail()), "e28b3cfd4e0e909077821478e9fcb86b84be786e");
+        assert_eq!(Body::from_tail(&decoded.tail()).to_string(), RECIPIENT);
     }
 
     #[test]
@@ -210,7 +222,9 @@ mod tests {
         );
         // The same key's Ethereum address behind TRON's prefix byte.
         assert_eq!(
-            canonical("address", "0x419d8a62f656a8d1615c1294fd71e9cfb3e4855a4f").expect("a body"),
+            Body::parse("address", "0x419d8a62f656a8d1615c1294fd71e9cfb3e4855a4f")
+                .expect("a body")
+                .to_string(),
             OWNER
         );
     }

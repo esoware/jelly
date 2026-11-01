@@ -6,8 +6,7 @@
 //! expiration and no node holds the transaction.
 
 use jelly_core::{
-    Amount, AssetId, TxDetection, TxDirection, TxId, TxOutcome, TxRecord, TxRecordBuilder,
-    confirmations,
+    Amount, AssetId, TxDirection, TxId, TxOutcome, TxRecord, TxRecordBuilder, confirmations,
 };
 use serde::{Deserialize, Serialize};
 
@@ -54,7 +53,6 @@ impl Tracked {
             moved,
         )
         .outcome(outcome)
-        .detection(TxDetection::Full)
         .counterparty(self.recipient.clone())
         .fee(fee)
     }

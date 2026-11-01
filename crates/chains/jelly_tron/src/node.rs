@@ -285,7 +285,7 @@ mod tests {
     }
 
     #[test]
-    fn every_failure_the_walk_can_see_moves_it_on() {
+    fn every_failure_the_pool_sees_rotates_to_another_endpoint() {
         let failures = [
             NetError::NoEndpoints { chain: ChainId::Tron },
             NetError::Status { endpoint: endpoint(), status: 404 },

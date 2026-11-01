@@ -84,134 +84,35 @@ impl Request {
         self.body.as_deref()
     }
 
-    fn post(route: Route, path: &'static str, body: &impl Serialize) -> Result<Self, TronError> {
+    fn post(route: Route, path: &'static str, body: String) -> Self {
+        Self { route, path: path.to_owned(), query: String::new(), body: Some(body) }
+    }
+
+    fn post_json(
+        route: Route,
+        path: &'static str,
+        body: &impl Serialize,
+    ) -> Result<Self, TronError> {
         let body = serde_json::to_string(body)
             .map_err(|_| TronError::Encode { what: "a request body" })?;
-        Ok(Self { route, path: path.to_owned(), query: String::new(), body: Some(body) })
+        Ok(Self::post(route, path, body))
     }
 
-    /// `getnowblock` carries every transaction in the block, about half a
-    /// megabyte on mainnet, so the header is asked for alone. With no
-    /// `id_or_num`, `getblock` answers the head block.
-    pub(crate) fn now_block() -> Result<Self, TronError> {
-        Self::post(Route::NowBlock, "/wallet/getblock", &HeaderOnly { detail: false })
-    }
-
-    pub(crate) fn chain_parameters() -> Result<Self, TronError> {
-        Self::post(Route::ChainParameters, "/wallet/getchainparameters", &serde_json::Map::new())
-    }
-
-    pub(crate) fn account(address: &str) -> Result<Self, TronError> {
-        Self::post(Route::Account, "/wallet/getaccount", &AddressBody { address, visible: true })
-    }
-
-    pub(crate) fn account_resource(address: &str) -> Result<Self, TronError> {
-        Self::post(
-            Route::AccountResource,
-            "/wallet/getaccountresource",
-            &AddressBody { address, visible: true },
-        )
-    }
-
-    /// A read-only call. `parameter` is the argument blob with no selector,
-    /// because TRON takes the signature separately.
-    fn constant_call(
-        owner: &str,
-        contract: &str,
-        signature: &'static str,
-        parameter: String,
-    ) -> Result<Self, TronError> {
-        Self::post(
-            Route::ConstantContract,
-            "/wallet/triggerconstantcontract",
-            &ConstantCallBody {
-                owner_address: owner,
-                contract_address: contract,
-                function_selector: signature,
-                parameter,
-                visible: true,
-            },
-        )
-    }
-
-    pub(crate) fn balance_of(
-        owner: &str,
-        owner_body: &[u8; address::BODY_BYTES],
-        contract: &str,
-    ) -> Result<Self, TronError> {
-        Self::constant_call(
-            owner,
-            contract,
-            abi::BALANCE_OF_SIGNATURE,
-            abi::balance_of_args(owner_body),
-        )
-    }
-
-    pub(crate) fn measure_transfer(
-        owner: &str,
-        contract: &str,
-        to: &[u8; address::BODY_BYTES],
-        amount: u128,
-    ) -> Result<Self, TronError> {
-        Self::constant_call(
-            owner,
-            contract,
-            abi::TRANSFER_SIGNATURE,
-            abi::transfer_args(to, amount),
-        )
-    }
-
-    pub(crate) fn contract(address: &str) -> Result<Self, TronError> {
-        Self::post(
-            Route::Contract,
-            "/wallet/getcontract",
-            &VisibleValue { value: address, visible: true },
-        )
-    }
-
-    pub(crate) fn transaction_by_id(txid: &str) -> Result<Self, TronError> {
-        Self::post(Route::TransactionById, "/wallet/gettransactionbyid", &ById { value: txid })
-    }
-
-    pub(crate) fn transaction_info_by_id(txid: &str) -> Result<Self, TronError> {
-        Self::post(
-            Route::TransactionInfoById,
-            "/wallet/gettransactioninfobyid",
-            &ById { value: txid },
-        )
-    }
-
-    /// Transmits exactly the signed bytes, which is why this route is preferred.
-    pub(crate) fn broadcast_hex(signed: &[u8]) -> Result<Self, TronError> {
-        Self::post(
-            Route::BroadcastHex,
-            "/wallet/broadcasthex",
-            &BroadcastHexBody { transaction: hex::encode(signed) },
-        )
-    }
-
-    /// The JSON broadcast, whose body [`crate::broadcast`] builds from the same
-    /// signed bytes.
-    pub(crate) fn broadcast_json(body: String) -> Self {
-        Self {
-            route: Route::BroadcastTransaction,
-            path: String::from("/wallet/broadcasttransaction"),
-            query: String::new(),
-            body: Some(body),
-        }
-    }
-
-    /// One page of an indexer history stream, newest first.
+    /// One page of an address's `/v1` list for `stream`.
     ///
     /// The fingerprint is `TronGrid`'s opaque cursor, sent back verbatim since it's
     /// already URL-safe.
-    pub(crate) fn history(stream: Stream, address: &str, fingerprint: Option<&str>) -> Self {
+    fn indexer(
+        stream: Stream,
+        address: &str,
+        mut query: String,
+        fingerprint: Option<&str>,
+    ) -> Self {
         let list = match stream {
             Stream::Native => "transactions",
             Stream::Token => "transactions/trc20",
             Stream::Internal => "internal-transactions",
         };
-        let mut query = format!("limit={HISTORY_PAGE_ROWS}&order_by=block_timestamp,desc");
         if let Some(cursor) = fingerprint {
             query.push_str("&fingerprint=");
             query.push_str(cursor);
@@ -224,26 +125,124 @@ impl Request {
         }
     }
 
+    /// `getnowblock` carries every transaction in the block, about half a
+    /// megabyte on mainnet, so the header is asked for alone. With no
+    /// `id_or_num`, `getblock` answers the head block.
+    pub(crate) fn now_block() -> Result<Self, TronError> {
+        Self::post_json(Route::NowBlock, "/wallet/getblock", &HeaderOnly { detail: false })
+    }
+
+    pub(crate) fn chain_parameters() -> Result<Self, TronError> {
+        Self::post_json(
+            Route::ChainParameters,
+            "/wallet/getchainparameters",
+            &serde_json::Map::new(),
+        )
+    }
+
+    pub(crate) fn account(address: &str) -> Result<Self, TronError> {
+        Self::post_json(Route::Account, "/wallet/getaccount", &ByAddress { address, visible: true })
+    }
+
+    pub(crate) fn account_resource(address: &str) -> Result<Self, TronError> {
+        Self::post_json(
+            Route::AccountResource,
+            "/wallet/getaccountresource",
+            &ByAddress { address, visible: true },
+        )
+    }
+
+    /// A read-only call. `parameter` is the argument blob with no selector,
+    /// because TRON takes the signature separately.
+    fn constant_call(
+        owner: &address::Body,
+        contract: &str,
+        signature: &'static str,
+        parameter: String,
+    ) -> Result<Self, TronError> {
+        Self::post_json(
+            Route::ConstantContract,
+            "/wallet/triggerconstantcontract",
+            &ConstantCallBody {
+                owner_address: &owner.to_string(),
+                contract_address: contract,
+                function_selector: signature,
+                parameter,
+                visible: true,
+            },
+        )
+    }
+
+    pub(crate) fn balance_of(owner: &address::Body, contract: &str) -> Result<Self, TronError> {
+        Self::constant_call(owner, contract, abi::BALANCE_OF_SIGNATURE, abi::balance_of_args(owner))
+    }
+
+    pub(crate) fn measure_transfer(
+        owner: &address::Body,
+        contract: &str,
+        to: &address::Body,
+        amount: u128,
+    ) -> Result<Self, TronError> {
+        Self::constant_call(
+            owner,
+            contract,
+            abi::TRANSFER_SIGNATURE,
+            abi::transfer_args(to, amount),
+        )
+    }
+
+    pub(crate) fn contract(address: &str) -> Result<Self, TronError> {
+        Self::post_json(
+            Route::Contract,
+            "/wallet/getcontract",
+            &VisibleValue { value: address, visible: true },
+        )
+    }
+
+    pub(crate) fn transaction_by_id(txid: &str) -> Result<Self, TronError> {
+        Self::post_json(Route::TransactionById, "/wallet/gettransactionbyid", &ById { value: txid })
+    }
+
+    pub(crate) fn transaction_info_by_id(txid: &str) -> Result<Self, TronError> {
+        Self::post_json(
+            Route::TransactionInfoById,
+            "/wallet/gettransactioninfobyid",
+            &ById { value: txid },
+        )
+    }
+
+    /// Transmits exactly the signed bytes, which is why this route is preferred.
+    pub(crate) fn broadcast_hex(signed: &[u8]) -> Result<Self, TronError> {
+        Self::post_json(
+            Route::BroadcastHex,
+            "/wallet/broadcasthex",
+            &BroadcastHexBody { transaction: hex::encode(signed) },
+        )
+    }
+
+    /// The JSON broadcast, whose body [`crate::broadcast`] builds from the same
+    /// signed bytes.
+    pub(crate) fn broadcast_json(body: String) -> Self {
+        Self::post(Route::BroadcastTransaction, "/wallet/broadcasttransaction", body)
+    }
+
+    /// One page of an indexer history stream, newest first.
+    pub(crate) fn history(stream: Stream, address: &str, fingerprint: Option<&str>) -> Self {
+        let query = format!("limit={HISTORY_PAGE_ROWS}&order_by=block_timestamp,desc");
+        Self::indexer(stream, address, query, fingerprint)
+    }
+
     /// One page of the transactions `address` sent in the block mined at `timestamp_millis`.
     ///
     /// Blocks are three seconds apart, so a millisecond either side holds that
     /// block alone whether the indexer reads its bounds as inclusive or not.
     pub(crate) fn sent_at(address: &str, timestamp_millis: i64, fingerprint: Option<&str>) -> Self {
-        let mut query = format!(
+        let query = format!(
             "only_from=true&min_timestamp={}&max_timestamp={}&limit={MAX_PAGE_ROWS}",
             timestamp_millis.saturating_sub(1),
             timestamp_millis.saturating_add(1)
         );
-        if let Some(cursor) = fingerprint {
-            query.push_str("&fingerprint=");
-            query.push_str(cursor);
-        }
-        Self {
-            route: Route::NativeHistory,
-            path: format!("/v1/accounts/{address}/transactions"),
-            query,
-            body: None,
-        }
+        Self::indexer(Stream::Native, address, query, fingerprint)
     }
 }
 
@@ -253,7 +252,7 @@ struct HeaderOnly {
 }
 
 #[derive(Debug, Serialize)]
-struct AddressBody<'a> {
+struct ByAddress<'a> {
     address: &'a str,
     visible: bool,
 }
@@ -285,7 +284,11 @@ struct ConstantCallBody<'a> {
 
 #[cfg(test)]
 mod tests {
+    use jelly_core::TokenId;
+
     use super::*;
+    use crate::fixtures::body;
+    use crate::test_util::OWNER;
 
     #[test]
     fn every_route_has_one_spelling_and_a_response_cap() {
@@ -311,6 +314,20 @@ mod tests {
         assert_eq!(
             request.body(),
             Some(r#"{"address":"TQLCsShbQNXMTVCjprY64qZmEA4rBarpQp","visible":true}"#)
+        );
+    }
+
+    #[test]
+    fn a_constant_call_names_its_owner_in_base58_and_carries_the_bare_arguments() {
+        let request =
+            Request::balance_of(&body(OWNER), TokenId::UsdtTrc20.contract()).expect("it builds");
+        assert_eq!(request.route(), Route::ConstantContract);
+        assert_eq!(request.path(), "/wallet/triggerconstantcontract");
+        assert_eq!(
+            request.body(),
+            Some(
+                r#"{"owner_address":"TQLCsShbQNXMTVCjprY64qZmEA4rBarpQp","contract_address":"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t","function_selector":"balanceOf(address)","parameter":"0000000000000000000000009d8a62f656a8d1615c1294fd71e9cfb3e4855a4f","visible":true}"#
+            )
         );
     }
 

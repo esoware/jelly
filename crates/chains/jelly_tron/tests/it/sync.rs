@@ -20,7 +20,7 @@ use tokio::time::sleep;
 use crate::common::{
     Answer, FakeNode, HISTORY_SWEEP, Harness, TOKEN_HISTORY, TRX, USDT_ASSET, account, balances,
     balances_only, base, fixture, funded, history_page, key_material, pass, quiet_history, ready,
-    request, transfer_row, watched,
+    request, sender, transfer_row, watched, watching_owner,
 };
 
 #[tokio::test]
@@ -75,8 +75,7 @@ async fn native_history_classifies_direction_amount_and_fee() {
         .on(Route::NativeHistory, Answer::body(fixture!("native_page1")))
         .on(Route::NativeHistory, Answer::body(fixture!("page_empty")))
         .on(Route::TokenHistory, Answer::body(fixture!("page_empty")));
-    let harness = Harness::new(&fake);
-    harness.adapter.set_watch_set(&[watched(4, TRX_OWNER)]).await.unwrap();
+    let harness = watching_owner(&fake, TronConfig::default()).await.unwrap();
     let sink = FakeEventSink::new();
     pass(&harness, &sink).await.unwrap();
 
@@ -129,8 +128,7 @@ async fn a_forward_budget_that_ran_out_short_of_the_frontier_does_not_move_it() 
         .on(Route::NativeHistory, Answer::body(fixture!("page_empty")))
         .on(Route::TokenHistory, Answer::body(fixture!("page_empty")));
     let config = TronConfig { forward_pages: 1, backfill_pages: 1, ..TronConfig::default() };
-    let harness = Harness::with(&fake, config);
-    harness.adapter.set_watch_set(&[watched(4, TRX_OWNER)]).await.unwrap();
+    let harness = watching_owner(&fake, config).await.unwrap();
     let sink = FakeEventSink::new();
     pass(&harness, &sink).await.unwrap();
     assert_eq!(records(&sink.drain()).len(), 1);
@@ -175,8 +173,7 @@ async fn the_forward_frontier_stops_at_the_last_transaction_this_wallet_reported
         .on(Route::NativeHistory, Answer::body(fixture!("native_page1")))
         .on(Route::NativeHistory, Answer::body(fixture!("page_empty")))
         .on(Route::TokenHistory, Answer::body(fixture!("page_empty")));
-    let harness = Harness::new(&fake);
-    harness.adapter.set_watch_set(&[watched(4, TRX_OWNER)]).await.unwrap();
+    let harness = watching_owner(&fake, TronConfig::default()).await.unwrap();
 
     let first = FakeEventSink::new();
     pass(&harness, &first).await.unwrap();
@@ -205,8 +202,7 @@ async fn the_backfill_walks_older_pages_and_then_closes() {
         .on(Route::NativeHistory, Answer::body(fixture!("page_empty")))
         .on(Route::TokenHistory, Answer::body(fixture!("page_empty")));
     let config = TronConfig { forward_pages: 1, backfill_pages: 1, ..TronConfig::default() };
-    let harness = Harness::with(&fake, config);
-    harness.adapter.set_watch_set(&[watched(4, TRX_OWNER)]).await.unwrap();
+    let harness = watching_owner(&fake, config).await.unwrap();
 
     let sink = FakeEventSink::new();
     let progress = pass(&harness, &sink).await.unwrap();
@@ -463,9 +459,7 @@ async fn a_watch_set_row_from_another_chain_is_refused() {
 
 #[tokio::test]
 async fn dropping_an_address_from_the_watch_set_stops_following_its_sends() {
-    let fake = quiet_history(&funded(100_000_000))
-        .on(Route::BroadcastHex, Answer::body(r#"{"result":true}"#));
-    let harness = ready(&fake).await.unwrap();
+    let harness = ready(&sender()).await.unwrap();
     let unsigned = harness.adapter.build_tx(&request(TRX, RECIPIENT, 1_000_000)).await.unwrap();
     let signed = harness.adapter.sign_tx(&unsigned, &[key_material(OWNER_KEY)]).unwrap();
     harness.adapter.broadcast(&signed).await.unwrap();
@@ -502,8 +496,7 @@ async fn rows_between_a_full_forward_budget_and_the_frontier_are_reported_on_a_l
         )
         .on(Route::TokenHistory, Answer::body(fixture!("page_empty")));
     let config = TronConfig { forward_pages: 1, ..TronConfig::default() };
-    let harness = Harness::with(&fake, config);
-    harness.adapter.set_watch_set(&[watched(4, TRX_OWNER)]).await.unwrap();
+    let harness = watching_owner(&fake, config).await.unwrap();
     let first = FakeEventSink::new();
     pass(&harness, &first).await.unwrap();
     assert_eq!(records(&first.drain()).len(), 1, "the whole history is one row at first");
@@ -619,8 +612,7 @@ async fn the_trx_a_trc20_send_burned_is_on_its_history_record() {
     let fake = balances_only(TRX_OWNER)
         .on(Route::NativeHistory, history_page(&[call.as_str()], None))
         .on(Route::TokenHistory, history_page(&[transfer.as_str()], None));
-    let harness = Harness::new(&fake);
-    harness.adapter.set_watch_set(&[watched(4, TRX_OWNER)]).await.unwrap();
+    let harness = watching_owner(&fake, TronConfig::default()).await.unwrap();
     let sink = FakeEventSink::new();
     pass(&harness, &sink).await.unwrap();
 

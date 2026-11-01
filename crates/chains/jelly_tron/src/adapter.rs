@@ -122,11 +122,7 @@ impl ChainAdapter for TronAdapter {
         let current = self.watch_set();
         let admitted: Vec<i64> = resolved
             .iter()
-            .filter(|entry| {
-                !current.iter().any(|known| {
-                    known.address_id == entry.address_id && known.address == entry.address
-                })
-            })
+            .filter(|entry| !current.contains(entry))
             .map(|entry| entry.address_id)
             .collect();
         if !admitted.is_empty() {

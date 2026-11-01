@@ -7,7 +7,6 @@
 use jelly_core::{Amount, AssetId, TxPayload};
 
 use crate::abi;
-use crate::address;
 use crate::config::TRX;
 use crate::error::TronError;
 use crate::raw::{self, DecodedBody, Header};
@@ -84,25 +83,25 @@ pub(crate) struct Facts {
 impl Facts {
     fn read(raw_data: &[u8]) -> Result<Self, TronError> {
         let decoded = raw::decode(raw_data)?;
-        let owner = address::display(&decoded.owner);
+        let owner = decoded.owner.to_string();
         match decoded.body {
             DecodedBody::Transfer { to, amount_sun } => Ok(Self {
                 asset: TRX,
                 owner,
-                recipient: address::display(&to),
+                recipient: to.to_string(),
                 amount: Amount::from(amount_sun),
                 calldata: Vec::new(),
                 header: decoded.header,
             }),
             DecodedBody::Trigger { contract, calldata } => {
-                let token = token_at(&address::display(&contract)).ok_or(TronError::Foreign {
+                let token = token_at(&contract.to_string()).ok_or(TronError::Foreign {
                     detail: "a call to a contract this build does not carry",
                 })?;
                 let (recipient, amount) = abi::decode_transfer(&calldata)?;
                 Ok(Self {
                     asset: AssetId::Token(token),
                     owner,
-                    recipient: address::display(&recipient),
+                    recipient: recipient.to_string(),
                     amount: Amount::from_base_units(amount),
                     calldata,
                     header: decoded.header,

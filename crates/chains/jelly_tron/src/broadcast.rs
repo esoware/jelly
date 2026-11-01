@@ -218,14 +218,16 @@ pub(crate) async fn deliver(
 fn json_body(raw_data: &[u8], signature: &[u8; raw::SIGNATURE_BYTES]) -> Result<String, TronError> {
     let decoded = raw::decode(raw_data)?;
     let kind = decoded.body.contract();
-    let owner_address = hex::encode(decoded.owner);
+    let owner_address = hex::encode(decoded.owner.as_bytes());
     let value = match decoded.body {
-        DecodedBody::Transfer { to, amount_sun } => {
-            JsonBody::Transfer { owner_address, to_address: hex::encode(to), amount: amount_sun }
-        }
+        DecodedBody::Transfer { to, amount_sun } => JsonBody::Transfer {
+            owner_address,
+            to_address: hex::encode(to.as_bytes()),
+            amount: amount_sun,
+        },
         DecodedBody::Trigger { contract, calldata } => JsonBody::Trigger {
             owner_address,
-            contract_address: hex::encode(contract),
+            contract_address: hex::encode(contract.as_bytes()),
             data: hex::encode(calldata),
         },
     };

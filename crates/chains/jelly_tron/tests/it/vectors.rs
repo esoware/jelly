@@ -10,7 +10,7 @@ use jelly_tron::{Route, TronConfig};
 use serde_json::Value;
 
 use crate::common::{
-    self, Answer, FakeNode, Harness, TRX, USDT_ASSET, account, base, canonical, detail, fixture,
+    Answer, FakeNode, Harness, TRX, USDT_ASSET, account, base, canonical, detail, fixture,
     raw_data_hex, recorded, request, text, transfer_arguments, watched,
 };
 
@@ -76,7 +76,7 @@ async fn a_rebuild_reproduces_the_recorded_mainnet_usdt_transfer() {
 
     // The receipt's transfer log is the chain's own reading of the calldata, so a
     // drifted argument order would disagree with it.
-    let receipt: Value = serde_json::from_str(common::fixture!("tx_usdt_info")).unwrap();
+    let receipt: Value = serde_json::from_str(fixture!("tx_usdt_info")).unwrap();
     assert_eq!(text(&receipt, "id").unwrap(), tx.txid);
     let log = receipt.get("log").and_then(Value::as_array).and_then(|rows| rows.first());
     let log = log.expect("the transfer log");

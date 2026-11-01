@@ -15,8 +15,8 @@ use crate::test_util::{account_resource, endpoint};
 
 const CONTRACTS: &str = include_str!("../tests/vectors/contracts.json");
 
-pub(crate) fn body(value: &str) -> [u8; address::BODY_BYTES] {
-    address::body("test", value).expect("a test address")
+pub(crate) fn body(value: &str) -> address::Body {
+    address::Body::parse("test", value).expect("a test address")
 }
 
 /// A ten-minute window pinned to a made-up head block.

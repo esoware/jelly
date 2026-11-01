@@ -3,7 +3,7 @@ use jelly_core::{
 };
 use jelly_net::NetError;
 
-use crate::fee::trx_text;
+use crate::preview::trx_text;
 use crate::route::Route;
 
 /// Only a classified [`Rejection`], [`TronError::Fault`], and
