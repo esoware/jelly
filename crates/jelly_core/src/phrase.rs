@@ -9,7 +9,7 @@ wire_enum! {
     }
 }
 
-/// The words of a pasted BIP-39, Monero, or TON phrase.
+/// The words of a pasted BIP-39 or TON phrase.
 ///
 /// Commas and semicolons separate words like whitespace, and a list number before a word,
 /// as in `1. abandon` or `12)abandon`, is dropped, so a phrase copied from a numbered
