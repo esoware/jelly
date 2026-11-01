@@ -400,6 +400,7 @@ function SetupForm({ onCreated }: SetupFormProps) {
             variant="ghost"
             size="sm"
             className="mt-auto justify-start"
+            disabled={isBusy}
             onClick={() => {
               void navigate({ to: "/unlock" })
             }}
