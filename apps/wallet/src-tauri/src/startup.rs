@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use jelly_core::SystemClock;
+use jelly_vault::KeyringStore;
 use tauri::{App, AppHandle, Manager as _, async_runtime};
 
 use crate::error::AppError;
@@ -22,7 +26,8 @@ pub(crate) fn install(app: &App) -> Result<(), AppError> {
     log::install(&data_dir);
     tracing::info!(target: TARGET, "jelly is starting");
 
-    let deps = ShellDeps::platform(data_dir);
+    let deps =
+        ShellDeps { data_dir, clock: Arc::new(SystemClock), keystore: Arc::new(KeyringStore) };
     app.manage(AppState::new(deps.clone()));
     let state = app.state::<AppState>();
     let handle = app.handle().clone();

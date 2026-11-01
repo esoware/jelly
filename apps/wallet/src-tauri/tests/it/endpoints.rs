@@ -10,7 +10,6 @@ use std::time::Duration;
 use jelly_core::{ChainId, Transport, test_util::FakeClock};
 use jelly_lib::{Services, ShellDeps};
 use jelly_net::{Endpoint, EndpointOrigin, HealthClass, NetError};
-use jelly_vault::test_util::MemoryKeyStore;
 use tokio::sync::Notify;
 use tokio::time::timeout;
 
@@ -23,11 +22,7 @@ const MY_NODE_URL: &str = "ssl://node.example:50002";
 const START_UNIX_MILLIS: u64 = 1_767_225_600_000;
 
 fn deps_on(data_dir: &Path, clock: &Arc<FakeClock>) -> ShellDeps {
-    ShellDeps {
-        data_dir: data_dir.to_path_buf(),
-        clock: Arc::<FakeClock>::clone(clock),
-        keystore: Arc::new(MemoryKeyStore::new()),
-    }
+    ShellDeps { clock: Arc::<FakeClock>::clone(clock), ..deps(data_dir) }
 }
 
 fn manual_clock() -> Arc<FakeClock> {
@@ -153,7 +148,7 @@ impl Wake for ReadFinished {
 /// Each is a write followed by a reload. The first reload reads the table before the
 /// second command's write and is resumed only after the second command has finished, as a
 /// busy runtime may resume it.
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn a_reload_that_read_before_a_concurrent_edit_does_not_revert_it() {
     let directory = tempfile::tempdir().unwrap();
     let services = Services::start(offline_config(), deps(directory.path())).await.unwrap();
@@ -186,8 +181,9 @@ async fn a_reload_that_read_before_a_concurrent_edit_does_not_revert_it() {
             engine.set_endpoint_enabled(ChainId::Ethereum, shipped.clone(), false).await.unwrap();
             services.endpoints_changed().await.unwrap();
         });
-        // Reloads that wait for one another can't let the second finish first, so after a
-        // while the first is resumed and both run to the end.
+        // Reloads that wait for one another can't let the second finish first. The paused
+        // clock jumps only when nothing but timers can run, and a database call on the
+        // blocking pool holds it still, so the timeout fires only once the second is stuck.
         if timeout(Duration::from_secs(10), second_command.as_mut()).await.is_err() {
             let (first, ()) = tokio::join!(first_reload.as_mut(), second_command.as_mut());
             first.unwrap();
@@ -214,7 +210,7 @@ async fn a_reload_that_read_before_a_concurrent_edit_does_not_revert_it() {
 
 /// No pool reads such a row, and the endpoint list can't show it for the user to delete.
 #[tokio::test]
-async fn an_unreadable_endpoint_row_is_deleted_and_its_chain_keeps_the_curated_list() {
+async fn an_unusable_stored_endpoint_is_deleted_and_its_chain_keeps_the_curated_list() {
     let directory = tempfile::tempdir().unwrap();
     let services = Services::start(offline_config(), deps(directory.path())).await.unwrap();
     let engine = services.engine().unwrap();

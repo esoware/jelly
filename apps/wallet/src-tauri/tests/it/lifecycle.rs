@@ -9,9 +9,10 @@ use std::sync::Arc;
 
 use jelly_core::{ChainId, ErrorCode, PhraseLength, ProxySetting, WalletColor};
 use jelly_engine::{PassphraseInput, StartupError};
-use jelly_lib::{AppState, IpcError, Services, ShellConfig, StartupStatus};
+use jelly_lib::{AppState, IpcError, Services, ShellConfig, ShellDeps, StartupStatus};
+use jelly_vault::test_util::FailingKeyStore;
 
-use crate::common::{PASSWORD, deps, deps_without_keychain, offline_config, secret};
+use crate::common::{PASSWORD, deps, offline_config, secret};
 
 #[tokio::test]
 async fn a_command_refuses_with_the_startup_failure_rather_than_a_reason_of_its_own() {
@@ -19,7 +20,9 @@ async fn a_command_refuses_with_the_startup_failure_rather_than_a_reason_of_its_
     let state = AppState::new(deps(directory.path()));
     assert_eq!(state.status(), StartupStatus::Starting);
 
-    let outcome = Services::start(offline_config(), deps_without_keychain(directory.path())).await;
+    let without_keychain =
+        ShellDeps { keystore: Arc::new(FailingKeyStore), ..deps(directory.path()) };
+    let outcome = Services::start(offline_config(), without_keychain).await;
     assert!(outcome.is_err(), "a missing credential store is a startup failure");
     state.finish(outcome);
 
@@ -36,7 +39,9 @@ async fn a_command_refuses_with_the_startup_failure_rather_than_a_reason_of_its_
     assert_eq!(refused.code, ErrorCode::Keychain.into(), "a command answers the startup failure");
 }
 
-#[tokio::test]
+/// The paused clock can't run the command's wait out while startup works on the blocking
+/// pool, however slow the machine.
+#[tokio::test(start_paused = true)]
 async fn a_command_waits_for_startup_instead_of_refusing() {
     let directory = tempfile::tempdir().unwrap();
     let state = Arc::new(AppState::new(deps(directory.path())));

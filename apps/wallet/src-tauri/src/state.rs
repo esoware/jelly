@@ -25,7 +25,7 @@ const TARGET: &str = "jelly::app::state";
 const READY_WAIT: Duration = Duration::from_secs(20);
 
 /// The ready state owns services, so readiness can't disagree with their availability.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) enum Phase {
     Starting,
     Ready(Arc<Services>),
@@ -131,10 +131,9 @@ impl AppState {
     pub(crate) async fn services(&self) -> Result<Arc<Services>, IpcError> {
         let mut phases = self.phases();
         let settle = async {
-            let settled = phases.wait_for(Phase::is_terminal).await.map(|phase| phase.clone());
-            match settled {
-                Ok(Phase::Ready(services)) => Ok(services),
-                Ok(Phase::Failed { error, .. }) => Err(error),
+            match phases.wait_for(Phase::is_terminal).await.as_deref() {
+                Ok(Phase::Ready(services)) => Ok(Arc::clone(services)),
+                Ok(Phase::Failed { error, .. }) => Err(error.clone()),
                 // Unreachable: `self` holds the sender, and only a terminal phase ends the wait.
                 Ok(Phase::Starting) | Err(_) => {
                     Err(IpcError::internal("Jelly did not finish starting."))

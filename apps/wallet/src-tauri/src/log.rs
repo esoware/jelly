@@ -1,11 +1,12 @@
 use std::backtrace::Backtrace;
 use std::fs;
 use std::io;
-use std::panic::{self, PanicHookInfo};
+use std::panic;
 use std::path::Path;
 use std::sync::OnceLock;
 use std::thread;
 
+use tracing::field;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::EnvFilter;
@@ -32,25 +33,16 @@ pub(crate) fn install_panic_hook() {
     let previous = panic::take_hook();
     panic::set_hook(Box::new(move |info| {
         let thread = thread::current();
-        let location = info.location().map_or_else(String::new, ToString::to_string);
         tracing::error!(
             target: "jelly::app",
             thread = thread.name().unwrap_or("unnamed"),
-            location = %location,
-            payload = %panic_payload(info),
+            location = info.location().map(field::display),
+            payload = info.payload_as_str().map(field::display),
             backtrace = %Backtrace::capture(),
             "a thread panicked"
         );
         previous(info);
     }));
-}
-
-fn panic_payload<'a>(info: &'a PanicHookInfo<'a>) -> &'a str {
-    let payload = info.payload();
-    if let Some(message) = payload.downcast_ref::<&str>() {
-        return message;
-    }
-    payload.downcast_ref::<String>().map_or("", String::as_str)
 }
 
 /// Installs the process-wide subscriber.
