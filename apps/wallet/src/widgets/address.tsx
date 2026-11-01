@@ -30,14 +30,14 @@ interface AddressListProps {
 }
 
 export function AddressList({ addresses, hasTooltip, className }: AddressListProps) {
-  const shown = addresses.slice(0, LISTED_ADDRESSES)
-  const hiddenCount = addresses.length - shown.length
+  const listedAddresses = addresses.slice(0, LISTED_ADDRESSES)
+  const hiddenCount = addresses.length - listedAddresses.length
   return (
     <span className={appendClassName("flex min-w-0 gap-1", className)}>
-      {shown.map((address, i) => (
+      {listedAddresses.map((address, i) => (
         <span key={address} className="flex min-w-0">
           <MiddleTruncate value={address} hasTooltip={hasTooltip} />
-          {i < shown.length - 1 ? <span className="shrink-0">,</span> : null}
+          {i < listedAddresses.length - 1 ? <span className="shrink-0">,</span> : null}
         </span>
       ))}
       {hiddenCount > 0 ? (

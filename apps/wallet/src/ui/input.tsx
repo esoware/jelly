@@ -62,7 +62,7 @@ export function InputButton({ onClick, children }: InputButtonProps) {
       variant="ghost"
       size="icon-xs"
       tabIndex={-1}
-      className="text-fg-faint hover:text-fg"
+      className="text-fg-faint"
       onMouseDown={(e) => {
         e.preventDefault()
       }}

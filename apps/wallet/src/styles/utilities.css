@@ -7,7 +7,7 @@
 
 @utility overlay-sm {
   @apply border border-edge bg-overlay shadow-sm;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--blur-sm));
 
   [data-backdrop="composed"] & {
     backdrop-filter: url(#glass-sm);
@@ -16,7 +16,7 @@
 
 @utility overlay-lg {
   @apply border border-edge bg-overlay shadow-lg;
-  backdrop-filter: blur(24px);
+  backdrop-filter: blur(var(--blur-lg));
 
   [data-backdrop="composed"] & {
     backdrop-filter: url(#glass-lg);

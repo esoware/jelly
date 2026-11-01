@@ -16,7 +16,7 @@ type CopyResult = "copied" | "failed"
 type CopyState = "idle" | CopyResult
 
 const TONE_CLASSES = {
-  idle: "text-fg-faint hover:text-fg",
+  idle: "text-fg-faint",
   copied: "text-ok hover:text-ok",
   failed: "text-danger hover:text-danger",
 } as const satisfies Record<CopyState, string>

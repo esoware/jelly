@@ -26,9 +26,9 @@ import type { Holdings } from "@/lib/portfolio.ts"
 import { PRICE_CHART_REFRESH_MS, moneyQueries } from "@/query/money.ts"
 import { settingQueries } from "@/query/setting.ts"
 import { useFiatCurrency } from "@/store.ts"
+import { accentStyle } from "@/ui/accent-style.ts"
 import { Button } from "@/ui/button.tsx"
 import { Icon } from "@/ui/icon.tsx"
-import { useAccentColor } from "@/ui/use-accent-color.ts"
 import { FiatAmount } from "@/widgets/amounts.tsx"
 import { AssetMenu } from "@/widgets/asset-menu.tsx"
 import { AssetLogo, ChainLogo, assetBrand } from "@/widgets/logos.tsx"
@@ -53,13 +53,12 @@ function BalancePanel({
   onSend,
   onReceive,
 }: BalancePanelProps) {
-  const accentRef = useAccentColor<HTMLElement>(assetBrand(asset).color)
   const assets = assetsForChain(holdings.chain)
   const position = positionOf(holdings, asset)
   const text = formatAmount(position.amount, position.decimals)
 
   return (
-    <HeroPanel ref={accentRef} className="transition-colors">
+    <HeroPanel style={accentStyle(assetBrand(asset).color)} className="transition-colors">
       <HeroPanelTop>
         <HeroLogo chain={holdings.chain}>
           <AssetLogo asset={asset} className="size-8" />

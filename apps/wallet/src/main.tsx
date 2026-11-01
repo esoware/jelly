@@ -1,4 +1,3 @@
-import { Toast } from "@base-ui/react/toast"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { RouterProvider } from "@tanstack/react-router"
 import { StrictMode } from "react"
@@ -14,7 +13,7 @@ import { makeRouter } from "@/router.tsx"
 import { startSession } from "@/session.ts"
 import { BootFailed } from "@/shell/shell.tsx"
 import { toastManager } from "@/store.ts"
-import { Toaster } from "@/ui/toaster.tsx"
+import { ToastProvider } from "@/ui/toast.tsx"
 import { TooltipProvider } from "@/ui/tooltip.tsx"
 
 function isEditable(target: EventTarget | null): boolean {
@@ -73,8 +72,6 @@ const queryClient = new QueryClient({
   },
 })
 
-const TOAST_LIMIT = 3
-
 interface ProvidersProps {
   children: ReactNode
 }
@@ -84,10 +81,7 @@ function Providers({ children }: ProvidersProps) {
     <StrictMode>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <Toast.Provider toastManager={toastManager} limit={TOAST_LIMIT}>
-            {children}
-            <Toaster />
-          </Toast.Provider>
+          <ToastProvider toastManager={toastManager}>{children}</ToastProvider>
         </TooltipProvider>
       </QueryClientProvider>
     </StrictMode>

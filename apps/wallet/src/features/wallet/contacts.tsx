@@ -12,6 +12,7 @@ import { addressQueries } from "@/query/address.ts"
 import { chainQueries } from "@/query/chain.ts"
 import { contactCommands, contactKeys, contactQueries } from "@/query/contact.ts"
 import { useIpcMutation } from "@/query/mutation.ts"
+import { accentStyle } from "@/ui/accent-style.ts"
 import { Button } from "@/ui/button.tsx"
 import { useDialogPayload } from "@/ui/dialog.tsx"
 import type { DialogStateProps } from "@/ui/dialog.tsx"
@@ -25,7 +26,6 @@ import { Panel, PanelBody, PanelHeader } from "@/ui/panel.tsx"
 import { Row, RowActions } from "@/ui/row.tsx"
 import { Select, SelectItem, SelectPopup, SelectTrigger } from "@/ui/select.tsx"
 import { TooltipText } from "@/ui/tooltip.tsx"
-import { useAccentColor } from "@/ui/use-accent-color.ts"
 import { CopyButton } from "@/widgets/copyable.tsx"
 import { FormDialog } from "@/widgets/dialogs.tsx"
 import { ListStatus } from "@/widgets/list-status.tsx"
@@ -42,7 +42,6 @@ interface ContactAvatarProps {
 }
 
 function ContactAvatar({ name, chain, size = "md" }: ContactAvatarProps) {
-  const accentRef = useAccentColor<HTMLSpanElement>(CHAIN_BRANDS[chain].color)
   const initials = name
     .trim()
     .split(/\s+/u)
@@ -53,7 +52,7 @@ function ContactAvatar({ name, chain, size = "md" }: ContactAvatarProps) {
 
   return (
     <span
-      ref={accentRef}
+      style={accentStyle(CHAIN_BRANDS[chain].color)}
       data-size={size}
       className="flex shrink-0 items-center justify-center rounded-full bg-accent-active text-caption font-semibold text-fg select-none data-[size=md]:size-8 data-[size=sm]:size-6"
     >

@@ -10,7 +10,7 @@ interface AssetMenuProps {
   assets: readonly AssetId[]
   asset: AssetId
   onAssetChange: (asset: AssetId) => void
-  onOpenChange?: (isOpen: boolean) => void
+  onOpenChange?: ((isOpen: boolean) => void) | undefined
   amountFor: (asset: AssetId) => Amount | bigint | null
   trigger: ReactElement
 }

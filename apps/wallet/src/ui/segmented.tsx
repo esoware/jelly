@@ -135,27 +135,12 @@ export function SegmentedTabs<T extends string>({
 }
 
 interface SegmentedListProps {
-  variant?: SegmentedVariant | undefined
   className?: string | undefined
   children: ReactNode
 }
 
-export function SegmentedList({ variant, className, children }: SegmentedListProps) {
-  return (
-    <Tabs.List
-      data-variant={variant}
-      className={({ orientation }) =>
-        variant === undefined
-          ? className
-          : appendClassName(
-              `segmented relative z-0 flex ${GROUP_CLASSES[variant]} ${orientation === "vertical" ? "flex-col" : ""}`,
-              className,
-            )
-      }
-    >
-      <VariantContext value={variant ?? "bar"}>{children}</VariantContext>
-    </Tabs.List>
-  )
+export function SegmentedList({ className, children }: SegmentedListProps) {
+  return <Tabs.List className={className}>{children}</Tabs.List>
 }
 
 interface SegmentedGroupProps {
@@ -237,11 +222,19 @@ export function Segmented<T extends string>({
       orientation={orientation}
       onValueChange={onValueChange}
     >
-      <SegmentedList variant={variant} className={className}>
-        {items.map((item) => (
-          <SegmentedTab key={item.value} item={item} />
-        ))}
-      </SegmentedList>
+      <Tabs.List
+        data-variant={variant}
+        className={appendClassName(
+          `segmented relative z-0 flex ${GROUP_CLASSES[variant]} ${orientation === "vertical" ? "flex-col" : ""}`,
+          className,
+        )}
+      >
+        <VariantContext value={variant}>
+          {items.map((item) => (
+            <SegmentedTab key={item.value} item={item} />
+          ))}
+        </VariantContext>
+      </Tabs.List>
     </SegmentedTabs>
   )
 }

@@ -1,7 +1,7 @@
 @reference "@/styles/index.css";
 
 @layer components {
-  .toaster-toast {
+  .toast-root {
     --stack-gap: --spacing(2);
     --stack-peek: --spacing(2);
     --stack-scale: max(0, 1 - var(--toast-index) * 0.05);

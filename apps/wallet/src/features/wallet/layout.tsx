@@ -14,6 +14,7 @@ import { moneyQueries } from "@/query/money.ts"
 import { useIpcMutation } from "@/query/mutation.ts"
 import { patchSettings, settingCommands, settingKeys } from "@/query/setting.ts"
 import { usePrices } from "@/store.ts"
+import { accentStyle } from "@/ui/accent-style.ts"
 import { Carousel } from "@/ui/carousel.tsx"
 import { Icon } from "@/ui/icon.tsx"
 import { Panel } from "@/ui/panel.tsx"
@@ -21,7 +22,6 @@ import { SegmentedGroup, SegmentedList, SegmentedTab, SegmentedTabs } from "@/ui
 import { Skeleton } from "@/ui/skeleton.tsx"
 import { StepTransition } from "@/ui/step-transition.tsx"
 import { TooltipText } from "@/ui/tooltip.tsx"
-import { useAccentColor } from "@/ui/use-accent-color.ts"
 import { CHAIN_BRANDS, ChainLogo } from "@/widgets/logos.tsx"
 
 const PORTFOLIO = "portfolio"
@@ -204,13 +204,10 @@ export function WalletLayout() {
   const contactsMatch = useMatch({ from: "/_unlocked/wallet/contacts", shouldThrow: false })
   const view: WalletView = chain ?? (contactsMatch === undefined ? PORTFOLIO : CONTACTS)
   const holdings = useHoldings()
-  const accentRef = useAccentColor<HTMLDivElement>(
-    chain === undefined ? null : CHAIN_BRANDS[chain].color,
-  )
 
   return (
     <div
-      ref={accentRef}
+      style={chain === undefined ? undefined : accentStyle(CHAIN_BRANDS[chain].color)}
       className="flex h-full flex-col gap-3 px-3 pt-1 pb-3 [transition:--color-accent_var(--transition-duration-base)_var(--ease-enter)]"
     >
       <WalletNav holdings={holdings} view={view} />
