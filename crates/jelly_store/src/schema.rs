@@ -4,9 +4,11 @@ use crate::error::StoreError;
 
 pub(crate) type Migration = fn(&Connection) -> rusqlite::Result<()>;
 
-/// `user_version` counts the steps a file has run, and a fresh file runs them all. A
-/// shipped step never changes: a schema change appends one, and `tests/golden` records the
-/// schema each version builds.
+/// `user_version` counts the steps a file has run, and a fresh file runs them all.
+///
+/// A shipped step never changes: a schema change appends one, and `tests/golden` records
+/// the schema each version builds. Steps run with foreign keys off, so a step that deletes
+/// a row has to delete its children too.
 pub(crate) const MIGRATIONS: &[Migration] = &[|connection| connection.execute_batch(V1)];
 
 const V1: &str = "
@@ -147,41 +149,50 @@ CREATE TABLE contacts (
 ) STRICT;
 ";
 
+/// The version the file records and the one `migrations` build, refusing a file from a
+/// newer build. `user_version` sits in the file header, so reading it parses no schema.
+pub(crate) fn versions(
+    connection: &Connection,
+    migrations: &[Migration],
+) -> Result<(u32, u32), StoreError> {
+    let stamp: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    let found = u32::try_from(stamp)
+        .map_err(|_| StoreError::Decode { entity: "pragma", column: "user_version" })?;
+    let supported = (1..).zip(migrations).last().map_or(0, |(version, _)| version);
+    if found > supported {
+        return Err(StoreError::SchemaTooNew { found, supported });
+    }
+    Ok((found, supported))
+}
+
 /// Runs the steps the file hasn't had in one transaction, so a failed upgrade leaves it as
-/// the last build wrote it. A file from a newer build is refused.
+/// the last build wrote it.
 pub(crate) fn migrate(
     connection: &mut Connection,
     migrations: &[Migration],
 ) -> Result<(), StoreError> {
     let failed = |error| StoreError::sqlite("migrating the schema", error);
-    // Changing a table means copying it and dropping the original, and with foreign keys on,
-    // the drop cascades into every table that refers to it. The pragma is a no-op inside a
-    // transaction.
+    // Never `Corrupt`, because the open would move aside a file the rollback leaves intact.
+    let rolled_back = |source| StoreError::Sqlite { context: "migrating the schema", source };
+    // Rebuilding a table drops the original, and with foreign keys on, the drop cascades into
+    // every table that refers to it. The pragma is a no-op inside a transaction.
     connection.pragma_update(None, "foreign_keys", false).map_err(failed)?;
     // Immediate, so another connection can't upgrade between this read and the commit.
     let transaction =
         connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(failed)?;
-    let stamp: i64 =
-        transaction.query_row("PRAGMA user_version", [], |row| row.get(0)).map_err(failed)?;
-    let found = u32::try_from(stamp)
-        .map_err(|_| StoreError::Decode { entity: "pragma", column: "user_version" })?;
-    let steps = (1..).zip(migrations);
-    let supported = steps.clone().last().map_or(0, |(version, _)| version);
-    if found > supported {
-        return Err(StoreError::SchemaTooNew { found, supported });
-    }
+    let (found, supported) = versions(&transaction, migrations)?;
     if found < supported {
         tracing::info!(target: "jelly::store", found, supported, "migrating the wallet database");
-        for (_, migration) in steps.filter(|&(version, _)| version > found) {
-            migration(&transaction).map_err(failed)?;
+        for (_, migration) in (1..).zip(migrations).filter(|&(version, _)| version > found) {
+            migration(&transaction).map_err(rolled_back)?;
         }
-        let mut check = transaction.prepare("PRAGMA foreign_key_check").map_err(failed)?;
-        if check.exists([]).map_err(failed)? {
+        let mut check = transaction.prepare("PRAGMA foreign_key_check").map_err(rolled_back)?;
+        if check.exists([]).map_err(rolled_back)? {
             return Err(StoreError::Internal { context: "a migration left a dangling reference" });
         }
-        transaction.pragma_update(None, "user_version", supported).map_err(failed)?;
+        transaction.pragma_update(None, "user_version", supported).map_err(rolled_back)?;
     }
-    transaction.commit().map_err(failed)?;
+    transaction.commit().map_err(rolled_back)?;
     connection.pragma_update(None, "foreign_keys", true).map_err(failed)
 }
 
@@ -190,7 +201,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use rusqlite::Connection;
+    use rusqlite::{Connection, ffi};
 
     use super::{MIGRATIONS, Migration, migrate};
     use crate::error::StoreError;
@@ -235,8 +246,11 @@ mod tests {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("tests/golden/v{version}.sql"))
     }
 
-    /// Records each version that has no file yet. A recorded one is never rewritten, since
-    /// the step behind it has shipped.
+    /// Records each version that has no file yet, and never rewrites one.
+    ///
+    /// ```text
+    /// cargo test -p jelly_store --lib regenerate_golden -- --ignored
+    /// ```
     #[test]
     #[ignore = "records the schema of a new version; run with --ignored after appending a step"]
     fn regenerate_golden() {
@@ -258,7 +272,8 @@ mod tests {
             assert_eq!(
                 schema(&MIGRATIONS[..version]),
                 recorded,
-                "v{version} changed after it shipped; append a step instead"
+                "v{version} no longer builds its recorded schema; a shipped step never changes, \
+                 so append one, or if v{version} hasn't shipped, delete its file and regenerate"
             );
         }
     }
@@ -284,7 +299,8 @@ mod tests {
         let steps: [Migration; 3] = [
             |connection| connection.execute_batch("CREATE TABLE first (id INTEGER) STRICT;"),
             |connection| connection.execute_batch("CREATE TABLE second (id INTEGER) STRICT;"),
-            |connection| connection.execute_batch("INSERT INTO missing VALUES (1);"),
+            // A damaged-file error, which mustn't make the open move the file aside.
+            |_| Err(rusqlite::Error::SqliteFailure(ffi::Error::new(ffi::SQLITE_CORRUPT), None)),
         ];
         let mut connection = connection();
         migrate(&mut connection, &steps[..1]).unwrap();
@@ -331,14 +347,11 @@ mod tests {
         assert_eq!(scalar(&connection, "SELECT count(*) FROM parent"), 1);
     }
 
+    /// The ids are handed out at v1 and checked at the latest version, so a step that rebuilds
+    /// one of these tables has to carry its `sqlite_sequence` row over.
     #[test]
     fn a_deleted_rows_id_is_never_handed_out_again() {
-        let mut connection = Connection::open_in_memory().unwrap();
-        migrate(&mut connection, MIGRATIONS).unwrap();
-        connection
-            .execute("INSERT INTO wallets (name, created_at, updated_at) VALUES ('kept', 0, 0)", [])
-            .unwrap();
-        for (table, values) in [
+        let inserts = [
             ("wallets", "(name, created_at, updated_at) VALUES ('next', 0, 0)"),
             (
                 "addresses",
@@ -348,11 +361,22 @@ mod tests {
                 "contacts",
                 "(wallet_id, chain, address, name, created_at) VALUES (1, 'bitcoin', 'next', 'next', 0)",
             ),
-        ] {
-            let insert = format!("INSERT INTO {table} {values} RETURNING id");
-            let first: i64 = connection.query_row(&insert, [], |row| row.get(0)).unwrap();
-            connection.execute(&format!("DELETE FROM {table} WHERE id = ?1"), [first]).unwrap();
-            let second: i64 = connection.query_row(&insert, [], |row| row.get(0)).unwrap();
+        ]
+        .map(|(table, values)| (table, format!("INSERT INTO {table} {values} RETURNING id")));
+        let mut connection = connection();
+        migrate(&mut connection, &MIGRATIONS[..1]).unwrap();
+        connection
+            .execute("INSERT INTO wallets (name, created_at, updated_at) VALUES ('kept', 0, 0)", [])
+            .unwrap();
+        let deleted = inserts.each_ref().map(|(table, insert)| {
+            let id: i64 = connection.query_row(insert, [], |row| row.get(0)).unwrap();
+            connection.execute(&format!("DELETE FROM {table} WHERE id = ?1"), [id]).unwrap();
+            id
+        });
+
+        migrate(&mut connection, MIGRATIONS).unwrap();
+        for ((table, insert), first) in inserts.iter().zip(deleted) {
+            let second: i64 = connection.query_row(insert, [], |row| row.get(0)).unwrap();
             assert!(second > first, "{table}");
         }
     }

@@ -11,8 +11,6 @@ use tempfile::TempDir;
 
 pub(crate) const DB_FILE: &str = "jelly.sqlite";
 
-pub(crate) const SCHEMA_VERSION: i64 = 1;
-
 pub(crate) type Fallible<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 /// A real temp-dir file, so every test exercises the shipped pragmas.

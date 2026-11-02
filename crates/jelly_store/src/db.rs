@@ -165,6 +165,9 @@ fn open_writer(path: &Path) -> Result<Connection, StoreError> {
         .map_err(|error| StoreError::sqlite("opening the database", error))?;
     connection.set_prepared_statement_cache_capacity(STATEMENT_CACHE_CAPACITY);
     connection.busy_timeout(BUSY_TIMEOUT)?;
+    // The pragmas below parse the schema, and a newer build's may not parse here, so its file
+    // is refused first rather than read as damaged.
+    schema::versions(&connection, schema::MIGRATIONS)?;
     connection.pragma_update(None, "journal_mode", "WAL")?;
     connection.pragma_update(None, "synchronous", "FULL")?;
     connection.pragma_update(None, "foreign_keys", true)?;
