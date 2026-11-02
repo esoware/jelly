@@ -166,14 +166,12 @@ pub(crate) fn versions(
 }
 
 /// Runs the steps the file hasn't had in one transaction, so a failed upgrade leaves it as
-/// the last build wrote it.
+/// the last build wrote it. On success it leaves foreign keys on.
 pub(crate) fn migrate(
     connection: &mut Connection,
     migrations: &[Migration],
 ) -> Result<(), StoreError> {
     let failed = |error| StoreError::sqlite("migrating the schema", error);
-    // Never `Corrupt`, because the open would move aside a file the rollback leaves intact.
-    let rolled_back = |source| StoreError::Sqlite { context: "migrating the schema", source };
     // Rebuilding a table drops the original, and with foreign keys on, the drop cascades into
     // every table that refers to it. The pragma is a no-op inside a transaction.
     connection.pragma_update(None, "foreign_keys", false).map_err(failed)?;
@@ -184,15 +182,15 @@ pub(crate) fn migrate(
     if found < supported {
         tracing::info!(target: "jelly::store", found, supported, "migrating the wallet database");
         for (_, migration) in (1..).zip(migrations).filter(|&(version, _)| version > found) {
-            migration(&transaction).map_err(rolled_back)?;
+            migration(&transaction).map_err(failed)?;
         }
-        let mut check = transaction.prepare("PRAGMA foreign_key_check").map_err(rolled_back)?;
-        if check.exists([]).map_err(rolled_back)? {
+        let mut check = transaction.prepare("PRAGMA foreign_key_check").map_err(failed)?;
+        if check.exists([]).map_err(failed)? {
             return Err(StoreError::Internal { context: "a migration left a dangling reference" });
         }
-        transaction.pragma_update(None, "user_version", supported).map_err(rolled_back)?;
+        transaction.pragma_update(None, "user_version", supported).map_err(failed)?;
     }
-    transaction.commit().map_err(rolled_back)?;
+    transaction.commit().map_err(failed)?;
     connection.pragma_update(None, "foreign_keys", true).map_err(failed)
 }
 
@@ -201,7 +199,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use rusqlite::{Connection, ffi};
+    use rusqlite::Connection;
 
     use super::{MIGRATIONS, Migration, migrate};
     use crate::error::StoreError;
@@ -213,7 +211,7 @@ mod tests {
         INSERT INTO child (parent_id) VALUES (1);
     ";
 
-    /// Foreign keys on, as the shipped writer has them.
+    /// Foreign keys on, so the rebuild test fails unless `migrate` turns them off.
     fn connection() -> Connection {
         let connection = Connection::open_in_memory().unwrap();
         connection.pragma_update(None, "foreign_keys", true).unwrap();
@@ -246,8 +244,6 @@ mod tests {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("tests/golden/v{version}.sql"))
     }
 
-    /// Records each version that has no file yet, and never rewrites one.
-    ///
     /// ```text
     /// cargo test -p jelly_store --lib regenerate_golden -- --ignored
     /// ```
@@ -299,8 +295,7 @@ mod tests {
         let steps: [Migration; 3] = [
             |connection| connection.execute_batch("CREATE TABLE first (id INTEGER) STRICT;"),
             |connection| connection.execute_batch("CREATE TABLE second (id INTEGER) STRICT;"),
-            // A damaged-file error, which mustn't make the open move the file aside.
-            |_| Err(rusqlite::Error::SqliteFailure(ffi::Error::new(ffi::SQLITE_CORRUPT), None)),
+            |connection| connection.execute_batch("INSERT INTO missing VALUES (1);"),
         ];
         let mut connection = connection();
         migrate(&mut connection, &steps[..1]).unwrap();

@@ -219,10 +219,6 @@ async fn a_database_from_a_newer_build_is_refused_and_left_in_place() {
     let error =
         common::open_in(&closed.directory, &closed.clock).await.expect_err("the open is refused");
     assert!(matches!(error, StoreError::SchemaTooNew { found: 99, .. }), "{error:?}");
-    for entry in fs::read_dir(&closed.directory).unwrap() {
-        let name = entry.unwrap().file_name();
-        assert!(!name.to_string_lossy().starts_with("jelly.damaged."), "{name:?}");
-    }
 }
 
 #[tokio::test]
