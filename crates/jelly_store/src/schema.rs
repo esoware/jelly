@@ -1,11 +1,17 @@
-use rusqlite::Connection;
+use rusqlite::{Connection, TransactionBehavior};
 
 use crate::error::StoreError;
 
-/// Stored in `user_version`. Zero means an empty file, and any other value is refused.
-const SCHEMA_VERSION: u32 = 1;
+pub(crate) type Migration = fn(&Connection) -> rusqlite::Result<()>;
 
-const SCHEMA: &str = "
+/// `user_version` counts the steps a file has run, and a fresh file runs them all.
+///
+/// A shipped step never changes: a schema change appends one, and `tests/golden` records
+/// the schema each version builds. Steps run with foreign keys off, so a step that deletes
+/// a row has to delete its children too.
+pub(crate) const MIGRATIONS: &[Migration] = &[|connection| connection.execute_batch(V1)];
+
+const V1: &str = "
 CREATE TABLE wallets (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   name       TEXT    NOT NULL,
@@ -143,40 +149,207 @@ CREATE TABLE contacts (
 ) STRICT;
 ";
 
-pub(crate) fn create_or_check(connection: &mut Connection) -> Result<(), StoreError> {
+/// The version the file records and the one `migrations` build, refusing a file from a
+/// newer build. `user_version` sits in the file header, so reading it parses no schema.
+pub(crate) fn versions(
+    connection: &Connection,
+    migrations: &[Migration],
+) -> Result<(u32, u32), StoreError> {
     let stamp: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    let version = u32::try_from(stamp)
+    let found = u32::try_from(stamp)
         .map_err(|_| StoreError::Decode { entity: "pragma", column: "user_version" })?;
-    match version {
-        0 => create(connection),
-        SCHEMA_VERSION => Ok(()),
-        found => Err(StoreError::SchemaTooNew { found, supported: SCHEMA_VERSION }),
+    let supported = (1..).zip(migrations).last().map_or(0, |(version, _)| version);
+    if found > supported {
+        return Err(StoreError::SchemaTooNew { found, supported });
     }
+    Ok((found, supported))
 }
 
-/// The tables and the stamp commit together, so a file is either empty or complete.
-fn create(connection: &mut Connection) -> Result<(), StoreError> {
-    let failed = |error| StoreError::sqlite("creating the schema", error);
-    let transaction = connection.transaction().map_err(failed)?;
-    transaction.execute_batch(SCHEMA).map_err(failed)?;
-    transaction.pragma_update(None, "user_version", i64::from(SCHEMA_VERSION)).map_err(failed)?;
-    transaction.commit().map_err(failed)
+/// Runs the steps the file hasn't had in one transaction, so a failed upgrade leaves it as
+/// the last build wrote it. On success it leaves foreign keys on.
+pub(crate) fn migrate(
+    connection: &mut Connection,
+    migrations: &[Migration],
+) -> Result<(), StoreError> {
+    let failed = |error| StoreError::sqlite("migrating the schema", error);
+    // Rebuilding a table drops the original, and with foreign keys on, the drop cascades into
+    // every table that refers to it. The pragma is a no-op inside a transaction.
+    connection.pragma_update(None, "foreign_keys", false).map_err(failed)?;
+    // Immediate, so another connection can't upgrade between this read and the commit.
+    let transaction =
+        connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(failed)?;
+    let (found, supported) = versions(&transaction, migrations)?;
+    if found < supported {
+        tracing::info!(target: "jelly::store", found, supported, "migrating the wallet database");
+        for (_, migration) in (1..).zip(migrations).filter(|&(version, _)| version > found) {
+            migration(&transaction).map_err(failed)?;
+        }
+        let mut check = transaction.prepare("PRAGMA foreign_key_check").map_err(failed)?;
+        if check.exists([]).map_err(failed)? {
+            return Err(StoreError::Internal { context: "a migration left a dangling reference" });
+        }
+        transaction.pragma_update(None, "user_version", supported).map_err(failed)?;
+    }
+    transaction.commit().map_err(failed)?;
+    connection.pragma_update(None, "foreign_keys", true).map_err(failed)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+
     use rusqlite::Connection;
 
-    use super::create_or_check;
+    use super::{MIGRATIONS, Migration, migrate};
+    use crate::error::StoreError;
+
+    const PARENT_AND_CHILD: &str = "
+        CREATE TABLE parent (id INTEGER PRIMARY KEY) STRICT;
+        CREATE TABLE child (parent_id INTEGER NOT NULL REFERENCES parent(id) ON DELETE CASCADE) STRICT;
+        INSERT INTO parent (id) VALUES (1);
+        INSERT INTO child (parent_id) VALUES (1);
+    ";
+
+    /// Foreign keys on, so the rebuild test fails unless `migrate` turns them off.
+    fn connection() -> Connection {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.pragma_update(None, "foreign_keys", true).unwrap();
+        connection
+    }
+
+    fn scalar(connection: &Connection, sql: &str) -> i64 {
+        connection.query_row(sql, [], |row| row.get(0)).unwrap()
+    }
+
+    /// Each table followed by its indexes, as the steps wrote them.
+    fn schema(steps: &[Migration]) -> String {
+        let mut connection = connection();
+        migrate(&mut connection, steps).unwrap();
+        let mut statement = connection
+            .prepare(
+                "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT GLOB 'sqlite_*' \
+                 ORDER BY tbl_name, type DESC, name",
+            )
+            .unwrap();
+        let statements: Vec<String> = statement
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .map(|sql| format!("{};\n", sql.unwrap()))
+            .collect();
+        statements.join("\n")
+    }
+
+    fn golden(version: usize) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("tests/golden/v{version}.sql"))
+    }
+
+    /// ```text
+    /// cargo test -p jelly_store --lib regenerate_golden -- --ignored
+    /// ```
+    #[test]
+    #[ignore = "records the schema of a new version; run with --ignored after appending a step"]
+    fn regenerate_golden() {
+        for version in 1..=MIGRATIONS.len() {
+            let path = golden(version);
+            if !path.exists() {
+                fs::write(&path, schema(&MIGRATIONS[..version])).unwrap();
+            }
+        }
+    }
 
     #[test]
+    fn every_version_still_builds_the_schema_it_shipped() {
+        for version in 1..=MIGRATIONS.len() {
+            let path = golden(version);
+            let recorded = fs::read_to_string(&path).unwrap_or_else(|error| {
+                panic!("read {}: {error}; record it with regenerate_golden", path.display())
+            });
+            assert_eq!(
+                schema(&MIGRATIONS[..version]),
+                recorded,
+                "v{version} no longer builds its recorded schema; a shipped step never changes, \
+                 so append one, or if v{version} hasn't shipped, delete its file and regenerate"
+            );
+        }
+        let next = MIGRATIONS.len().saturating_add(1);
+        assert!(!golden(next).exists(), "v{next} has a recorded schema but no step");
+    }
+
+    #[test]
+    fn a_file_runs_only_the_steps_it_has_not_had() {
+        let steps: [Migration; 2] = [
+            |connection| connection.execute_batch("CREATE TABLE first (id INTEGER) STRICT;"),
+            |connection| connection.execute_batch("CREATE TABLE second (id INTEGER) STRICT;"),
+        ];
+        let mut connection = connection();
+        migrate(&mut connection, &steps[..1]).unwrap();
+        assert_eq!(scalar(&connection, "PRAGMA user_version"), 1);
+
+        // Running the first step again would fail, because its table exists.
+        migrate(&mut connection, &steps).unwrap();
+        migrate(&mut connection, &steps).unwrap();
+        assert_eq!(scalar(&connection, "PRAGMA user_version"), 2);
+        assert_eq!(scalar(&connection, "PRAGMA foreign_keys"), 1);
+    }
+
+    #[test]
+    fn a_failed_step_leaves_the_file_as_it_was() {
+        let steps: [Migration; 3] = [
+            |connection| connection.execute_batch("CREATE TABLE first (id INTEGER) STRICT;"),
+            |connection| connection.execute_batch("CREATE TABLE second (id INTEGER) STRICT;"),
+            |connection| connection.execute_batch("INSERT INTO missing VALUES (1);"),
+        ];
+        let mut connection = connection();
+        migrate(&mut connection, &steps[..1]).unwrap();
+
+        let error = migrate(&mut connection, &steps).expect_err("the last step fails");
+        assert!(matches!(error, StoreError::Sqlite { .. }), "{error:?}");
+        assert_eq!(scalar(&connection, "PRAGMA user_version"), 1);
+        let second = "SELECT count(*) FROM sqlite_master WHERE name = 'second'";
+        assert_eq!(scalar(&connection, second), 0);
+    }
+
+    #[test]
+    fn rebuilding_a_table_keeps_the_rows_that_refer_to_it() {
+        let steps: [Migration; 2] = [
+            |connection| connection.execute_batch(PARENT_AND_CHILD),
+            |connection| {
+                connection.execute_batch(
+                    "CREATE TABLE rebuilt (id INTEGER PRIMARY KEY, name TEXT) STRICT;
+                     INSERT INTO rebuilt (id) SELECT id FROM parent;
+                     DROP TABLE parent;
+                     ALTER TABLE rebuilt RENAME TO parent;",
+                )
+            },
+        ];
+        let mut connection = connection();
+        migrate(&mut connection, &steps).unwrap();
+
+        assert_eq!(scalar(&connection, "SELECT count(*) FROM child"), 1);
+        assert_eq!(scalar(&connection, "PRAGMA foreign_keys"), 1);
+    }
+
+    #[test]
+    fn a_step_that_leaves_a_dangling_reference_is_refused() {
+        let steps: [Migration; 2] = [
+            |connection| connection.execute_batch(PARENT_AND_CHILD),
+            |connection| connection.execute_batch("DELETE FROM parent;"),
+        ];
+        let mut connection = connection();
+        migrate(&mut connection, &steps[..1]).unwrap();
+
+        let error = migrate(&mut connection, &steps).expect_err("the child is left dangling");
+        assert!(matches!(error, StoreError::Internal { .. }), "{error:?}");
+        assert_eq!(scalar(&connection, "PRAGMA user_version"), 1);
+        assert_eq!(scalar(&connection, "SELECT count(*) FROM parent"), 1);
+    }
+
+    /// The ids are handed out at v1 and checked at the latest version, so a step that rebuilds
+    /// one of these tables has to carry its `sqlite_sequence` row over.
+    #[test]
     fn a_deleted_rows_id_is_never_handed_out_again() {
-        let mut connection = Connection::open_in_memory().unwrap();
-        create_or_check(&mut connection).unwrap();
-        connection
-            .execute("INSERT INTO wallets (name, created_at, updated_at) VALUES ('kept', 0, 0)", [])
-            .unwrap();
-        for (table, values) in [
+        let inserts = [
             ("wallets", "(name, created_at, updated_at) VALUES ('next', 0, 0)"),
             (
                 "addresses",
@@ -186,11 +359,22 @@ mod tests {
                 "contacts",
                 "(wallet_id, chain, address, name, created_at) VALUES (1, 'bitcoin', 'next', 'next', 0)",
             ),
-        ] {
-            let insert = format!("INSERT INTO {table} {values} RETURNING id");
-            let first: i64 = connection.query_row(&insert, [], |row| row.get(0)).unwrap();
-            connection.execute(&format!("DELETE FROM {table} WHERE id = ?1"), [first]).unwrap();
-            let second: i64 = connection.query_row(&insert, [], |row| row.get(0)).unwrap();
+        ]
+        .map(|(table, values)| (table, format!("INSERT INTO {table} {values} RETURNING id")));
+        let mut connection = connection();
+        migrate(&mut connection, &MIGRATIONS[..1]).unwrap();
+        connection
+            .execute("INSERT INTO wallets (name, created_at, updated_at) VALUES ('kept', 0, 0)", [])
+            .unwrap();
+        let deleted = inserts.each_ref().map(|(table, insert)| {
+            let id: i64 = connection.query_row(insert, [], |row| row.get(0)).unwrap();
+            connection.execute(&format!("DELETE FROM {table} WHERE id = ?1"), [id]).unwrap();
+            id
+        });
+
+        migrate(&mut connection, MIGRATIONS).unwrap();
+        for ((table, insert), first) in inserts.iter().zip(deleted) {
+            let second: i64 = connection.query_row(insert, [], |row| row.get(0)).unwrap();
             assert!(second > first, "{table}");
         }
     }

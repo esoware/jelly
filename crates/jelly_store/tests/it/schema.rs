@@ -35,7 +35,7 @@ async fn a_fresh_file_is_stamped_and_journalled() {
     let connection = Connection::open(common::db_path(&closed.directory)).unwrap();
 
     let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
-    assert_eq!(version, common::SCHEMA_VERSION);
+    assert!(version > 0, "{version}");
 
     let mode: String = connection.query_row("PRAGMA journal_mode", [], |row| row.get(0)).unwrap();
     assert_eq!(mode.to_ascii_lowercase(), "wal");
@@ -197,25 +197,28 @@ async fn the_shipped_schema_enforces_its_checks() {
     );
 }
 
+/// The newer schema uses syntax this build's `SQLite` can't parse, which reads as a damaged
+/// file to anything that parses it.
 #[tokio::test]
-async fn a_database_from_a_newer_build_is_refused_rather_than_downgraded() {
+async fn a_database_from_a_newer_build_is_refused_and_left_in_place() {
     let harness = common::harness().await.unwrap();
     let closed = harness.close().await.unwrap();
     {
         let connection = Connection::open(common::db_path(&closed.directory)).unwrap();
         connection.pragma_update(None, "user_version", 99i64).unwrap();
+        connection.pragma_update(None, "writable_schema", true).unwrap();
+        connection
+            .execute(
+                "UPDATE sqlite_master SET sql = 'CREATE TABLE contacts (id) FROM THE FUTURE' \
+                 WHERE name = 'contacts'",
+                [],
+            )
+            .unwrap();
     }
 
     let error =
         common::open_in(&closed.directory, &closed.clock).await.expect_err("the open is refused");
-    assert!(
-        matches!(
-            error,
-            StoreError::SchemaTooNew { found: 99, supported }
-                if i64::from(supported) == common::SCHEMA_VERSION
-        ),
-        "{error:?}"
-    );
+    assert!(matches!(error, StoreError::SchemaTooNew { found: 99, .. }), "{error:?}");
 }
 
 #[tokio::test]

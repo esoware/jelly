@@ -94,7 +94,8 @@ pub(crate) fn close(writer: &Connection, readers: &ReadPool) -> Result<(), Store
     Ok(())
 }
 
-/// Opens or creates `jelly.sqlite` in `directory`, moving an unusable file aside first.
+/// Opens, creates, or upgrades `jelly.sqlite` in `directory`, moving an unusable file
+/// aside first.
 pub(crate) fn open(
     directory: &Path,
     clock: &dyn Clock,
@@ -105,11 +106,13 @@ pub(crate) fn open(
     // Read now so a broken clock fails the open, not the first write.
     let now_unix_secs = clock.now_secs()?;
 
-    let (writer, recovered) = match open_checked(&path) {
+    let (mut writer, recovered) = match open_checked(&path) {
         Ok(connection) => (connection, Recovered::No),
         Err(StoreError::Corrupt) => rebuild(&path, now_unix_secs)?,
         Err(other) => return Err(other),
     };
+    // After the match, so a failed step is reported rather than taken for a damaged file.
+    schema::migrate(&mut writer, schema::MIGRATIONS)?;
     let mut idle = Vec::with_capacity(IDLE_READERS);
     for _ in 0..IDLE_READERS {
         idle.push(open_reader(&path)?);
@@ -120,12 +123,11 @@ pub(crate) fn open(
 /// A file that fails `quick_check` is `Corrupt`, just like one `SQLite` can't read. Every
 /// error path drops the connection, so the caller can move the file aside.
 fn open_checked(path: &Path) -> Result<Connection, StoreError> {
-    let mut connection = open_writer(path)?;
+    let connection = open_writer(path)?;
     let check: String = connection.query_row("PRAGMA quick_check(1)", [], |row| row.get(0))?;
     if !check.eq_ignore_ascii_case("ok") {
         return Err(StoreError::Corrupt);
     }
-    schema::create_or_check(&mut connection)?;
     Ok(connection)
 }
 
@@ -164,9 +166,11 @@ fn open_writer(path: &Path) -> Result<Connection, StoreError> {
         .map_err(|error| StoreError::sqlite("opening the database", error))?;
     connection.set_prepared_statement_cache_capacity(STATEMENT_CACHE_CAPACITY);
     connection.busy_timeout(BUSY_TIMEOUT)?;
+    // The pragmas below parse the schema, and a newer build's may not parse here, so its file
+    // is refused first rather than read as damaged.
+    schema::versions(&connection, schema::MIGRATIONS)?;
     connection.pragma_update(None, "journal_mode", "WAL")?;
     connection.pragma_update(None, "synchronous", "FULL")?;
-    connection.pragma_update(None, "foreign_keys", true)?;
     connection.pragma_update(None, "journal_size_limit", JOURNAL_SIZE_LIMIT_BYTES)?;
     Ok(connection)
 }
