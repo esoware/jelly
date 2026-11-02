@@ -272,6 +272,8 @@ mod tests {
                  so append one, or if v{version} hasn't shipped, delete its file and regenerate"
             );
         }
+        let next = MIGRATIONS.len().saturating_add(1);
+        assert!(!golden(next).exists(), "v{next} has a recorded schema but no step");
     }
 
     #[test]
@@ -288,6 +290,7 @@ mod tests {
         migrate(&mut connection, &steps).unwrap();
         migrate(&mut connection, &steps).unwrap();
         assert_eq!(scalar(&connection, "PRAGMA user_version"), 2);
+        assert_eq!(scalar(&connection, "PRAGMA foreign_keys"), 1);
     }
 
     #[test]
