@@ -148,7 +148,7 @@ forward! { transact =>
 }
 
 impl Store {
-    /// Opens `jelly.sqlite` in `directory`, or creates it with the current schema.
+    /// Opens `jelly.sqlite` in `directory`, creating it or upgrading its schema as needed.
     ///
     /// A damaged file is moved aside for a fresh one, and [`Recovered`] reports it. A file
     /// from a newer build is refused.

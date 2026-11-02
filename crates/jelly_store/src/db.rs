@@ -94,7 +94,8 @@ pub(crate) fn close(writer: &Connection, readers: &ReadPool) -> Result<(), Store
     Ok(())
 }
 
-/// Opens or creates `jelly.sqlite` in `directory`, moving an unusable file aside first.
+/// Opens, creates, or upgrades `jelly.sqlite` in `directory`, moving an unusable file
+/// aside first.
 pub(crate) fn open(
     directory: &Path,
     clock: &dyn Clock,
@@ -125,7 +126,7 @@ fn open_checked(path: &Path) -> Result<Connection, StoreError> {
     if !check.eq_ignore_ascii_case("ok") {
         return Err(StoreError::Corrupt);
     }
-    schema::create_or_check(&mut connection)?;
+    schema::migrate(&mut connection, schema::MIGRATIONS)?;
     Ok(connection)
 }
 
